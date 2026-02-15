@@ -1,0 +1,27 @@
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { twoFactor } from "better-auth/plugins";
+
+import { db } from "@/lib/db";
+
+export const auth = betterAuth({
+    basePath: process.env.BETTER_AUTH_URL as string,
+    appName: "oasis-next",
+    database: drizzleAdapter(db, {
+        provider: "pg",
+    }),
+    emailAndPassword: {
+        enabled: true,
+        autoSignIn: false,
+    },
+    plugins: [nextCookies(), twoFactor()],
+
+    // Additional properties configuration
+    user: {
+        additionalFields: {
+            officeId: { type: "string", required: true },
+            officePositionId: { type: "string", required: true },
+        },
+    },
+});

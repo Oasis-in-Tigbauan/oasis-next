@@ -1,0 +1,1 @@
+ALTER TABLE "office" ADD COLUMN "prohibited_assignment" boolean DEFAULT false NOT NULL;
