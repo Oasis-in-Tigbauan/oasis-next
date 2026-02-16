@@ -30,10 +30,22 @@ export const APPROVALS_INVITATION_WRITE: Permissions = "approvals.invitation.wri
  */
 export const APPROVALS_INVITATION_READ: Permissions = "approvals.invitation.read";
 
+/**
+ * People with this role can read ESRE contents.
+ */
+export const ESRE_READ: Permissions = "esre.read";
+
+/**
+ * People with this role can perform write operations to ESRE contents.
+ */
+export const ESRE_WRITE: Permissions = "esre.write";
+
 export type Permissions =
     | "approvals.head.write"
     | "approvals.head.read"
     | "approvals.account.write"
     | "approvals.account.read"
     | "approvals.invitation.write"
-    | "approvals.invitation.read";
+    | "approvals.invitation.read"
+    | "esre.read"
+    | "esre.write";
