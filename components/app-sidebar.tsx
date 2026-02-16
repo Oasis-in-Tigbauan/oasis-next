@@ -3,6 +3,8 @@ import { FileSpreadsheet } from "lucide-react";
 import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
+import { getUserPermissions } from "@/lib/accounts";
+import * as permissions from "@/lib/db/permissions";
 
 import { NavUser } from "@/components/nav-user";
 import {
@@ -20,6 +22,9 @@ export default async function AppSidebar({ ...props }: ComponentProps<typeof Sid
     const session = await auth.api.getSession({
         headers: await headers(),
     });
+
+    const permissionList = await getUserPermissions(session?.user?.id ?? "");
+    const permissionMap = new Set(permissionList);
 
     return (
         <Sidebar collapsible="icon" {...props}>
@@ -48,30 +53,16 @@ export default async function AppSidebar({ ...props }: ComponentProps<typeof Sid
                     <SidebarGroupLabel>Worksheets</SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <FileSpreadsheet />
-                                    <a href="/dashboard/esre">ESRE</a>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <FileSpreadsheet />
-                                    <a href="/dashboard/obr">OBR</a>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <FileSpreadsheet />
-                                    <a href="/dashboard/lbac">LBAC</a>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <FileSpreadsheet />
-                                    <a href="/dashboard/saaob">SAAOB</a>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
+                            {
+                                permissionMap.has(permissions.ESRE_READ) && (
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton>
+                                            <FileSpreadsheet />
+                                            <a href="/dashboard/esre">ESRE</a>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                )
+                            }
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>
