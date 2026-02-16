@@ -16,11 +16,10 @@ export async function enroll(payload: EnrollmentRequirements) {
         const [invitation] = await db
             .select({
                 id: invitations.id,
-                token: invitations.token,
+                email: invitations.email,
                 validUntil: invitations.validUntil,
                 consumed: invitations.consumed,
                 officeId: office.id,
-                officeName: office.name,
             })
             .from(invitations)
             .where(eq(invitations.token, payload.token))
@@ -28,6 +27,11 @@ export async function enroll(payload: EnrollmentRequirements) {
             .leftJoin(office, eq(office.id, invitations.officeId));
         if (!invitation) {
             return new Failure(failureCodes.Invalid, "Invalid token.");
+        }
+
+        // Compare if the email is the same as the invitation email
+        if (invitation.email !== payload.email) {
+            return new Failure(failureCodes.Invalid, "Email does not match the invitation email.");
         }
 
         const now = DateTime.utc().toJSDate();

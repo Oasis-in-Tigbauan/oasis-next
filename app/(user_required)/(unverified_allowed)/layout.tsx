@@ -1,29 +1,21 @@
-"use client";
-
-import { Balloon } from "lucide-react";
+import { headers } from "next/headers";
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
-export default function SignupPage() {
-    // Main render.
-    return (
-        <SignupContainer>
-            <div className="flex flex-col gap-6">
-                <div>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Balloon className="size-16" />
-                        <h1 className="text-2xl font-bold">Approval in Progress...</h1>
-                        <p className="text-muted-foreground text-sm text-balance">
-                            Please wait until your account is approved by administrator.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </SignupContainer>
-    );
-}
+import { auth } from "@/lib/auth";
 
-function SignupContainer({ children }: { children: ReactNode }) {
+export default async function UnverifiedLayout({ children }: { children: ReactNode}) {
+    const session = await auth.api.getSession({
+        headers:  await headers(),
+    });
+
+    // No account found.
+    if (!session) return redirect("/auth/signin");
+
+    // Account is already verified. Redirect to dashboard.
+    if (session.user.emailVerified) redirect("/dashboard");
+
     return (
         <div className="grid min-h-svh lg:grid-cols-[60%_auto]">
             <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -45,12 +37,12 @@ function SignupContainer({ children }: { children: ReactNode }) {
             </div>
             <div className="bg-muted relative hidden lg:block">
                 <Image
-                    loading="eager"
                     src="/assets/company-banner.svg"
                     alt="Image"
-                    className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+                    loading="eager"
                     width={672}
                     height={878}
+                    className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
                 />
             </div>
         </div>
