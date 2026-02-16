@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { type SyntheticEvent, useMemo, useState } from "react";
+import { type SyntheticEvent, type ReactNode, useMemo, useState } from "react";
 import { redirect, RedirectType, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 
@@ -48,54 +48,60 @@ export default function SignupPage() {
     // No token
     if (!eligibilityToken) {
         return (
-            <div className="flex flex-col gap-6">
-                <div>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <X className="size-16" />
-                        <h1 className="text-2xl font-bold">Oops!</h1>
-                        <p className="text-muted-foreground text-sm text-balance">
-                            Invalid Token! You need an token for you to enroll.
-                        </p>
+            <Template>
+                <div className="flex flex-col gap-6">
+                    <div>
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <X className="size-16" />
+                            <h1 className="text-2xl font-bold">Oops!</h1>
+                            <p className="text-muted-foreground text-sm text-balance">
+                                Invalid Token! You need an token for you to enroll.
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </Template>
         );
     }
 
     // Failed or errored.
     if (error || data?.error) {
         return (
-            <div className="flex flex-col gap-6">
-                <div>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <X className="size-16" />
-                        <h1 className="text-2xl font-bold">Oops!</h1>
-                        <p className="text-muted-foreground text-sm text-balance">
-                            {
-                                (data?.error?.errors || [{ message: "Something went wrong!" }]).map((x, i) => (
-                                    <span key={i}>{(x as { message: string }).message}</span>
-                                ))
-                            }
-                        </p>
+            <Template>
+                <div className="flex flex-col gap-6">
+                    <div>
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <X className="size-16" />
+                            <h1 className="text-2xl font-bold">Oops!</h1>
+                            <p className="text-muted-foreground text-sm text-balance">
+                                {
+                                    (data?.error?.errors || [{ message: "Something went wrong!" }]).map((x, i) => (
+                                        <span key={i}>{(x as { message: string }).message}</span>
+                                    ))
+                                }
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </Template>
         );
     }
 
     // Loading...
     if (isLoading) {
         return (
-            <div className="flex flex-col gap-6">
-                <div>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Spinner className="size-16" />
-                        <p className="text-muted-foreground text-sm text-balance">
-                            Please wait while we check your invitation...
-                        </p>
+            <Template>
+                <div className="flex flex-col gap-6">
+                    <div>
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <Spinner className="size-16" />
+                            <p className="text-muted-foreground text-sm text-balance">
+                                Please wait while we check your invitation...
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </Template>
         );
     }
 
@@ -127,6 +133,125 @@ export default function SignupPage() {
 
     // Main render.
     return (
+        <Template>
+            <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+                <FieldGroup>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                        <h1 className="text-2xl font-bold">Enroll Your Account</h1>
+                        <p className="text-muted-foreground text-sm text-balance">
+                            Fill in the form below to enroll
+                        </p>
+                    </div>
+                    <Field>
+                        <FieldLabel htmlFor="officeName">Office you are assigned</FieldLabel>
+                        <Input
+                            id="officeName"
+                            type="text"
+                            value={data?.data?.data?.officeName}
+                            readOnly={true}
+                            className="text-muted-foreground/95"
+                        />
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="positionId">Position to fill</FieldLabel>
+                        <Select
+                            value={enrollmentFields.positionId}
+                            onValueChange={v => setEnrollmentFields(l => ({ ...l, positionId: v }))}
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a Position to fill" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {
+                                    (data?.data?.data?.assignablePositions || []).map((pos, i) => (
+                                        <SelectItem key={i} value={pos.id}>{pos.name}</SelectItem>
+                                    ))
+                                }
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="name">Full Name</FieldLabel>
+                        <Input
+                            id="name"
+                            type="text"
+                            placeholder="John Doe"
+                            value={enrollmentFields.fullName}
+                            onInput={e => handleInput(e, "fullName")}
+                            required
+                        />
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="email">Email</FieldLabel>
+                        <Input
+                            id="email"
+                            type="email"
+                            placeholder="m@example.com"
+                            value={enrollmentFields.email}
+                            onInput={e => handleInput(e, "email")}
+                            required
+                        />
+                        <FieldDescription>
+                            Please use the same email address you used to receive the invitation.
+                        </FieldDescription>
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="password">Password</FieldLabel>
+                        <Input
+                            id="password"
+                            type="password"
+                            value={enrollmentFields.password}
+                            onFocus={() => setOnFocus(true)}
+                            onBlur={() => setOnFocus(false)}
+                            onInput={e => handleInput(e, "password")}
+                            required
+                        />
+                        {
+                            onFocus && (
+                                <ul className="grid grid-cols-1 gap-2">
+                                    {requirements.map((req, index) => {
+                                        const isMet = req.regex.test(enrollmentFields.password);
+                                        return (
+                                            <li key={index} className="flex items-center gap-2 text-sm transition-colors">
+                                                {isMet ? (
+                                                    <Check className="w-4 h-4 text-green-500" />
+                                                ) : (
+                                                    <X className="w-4 h-4 text-muted-foreground/50" />
+                                                )}
+                                                <span className={isMet ? "text-foreground" : "text-muted-foreground"}>
+                                                    {req.label}
+                                                </span>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )
+                        }
+                    </Field>
+                    <Field>
+                        <FieldLabel htmlFor="confirm-password">Confirm Password</FieldLabel>
+                        <Input
+                            id="confirm-password"
+                            type="password"
+                            value={enrollmentFields.confirmPassword}
+                            onInput={e => handleInput(e, "confirmPassword")}
+                            required
+                        />
+                        <FieldDescription>Please confirm your password.</FieldDescription>
+                    </Field>
+                    <Field>
+                        <Button type="submit">
+                            Create Account
+                        </Button>
+                    </Field>
+                </FieldGroup>
+            </form>
+        </Template>
+    );
+}
+
+export function Template({ children }: { children: ReactNode }) {
+    return (
         <div className="grid min-h-svh lg:grid-cols-[60%_auto]">
             <div className="flex flex-col gap-4 p-6 md:p-10">
                 <div className="flex justify-center gap-2 md:justify-start">
@@ -141,118 +266,7 @@ export default function SignupPage() {
                 </div>
                 <div className="flex flex-1 items-center justify-center">
                     <div className="w-full max-w-xs">
-                        <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-                            <FieldGroup>
-                                <div className="flex flex-col items-center gap-1 text-center">
-                                    <h1 className="text-2xl font-bold">Enroll Your Account</h1>
-                                    <p className="text-muted-foreground text-sm text-balance">
-                                        Fill in the form below to enroll
-                                    </p>
-                                </div>
-                                <Field>
-                                    <FieldLabel htmlFor="officeName">Office you are assigned</FieldLabel>
-                                    <Input
-                                        id="officeName"
-                                        type="text"
-                                        value={data?.data?.data?.officeName}
-                                        readOnly={true}
-                                        className="text-muted-foreground/95"
-                                    />
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="positionId">Position to fill</FieldLabel>
-                                    <Select
-                                        value={enrollmentFields.positionId}
-                                        onValueChange={v => setEnrollmentFields(l => ({ ...l, positionId: v }))}
-                                    >
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Select a Position to fill" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {
-                                                (data?.data?.data?.assignablePositions || []).map((pos, i) => (
-                                                    <SelectItem key={i} value={pos.id}>{pos.name}</SelectItem>
-                                                ))
-                                            }
-                                        </SelectContent>
-                                    </Select>
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="name">Full Name</FieldLabel>
-                                    <Input
-                                        id="name"
-                                        type="text"
-                                        placeholder="John Doe"
-                                        value={enrollmentFields.fullName}
-                                        onInput={e => handleInput(e, "fullName")}
-                                        required
-                                    />
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="email">Email</FieldLabel>
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        placeholder="m@example.com"
-                                        value={enrollmentFields.email}
-                                        onInput={e => handleInput(e, "email")}
-                                        required
-                                    />
-                                    <FieldDescription>
-                                        Please use the same email address you used to receive the invitation.
-                                    </FieldDescription>
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="password">Password</FieldLabel>
-                                    <Input
-                                        id="password"
-                                        type="password"
-                                        value={enrollmentFields.password}
-                                        onFocus={() => setOnFocus(true)}
-                                        onBlur={() => setOnFocus(false)}
-                                        onInput={e => handleInput(e, "password")}
-                                        required
-                                    />
-                                    {
-                                        onFocus && (
-                                            <ul className="grid grid-cols-1 gap-2">
-                                                {requirements.map((req, index) => {
-                                                    const isMet = req.regex.test(enrollmentFields.password);
-                                                    return (
-                                                        <li key={index} className="flex items-center gap-2 text-sm transition-colors">
-                                                            {isMet ? (
-                                                                <Check className="w-4 h-4 text-green-500" />
-                                                            ) : (
-                                                                <X className="w-4 h-4 text-muted-foreground/50" />
-                                                            )}
-                                                            <span className={isMet ? "text-foreground" : "text-muted-foreground"}>
-                                                                {req.label}
-                                                            </span>
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        )
-                                    }
-                                </Field>
-                                <Field>
-                                    <FieldLabel htmlFor="confirm-password">Confirm Password</FieldLabel>
-                                    <Input
-                                        id="confirm-password"
-                                        type="password"
-                                        value={enrollmentFields.confirmPassword}
-                                        onInput={e => handleInput(e, "confirmPassword")}
-                                        required
-                                    />
-                                    <FieldDescription>Please confirm your password.</FieldDescription>
-                                </Field>
-                                <Field>
-                                    <Button type="submit">
-                                        Create Account
-                                    </Button>
-                                </Field>
-                            </FieldGroup>
-                        </form>
+                        {children}
                     </div>
                 </div>
             </div>

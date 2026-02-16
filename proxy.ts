@@ -25,6 +25,12 @@ export async function proxy(req: NextRequest) {
             .orchestrate();
     }
 
+    // The rest of the endpoints that require a session & approved
+    if (!isPublic && session && !session.user.emailVerified) {
+        return ExceptionResponseComposer.compose(StatusCodes.Status403Forbidden, [{ message: "Forbidden" }])
+            .orchestrate();
+    }
+
     // Passed, next.
     return NextResponse.next();
 }

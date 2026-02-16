@@ -1,5 +1,6 @@
 "use client";
 
+import { Balloon } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ export default function PendingPage() {
         <div className="flex flex-col gap-6">
             <div>
                 <div className="flex flex-col items-center gap-4 text-center">
-                    <Spinner className="size-16" />
+                    <Balloon className="size-16" />
                     <h1 className="text-2xl font-bold">Approval in Progress...</h1>
                     <p className="text-muted-foreground text-sm text-balance mb-4">
                         Please wait until your account is approved by administrator.
