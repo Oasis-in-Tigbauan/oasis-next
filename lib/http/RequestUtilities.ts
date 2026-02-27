@@ -10,10 +10,10 @@ import * as Sentry from "@sentry/nextjs";
  * @return {Promise<T>} A promise that resolves to the parsed JSON object if successful, or null if parsing fails.
  */
 export async function tryParseJson<T>(req: NextRequest): Promise<T | null> {
-    try {
-        return req.json();
-    } catch (e) {
-        Sentry.captureException(e);
-        return null;
-    }
+  try {
+    return req.json();
+  } catch (e) {
+    Sentry.captureException(e);
+    return null;
+  }
 }

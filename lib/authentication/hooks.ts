@@ -5,25 +5,25 @@ import { auth } from "@/lib/auth";
 import type { Permissions } from "@/lib/db/permissions";
 
 export async function requireProtection(options?: ProtectionOptions) {
-    const session = await auth.api.getSession({
-        headers: await headers(),
-    });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-    // Redirect to log in if not authenticated.
-    if (!session) redirect("/auth/signin");
+  // Redirect to log in if not authenticated.
+  if (!session) redirect("/auth/signin");
 
-    // If specifies that only verified users are allowed, we need to redirect them.
-    if (options?.verified && !session.user.emailVerified) {
-        // When a user specifies a custom redirect path, use it. Otherwise, redirect to the home page.
-        if (options?.customRedirectUrl?.onUnverified) {
-            redirect(options.customRedirectUrl.onUnverified);
-        } else {
-            redirect("/enrollment/pending");
-        }
+  // If specifies that only verified users are allowed, we need to redirect them.
+  if (options?.verified && !session.user.emailVerified) {
+    // When a user specifies a custom redirect path, use it. Otherwise, redirect to the home page.
+    if (options?.customRedirectUrl?.onUnverified) {
+      redirect(options.customRedirectUrl.onUnverified);
+    } else {
+      redirect("/enrollment/pending");
     }
+  }
 
-    // TODO: Permission-based checking
-    return session;
+  // TODO: Permission-based checking
+  return session;
 }
 
 type ProtectionOptions = {

@@ -1,28 +1,13 @@
-import type { ErrorCollection } from "@/lib/http/ResponseComposer";
-import type { StatusCodes } from "@/lib/http/StatusCodes";
+import type { StatusCodes } from "@/lib/http/composers/StatusCodes";
 
 export interface ApiResponseException {
-    /**
-     * IETF RFC 7237 Error Type
-     * @see https://datatracker.ietf.org/doc/html/rfc7237
-     */
     type: string;
-
-    /**
-     * Title of the error
-     */
     title: string;
-
-    /**
-     * Error code
-     */
     status: StatusCodes | number;
-
-    /**
-     * Trace ID of the error
-     * @remarks ID of the error which the developers can track. However, this is not yet implemented.
-     */
+    statusText: string;
     traceId?: string;
 
-    errors: ErrorCollection;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    details: string | Record<string, any>;
+    message: string;
 }
