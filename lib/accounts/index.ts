@@ -691,7 +691,6 @@ export async function toggleBan(id: string): Promise<Result<User>> {
     await db
       .update(user)
       .set({ banned: !target.banned })
-      .from(user)
       .where(eq(user.id, target.id));
 
     // Refetch for final output

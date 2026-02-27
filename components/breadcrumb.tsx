@@ -21,13 +21,14 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/settings/approvals") return "Account Approvals";
     if (pathname === "/dashboard/settings/roles") return "Offices & Role Management";
     if (pathname === "/dashboard/settings/invitations") return "Invitations";
+    if (pathname === "/dashboard/settings/users") return "User Management";
   }, [pathname]);
 
   return (
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem className="hidden md:block">
-          <BreadcrumbLink href="#">
+          <BreadcrumbLink href="/dashboard">
             Dashboard
           </BreadcrumbLink>
         </BreadcrumbItem>
