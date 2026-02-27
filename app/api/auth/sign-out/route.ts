@@ -1,11 +1,12 @@
-import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { NextResponse } from "next/server";
+
+import { auth } from "@/lib/auth";
+import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
 
 export async function POST() {
-    await auth.api.signOut({
-        headers: await headers(),
-    });
+  await auth.api.signOut({
+    headers: await headers(),
+  });
 
-    return NextResponse.json({ ok: true });
+  return ResponseComposer.compose(StatusCodes.Status204NoContent).orchestrate();
 }

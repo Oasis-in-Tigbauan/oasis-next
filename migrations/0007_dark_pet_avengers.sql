@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "shadow_banned" boolean DEFAULT false NOT NULL;

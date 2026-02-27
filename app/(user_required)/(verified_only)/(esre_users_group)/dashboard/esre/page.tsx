@@ -1,5 +1,5 @@
 export default function EsreDashboardPage() {
-    return (
-        <p>Hello world</p>
-    );
+  return (
+    <p>Hello world</p>
+  );
 }

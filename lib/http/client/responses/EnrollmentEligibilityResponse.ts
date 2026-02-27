@@ -1,4 +1,4 @@
-import { GenericOKResponse } from "@/lib/http/client/responses/GenericOKResponse";
+import { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
 
 type Response = {
     id: string;
@@ -8,4 +8,4 @@ type Response = {
     assignablePositions: Array<{ id: string; name: string; }>;
 }
 
-export type EnrollmentEligibilityResponse = GenericOKResponse<Response>
+export type EnrollmentEligibilityResponse = GenericOkResponse<Response>

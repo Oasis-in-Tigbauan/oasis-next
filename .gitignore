@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Ignore IDE files
 .idea/
+
+# Deployment configs
+.deployment-configs/
