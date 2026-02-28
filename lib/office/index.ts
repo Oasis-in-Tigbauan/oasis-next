@@ -9,14 +9,22 @@ import type { Permissions } from "@/lib/db/permissions";
 import { User } from "@/lib/accounts";
 
 /**
- * Retrieves the list of offices that can be assigned to users (i.e., selectable for enrollment/administration),
- * excluding the administrators office.
+ * Retrieves the list of offices that users are allowed to be assigned to.
  *
- * @returns A `Result` containing an array of assignable offices on success, or a fatal `Failure` if the lookup fails unexpectedly.
+ * @description
+ * Returns offices excluding protected/system offices, and includes a lightweight list of role identifiers/names
+ * associated with each office (when available). Intended for UI pickers and assignment flows where you need
+ * “safe to assign” offices plus their role options.
+ *
+ * On success, wraps the office list in a {@link Success}. On failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function getAssignableOffices
+ * @returns {Promise<Result<Office[]>>} A result wrapper containing assignable offices on success, or a failure result on error.
  *
  * @remarks
- * - The administrators office is intentionally excluded to prevent assigning users to that office via normal flows.
- * - The returned office objects contain only basic identifying fields suitable for selection UIs.
+ * - Excludes protected/system offices from the result set.
+ * - Role lists may be empty when an office has no roles configured.
  */
 export async function getAssignableOffices(): Promise<Result<Array<Office>>> {
   try {
@@ -37,6 +45,57 @@ export async function getAssignableOffices(): Promise<Result<Array<Office>>> {
       .from(office)
       .leftJoin(officePosition, eq(office.id, officePosition.officeId))
       .where(not(eq(office.name, "Cardinal Administrators")))
+      .groupBy(office.id, office.name);
+
+    return new Success(offices);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to get assignable offices.", {}, e);
+  }
+}
+
+/**
+ * Retrieves extended summary information for all non-protected offices.
+ *
+ * @description
+ * Returns a list of offices excluding the protected/system office, augmented with aggregate metrics:
+ * - `roleCount`: number of roles/positions in the office
+ * - `userCount`: number of users associated via those roles
+ *
+ * On success, wraps the summary list in a {@link Success}. On failure, wraps unexpected errors in a fatal {@link Failure}.
+ *
+ * @async
+ * @function getOfficesExtendedInformation
+ * @returns {Promise<Result<Array<OfficeExtendedInfo>>>}
+ * A result wrapper containing office summaries on success, or a failure result on error.
+ *
+ * @remarks
+ * - Intended for admin overview screens and reporting.
+ * - Aggregate counts reflect the current database state and depend on how users are linked to roles/offices.
+ */
+export async function getOfficesExtendedInformation(): Promise<Result<Array<OfficeExtendedInfo>>> {
+  try {
+    const offices = await db
+      .select({
+        id: office.id,
+        name: office.name,
+
+        userCount: count(user.id),
+        roleCount: count(officePosition.id),
+      })
+      .from(office)
+      .leftJoin(officePosition, eq(office.id, officePosition.officeId))
+      .leftJoin(
+        user,
+        and(
+          eq(user.officePositionId, officePosition.id),
+          eq(user.emailVerified, true),
+          eq(user.shadowBanned, false),
+          eq(user.banned, false),
+        ),
+      )
+      .where(
+        not(eq(office.name, "Cardinal Administrators")),
+      )
       .groupBy(office.id, office.name);
 
     return new Success(offices);
@@ -95,33 +154,34 @@ export async function getAssignableRoles(officeId: string): Promise<Result<Array
 }
 
 /**
- * Creates a new office and its initial set of positions/roles in a single atomic operation.
+ * Creates a new office with the given name.
  *
  * @description
- * Validates the requested office name, checks for duplicates, then performs the insert(s) in a database transaction:
- * 1) creates the office record, and
- * 2) creates all position/role records associated with it.
+ * Validates the requested office name against reserved/protected names, checks for an existing office with the same
+ * name to prevent duplicates, then persists the new office record. The returned office definition is initialized with
+ * an empty roles list.
  *
- * On success, returns a {@link Success} containing the created office definition (including roles).
- * On failure, returns a {@link Failure} with an appropriate error code and context.
+ * On success, returns a {@link Success} containing the created {@link OfficeDefinition}.
+ * On failure, returns a {@link Failure} indicating whether the error was a validation issue (reserved name/duplicate)
+ * or an unexpected fatal error.
  *
  * @async
  * @function createOffice
- * @param {OfficeInput} payload - Office details to create, including name and positions to seed.
- * @returns {Promise<Result<OfficeDefinition>>} A result wrapper containing either the created office definition or an error.
+ * @param {string} name - Human-readable office name. Must be unique and not a reserved/protected name.
+ * @returns {Promise<Result<OfficeDefinition>>} A result wrapper containing the created office definition on success,
+ * or a failure result on error.
  *
- * @example
- * // const result = await createOffice({ name: "Engineering", positions: [...] });
- * // if (result.ok) console.log(result.value);
+ * @remarks
+ * - Names are compared case-insensitively when checking reserved/protected names.
  */
-export async function createOffice(payload: OfficeInput): Promise<Result<OfficeDefinition>> {
+export async function createOffice(name: string): Promise<Result<OfficeDefinition>> {
   try {
     // Prevent calling themselves as cardinal administrators
-    if (payload.name.toLowerCase() === "cardinal administrators") {
+    if (name.toLowerCase() === "cardinal administrators") {
       return new Failure(
         ErrorCodes.ValidationFailure,
         "Are you trying to be Kirigaya Kazuto? Sorry, Yuuki Asuna is on different isle!",
-        { payload },
+        { name },
       );
     }
 
@@ -129,54 +189,32 @@ export async function createOffice(payload: OfficeInput): Promise<Result<OfficeD
     const [existingOffice] = await db
       .select({ id: office.id })
       .from(office)
-      .where(eq(office.name, payload.name))
+      .where(eq(office.name, name))
       .limit(1);
     if (existingOffice) {
-      return new Failure(ErrorCodes.ValidationFailure, "Office already exists.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, "Office already exists.", { name });
     }
 
-    const result = await db.transaction(async (tx) => {
-      const [newOffice] = await tx
-        .insert(office)
-        .values({
-          name: payload.name,
-          prohibitedAssignment: false,
-        })
-        .returning({ id: office.id, name: office.name });
+    const [newOffice] = await db
+      .insert(office)
+      .values({
+        name: name,
+        prohibitedAssignment: false,
+      })
+      .returning({ id: office.id, name: office.name });
 
-      // Nothing created?
-      if (!newOffice) return tx.rollback();
+    // Nothing created?
+    if (!newOffice) {
+      return new Failure(ErrorCodes.Fatal, "Unable to create office.", { name });
+    }
 
-      const values = payload.positions.map(position => ({
-        name: position.name,
-        permissions: position.permissions,
-        officeId: newOffice.id,
-      }));
-
-      const roles = await tx
-        .insert(officePosition)
-        .values(values)
-        .returning({
-          id: officePosition.id,
-          name: officePosition.name,
-          permissions: officePosition.permissions,
-        });
-
-      return {
-        id: newOffice.id,
-        name: newOffice.name,
-        roles: roles as OfficeDefinition["roles"],
-      };
+    return new Success({
+      id: newOffice.id,
+      name: newOffice.name,
+      roles: [],
     });
-
-    // Hmm, maybe it didn't work.
-    if (!result) {
-      return new Failure(ErrorCodes.Fatal, "Unable to create office.", { payload });
-    }
-
-    return new Success(result);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create office.", { payload }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to create office.", { name }, e);
   }
 }
 
@@ -224,6 +262,41 @@ export async function updateOffice(id: string, name: string): Promise<Result<Off
     return new Success(newValue);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to update office.", { id, name }, e);
+  }
+}
+
+export async function deleteOffice(id: string): Promise<Result<null>> {
+  try {
+    const [targetOffice] = await db
+      .select({ id: office.id, name: office.name })
+      .from(office)
+      .where(eq(office.id, id))
+      .limit(1);
+    if (!targetOffice) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { id });
+    }
+
+    if (targetOffice.name!.toLowerCase() === "cardinal administrators") {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Kirito, its fine. Just marry your sister. Just give up on Asuna bro, really.",
+        { id },
+      );
+    }
+
+    // Ask to manually delete all roles in the office.
+    const [roleCount] = await db
+      .select({ count: count() })
+      .from(officePosition)
+      .where(eq(officePosition.officeId, targetOffice.id));
+    if (roleCount.count > 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "Office is not empty. Delete the roles first.", { id });
+    }
+
+    await db.delete(office).where(eq(office.id, id));
+    return new Success(null);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete office.", { id }, e);
   }
 }
 
@@ -395,7 +468,7 @@ export async function updateRole(roleId: string, name?: string, permissions?: Pe
  * - Returns a validation failure when the role is still assigned to users.
  * - Returns a failure when attempting to delete roles in a protected/system office.
  */
-export async function deleteRole(roleId: string) {
+export async function deleteRole(roleId: string): Promise<Result<null>> {
   try {
     const [existingRole] = await db
       .select({
@@ -543,6 +616,11 @@ type Office = {
   name: string;
 }
 
+type OfficeExtendedInfo = {
+  userCount: number;
+  roleCount: number;
+} & Office;
+
 type RoleDefinition = {
   id: string;
   name: string;
@@ -552,11 +630,3 @@ type RoleDefinition = {
 type OfficeDefinition = {
   roles: Array<RoleDefinition>
 } & Office;
-
-type OfficeInput = {
-  name: string;
-  positions: Array<{
-    name: string;
-    permissions: Array<Permissions>;
-  }>
-}

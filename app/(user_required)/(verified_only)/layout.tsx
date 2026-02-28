@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 
 import { session as auth } from "@/lib/auth";
 
@@ -18,8 +18,9 @@ export default async function VerifiedLayout({ children }: { children: ReactNode
   // No account found.
   if (!session) return redirect("/auth/signin");
 
-  // Account is already verified. Redirect to dashboard.
-  if (!session.user.activated) redirect("/enrollment/pending");
+  if (session.redirectTo) {
+    redirect(session.redirectTo, RedirectType.replace);
+  }
 
   return (
     <SidebarProvider>
