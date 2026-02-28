@@ -38,7 +38,7 @@ class UnwrappedException extends Error {
  * const res: Result<number> = new Success(42);
  * const message = oneOf(res).match((n) => `ok: ${n}`, (err) => `fail: ${err.message}`);
  */
-export function oneOf<T>(result: Result<T>) {
+export function oneOf<T>(result: Result<T>): OneOf<T> {
   return new OneOf(result);
 }
 
