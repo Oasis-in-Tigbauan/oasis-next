@@ -3,6 +3,10 @@ import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkRes
 type Response = {
   id: string;
   name: string;
+  roles: Array<{
+    id: string;
+    name: string;
+  }>
 };
 
 export type OfficesListResponse = GenericOkResponse<Array<Response>>;

@@ -4,7 +4,7 @@ import {
   ChevronRight,
   FileSpreadsheet,
   Mail,
-  Settings2,
+  Settings,
   ShieldUser,
   UserCheck,
 } from "lucide-react";
@@ -76,74 +76,71 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Settings */}
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            {
-              permissionMap.has(permissions.APPROVALS_ACCOUNT_READ) && "Administration and "
-            }
-            Settings
-          </SidebarGroupLabel>
+        {/* Administration Panel */}
+        {
+          permissionMap.has(permissions.APPROVALS_ACCOUNT_WRITE) && permissionMap.has(permissions.APPROVALS_ACCOUNT_READ) && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Administration</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton>
+                      <Mail />
+                      <a href="/dashboard/settings/invitations">Invitations</a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton>
+                      <UserCheck />
+                      <a href="/dashboard/settings/approvals">Approvals</a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <Collapsible asChild className="group/collapsible" defaultOpen={true}>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton>
+                          <ShieldUser />
+                          <span>Access Control</span>
+                          <ChevronRight
+                            className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild>
+                              <a href="/dashboard/settings/roles">
+                                <span>Office & Role Management</span>
+                              </a>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild>
+                              <a href="/dashboard/settings/users">
+                                <span>User Management</span>
+                              </a>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        }
+
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* General Account Settings */}
               <SidebarMenuItem>
                 <SidebarMenuButton>
-                  <Settings2 />
-                  <a href="/settings">Settings</a>
+                  <Settings />
+                  <a href="/dashboard/settings">Settings</a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-
-              {/* Account Management */}
-              {
-                permissionMap.has(permissions.APPROVALS_ACCOUNT_WRITE) && permissionMap.has(permissions.APPROVALS_ACCOUNT_READ) && (
-                  <>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton>
-                        <Mail />
-                        <a href="/dashboard/settings/invitations">Invitations</a>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton>
-                        <UserCheck />
-                        <a href="/dashboard/settings/approvals">Approvals</a>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <Collapsible asChild className="group/collapsible" defaultOpen={true}>
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton>
-                            <ShieldUser />
-                            <span>Access Control</span>
-                            <ChevronRight
-                              className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-                            />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            <SidebarMenuSubItem>
-                              <SidebarMenuSubButton asChild>
-                                <a href="/dashboard/settings/roles">
-                                  <span>Office & Role Management</span>
-                                </a>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                            <SidebarMenuSubItem>
-                              <SidebarMenuSubButton asChild>
-                                <a href="/dashboard/settings/users">
-                                  <span>User Management</span>
-                                </a>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  </>
-                )
-              }
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

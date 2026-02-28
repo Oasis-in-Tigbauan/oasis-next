@@ -1,6 +1,6 @@
 import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
-import type { BanResponse } from "@/lib/http/client/responses/BanResponse";
+import type { UserResponse } from "@/lib/http/client/responses/UserResponse";
 import type { EnrollmentEligibilityResponse } from "@/lib/http/client/responses/EnrollmentEligibilityResponse";
 import type { InvitationResponse } from "@/lib/http/client/responses/InvitationResponse";
 import type { InvitationListResponse } from "@/lib/http/client/responses/InvitationListResponse";
@@ -10,7 +10,7 @@ import type { UnactivatedListResponse } from "@/lib/http/client/responses/Unacti
 export type {
   AccountsListResponse,
   ApiResponseException,
-  BanResponse,
+  UserResponse,
   EnrollmentEligibilityResponse,
   InvitationResponse,
   InvitationListResponse,
