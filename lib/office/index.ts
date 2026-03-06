@@ -1,5 +1,6 @@
 import { and, count, eq, not, sql } from "drizzle-orm";
 
+import { allowedPermissions, permissionDescriptors } from "@/lib/office/permissions";
 import { cacheManager } from "@/lib/cache";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success, unwrap } from "@/lib/one-of";
@@ -7,6 +8,8 @@ import { getUserById } from "@/lib/accounts";
 import { office, officePosition, user } from "@/lib/db/schema";
 import type { Permissions } from "@/lib/db/permissions";
 import { User } from "@/lib/accounts";
+
+export { allowedPermissions, permissionDescriptors };
 
 /**
  * Retrieves the list of offices that users are allowed to be assigned to.
@@ -150,6 +153,76 @@ export async function getAssignableRoles(officeId: string): Promise<Result<Array
     })));
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to get assignable roles.", {}, e);
+  }
+}
+
+/**
+ * Retrieves detailed information for a single office by its identifier.
+ *
+ * @description
+ * Fetches the office record and its associated roles (including permissions) and returns them as an
+ * {@link OfficeDefinitionWithRoleExtendedInfo}. The lookup is restricted to non-protected offices; protected/system
+ * offices are excluded from the query.
+ *
+ * If no matching office is found, returns a resource-not-found failure. Unexpected errors are caught and returned as a
+ * fatal failure result.
+ *
+ * @async
+ * @function getOfficeInformationById
+ * @param {string} officeId - Identifier of the office to retrieve.
+ * @returns {Promise<Result<OfficeDefinitionWithRoleExtendedInfo>>} A result wrapper containing the office definition on
+ * success, or a failure result on error.
+ *
+ * @remarks
+ * - The returned office definition includes a roles list; it may be empty when the office has no roles.
+ * - Protected/system offices are intentionally excluded from results.
+ */
+export async function getOfficeInformationById(officeId: string): Promise<Result<OfficeDefinitionWithRoleExtendedInfo>> {
+  try {
+    const [selectedOffice] = await db
+      .select({
+        id: office.id,
+        name: office.name,
+        roles: sql<RoleExtendedInfo[]>`
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id', ${officePosition.id},
+                        'name', ${officePosition.name},
+                        'permissions', to_jsonb(${officePosition.permissions}),
+                
+                        -- Count stuff
+                        'userCount', COALESCE((
+                            SELECT CAST(COUNT(*) AS INT)
+                            FROM ${user}
+                            WHERE ${user.officePositionId} = ${officePosition.id}
+                                AND ${user.emailVerified} = TRUE
+                                AND ${user.banned} = FALSE
+                                AND ${user.shadowBanned} = FALSE
+                        ), 0)
+                    )
+                ) FILTER (WHERE ${officePosition.id} IS NOT NULL),
+            '[]'::json)
+        `,
+      })
+      .from(office)
+      .leftJoin(officePosition, eq(office.id, officePosition.officeId))
+      .where(
+        and(
+          not(eq(office.name, "Cardinal Administrators")),
+          eq(office.id, officeId),
+        ),
+      )
+      .groupBy(office.id, office.name)
+      .limit(1);
+
+    if (!selectedOffice) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { officeId });
+    }
+
+    return new Success(selectedOffice);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to get office information.", { officeId }, e);
   }
 }
 
@@ -332,7 +405,7 @@ export async function addRole(officeId: string, name: string, permissions: Permi
       return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { officeId, name, permissions });
     }
 
-    // Do not allow modifying cardinal administrators office.
+    // Do not allow modifying cardinal administrators' office.
     if (targetOffice.name.toLowerCase() === "cardinal administrators") {
       return new Failure(
         ErrorCodes.ResourceNotFound,
@@ -629,4 +702,12 @@ type RoleDefinition = {
 
 type OfficeDefinition = {
   roles: Array<RoleDefinition>
+} & Office;
+
+type RoleExtendedInfo = {
+  userCount: number;
+} & RoleDefinition;
+
+type OfficeDefinitionWithRoleExtendedInfo = {
+  roles: Array<RoleExtendedInfo>
 } & Office;
