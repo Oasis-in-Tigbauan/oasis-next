@@ -85,7 +85,6 @@ class CacheManager {
    * @returns {Promise<void>} Resolves when the update completes (or immediately if the key is missing).
    */
   async hsetWrite(key: string, innerKey: string, newValue: string): Promise<void> {
-
     const client = await this.getClient();
 
     const isKeyExists = await client.exists(key);

@@ -1,7 +1,8 @@
-"use client";
+import UndynamicPage from "./UndynamicPage";
 
-import Loading from "@/components/loading";
+export default async function RolesPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
-export default function RolesPage() {
-  return <Loading />;
+  // Load the component
+  return (<UndynamicPage id={id} />);
 }
