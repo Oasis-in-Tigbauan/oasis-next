@@ -86,6 +86,24 @@ export default function UndynamicPage({ id }: { id: string }) {
     }
   };
 
+  const handleUpdateRoleMutate = (role: OfficeSingleResponseWithRoleExtendedInfo["data"]["roles"][0]) => {
+    if (data?.data && data.data.data) {
+      mutate({
+        data: {
+          ok: true,
+          data: {
+            ...data.data.data,
+            roles: [
+              ...(data.data.data.roles || []).filter(r => r.id !== role.id),
+              role,
+            ],
+          },
+        },
+        error: undefined,
+      }).catch(console.error);
+    }
+  };
+
   const result = data!.data.data;
   return (
     <div className="p-4 pt-0 w-full">
@@ -109,10 +127,15 @@ export default function UndynamicPage({ id }: { id: string }) {
         <TableBody>
           {
             (data?.data?.data?.roles || []).map(r => (
-              <TableRow key={r.id}>
-                <TableCell>{r.name}</TableCell>
-                <TableCell>{r.userCount} User{r.userCount === 1 ? "" : "s"}</TableCell>
-              </TableRow>
+              <UpdateRoleSelection
+                key={r.id}
+                roleId={r.id}
+                name={r.name}
+                userCount={r.userCount}
+                permissions={r.permissions as Permissions[]}
+                id={id}
+                mutate={handleUpdateRoleMutate}
+              />
             ))
           }
           <CreateRoleSection id={id} mutate={handleCreateRoleMutate} />
@@ -302,10 +325,101 @@ function CreateRoleSection({ id, mutate }: CreateRoleComponentProps) {
   );
 }
 
+function UpdateRoleSelection({ id, roleId, name, userCount, permissions, mutate }: UpdateRoleComponentProps) {
+  const [open, setOpen] = useState(false);
+
+  const [roleName, setRoleName] = useState(name || "");
+  const [selectedPermissions, setSelectedPermissions] = useState<Array<Permissions>>(permissions || []);
+
+  const handleCheck = (permission: Permissions) => {
+    setSelectedPermissions(prev =>
+      prev.includes(permission)
+        ? prev.filter(p => p !== permission)
+        : [...prev, permission],
+    );
+  };
+
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const resp = await $fetch<RoleDefinitionResponse, ApiResponseException>(`/api/management/offices/${id}/roles/${roleId}`, {
+      method: "PATCH",
+      body: {
+        name: roleName,
+        permissions: selectedPermissions,
+      },
+    });
+
+    if (resp?.data?.ok) {
+      // Clear values
+      setRoleName("");
+      setSelectedPermissions([]);
+      setOpen(false);
+
+      // Send it to mutate the primary data
+      mutate(resp!.data!.data!);
+
+      alert("Role successfully updated.");
+      return;
+    }
+
+    alert("Failed to update role. Try again later.");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <TableRow className="cursor-pointer">
+          <TableCell>{name}</TableCell>
+          <TableCell>{userCount} User{userCount === 1 ? "" : "s"}</TableCell>
+        </TableRow>
+      </DialogTrigger>
+      <DialogContent className="min-w-[75%]">
+        <DialogHeader>
+          <DialogTitle>Update Role</DialogTitle>
+          <DialogDescription>
+            Update Permissions or Set a new Name.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="w-full">
+          <Field className="mb-2">
+            <FieldLabel htmlFor="role-name">Role Name</FieldLabel>
+            <Input
+              id="role-name"
+              type="text"
+              placeholder="President"
+              value={roleName}
+              onInput={e => setRoleName(e.currentTarget.value)}
+              required
+            />
+            <FieldDescription>
+              Make sure the name is unique. It will fail if you use existing name.
+            </FieldDescription>
+          </Field>
+          <PermissionSelection selected={selectedPermissions} onCheck={handleCheck} />
+          <DialogFooter className="mt-4">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit">Update</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type CreateRoleComponentProps = {
   id: string;
   mutate: (role: OfficeSingleResponseWithRoleExtendedInfo["data"]["roles"][0]) => void;
 }
+
+type UpdateRoleComponentProps = {
+  roleId: string;
+  name: string;
+  userCount: number;
+  permissions: Array<Permissions>;
+} & CreateRoleComponentProps;
 
 type PermissionSelectionRowProps = {
   selected: Array<Permissions>,

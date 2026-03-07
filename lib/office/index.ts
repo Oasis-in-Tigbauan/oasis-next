@@ -465,16 +465,17 @@ export async function addRole(officeId: string, name: string, permissions: Permi
  *
  * @async
  * @function updateRole
+ * @param {string} officeId - Identifier of the office that owns the role.
  * @param {string} roleId - Identifier of the role to update.
  * @param {string} [name] - New role name. If not provided, the existing name is preserved.
  * @param {Permissions[]} [permissions] - New permissions list. If not provided, the existing permissions are preserved.
- * @returns {Promise<Result<RoleDefinition>>} A result wrapper containing the updated role on success, or a failure result on error.
+ * @returns {Promise<Result<RoleExtendedInfo>>} A result wrapper containing the updated role on success, or a failure result on error.
  *
  * @remarks
  * - Returns a resource-not-found failure when the role cannot be found.
  * - Returns a failure when attempting to update roles in a protected/system office.
  */
-export async function updateRole(roleId: string, name?: string, permissions?: Permissions[]): Promise<Result<RoleDefinition>> {
+export async function updateRole(officeId: string, roleId: string, name?: string, permissions?: Permissions[]): Promise<Result<RoleExtendedInfo>> {
   try {
     const [existingRole] = await db
       .select({
@@ -482,10 +483,27 @@ export async function updateRole(roleId: string, name?: string, permissions?: Pe
         name: officePosition.name,
         permissions: officePosition.permissions,
         office: office.name,
+        userCount: count(user.id),
       })
       .from(officePosition)
+      .where(
+        and(
+          eq(officePosition.id, roleId),
+          eq(officePosition.officeId, officeId),
+        ),
+      )
       .leftJoin(office, eq(office.id, officePosition.officeId))
-      .limit(1);
+      .leftJoin(
+        user,
+        and(
+          eq(user.officePositionId, roleId),
+          eq(user.emailVerified, true),
+          eq(user.shadowBanned, false),
+          eq(user.banned, false),
+        ),
+      )
+      .limit(1)
+      .groupBy(office.id, officePosition.id, officePosition.name);
 
     // No role found
     if (!existingRole) {
@@ -515,7 +533,12 @@ export async function updateRole(roleId: string, name?: string, permissions?: Pe
         permissions: officePosition.permissions,
       });
 
-    return new Success(updatedRole as RoleDefinition);
+    return new Success({
+      id: updatedRole.id,
+      name: updatedRole.name,
+      permissions: updatedRole.permissions as Permissions[],
+      userCount: existingRole.userCount,
+    });
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to update role.", { roleId, name, permissions }, e);
   }
