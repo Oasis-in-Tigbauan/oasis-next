@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 import * as offices from "@/lib/office";
 import { oneOf } from "@/lib/one-of";
 import * as permission from "@/lib/db/permissions";
@@ -14,9 +14,8 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/mana
     permission.APPROVALS_ACCOUNT_READ,
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
-  if (!session) {
-    return ResponseComposer.composeError(StatusCodes.Status403Forbidden, "Forbidden")
-      .orchestrate();
+  if (!session || session.code !== SessionCode.Ok) {
+    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
   }
 
   const { id } = await params;

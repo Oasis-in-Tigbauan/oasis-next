@@ -15,6 +15,7 @@ import type {
 import type { Permissions } from "@/lib/db/permissions";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import DeadHamster from "@/components/dead-hamster";
 import {
   Dialog,
@@ -39,7 +40,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Typography from "@/components/typography";
-import { Checkbox } from "@/components/ui/checkbox";
 
 export default function UndynamicPage({ id }: { id: string }) {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<OfficeSingleResponseWithRoleExtendedInfo, ApiResponseException>>(
@@ -352,8 +352,6 @@ function UpdateRoleSelection({ id, roleId, name, userCount, permissions, mutate 
 
     if (resp?.data?.ok) {
       // Clear values
-      setRoleName("");
-      setSelectedPermissions([]);
       setOpen(false);
 
       // Send it to mutate the primary data

@@ -8,7 +8,7 @@ export function isExisty(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any,
 ): boolean {
-  return value != null || value !== undefined;
+  return value !== null && value !== undefined;
 }
 
 /**
@@ -18,7 +18,7 @@ export function isExisty(
  * @returns {boolean} Returns true if the value is not empty, returns false otherwise.
  * @remarks If a non-string type is passed, it will return false.
  */
-export function isNotEmpty(value: string): boolean {
+export function isNotEmpty(value: Optional<string>): boolean {
   if (!isExisty(value)) {
     return false;
   }
@@ -116,4 +116,68 @@ export function isUuid(uuid: string): boolean {
 
   // Check via regex
   return /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/.test(uuid);
+}
+
+/**
+ * Filters an object to include only meaningful, serializable values for update operations.
+ *
+ * The function removes entries whose values are considered empty or invalid, including:
+ * - `null` or `undefined`
+ * - empty strings
+ * - empty arrays
+ * - empty objects
+ * - `NaN`, `Infinity`, and other non-finite numbers
+ *
+ * After filtering, the result is serialized and deserialized with JSON to discard
+ * any remaining unserializable values.
+ *
+ * @param {Record<string, Optional<any>>} data The input object containing candidate fields for update.
+ * @returns {Record<string, any>} A new object containing only valid, non-empty, serializable fields.
+ *
+ * @example
+ * const result = filterUpdatedFields({
+ *   name: "Office A",
+ *   description: "",
+ *   tags: [],
+ *   metadata: {},
+ *   count: 5,
+ * });
+ * // result => { name: "Office A", count: 5 }
+ */
+export function filterUpdatedFields(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: Record<string, Optional<any>>): Record<string, any>
+{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: Record<string, any> = {};
+
+  for (const key of Object.keys(data)) {
+    // Check if the keys do really exist
+    if (!isExisty(data[key])) continue;
+
+    // If the value type is of string, do check if it contains something
+    if (typeof data[key] === "string" && !isNotEmpty(data[key])) continue;
+
+    // If the value type is of an object, do check if it contains something
+    if (typeof data[key] === "object") {
+      // If array.
+      if (Array.isArray(data[key]) && data[key].length === 0) continue;
+
+      // If just object.
+      if (Object.keys(data[key]).length === 0) continue;
+    }
+
+    // Infinity and numbers that goes the limit of finite numbers are considered
+    // empty by default
+    if (typeof data[key] === "number") {
+      const n = Number(data[key]);
+      if (Number.isNaN(n) || !Number.isFinite(n)) continue;
+    }
+
+    result[key] = data[key];
+  }
+
+  // Filter out unserializable values.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return JSON.parse(JSON.stringify(result)) as Record<string, any>;
 }

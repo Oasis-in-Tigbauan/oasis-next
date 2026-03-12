@@ -3,7 +3,9 @@
 import {
   ChevronRight,
   FileSpreadsheet,
+  LampDesk,
   Mail,
+  PhilippinePeso,
   Settings,
   ShieldUser,
   UserCheck,
@@ -75,6 +77,29 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Data Types Management */}
+        {
+          permissionMap.has(permissions.DATA_TYPES_MANAGE_READ) && permissionMap.has(permissions.DATA_TYPES_MANAGE_WRITE) && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Data Management</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <PhilippinePeso />
+                    <a href="/dashboard/settings/expense-types">Expense Code Definitions</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <LampDesk />
+                    <a href="/dashboard/settings/office-codes">Office Codes</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        }
 
         {/* Administration Panel */}
         {

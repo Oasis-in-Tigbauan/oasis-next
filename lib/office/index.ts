@@ -338,6 +338,17 @@ export async function updateOffice(id: string, name: string): Promise<Result<Off
   }
 }
 
+/**
+ * Deletes an office by its identifier.
+ *
+ * Validates that the office exists, prevents deletion of protected offices,
+ * and ensures the office has no associated roles before removing it.
+ *
+ * @param id - The unique identifier of the office to delete.
+ * @returns A promise that resolves to a result object:
+ * - `Success<null>` when the office is deleted successfully
+ * - `Failure` when the office does not exist, is protected, is not empty, or an unexpected error occurs
+ */
 export async function deleteOffice(id: string): Promise<Result<null>> {
   try {
     const [targetOffice] = await db

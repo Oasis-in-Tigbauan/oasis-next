@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import * as accounts from "@/lib/accounts";
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
 import { validator, validatorUtilities } from "@/lib/validators";
@@ -16,10 +16,8 @@ export async function PATCH(
     permission.APPROVALS_ACCOUNT_READ,
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
-  if (!session) {
-    return ResponseComposer
-      .composeError(StatusCodes.Status403Forbidden, "Forbidden")
-      .orchestrate();
+  if (!session || session.code !== SessionCode.Ok) {
+    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
   }
 
   // Get ID from parameter

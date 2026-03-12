@@ -31,6 +31,16 @@ export const APPROVALS_INVITATION_WRITE: Permissions = "approvals.invitation.wri
 export const APPROVALS_INVITATION_READ: Permissions = "approvals.invitation.read";
 
 /**
+ * People with this permission can read data types.
+ */
+export const DATA_TYPES_MANAGE_READ: Permissions = "data-types.manage.read";
+
+/**
+ * People with this permission can manage data types.
+ */
+export const DATA_TYPES_MANAGE_WRITE: Permissions = "data-types.manage.write";
+
+/**
  * People with this role can read ESRE contents.
  */
 export const ESRE_READ: Permissions = "esre.read";
@@ -47,5 +57,7 @@ export type Permissions =
     | "approvals.account.read"
     | "approvals.invitation.write"
     | "approvals.invitation.read"
+    | "data-types.manage.read"
+    | "data-types.manage.write"
     | "esre.read"
     | "esre.write";
