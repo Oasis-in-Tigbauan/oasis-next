@@ -247,7 +247,7 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
             </FieldGroup>
             <FieldGroup>
               <Field>
-                <Label htmlFor="sub-office">Account Code</Label>
+                <Label htmlFor="sub-office">Sub-Office</Label>
                 <Input
                   id="sub-office"
                   type="text"
@@ -422,7 +422,7 @@ function OfficeCodeRow({ data, mutate }: { data: OfficeCodeResponse["data"], mut
             </FieldGroup>
             <FieldGroup>
               <Field>
-                <Label htmlFor="sub-office">Account Code</Label>
+                <Label htmlFor="sub-office">Sub-Office</Label>
                 <Input
                   id="sub-office"
                   type="text"
