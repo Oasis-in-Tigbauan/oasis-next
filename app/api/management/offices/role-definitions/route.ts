@@ -1,17 +1,15 @@
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { permissionDescriptors } from "@/lib/office";
 import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
 
 export async function GET() {
-  const sessionValidation = await auth.verify([
+  const session = await auth.verify([
     permission.APPROVALS_ACCOUNT_READ,
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
-  if (!sessionValidation) {
-    return ResponseComposer
-      .composeError(StatusCodes.Status403Forbidden, "Forbidden.")
-      .orchestrate();
+  if (!session || session.code !== SessionCode.Ok) {
+    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
   }
 
   return ResponseComposer.compose(StatusCodes.Status200Ok).setBody(permissionDescriptors).orchestrate();

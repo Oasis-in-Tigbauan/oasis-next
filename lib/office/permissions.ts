@@ -27,6 +27,14 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     description: "People with this role can see who are Pending for Invitation.",
   },
   {
+    permission: permissions.DATA_TYPES_MANAGE_READ,
+    description: "People with this role can view data types.",
+  },
+  {
+    permission: permissions.DATA_TYPES_MANAGE_WRITE,
+    description: "People with this role can create, edit, and delete data types.",
+  },
+  {
     permission: permissions.ESRE_READ,
     description: "People with this role can view ESRE items.",
   },
@@ -44,6 +52,8 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.APPROVALS_ACCOUNT_READ,
     permissions.APPROVALS_INVITATION_WRITE,
     permissions.APPROVALS_INVITATION_READ,
+    permissions.DATA_TYPES_MANAGE_READ,
+    permissions.DATA_TYPES_MANAGE_WRITE,
     permissions.ESRE_READ,
     permissions.ESRE_WRITE,
   ],

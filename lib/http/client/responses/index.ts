@@ -1,9 +1,13 @@
 import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
+import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseClassResponse";
+import type { ExpenseClassListResponse } from "@/lib/http/client/responses/ExpenseClassListResponse";
 import type { UserResponse } from "@/lib/http/client/responses/UserResponse";
 import type { EnrollmentEligibilityResponse } from "@/lib/http/client/responses/EnrollmentEligibilityResponse";
 import type { InvitationResponse } from "@/lib/http/client/responses/InvitationResponse";
 import type { InvitationListResponse } from "@/lib/http/client/responses/InvitationListResponse";
+import type { OfficeCodeListResponse } from "@/lib/http/client/responses/OfficeCodeListResponse";
+import type { OfficeCodeResponse } from "@/lib/http/client/responses/OfficeCodeResponse";
 import type { OfficeResponse } from "@/lib/http/client/responses/OfficeResponse";
 import type { OfficeSingleResponse} from "@/lib/http/client/responses/OfficeSingleResponse";
 import type {
@@ -18,10 +22,14 @@ import type { UnactivatedListResponse } from "@/lib/http/client/responses/Unacti
 export type {
   AccountsListResponse,
   ApiResponseException,
+  ExpenseClassResponse,
+  ExpenseClassListResponse,
   UserResponse,
   EnrollmentEligibilityResponse,
   InvitationResponse,
   InvitationListResponse,
+  OfficeCodeListResponse,
+  OfficeCodeResponse,
   OfficeResponse,
   OfficeSingleResponse,
   OfficeSingleResponseWithRoleExtendedInfo,

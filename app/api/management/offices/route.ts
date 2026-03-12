@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 import * as office from "@/lib/office";
 import { oneOf } from "@/lib/one-of";
 import * as permission from "@/lib/db/permissions";
@@ -9,14 +9,12 @@ import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator } from "@/lib/validators";
 
 export async function GET() {
-  const sessionValidation = await auth.verify([
+  const session = await auth.verify([
     permission.APPROVALS_ACCOUNT_READ,
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
-  if (!sessionValidation) {
-    return ResponseComposer
-      .composeError(StatusCodes.Status403Forbidden, "Forbidden.")
-      .orchestrate();
+  if (!session || session.code !== SessionCode.Ok) {
+    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
   }
 
   const offices = await office.getAssignableOffices();
@@ -27,14 +25,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const sessionValidation = await auth.verify([
+  const session = await auth.verify([
     permission.APPROVALS_ACCOUNT_READ,
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
-  if (!sessionValidation) {
-    return ResponseComposer
-      .composeError(StatusCodes.Status403Forbidden, "Forbidden.")
-      .orchestrate();
+  if (!session || session.code !== SessionCode.Ok) {
+    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
   }
 
   const payload = await tryParseJson<{ name: string }>(req);

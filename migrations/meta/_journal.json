@@ -57,6 +57,41 @@
       "when": 1772034663263,
       "tag": "0007_dark_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772880293998,
+      "tag": "0008_outstanding_goliath",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1773039994014,
+      "tag": "0009_glossy_mikhail_rasputin",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1773040007677,
+      "tag": "0010_material_phantom_reporter",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1773041349042,
+      "tag": "0011_curious_silver_surfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1773308504441,
+      "tag": "0012_slimy_red_skull",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,7 @@ export const officePosition = pgTable("office_position", {
   permissions: text("permissions")
     .array()
     .notNull()
+    // language=text
     .default(sql`ARRAY[]::text[]`),
   officeId: text("office_id")
     .references(() => office.id)
@@ -150,39 +151,40 @@ export const invitations = pgTable("invitations", {
     .notNull(),
 });
 
-export const esreState = pgEnum("esre_states", [
-  "active",
-  "archived",
-]);
-
-export const esre = pgTable("esre", {
+export const expenseClasses = pgTable("expense_classes", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => uuidv7()),
-  checkRequestDate: timestamp("check_request_date", { withTimezone: true, mode: "date" })
-    .notNull(),
-  mainData: text("main_data").notNull(),
-  checkNumber: text("check_number"),
-  fundingSource: text("funding_source"),
-  dvOrPayrollNumber: text("dv_or_payroll_number"),
-  orsOrBursNumber: text("ors_or_burs_number"),
-  expenseClass: text("expense_class"),
-  office: text("office"),
-  expenseName: text("expense_name"),
+
+  accountName: text("account_name").notNull(),
+  fpp: text("fpp"),
+  classification: text("classification"),
+  subClassification: text("sub_classification"),
+  group: text("group"),
   accountCode: text("account_code"),
-  payee: text("payee"),
-  natureOfPayment: text("nature_of_payment"),
-  amount: numeric("amount").notNull(),
-  checkStatus: text("check_status"),
-  checkTest: boolean("check_test").default(false).notNull(),
-  aa: text("aa"),
-  expenseType: text("expense_type"),
-  unknown: text("unknown"),
-  checkIssueDate: timestamp("check_issue_date", { withTimezone: true, mode: "date" }),
-  state: esreState("state").default("active").notNull(),
-  authorId: text("author_id")
-    .references(() => user.id)
+  class: text("class"),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
     .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const officeCodes = pgTable("office_codes", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  aa: text("aa").notNull(),
+  code: text("code"),
+  sector: text("sector"),
+  function: text("function"),
+  liftOffice: text("lift_office"),
+  subOffice: text("sub_office"),
+  office: text("office"),
+  headUser: text("head_user"),
 
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -247,12 +249,5 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   office: one(office, {
     fields: [invitations.officeId],
     references: [office.id],
-  }),
-}));
-
-export const esreRelations = relations(esre, ({ one }) => ({
-  user: one(user, {
-    fields: [esre.authorId],
-    references: [user.id],
   }),
 }));

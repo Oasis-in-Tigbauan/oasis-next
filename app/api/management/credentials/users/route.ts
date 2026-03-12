@@ -1,17 +1,16 @@
 import * as accounts from "@/lib/accounts";
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
 import { oneOf } from "@/lib/one-of";
 
 export async function GET() {
-  const session = auth.verify([
+  const session = await auth.verify([
     permission.APPROVALS_ACCOUNT_READ,
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
-  if (!session) {
-    return ResponseComposer.composeError(StatusCodes.Status403Forbidden, "Forbidden")
-      .orchestrate();
+  if (!session || session.code !== SessionCode.Ok) {
+    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
   }
 
   const users = await accounts.getAllAccounts();
