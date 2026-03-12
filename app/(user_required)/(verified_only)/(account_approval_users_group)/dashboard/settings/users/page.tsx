@@ -191,9 +191,11 @@ function UserDataTable({ columns, data, mutateUserFn }: UserDataTableProps) {
                 </TableRow>
               ))
             ) : (
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No Results.
-              </TableCell>
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  No Results.
+                </TableCell>
+              </TableRow>
             )
           }
         </TableBody>
