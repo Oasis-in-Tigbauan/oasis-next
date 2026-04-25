@@ -1,15 +1,4 @@
 /**
- * Head of the offices can approve Obligations published.
- */
-export const APPROVALS_HEAD_WRITE: Permissions = "approvals.head.write";
-
-/**
- * Head of the offices can read Obligations published that requires their
- * approval.
- */
-export const APPROVALS_HEAD_READ: Permissions = "approvals.head.read";
-
-/**
  * People with this role can Approve/Reject or Ban accounts applying on the
  * organization
  */
@@ -50,9 +39,27 @@ export const OBR_MANAGEMENT_WRITE: Permissions = "obr.management.write";
  */
 export const OBR_MANAGEMENT_READ: Permissions = "obr.management.read";
 
+/**
+ * People with this permission can Approve/Reject OBR Requests with less than 4 Items
+ */
+export const OBR_APPROVER_BASIC_WRITE: Permissions = "obr.approver.basic.write";
+
+/**
+ * People with this permission can see who are Pending to approve OBR Requests with less than 4 Items
+ */
+export const OBR_APPROVER_BASIC_READ: Permissions = "obr.approver.basic.read";
+
+/**
+ * People with this permission can Approve/Reject OBR Requests with more than 4 Items
+ */
+export const OBR_APPROVER_ADVANCED_WRITE: Permissions = "obr.approver.advanced.write";
+
+/**
+ * People with this permission can see who are Pending for Approval of OBR Requests with more than 4 Items
+ */
+export const OBR_APPROVER_ADVANCED_READ: Permissions = "obr.approver.advanced.read";
+
 export type Permissions =
-    | "approvals.head.write"
-    | "approvals.head.read"
     | "approvals.account.write"
     | "approvals.account.read"
     | "approvals.invitation.write"
@@ -60,4 +67,8 @@ export type Permissions =
     | "data-types.manage.read"
     | "data-types.manage.write"
     | "obr.management.write"
-    | "obr.management.read";
+    | "obr.management.read"
+    | "obr.approver.basic.write"
+    | "obr.approver.basic.read"
+    | "obr.approver.advanced.write"
+    | "obr.approver.advanced.read";
