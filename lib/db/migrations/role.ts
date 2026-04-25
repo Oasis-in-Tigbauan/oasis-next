@@ -14,8 +14,6 @@ export const roleMigration: MigratorFn = async (client): Promise<void> => {
         {
           name: "Heathcliff",
           permissions: [
-            permissions.APPROVALS_HEAD_READ,
-            permissions.APPROVALS_HEAD_WRITE,
             permissions.APPROVALS_ACCOUNT_READ,
             permissions.APPROVALS_ACCOUNT_WRITE,
             permissions.APPROVALS_INVITATION_READ,
@@ -35,8 +33,8 @@ export const roleMigration: MigratorFn = async (client): Promise<void> => {
         {
           name: "Vice Mayor",
           permissions: [
-            permissions.APPROVALS_HEAD_READ,
-            permissions.APPROVALS_HEAD_WRITE,
+            permissions.OBR_APPROVER_ADVANCED_WRITE,
+            permissions.OBR_APPROVER_ADVANCED_READ,
           ],
         },
       ],
@@ -50,8 +48,6 @@ export const roleMigration: MigratorFn = async (client): Promise<void> => {
           permissions: [
             permissions.APPROVALS_ACCOUNT_READ,
             permissions.APPROVALS_ACCOUNT_WRITE,
-            permissions.APPROVALS_HEAD_READ,
-            permissions.APPROVALS_HEAD_WRITE,
           ],
         },
       ],

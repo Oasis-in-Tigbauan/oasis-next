@@ -2,14 +2,6 @@ import * as permissions from "@/lib/db/permissions";
 
 export const permissionDescriptors: Array<PermissionDescriptor> = [
   {
-    permission: permissions.APPROVALS_HEAD_WRITE,
-    description: "Head of the offices can approve Obligations published.",
-  },
-  {
-    permission: permissions.APPROVALS_HEAD_READ,
-    description: "Head of the offices can read Obligations published that requires their approval.",
-  },
-  {
     permission: permissions.APPROVALS_ACCOUNT_WRITE,
     description: "People with this role can Approve/Reject, Ban on the organization.",
   },
@@ -42,12 +34,26 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.OBR_MANAGEMENT_READ,
     description: "People with this permission can read obr related configurations and main worksheets.",
   },
+  {
+    permission: permissions.OBR_APPROVER_BASIC_WRITE,
+    description: "People with this permission can Approve/Reject OBR Requests with less than 4 Items",
+  },
+  {
+    permission: permissions.OBR_APPROVER_BASIC_READ,
+    description: "People with this permission can see who are Pending for Approval of OBR Requests with less than 4 Items",
+  },
+  {
+    permission: permissions.OBR_APPROVER_ADVANCED_WRITE,
+    description: "People with this permission can Approve/Reject OBR Requests with more than 4 Items",
+  },
+  {
+    permission: permissions.OBR_APPROVER_ADVANCED_READ,
+    description: "People with this permission can see who are Pending for Approval of OBR Requests with more than 4 Items",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
   [
-    permissions.APPROVALS_HEAD_WRITE,
-    permissions.APPROVALS_HEAD_READ,
     permissions.APPROVALS_ACCOUNT_WRITE,
     permissions.APPROVALS_ACCOUNT_READ,
     permissions.APPROVALS_INVITATION_WRITE,
@@ -56,6 +62,10 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.DATA_TYPES_MANAGE_WRITE,
     permissions.OBR_MANAGEMENT_WRITE,
     permissions.OBR_MANAGEMENT_READ,
+    permissions.OBR_APPROVER_BASIC_WRITE,
+    permissions.OBR_APPROVER_BASIC_READ,
+    permissions.OBR_APPROVER_ADVANCED_WRITE,
+    permissions.OBR_APPROVER_ADVANCED_READ,
   ],
 );
 
