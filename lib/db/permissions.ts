@@ -41,14 +41,14 @@ export const DATA_TYPES_MANAGE_READ: Permissions = "data-types.manage.read";
 export const DATA_TYPES_MANAGE_WRITE: Permissions = "data-types.manage.write";
 
 /**
- * People with this role can read ESRE contents.
+ * People with this permission can manage obr related configurations and main worksheets.
  */
-export const ESRE_READ: Permissions = "esre.read";
+export const OBR_MANAGEMENT_WRITE: Permissions = "obr.management.write";
 
 /**
- * People with this role can perform write operations to ESRE contents.
+ * People with this permission can read obr related configurations and main worksheets.
  */
-export const ESRE_WRITE: Permissions = "esre.write";
+export const OBR_MANAGEMENT_READ: Permissions = "obr.management.read";
 
 export type Permissions =
     | "approvals.head.write"
@@ -59,5 +59,5 @@ export type Permissions =
     | "approvals.invitation.read"
     | "data-types.manage.read"
     | "data-types.manage.write"
-    | "esre.read"
-    | "esre.write";
+    | "obr.management.write"
+    | "obr.management.read";

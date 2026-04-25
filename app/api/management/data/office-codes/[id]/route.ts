@@ -4,7 +4,7 @@ import { session as auth, SessionCode } from "@/lib/auth";
 import * as officeCodes from "@/lib/field-types/offices";
 import { oneOf } from "@/lib/one-of";
 import * as permissions from "@/lib/db/permissions";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator, validatorUtilities } from "@/lib/validators";
 
@@ -14,19 +14,19 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
     permissions.DATA_TYPES_MANAGE_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const { id } = await params;
   if (!validatorUtilities.isNotEmpty(id)) {
-    return ResponseComposer.composeError(StatusCodes.Status404NotFound, "Not found.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status404NotFound, "Not found.")
+      .build();
   }
 
   const body = await tryParseJson<PatchPayload>(req);
   if (!body) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.")
+      .build();
   }
 
   const validation = await validator.validate<PatchPayload>(body, {
@@ -45,8 +45,8 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, validation.errors!)
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validation.errors!)
+      .build();
   }
 
   const data = await officeCodes.update(id, {
@@ -60,8 +60,8 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
     headUser: body.headUser,
   }, { applyToExisting: body.applyToExisting ?? false });
   return oneOf(data).match(
-    s => ResponseComposer.compose(StatusCodes.Status200Ok).setBody(s).orchestrate(),
-    e => ResponseComposer.composeFromFailure(e).orchestrate(),
+    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 

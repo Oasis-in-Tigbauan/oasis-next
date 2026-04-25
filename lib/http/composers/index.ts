@@ -1,4 +1,4 @@
-import { ResponseComposer } from "@/lib/http/composers/ResponseComposer";
+import { ApiResponseBuilder } from "@/lib/http/composers/ApiResponseComposer";
 import { StatusCodes } from "@/lib/http/composers/StatusCodes";
 
-export { ResponseComposer, StatusCodes };
+export { ApiResponseBuilder, StatusCodes };

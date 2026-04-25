@@ -2,15 +2,15 @@ import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 
 import { auth } from "@/lib/auth";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator } from "@/lib/validators";
 
 export async function POST(req: NextRequest) {
   const body = await tryParseJson<SignInRequest>(req);
   if (!body) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, "Invalid Payload.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid Payload.")
+      .build();
   }
 
   const validation = await validator.validate<SignInRequest>(body, {
@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, validation.errors!)
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validation.errors!)
+      .build();
   }
 
   try {
@@ -36,12 +36,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ResponseComposer.compose(StatusCodes.Status204NoContent).orchestrate();
+    return ApiResponseBuilder.create(StatusCodes.Status204NoContent).build();
   } catch (e) {
     Sentry.captureException(e);
 
-    return ResponseComposer.composeError(StatusCodes.Status401Unauthorized, "Invalid credentials")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status401Unauthorized, "Invalid credentials")
+      .build();
   }
 }
 

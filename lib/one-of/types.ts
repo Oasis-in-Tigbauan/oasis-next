@@ -17,6 +17,11 @@ export enum ErrorCodes {
   ResourceExpired = 6703,
 
   /**
+   * Identifiers or Resources that user don't have access to.
+   */
+  InsufficientPermissions = 6705,
+
+  /**
    * Fatal Exceptions
    */
   Fatal = 6704,
@@ -39,11 +44,7 @@ export class Failure {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     public readonly trace?: any,
   ) {
-    Sentry.logger.error("Failure: ", {
-      type,
-      message,
-      ...additionalContext,
-    });
+    Sentry.logger.error(`Failure with type ID ${type}: ${message}`, additionalContext);
 
     // Capture trace exception if any.
     if (trace) {

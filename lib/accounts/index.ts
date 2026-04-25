@@ -334,7 +334,7 @@ export async function createNewInvitation(email: string, officeId: string): Prom
     // Send the email to the user.
     const { error } = await send({
       to: [result.email],
-      subject: "Invitation to Join Tigbauan Organization",
+      subject: `Invitation to Join ${process.env.NEXT_PUBLIC_PROJECT_ORG_NAME}`,
       html: InvitationEmailHtml({
         inviteUrl: `/enrollment/?token=${token}`,
         expiresAt: DateTime
@@ -397,7 +397,7 @@ export async function resendInvitation(id: string): Promise<Result<{ ok: boolean
     // Send the email to the user.
     const { error } = await send({
       to: [result.email],
-      subject: "Invitation to Join Tigbauan Organization",
+      subject: `Invitation to Join ${process.env.NEXT_PUBLIC_PROJECT_ORG_NAME}`,
       html: InvitationEmailHtml({
         inviteUrl: `/enrollment/?token=${result.token}`,
         expiresAt: DateTime

@@ -5,7 +5,7 @@ import * as offices from "@/lib/office";
 import { oneOf } from "@/lib/one-of";
 import * as permission from "@/lib/db/permissions";
 import type { Permissions } from "@/lib/db/permissions";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator, validatorUtilities } from "@/lib/validators";
 
@@ -15,19 +15,19 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/mana
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const { id } = await params;
   if (!validatorUtilities.isNotEmpty(id)) {
-    return ResponseComposer.composeError(StatusCodes.Status404NotFound, "Not found.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status404NotFound, "Not found.")
+      .build();
   }
 
   const body = await tryParseJson<CreateRoleRequest>(req);
   if (!body) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.")
+      .build();
   }
 
   // Validation
@@ -60,18 +60,18 @@ export async function POST(req: NextRequest, { params }: RouteContext<"/api/mana
     allowUnvalidatedProperties: false,
   });
   if (!validate.ok) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, validate.errors!)
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validate.errors!)
+      .build();
   }
 
   const result = await offices.addRole(id, body.name, body.permissions);
   return oneOf(result).match(
     s => {
-      return ResponseComposer.compose(StatusCodes.Status200Ok)
-        .setBody({ ...s, userCount: 0 })
-        .orchestrate();
+      return ApiResponseBuilder.create(StatusCodes.Status200Ok)
+        .withBody({ ...s, userCount: 0 })
+        .build();
     },
-    e => ResponseComposer.composeFromFailure(e).orchestrate(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
