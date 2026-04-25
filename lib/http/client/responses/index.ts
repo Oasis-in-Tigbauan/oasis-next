@@ -8,6 +8,7 @@ import type { InvitationResponse } from "@/lib/http/client/responses/InvitationR
 import type { InvitationListResponse } from "@/lib/http/client/responses/InvitationListResponse";
 import type { OfficeCodeListResponse } from "@/lib/http/client/responses/OfficeCodeListResponse";
 import type { OfficeCodeResponse } from "@/lib/http/client/responses/OfficeCodeResponse";
+import type { OfficeCodeWithHeadsResponse } from "@/lib/http/client/responses/OfficeCodeWithHeadsResponse";
 import type { OfficeResponse } from "@/lib/http/client/responses/OfficeResponse";
 import type { OfficeSingleResponse} from "@/lib/http/client/responses/OfficeSingleResponse";
 import type {
@@ -30,6 +31,7 @@ export type {
   InvitationListResponse,
   OfficeCodeListResponse,
   OfficeCodeResponse,
+  OfficeCodeWithHeadsResponse,
   OfficeResponse,
   OfficeSingleResponse,
   OfficeSingleResponseWithRoleExtendedInfo,

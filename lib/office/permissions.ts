@@ -50,6 +50,10 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.OBR_APPROVER_ADVANCED_READ,
     description: "People with this permission can see who are Pending for Approval of OBR Requests with more than 4 Items",
   },
+  {
+    permission: permissions.OFFICE_HEAD,
+    description: "People with this permission indicates that they are head of the office. It adds no special permissions.",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -66,6 +70,7 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.OBR_APPROVER_BASIC_READ,
     permissions.OBR_APPROVER_ADVANCED_WRITE,
     permissions.OBR_APPROVER_ADVANCED_READ,
+    permissions.OFFICE_HEAD,
   ],
 );
 
