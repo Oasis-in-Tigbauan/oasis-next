@@ -4,20 +4,20 @@ import { session as auth, SessionCode } from "@/lib/auth";
 import * as expenseClasses from "@/lib/field-types/expense";
 import { oneOf } from "@/lib/one-of";
 import * as permissions from "@/lib/db/permissions";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator } from "@/lib/validators";
 
 export async function GET() {
   const session = await auth.verify();
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const data = await expenseClasses.all();
   return oneOf(data).match(
-    s => ResponseComposer.compose(StatusCodes.Status200Ok).setBody(s).orchestrate(),
-    e => ResponseComposer.composeFromFailure(e).orchestrate(),
+    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
@@ -27,13 +27,13 @@ export async function POST(req: NextRequest) {
     permissions.DATA_TYPES_MANAGE_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const body = await tryParseJson<PostPayload>(req);
   if (!body) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.")
+      .build();
   }
 
   const validation = await validator.validate<PostPayload>(body, {
@@ -50,14 +50,14 @@ export async function POST(req: NextRequest) {
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, validation.errors!)
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validation.errors!)
+      .build();
   }
 
   const data = await expenseClasses.create(body);
   return oneOf(data).match(
-    s => ResponseComposer.compose(StatusCodes.Status200Ok).setBody(s).orchestrate(),
-    e => ResponseComposer.composeFromFailure(e).orchestrate(),
+    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgEnum, pgTable, text, timestamp, boolean, index, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -218,36 +218,5 @@ export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
   user: one(user, {
     fields: [twoFactor.userId],
     references: [user.id],
-  }),
-}));
-
-export const officesRelations = relations(office, ({ many }) => ({
-  officePosition: many(officePosition),
-  users: many(user),
-}));
-
-export const positionRelations = relations(officePosition, ({ one, many }) => ({
-  office: one(office, {
-    fields: [officePosition.officeId],
-    references: [office.id],
-  }),
-  user: many(user),
-}));
-
-export const usersRelations = relations(user, ({ one }) => ({
-  office: one(office, {
-    fields: [user.officeId],
-    references: [office.id],
-  }),
-  officePosition: one(officePosition, {
-    fields: [user.officePositionId],
-    references: [officePosition.id],
-  }),
-}));
-
-export const invitationsRelations = relations(invitations, ({ one }) => ({
-  office: one(office, {
-    fields: [invitations.officeId],
-    references: [office.id],
   }),
 }));

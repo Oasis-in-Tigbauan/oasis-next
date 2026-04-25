@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import * as accounts from "@/lib/accounts";
 import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { validatorUtilities } from "@/lib/validators";
 import { oneOf } from "@/lib/one-of";
 
@@ -16,26 +16,26 @@ export async function POST(
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const { id } = await params;
   if (!validatorUtilities.isNotEmpty(id)) {
-    return ResponseComposer.composeError(StatusCodes.Status404NotFound, "Not found.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status404NotFound, "Not found.")
+      .build();
   }
 
   // Disallow banning yourself
   if (session.user.id === id) {
-    return ResponseComposer.composeError(
+    return ApiResponseBuilder.createError(
       StatusCodes.Status400BadRequest,
       "You cannot ban yourself. Or can you?",
-    ).orchestrate();
+    ).build();
   }
 
   const result = await accounts.toggleBan(id);
   return oneOf(result).match(
-    s => ResponseComposer.compose(StatusCodes.Status200Ok).setBody(s).orchestrate(),
-    e => ResponseComposer.composeFromFailure(e).orchestrate(),
+    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }

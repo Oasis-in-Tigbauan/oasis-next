@@ -1,9 +1,14 @@
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import child_process from "node:child_process";
 import crypto from "node:crypto";
-import * as readline from "node:readline/promises";
+import os from "node:os";
+import path from "node:path";
 import * as pg from "pg";
+import * as readline from "node:readline/promises";
 import {stdin, stdout} from "node:process";
+
+const __dirname = import.meta.dirname;
 
 /**
  * Uppercase characters
@@ -119,6 +124,41 @@ export const process = {
   },
 };
 
+export const fsUtils = {
+  createRecursiveDirectories(root, subPaths) {
+    const paths = subPaths.map(subPath => path.join(root, subPath));
+    for (const path of paths) {
+      // No need for existing directories.
+      if (fs.existsSync(path)) {
+        continue;
+      }
+
+      // Create directory.
+      fs.mkdirSync(path, { recursive: true });
+    }
+  },
+  removeDir(loc) {
+    fs.rmSync(loc, { recursive: true });
+  },
+  async unpackWith7z(args) {
+    const platform = os.platform();
+    const arch = platform === "darwin" ? "any" : `${os.arch()}`;
+    const exe = platform === "win32" ? "7z.exe" : "7zz";
+
+    const exePath = path.join(__dirname, "7z", `${platform}-${arch}`, exe);
+    if (!fs.existsSync(exePath)) {
+      console.error("No such platform prefix exists for unpacking: %s", `${platform}-${arch}/${exe}`);
+      process.exit(1);
+    }
+
+    if (platform !== "win32") {
+      fs.chmodSync(exePath, 0o755);
+    }
+
+    await process.spawnAsync(exePath, args);
+  },
+};
+
 export const db = {
   /**
    * Builds a PostgreSQL connection string (URI) from discrete connection fields.
@@ -168,6 +208,11 @@ export const db = {
       }
     }
 
+    return url.toString();
+  },
+
+  createRedisConnectionString(hostname, port) {
+    const url = new URL(`redis://${hostname}:${port}`);
     return url.toString();
   },
 
@@ -235,12 +280,24 @@ export const timers = {
   },
 };
 
-/**
- * Docker configuration
- *
- * @type {Map<string, string>}
- */
-const DOCKER_CONFIG = new Map();
+export const csv = {
+  read: async (location) => {
+    const file = await fsp.readFile(location, "utf-8");
+    const [header, ...data] = file.split(/\r?\n/).map((row) => row.split(","));
+
+    const output = [];
+    for (const item of data) {
+      const result = {};
+      for (let i = 0; i < header.length; i++) {
+        result[header[i]] = item[i];
+      }
+
+      output.push(result);
+    }
+
+    return output;
+  },
+};
 
 /**
  * Runtime configuration
@@ -282,17 +339,14 @@ export const env = {
    * @param {string} value - The value to be stored for the specified configuration key.
    */
   write: (key, value) => {
-    const [context, ...rest] = key.split(".");
-
-    if (context === "docker") {
-      const configKey = rest.join("_").toUpperCase();
-      DOCKER_CONFIG.set(configKey, value);
-
-      return;
-    }
+    const [...rest] = key.split(".");
 
     const runtimeKey = rest.join("_").toUpperCase();
     RUNTIME_CONFIG.set(runtimeKey, value);
+  },
+
+  get: (key) => {
+    return RUNTIME_CONFIG.get(key);
   },
 
   /**
@@ -308,13 +362,29 @@ export const env = {
       config += `${key}="${value}"\n`;
     });
 
-    config += "\n";
-
-    DOCKER_CONFIG.forEach((value, key) => {
-      config += `${key}="${value}"\n`;
-    });
-
     await fs.promises.writeFile(path, config, "utf-8");
+  },
+
+  load: () => {
+    const envPath = path.join(__dirname, "../.env");
+    if (!fs.existsSync(envPath)) {
+      return false;
+    }
+
+    const envFile = fs.readFileSync(envPath, "utf-8");
+    const lines = envFile.split(/\r?\n/);
+
+    for (const line of lines) {
+      if (line.trim().startsWith("#") || !line.includes("=")) {
+        continue; // Skip comments and invalid lines
+      }
+
+      const [key, ...rest] = line.split("=");
+      const value = rest.join("=").replace(/^"(.*)"$/, "$1"); // Remove surrounding quotes if present
+      RUNTIME_CONFIG.set(key.trim().replaceAll("_", ".").toLowerCase(), value.trim());
+    }
+
+    return true;
   },
 };
 
@@ -334,9 +404,9 @@ function checkPasswordComplexity(password) {
   }
 
   return (password.match(/[a-z]/g) ?? []).length >= 2 // At least there are 2 lowercase characters
-    && (password.match(/[A-Z]/g) ?? []).length >= 2 // At least there are 2 uppercase characters
-    && (password.match(/[0-9]/g) ?? []).length >= 2 // At least there should be 2 numbers
-    && (password.match(/[!"#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]/g) ?? []).length >= 2; // 2 Symbols.
+        && (password.match(/[A-Z]/g) ?? []).length >= 2 // At least there are 2 uppercase characters
+        && (password.match(/[0-9]/g) ?? []).length >= 2 // At least there should be 2 numbers
+        && (password.match(/[!"#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]/g) ?? []).length >= 2; // 2 Symbols.
 }
 
 /**

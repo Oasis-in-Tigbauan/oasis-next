@@ -1,7 +1,7 @@
 import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { permissionDescriptors } from "@/lib/office";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 
 export async function GET() {
   const session = await auth.verify([
@@ -9,8 +9,8 @@ export async function GET() {
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
-  return ResponseComposer.compose(StatusCodes.Status200Ok).setBody(permissionDescriptors).orchestrate();
+  return ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(permissionDescriptors).build();
 }

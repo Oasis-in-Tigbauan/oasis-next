@@ -35,12 +35,12 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     description: "People with this role can create, edit, and delete data types.",
   },
   {
-    permission: permissions.ESRE_READ,
-    description: "People with this role can view ESRE items.",
+    permission: permissions.OBR_MANAGEMENT_WRITE,
+    description: "People with this permission can manage obr related configurations and main worksheets.",
   },
   {
-    permission: permissions.ESRE_WRITE,
-    description: "People with this role can create, edit, and delete ESRE items.",
+    permission: permissions.OBR_MANAGEMENT_READ,
+    description: "People with this permission can read obr related configurations and main worksheets.",
   },
 ];
 
@@ -54,8 +54,8 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.APPROVALS_INVITATION_READ,
     permissions.DATA_TYPES_MANAGE_READ,
     permissions.DATA_TYPES_MANAGE_WRITE,
-    permissions.ESRE_READ,
-    permissions.ESRE_WRITE,
+    permissions.OBR_MANAGEMENT_WRITE,
+    permissions.OBR_MANAGEMENT_READ,
   ],
 );
 

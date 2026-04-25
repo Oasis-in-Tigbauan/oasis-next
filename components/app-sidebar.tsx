@@ -2,7 +2,6 @@
 
 import {
   ChevronRight,
-  FileSpreadsheet,
   LampDesk,
   Mail,
   PhilippinePeso,
@@ -50,7 +49,7 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                   </svg>
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-medium">Municipality of Tigbauan</span>
+                  <span className="font-medium">{process.env.NEXT_PUBLIC_PROJECT_ORG_NAME}</span>
                   <span className="">v0.0.1-alpha</span>
                 </div>
               </a>
@@ -60,23 +59,6 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
       </SidebarHeader>
       <SidebarContent>
         {/* Workspaces/Worksheets */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Worksheets</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {
-                permissionMap.has(permissions.ESRE_READ) && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton>
-                      <FileSpreadsheet />
-                      <a href="/dashboard/esre">ESRE</a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              }
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
         {/* Data Types Management */}
         {

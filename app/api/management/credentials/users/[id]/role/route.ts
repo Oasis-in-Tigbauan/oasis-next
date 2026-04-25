@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { validator, validatorUtilities } from "@/lib/validators";
 import * as offices from "@/lib/office";
 import { oneOf } from "@/lib/one-of";
@@ -17,19 +17,19 @@ export async function PATCH(
     permission.APPROVALS_ACCOUNT_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return ResponseComposer.composeFromSessionValidation(session).orchestrate();
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const { id } = await params;
   if (!validatorUtilities.isNotEmpty(id)) {
-    return ResponseComposer.composeError(StatusCodes.Status404NotFound, "Not found.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status404NotFound, "Not found.")
+      .build();
   }
 
   const payload = await tryParseJson<Payload>(req);
   if (!payload) {
-    return ResponseComposer.composeError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .orchestrate();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.")
+      .build();
   }
 
   // Validate
@@ -42,15 +42,15 @@ export async function PATCH(
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ResponseComposer
-      .composeError(StatusCodes.Status400BadRequest, validation.errors!)
-      .orchestrate();
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, validation.errors!)
+      .build();
   }
 
   const result = await offices.switchRoles(id, payload.roleId, payload.officeId);
   return oneOf(result).match(
-    s => ResponseComposer.compose(StatusCodes.Status200Ok).setBody(s).orchestrate(),
-    e => ResponseComposer.composeFromFailure(e).orchestrate(),
+    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
