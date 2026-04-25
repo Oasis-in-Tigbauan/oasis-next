@@ -44,10 +44,10 @@ export async function POST(req: NextRequest) {
       function: { type: "string", formatter: "non-empty-string" },
       liftOffice: { type: "string", formatter: "non-empty-string" },
       subOffice: { type: "string", formatter: "non-empty-string" },
-      office: { type: "string", formatter: "non-empty-string" },
-      headUser: { type: "string", formatter: "non-empty-string" },
+      officeId: { type: "string", formatter: "non-empty-string" },
+      headUserId: { type: "string", formatter: "non-empty-string" },
     },
-    requiredProperties: ["aa"],
+    requiredProperties: ["aa", "officeId", "headUserId"],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
@@ -69,6 +69,6 @@ type PostPayload = {
   function: Optional<string>;
   liftOffice: Optional<string>;
   subOffice: Optional<string>;
-  office: Optional<string>;
-  headUser: Optional<string>;
+  officeId: string;
+  headUserId: string;
 }

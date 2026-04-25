@@ -1,8 +1,8 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { officeCodes } from "@/lib/db/schema";
+import { office, officeCodes, user } from "@/lib/db/schema";
 import { validatorUtilities } from "@/lib/validators";
 
 /**
@@ -40,18 +40,41 @@ export async function create(payload: CreateOfficeCodePayload): Promise<Result<O
       return new Failure(ErrorCodes.ValidationFailure, "Office code already exists.", payload);
     }
 
+    // Check if the office exists
+    const [officeToUse] = await db
+      .select({ id: office.id, name: office.name })
+      .from(office)
+      .where(eq(office.id, payload.officeId));
+    if (!officeToUse) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Office does not exist.", payload);
+    }
+
+    // Head user
+    const [headUser] = await db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .where(
+        and(
+          eq(user.id, payload.headUserId),
+          eq(user.officeId, officeToUse.id),
+        ),
+      );
+    if (!headUser) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Head user does not exist.", payload);
+    }
+
     // Create the office code.
     const [officeCode] = await db
       .insert(officeCodes)
       .values({
         aa: payload.aa,
+        officeId: officeToUse.id,
+        headUserId: headUser.id,
         ...(validatorUtilities.isNotEmpty(payload.code) ? { code: payload.code } : {}),
         ...(validatorUtilities.isNotEmpty(payload.sector) ? { sector: payload.sector } : {}),
         ...(validatorUtilities.isNotEmpty(payload.function) ? { sector: payload.function } : {}),
         ...(validatorUtilities.isNotEmpty(payload.liftOffice) ? { liftOffice: payload.liftOffice } : {}),
         ...(validatorUtilities.isNotEmpty(payload.subOffice) ? { subOffice: payload.subOffice } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.office) ? { office: payload.office } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.headUser) ? { headUser: payload.headUser } : {}),
       })
       .returning();
     if (!officeCode) {
@@ -66,8 +89,14 @@ export async function create(payload: CreateOfficeCodePayload): Promise<Result<O
       function: officeCode.function,
       liftOffice: officeCode.liftOffice,
       subOffice: officeCode.subOffice,
-      office: officeCode.office,
-      headUser: officeCode.headUser,
+      office: {
+        id: officeToUse.id,
+        name: officeToUse.name,
+      },
+      headUser: {
+        id: headUser.id,
+        name: headUser.name,
+      },
     });
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to create office code.", payload, e);
@@ -98,13 +127,35 @@ export async function all(): Promise<Result<Array<OfficeCode>>> {
         function: officeCodes.function,
         liftOffice: officeCodes.liftOffice,
         subOffice: officeCodes.subOffice,
-        office: officeCodes.office,
-        headUser: officeCodes.headUser,
+        officeId: officeCodes.officeId,
+        officeName: office.name,
+        headUserId: officeCodes.headUserId,
+        headUserName: user.name,
       })
       .from(officeCodes)
+      .leftJoin(office, eq(officeCodes.officeId, office.id))
+      .leftJoin(user, eq(officeCodes.headUserId, user.id))
       .orderBy(officeCodes.createdAt);
 
-    return new Success(codes);
+    const mapped: OfficeCode[] = codes.map(c => ({
+      id: c.id,
+      aa: c.aa,
+      code: c.code,
+      sector: c.sector,
+      function: c.function,
+      liftOffice: c.liftOffice,
+      subOffice: c.subOffice,
+      office: {
+        id: c.officeId,
+        name: c.officeName!,
+      },
+      headUser: {
+        id: c.headUserId,
+        name: c.headUserName!,
+      },
+    }));
+
+    return new Success(mapped);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to fetch office codes.", {}, e);
   }
@@ -122,8 +173,7 @@ export async function all(): Promise<Result<Array<OfficeCode>>> {
  * If any error occurs during lookup or update, it returns a {@link Failure} with a fatal error.
  *
  * @param {string} id The unique identifier of the office code to update.
- * @param {Partial<CreateOfficeCodePayload>} payload The partial office code data to update.
- * @param {UpdateOptions} options Optional parameters for update behavior.
+ * @param {Partial<UpdateOfficeCodePayload>} payload The partial office code data to update.
  * @returns {Promise<Result<OfficeCode>>} A promise that resolves to:
  * - {@link Success} containing the updated office code
  * - {@link Failure} when the office code is not found or the update cannot be completed
@@ -134,22 +184,20 @@ export async function all(): Promise<Result<Array<OfficeCode>>> {
  *   office: "Regional Office",
  * });
  */
-export async function update(id: string, payload: Partial<CreateOfficeCodePayload>, options?: UpdateOptions): Promise<Result<OfficeCode>> {
+export async function update(id: string, payload: Partial<UpdateOfficeCodePayload>): Promise<Result<OfficeCode>> {
   try {
     const [target] = await db
       .select({
         id: officeCodes.id,
-        aa: officeCodes.aa,
-        code: officeCodes.code,
-        sector: officeCodes.sector,
-        function: officeCodes.function,
-        liftOffice: officeCodes.liftOffice,
-        subOffice: officeCodes.subOffice,
-        office: officeCodes.office,
-        headUser: officeCodes.headUser,
+        officeId: officeCodes.officeId,
+        officeName: office.name,
+        headUserId: officeCodes.headUserId,
+        headUserName: user.name,
       })
       .from(officeCodes)
       .where(eq(officeCodes.id, id))
+      .leftJoin(office, eq(officeCodes.officeId, office.id))
+      .leftJoin(user, eq(officeCodes.headUserId, user.id))
       .limit(1);
     if (!target) {
       return new Failure(ErrorCodes.ResourceNotFound, "Office code not found.", { id });
@@ -158,18 +206,49 @@ export async function update(id: string, payload: Partial<CreateOfficeCodePayloa
     // Filter out unserializable content and empty values
     const values: Partial<CreateOfficeCodePayload> = validatorUtilities.filterUpdatedFields(payload);
 
+    let officeUpdate: { id: string; name: string } | null = null;
+    if (validatorUtilities.isExisty(values.officeId) && target.officeId !== values.officeId) {
+      const [officeToUse] = await db
+        .select({ id: office.id, name: office.name })
+        .from(office)
+        .where(eq(office.id, values.officeId!));
+      if (!officeToUse) {
+        return new Failure(ErrorCodes.ResourceNotFound, "Office does not exist.", { ...payload, id });
+      }
+
+      officeUpdate = { id: officeToUse.id, name: officeToUse.name };
+    }
+
+    let headUser: { id: string; name: string } | null = null;
+    if (validatorUtilities.isExisty(values.headUserId) && target.headUserId !== values.headUserId) {
+      const [newHeadUser] = await db
+        .select({ id: user.id, name: user.name })
+        .from(user)
+        .where(
+          and(
+            eq(user.id, values.headUserId!),
+            eq(user.officeId, officeUpdate?.id ?? target.officeId),
+          ),
+        );
+      if (!newHeadUser) {
+        return new Failure(ErrorCodes.ResourceNotFound, "Office does not exist.", { ...payload, id });
+      }
+
+      headUser = { id: newHeadUser.id, name: newHeadUser.name };
+    }
+
     // Apply updates
     const [updated] = await db
       .update(officeCodes)
       .set({
-        ...(validatorUtilities.isExisty(values.aa) ? { aa: payload.aa } : {}),
-        ...(validatorUtilities.isExisty(payload.code) ? { code: payload.code } : {}),
-        ...(validatorUtilities.isExisty(payload.sector) ? { sector: payload.sector } : {}),
-        ...(validatorUtilities.isExisty(payload.function) ? { function: payload.function } : {}),
-        ...(validatorUtilities.isExisty(payload.liftOffice) ? { liftOffice: payload.liftOffice } : {}),
-        ...(validatorUtilities.isExisty(payload.subOffice) ? { subOffice: payload.subOffice } : {}),
-        ...(validatorUtilities.isExisty(payload.office) ? { office: payload.office } : {}),
-        ...(validatorUtilities.isExisty(payload.headUser) ? { headUser: payload.headUser } : {}),
+        ...(validatorUtilities.isExisty(values.aa) ? { aa: values.aa } : {}),
+        ...(validatorUtilities.isExisty(values.code) ? { code: values.code } : {}),
+        ...(validatorUtilities.isExisty(values.sector) ? { sector: values.sector } : {}),
+        ...(validatorUtilities.isExisty(values.function) ? { function: values.function } : {}),
+        ...(validatorUtilities.isExisty(values.liftOffice) ? { liftOffice: values.liftOffice } : {}),
+        ...(validatorUtilities.isExisty(values.subOffice) ? { subOffice: values.subOffice } : {}),
+        ...(validatorUtilities.isExisty(officeUpdate) ? { officeId: officeUpdate!.id } : {}),
+        ...(validatorUtilities.isExisty(headUser) ? { headUserId: headUser!.id } : {}),
       })
       .where(eq(officeCodes.id, target.id))
       .returning();
@@ -182,8 +261,8 @@ export async function update(id: string, payload: Partial<CreateOfficeCodePayloa
       function: updated.function,
       liftOffice: updated.liftOffice,
       subOffice: updated.subOffice,
-      office: updated.office,
-      headUser: updated.headUser,
+      office: officeUpdate ?? { id: target.officeId, name: target.officeName! },
+      headUser: headUser ?? { id: target.headUserId, name: target.headUserName! },
     });
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to update office code.", { ...payload, id }, e);
@@ -197,9 +276,14 @@ type CreateOfficeCodePayload = {
   function: Optional<string>;
   liftOffice: Optional<string>;
   subOffice: Optional<string>;
-  office: Optional<string>;
-  headUser: Optional<string>;
+  officeId: string;
+  headUserId: string;
 };
+
+type UpdateOfficeCodePayload = Omit<CreateOfficeCodePayload, "officeId" | "headUserId"> & {
+  officeId: Optional<string>;
+  headUserId: Optional<string>;
+}
 
 export type OfficeCode = {
   id: string;
@@ -209,10 +293,12 @@ export type OfficeCode = {
   function: Optional<string>;
   liftOffice: Optional<string>;
   subOffice: Optional<string>;
-  office: Optional<string>;
-  headUser: Optional<string>;
-}
-
-export type UpdateOptions = {
-  applyToExisting: boolean;
+  office: {
+    id: string;
+    name: string;
+  };
+  headUser: {
+    id: string;
+    name: string;
+  };
 }

@@ -37,9 +37,8 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
       function: { type: "string", formatter: "non-empty-string" },
       liftOffice: { type: "string", formatter: "non-empty-string" },
       subOffice: { type: "string", formatter: "non-empty-string" },
-      office: { type: "string", formatter: "non-empty-string" },
-      headUser: { type: "string", formatter: "non-empty-string" },
-      applyToExisting: { type: "boolean" },
+      officeId: { type: "string", formatter: "non-empty-string" },
+      headUserId: { type: "string", formatter: "non-empty-string" },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
@@ -56,9 +55,9 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
     function: body.function,
     liftOffice: body.liftOffice,
     subOffice: body.subOffice,
-    office: body.office,
-    headUser: body.headUser,
-  }, { applyToExisting: body.applyToExisting ?? false });
+    officeId: body.officeId,
+    headUserId: body.headUserId,
+  });
   return oneOf(data).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
@@ -72,7 +71,6 @@ type PatchPayload = Partial<{
   function: Optional<string>;
   liftOffice: Optional<string>;
   subOffice: Optional<string>;
-  office: Optional<string>;
-  headUser: Optional<string>;
-  applyToExisting: Optional<boolean>;
+  officeId: Optional<string>;
+  headUserId: Optional<string>;
 }>;

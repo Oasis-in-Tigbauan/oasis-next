@@ -1,4 +1,4 @@
-import { and, count, eq, not, sql } from "drizzle-orm";
+import { and, count, eq, inArray, not, sql } from "drizzle-orm";
 
 import { allowedPermissions, permissionDescriptors } from "@/lib/office/permissions";
 import { cacheManager } from "@/lib/cache";
@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success, unwrap } from "@/lib/one-of";
 import { getUserById } from "@/lib/accounts";
 import { office, officePosition, user } from "@/lib/db/schema";
-import type { Permissions } from "@/lib/db/permissions";
+import { OFFICE_HEAD, type Permissions } from "@/lib/db/permissions";
 import { User } from "@/lib/accounts";
 
 export { allowedPermissions, permissionDescriptors };
@@ -51,6 +51,80 @@ export async function getAssignableOffices(): Promise<Result<Array<Office>>> {
       .groupBy(office.id, office.name);
 
     return new Success(offices);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to get assignable offices.", {}, e);
+  }
+}
+
+/**
+ * Retrieves the list of offices that users are allowed to be assigned to, including their head users.
+ *
+ * @description
+ * Returns assignable offices that have office-head-capable positions, excluding protected/system offices.
+ * Each office includes a lightweight list of users currently associated with that office, intended for
+ * assignment flows and UI pickers that need office options with their possible head users.
+ *
+ * On success, wraps the office list in a {@link Success}. On failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function getAssignableOfficesWithHeadUsers
+ * @returns {Promise<Result<Array<OfficeWithHeadUserList>>>} A result wrapper containing assignable offices with head
+ *                                                           users on success, or a failure result on error.
+ *
+ * @remarks
+ * - Excludes protected/system offices from the result set.
+ * - Only offices with positions containing the office-head permission are included.
+ * - Head-user lists may be empty when an office has no associated users.
+ */
+export async function getAssignableOfficesWithHeadUsers(): Promise<Result<Array<OfficeWithHeadUserList>>> {
+  try {
+    // Fetch list of offices that is assignable first.
+    const offices = await db
+      .select({
+        id: office.id,
+        name: office.name,
+      })
+      .from(office)
+      .innerJoin(officePosition, eq(officePosition.officeId, office.id))
+      .where(
+        and(
+          not(eq(office.name, "Cardinal Administrators")),
+          sql`${officePosition.permissions} @> ARRAY[${OFFICE_HEAD}]`,
+        ),
+      )
+      .groupBy(office.id);
+
+    // Find the users
+    const officeIds = offices.map(o => o.id);
+    const users = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        officeId: user.officeId,
+      })
+      .from(user)
+      .where(inArray(user.officeId, officeIds));
+
+    // Grouping
+    const usersByOffice = new Map<string, { id: string; name: string }[]>();
+    for (const u of users) {
+      if (!usersByOffice.has(u.officeId)) {
+        usersByOffice.set(u.officeId, []);
+      }
+      usersByOffice.get(u.officeId)!.push({
+        id: u.id,
+        name: u.name,
+      });
+    }
+
+    // Map
+    const items: OfficeWithHeadUserList[] = offices.map(o => ({
+      id: o.id,
+      name: o.name,
+      heads: usersByOffice.get(o.id) ?? [],
+    }));
+
+    return new Success(items);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to get assignable offices.", {}, e);
   }
@@ -744,4 +818,11 @@ type RoleExtendedInfo = {
 
 type OfficeDefinitionWithRoleExtendedInfo = {
   roles: Array<RoleExtendedInfo>
+} & Office;
+
+type OfficeWithHeadUserList = {
+  heads: Array<{
+    id: string;
+    name: string;
+  }>;
 } & Office;

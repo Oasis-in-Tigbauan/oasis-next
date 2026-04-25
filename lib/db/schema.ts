@@ -183,8 +183,13 @@ export const officeCodes = pgTable("office_codes", {
   function: text("function"),
   liftOffice: text("lift_office"),
   subOffice: text("sub_office"),
-  office: text("office"),
-  headUser: text("head_user"),
+
+  officeId: text("office_id")
+    .references(() => office.id)
+    .notNull(),
+  headUserId: text("head_user_id")
+    .references(() => user.id)
+    .notNull(),
 
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()

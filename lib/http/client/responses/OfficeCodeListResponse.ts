@@ -8,8 +8,14 @@ type Response = {
   function: Optional<string>;
   liftOffice: Optional<string>;
   subOffice: Optional<string>;
-  office: Optional<string>;
-  headUser: Optional<string>;
+  office: {
+    id: string;
+    name: string;
+  },
+  headUser: {
+    id: string;
+    name: string;
+  }
 }
 
 export type OfficeCodeListResponse = GenericOkResponse<Array<Response>>;
