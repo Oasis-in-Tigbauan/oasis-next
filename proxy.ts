@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { getUserById } from "@/lib/accounts";
-import { ResponseComposer, StatusCodes } from "@/lib/http/composers";
+import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { unwrap } from "@/lib/one-of";
 
 export async function proxy(req: NextRequest) {
@@ -22,9 +22,9 @@ export async function proxy(req: NextRequest) {
 
   // Not authenticated.
   if (!isPublic && !session) {
-    return ResponseComposer
-      .composeError(StatusCodes.Status401Unauthorized, "You are not authenticated. You need to sign-in.")
-      .orchestrate();
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status401Unauthorized, "You are not authenticated. You need to sign-in.")
+      .build();
   }
 
   // User
@@ -34,25 +34,25 @@ export async function proxy(req: NextRequest) {
 
       // The rest of the endpoints that require a session & not banned
       if (user.banned || user.DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED) {
-        return ResponseComposer
-          .composeError(StatusCodes.Status403Forbidden, "You are banned from accessing this resource.")
-          .orchestrate();
+        return ApiResponseBuilder
+          .createError(StatusCodes.Status403Forbidden, "You are banned from accessing this resource.")
+          .build();
       }
 
       // The rest of the endpoints that require a session & approved
       if (!user.activated) {
-        return ResponseComposer
-          .composeError(StatusCodes.Status403Forbidden, "You are not authorized to access this resource.")
-          .orchestrate();
+        return ApiResponseBuilder
+          .createError(StatusCodes.Status403Forbidden, "You are not authorized to access this resource.")
+          .build();
       }
     }
 
     // Passed, next.
     return NextResponse.next();
   } catch {
-    return ResponseComposer
-      .composeError(StatusCodes.Status401Unauthorized, "Unauthorized.")
-      .orchestrate();
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status401Unauthorized, "Unauthorized.")
+      .build();
   }
 }
 
