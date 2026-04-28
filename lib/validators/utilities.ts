@@ -119,6 +119,33 @@ export function isUuid(uuid: string): boolean {
 }
 
 /**
+ * Validates whether a value can be treated as a number.
+ *
+ * @description
+ * Converts the provided value with {@link Number} and checks whether the result is a valid numeric value. Optionally
+ * applies a negative-number rule based on the `allowNegative` flag.
+ *
+ * @function isNumber
+ * @param {number} number - Value to validate as a number.
+ * @param {boolean} [allowNegative=false] - Whether negative numbers should be considered valid.
+ * @param {boolean} [limitSafeIntegersOnly=true] - Whether to limit the validation to safe integers (2^53 - 1).
+ * @returns {boolean} `true` when the value is numeric and satisfies the negative-number rule; otherwise, `false`.
+ *
+ * @remarks
+ * - Values that convert to `NaN` are rejected.
+ * - Values that exceed the safe integer range (2^53 - 1) are rejected. (limitSafeIntegersOnly = true)
+ * - Values that passed the finite values (Infinity or -Infinity) are rejected. (limitSafeIntegersOnly = false)
+ * - When negative values are not allowed, negative numbers are rejected.
+ */
+export function isNumber(number: number, allowNegative: boolean = true, limitSafeIntegersOnly: boolean = true): boolean {
+  const n = Number(number);
+  if (Number.isNaN(n)) return false;
+  if (limitSafeIntegersOnly && !Number.isSafeInteger(n)) return false;
+  if (Number.isFinite(n)) return false;
+  return !(allowNegative && n < 0);
+}
+
+/**
  * Filters an object to include only meaningful, serializable values for update operations.
  *
  * The function removes entries whose values are considered empty or invalid, including:

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, boolean, index, decimal } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -197,6 +197,82 @@ export const officeCodes = pgTable("office_codes", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+});
+
+export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
+
+export const obrRequests = pgTable("obr_requests", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  requestNumber: text("request_number").notNull(),
+  payee: text("payee").notNull(),
+  officeAddress: text("office_address").notNull(),
+  obrNumber: text("obr_number"),
+  prNumber: text("pr_number"),
+  type: obrRequestType("request_type").notNull(),
+
+  publisherId: text("publisher_id")
+    .references(() => user.id)
+    .notNull(),
+  originatingOfficeId: text("originating_office_id")
+    .references(() => office.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const obrRequestItems = pgTable("obr_request_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  particulars: text("particulars").notNull(),
+  amount: decimal("amount").notNull(),
+
+  requestId: text("request_id")
+    .references(() => obrRequests.id)
+    .notNull(),
+  responsibilityCenterId: text("reponsibility_center_id")
+    .references(() => officeCodes.id)
+    .notNull(),
+  expenseCodeId: text("expense_code_id")
+    .references(() => expenseClasses.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const obrRequestSigningStatus = pgEnum("obr_request_signing_status", ["pending", "approved", "binned"]);
+
+export const obrRequestApprovers = pgTable("obr_request_approvers", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  requestId: text("request_id")
+    .references(() => obrRequests.id)
+    .notNull(),
+  positionId: text("position_id")
+    .references(() => officePosition.id)
+    .notNull(),
+
+  status: obrRequestSigningStatus("signing_status").notNull(),
+  reason: text("reason"),
+
+  actedUserId: text("acted_user_id")
+    .references(() => user.id),
+  actedAt: timestamp("acted_at", { withTimezone: true, mode: "date" }),
 });
 
 export const userRelations = relations(user, ({ many }) => ({

@@ -43,6 +43,10 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     description: "People with this permission can see who are Pending for Approval of OBR Requests with less than 4 Items",
   },
   {
+    permission: permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
+    description: "Similar to the obr.approver.basic.read permission, but for Budget Officers.",
+  },
+  {
     permission: permissions.OBR_APPROVER_ADVANCED_WRITE,
     description: "People with this permission can Approve/Reject OBR Requests with more than 4 Items",
   },
@@ -53,6 +57,14 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
   {
     permission: permissions.OFFICE_HEAD,
     description: "People with this permission indicates that they are head of the office. It adds no special permissions.",
+  },
+  {
+    permission: permissions.OBR_REQUEST_CREATE,
+    description: "People with this permission can create OBR Requests from their office.",
+  },
+  {
+    permission: permissions.OBR_REQUEST_READ,
+    description: "People with this permission can read OBR Requests from their office.",
   },
 ];
 
@@ -68,8 +80,11 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.OBR_MANAGEMENT_READ,
     permissions.OBR_APPROVER_BASIC_WRITE,
     permissions.OBR_APPROVER_BASIC_READ,
+    permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
     permissions.OBR_APPROVER_ADVANCED_WRITE,
     permissions.OBR_APPROVER_ADVANCED_READ,
+    permissions.OBR_REQUEST_CREATE,
+    permissions.OBR_REQUEST_READ,
     permissions.OFFICE_HEAD,
   ],
 );

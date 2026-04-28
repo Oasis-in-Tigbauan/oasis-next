@@ -64,6 +64,21 @@ export const OBR_APPROVER_ADVANCED_WRITE: Permissions = "obr.approver.advanced.w
  */
 export const OBR_APPROVER_ADVANCED_READ: Permissions = "obr.approver.advanced.read";
 
+/**
+ * People with this permission can Approve/Reject OBR Requests. Exclusive only for a budget officer only.
+ */
+export const OBR_APPROVER_BASIC_HIGH_WRITE: Permissions = "obr.approver.basic.high.write";
+
+/**
+ * People with this permission can create OBR Requests from their office.
+ */
+export const OBR_REQUEST_CREATE: Permissions = "obr.request.create";
+
+/**
+ * People with this permission can read OBR Requests from their office.
+ */
+export const OBR_REQUEST_READ: Permissions = "obr.request.read";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -75,6 +90,9 @@ export type Permissions =
     | "obr.management.read"
     | "obr.approver.basic.write"
     | "obr.approver.basic.read"
+    | "obr.approver.basic.high.write"
     | "obr.approver.advanced.write"
     | "obr.approver.advanced.read"
+    | "obr.request.create"
+    | "obr.request.read"
     | "office.head";
