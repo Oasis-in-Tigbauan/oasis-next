@@ -99,6 +99,13 @@
       "when": 1777128413235,
       "tag": "0013_round_squadron_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777387464946,
+      "tag": "0014_elite_ezekiel_stane",
+      "breakpoints": true
     }
   ]
 }

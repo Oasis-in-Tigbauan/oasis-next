@@ -35,9 +35,10 @@ export const session = {
   /**
    * Verifies if the user has the required permissions.
    * @param {Permissions[]} [permissions] - List of required permissions.
+   * @param {string} [mode] The mode of the permisssion checking.
    * @returns {Promise<{ session: SessionType, user: User }>}
    */
-  verify: async (permissions: Permissions[] = []): Promise<SessionVerifiedResult> => {
+  verify: async (permissions: Permissions[] = [], mode: "and" | "or" = "and"): Promise<SessionVerifiedResult> => {
     const nextHeaders = await headers();
 
     try {
@@ -85,7 +86,14 @@ export const session = {
 
       // Otherwise, check the required roles specified
       if (permissions.length >= 0) {
-        if (!permissions.every(p => user.office.role.permissions!.includes(p))) {
+        // Check every permission
+        if (mode === "and" && !permissions.every(p => user.office.role.permissions!.includes(p))) {
+          result.code = SessionCode.InsufficientPermissions;
+          result.redirectTo = "/dashboard";
+        }
+
+        // Any matching permission
+        if (mode === "or" && !permissions.some(p => user.office.role.permissions!.includes(p))) {
           result.code = SessionCode.InsufficientPermissions;
           result.redirectTo = "/dashboard";
         }
