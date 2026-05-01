@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect, RedirectType } from "next/navigation";
 
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 import * as permissions from "@/lib/db/permissions";
 
 export default async function AccountApprovalUsersGroupLayout({ children }: { children: ReactNode }) {
@@ -10,10 +10,13 @@ export default async function AccountApprovalUsersGroupLayout({ children }: { ch
     permissions.APPROVALS_ACCOUNT_WRITE,
   ]);
 
-  // Redirect back to the dashboard if not verified.
-  if (!session) redirect("/auth/signin");
   if (session.redirectTo) {
-    redirect(session.redirectTo, RedirectType.replace);
+    return redirect(session.redirectTo, RedirectType.replace);
+  }
+
+  // Invalid sessions
+  if (session.code !== SessionCode.Ok) {
+    return redirect("/auth/signin");
   }
 
   return (<>{children}</>);

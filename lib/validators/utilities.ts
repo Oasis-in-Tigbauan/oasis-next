@@ -126,7 +126,7 @@ export function isUuid(uuid: string): boolean {
  * applies a negative-number rule based on the `allowNegative` flag.
  *
  * @function isNumber
- * @param {Optional<number>} number - Value to validate as a number.
+ * @param {Optional<string | number>} number - Value to validate as a number.
  * @param {boolean} [allowNegative=false] - Whether negative numbers should be considered valid.
  * @param {boolean} [limitSafeIntegersOnly=true] - Whether to limit the validation to safe integers (2^53 - 1).
  * @returns {boolean} `true` when the value is numeric and satisfies the negative-number rule; otherwise, `false`.
@@ -137,7 +137,7 @@ export function isUuid(uuid: string): boolean {
  * - Values that passed the finite values (Infinity or -Infinity) are rejected. (limitSafeIntegersOnly = false)
  * - When negative values are not allowed, negative numbers are rejected.
  */
-export function isNumber(number: Optional<number>, allowNegative: boolean = true, limitSafeIntegersOnly: boolean = true): boolean {
+export function isNumber(number: Optional<string | number>, allowNegative: boolean = true, limitSafeIntegersOnly: boolean = true): boolean {
   if (!isExisty(number)) return false;
   const n = Number(number);
   if (Number.isNaN(n)) return false;

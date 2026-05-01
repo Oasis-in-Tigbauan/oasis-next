@@ -37,7 +37,7 @@ export async function PATCH(
 
   const validate = await validator.validate<UpdatePayload>(body, {
     properties: {
-      vatableAmount: { type: "number", min: 1 },
+      vatableAmount: { type: "string", formatter: "decimal" },
       taxType: {
         type: "string",
         formatterFn: async v => {
@@ -88,7 +88,7 @@ export async function PATCH(
 }
 
 type UpdatePayload = {
-  vatableAmount: Optional<number>;
+  vatableAmount: Optional<string>;
   taxType: Optional<"vat-g" | "vat-s" | "nvat-g" | "nvat-s">;
   fundTypeId: Optional<string>;
   status: Optional<"PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID">;

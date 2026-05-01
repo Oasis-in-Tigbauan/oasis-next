@@ -101,6 +101,6 @@ type CreateNewRequestType = {
     responsibilityCenterId: string;
     expenseCodeId: string;
     particulars: string;
-    amount: number;
+    amount: string;
   }>
 }
