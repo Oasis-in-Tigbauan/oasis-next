@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 
 import * as casts from "@/lib/types/casts";
@@ -17,7 +17,6 @@ import {
 import * as permissions from "@/lib/db/permissions";
 import { validatorUtilities } from "@/lib/validators";
 import { type User } from "@/lib/accounts";
-
 
 /**
  * Creates a new OBR request for the given user.
@@ -428,7 +427,8 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
         `,
       })
       .from(obrRequests)
-      .where(validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined);
+      .where(validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined)
+      .orderBy(desc(obrRequests.createdAt));
 
     return new Success(all.map(i => ({
       id: i.id,

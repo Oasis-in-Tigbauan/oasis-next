@@ -79,6 +79,11 @@ export const OBR_REQUEST_CREATE: Permissions = "obr.request.create";
  */
 export const OBR_REQUEST_READ: Permissions = "obr.request.read";
 
+/**
+ * People with this permission can create disbursement item on approved OBRs.
+ */
+export const OBR_DISBURSEMENT_CREATE: Permissions = "obr.disbursement.create";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -95,4 +100,5 @@ export type Permissions =
     | "obr.approver.advanced.read"
     | "obr.request.create"
     | "obr.request.read"
+    | "obr.disbursement.create"
     | "office.head";
