@@ -4,6 +4,8 @@ import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseCl
 import type { ExpenseClassListResponse } from "@/lib/http/client/responses/ExpenseClassListResponse";
 import type { UserResponse } from "@/lib/http/client/responses/UserResponse";
 import type { EnrollmentEligibilityResponse } from "@/lib/http/client/responses/EnrollmentEligibilityResponse";
+import type { FundTypesListResponse } from "@/lib/http/client/responses/FundTypeListResponse";
+import type { FundTypeResponse } from "@/lib/http/client/responses/FundTypeResponse";
 import type { InvitationResponse } from "@/lib/http/client/responses/InvitationResponse";
 import type { InvitationListResponse } from "@/lib/http/client/responses/InvitationListResponse";
 import type { OfficeCodeListResponse } from "@/lib/http/client/responses/OfficeCodeListResponse";
@@ -27,6 +29,8 @@ export type {
   ExpenseClassListResponse,
   UserResponse,
   EnrollmentEligibilityResponse,
+  FundTypesListResponse,
+  FundTypeResponse,
   InvitationResponse,
   InvitationListResponse,
   OfficeCodeListResponse,

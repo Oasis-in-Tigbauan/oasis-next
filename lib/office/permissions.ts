@@ -66,6 +66,10 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.OBR_REQUEST_READ,
     description: "People with this permission can read OBR Requests from their office.",
   },
+  {
+    permission: permissions.OBR_DISBURSEMENT_CREATE,
+    description: "People with this permission can create disbursement item on approved OBRs.",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -85,6 +89,7 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.OBR_APPROVER_ADVANCED_READ,
     permissions.OBR_REQUEST_CREATE,
     permissions.OBR_REQUEST_READ,
+    permissions.OBR_DISBURSEMENT_CREATE,
     permissions.OFFICE_HEAD,
   ],
 );

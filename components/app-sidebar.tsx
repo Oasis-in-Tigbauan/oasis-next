@@ -78,6 +78,12 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                     <a href="/dashboard/settings/office-codes">Office Codes</a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <PhilippinePeso />
+                    <a href="/dashboard/settings/fund-types">Fund Types</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarGroupContent>
             </SidebarGroup>
           )

@@ -199,6 +199,22 @@ export const officeCodes = pgTable("office_codes", {
     .notNull(),
 });
 
+export const fundTypes = pgTable("fund_types", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  name: text("name").notNull(),
+  description: text("description"),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
 
 export const obrRequests = pgTable("obr_requests", {
@@ -213,6 +229,8 @@ export const obrRequests = pgTable("obr_requests", {
   prNumber: text("pr_number"),
   type: obrRequestType("request_type").notNull(),
 
+  disbursementId: text("disbursement_id"),
+  obrId: text("obr_id"),
   publisherId: text("publisher_id")
     .references(() => user.id)
     .notNull(),
