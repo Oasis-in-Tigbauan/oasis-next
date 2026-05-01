@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
+import { Decimal } from "decimal.js";
 
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
@@ -20,6 +21,7 @@ import {
 import * as permissions from "@/lib/db/permissions";
 import { validatorUtilities } from "@/lib/validators";
 import { type User } from "@/lib/accounts";
+
 
 /**
  * Creates a new OBR request for the given user.
@@ -198,7 +200,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
       const items = insertedItems.map(i => ({
         id: i.id,
         particulars: i.particulars,
-        amount: casts.castFromDecimal(i.amount),
+        amount: i.amount,
         responsibilityCenter: {
           id: i.responsibilityCenterId,
           name: rcMap.get(i.responsibilityCenterId)!.aa,
@@ -616,7 +618,7 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
       requestItemsCount: result.requestItemsCount,
       requestItems: result.requestItems.map(i => ({
         particulars: i.particulars,
-        amount: casts.castFromDecimal(i.amount),
+        amount: i.amount,
         expenseCode: {
           id: ecMap.get(i.expenseCodeId)!.id,
           name: ecMap.get(i.expenseCodeId)!.name,
@@ -839,7 +841,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
         payee: result.payee,
         address: result.officeAddress,
         particulars: requestItems.get(i.targetItemId)!.particulars,
-        grossAmount: requestItems.get(i.targetItemId)!.amount,
+        grossAmount: casts.castToDecimal(requestItems.get(i.targetItemId)!.amount),
         responsibilityCenterId: requestItems.get(i.targetItemId)!.responsibilityCenterId,
         headUserId: headUser.id,
         headUserName: headUser.name,
@@ -879,8 +881,8 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
         payee: d.payee,
         address: d.address,
         particulars: d.particulars,
-        grossAmount: validatorUtilities.isNotEmpty(d.grossAmount) ? casts.castFromDecimal(d.grossAmount!) : null,
-        vatableAmount: validatorUtilities.isNotEmpty(d.vatableAmount) ? casts.castFromDecimal(d.vatableAmount!) : null,
+        grossAmount: validatorUtilities.isNotEmpty(d.grossAmount) ? d.grossAmount! : null,
+        vatableAmount: validatorUtilities.isNotEmpty(d.vatableAmount) ? d.vatableAmount! : null,
         taxType: d.taxType ?? null,
         status: d.status ?? null,
         responsibilityCenter: {
@@ -910,7 +912,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
           },
         },
         taxBreakdown: createTaxBreakdown(
-          validatorUtilities.isNotEmpty(d.vatableAmount) ? casts.castFromDecimal(d.vatableAmount!) : null,
+          validatorUtilities.isNotEmpty(d.vatableAmount) ? d.vatableAmount! : null,
           d.taxType ?? null,
         ),
         fundType: validatorUtilities.isNotEmpty(d.fundTypeId)
@@ -1059,11 +1061,11 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       payee: result.payee,
       address: result.address,
       particulars: result.particulars,
-      grossAmount: validatorUtilities.isNotEmpty(result.grossAmount) ? casts.castFromDecimal(result.grossAmount!) : null,
-      vatableAmount: validatorUtilities.isNotEmpty(result.vatableAmount) ? casts.castFromDecimal(result.vatableAmount!) : null,
+      grossAmount: validatorUtilities.isNotEmpty(result.grossAmount) ? result.grossAmount! : null,
+      vatableAmount: validatorUtilities.isNotEmpty(result.vatableAmount) ? result.vatableAmount! : null,
       taxType: result.taxType ?? null,
       taxBreakdown: createTaxBreakdown(
-        validatorUtilities.isNotEmpty(result.vatableAmount) ? casts.castFromDecimal(result.vatableAmount!) : null,
+        validatorUtilities.isNotEmpty(result.vatableAmount) ? result.vatableAmount! : null,
         result.taxType ?? null,
       ),
       responsibilityCenter: {
@@ -1193,11 +1195,11 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
       payee: ref.payee,
       address: ref.address,
       particulars: ref.particulars,
-      grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? casts.castFromDecimal(ref.grossAmount!) : null,
-      vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount) ? casts.castFromDecimal(ref.vatableAmount!) : null,
+      grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? ref.grossAmount! : null,
+      vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
       taxType: ref.taxType ?? null,
       taxBreakdown: createTaxBreakdown(
-        validatorUtilities.isNotEmpty(ref.vatableAmount) ? casts.castFromDecimal(ref.vatableAmount!) : null,
+        validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
         ref.taxType ?? null,
       ),
       responsibilityCenter: {
@@ -1378,7 +1380,7 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
  * computed fields set to `null`.
  *
  * @function createTaxBreakdown
- * @param {Optional<number>} vat - VAT or base amount used to compute the tax breakdown.
+ * @param {Optional<string>} vat - VAT or base amount used to compute the tax breakdown.
  * @param {TaxType} type - Tax classification used to determine which tax rates apply.
  * @returns {ObrDisbursementTaxBreakdown} The computed tax breakdown, or an empty breakdown when the amount is invalid.
  *
@@ -1387,7 +1389,7 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
  * - Non-VAT tax types use direct amount-based calculations.
  * - `netAmount` is returned as `null` when no deductions are applied.
  */
-function createTaxBreakdown(vat: Optional<number>, type: Optional<TaxType>): ObrDisbursementTaxBreakdown {
+function createTaxBreakdown(vat: Optional<string>, type: Optional<TaxType>): ObrDisbursementTaxBreakdown {
   if (!validatorUtilities.isNumber(vat) || !validatorUtilities.isNotEmpty(type)) {
     return {
       tax: null,
@@ -1399,56 +1401,60 @@ function createTaxBreakdown(vat: Optional<number>, type: Optional<TaxType>): Obr
     };
   }
 
+  const vatDecimal = casts.castFromDecimal(vat!);
+
   let tax: Optional<string> = "PT 3%";
   if (type === "vat-g" || type === "vat-s") {
     tax = "VAT 5%";
   }
 
-  let vat5: Optional<number> = null;
-  let pt3: Optional<number> = null;
-  let ewt2: Optional<number> = null;
-  let ewt1: Optional<number> = null;
-  let netAmount: Optional<number> = null;
+  let vat5: Optional<Decimal> = null;
+  let pt3: Optional<Decimal> = null;
+  let ewt2: Optional<Decimal> = null;
+  let ewt1: Optional<Decimal> = null;
+  let netAmount: Optional<Decimal> = null;
 
   if (tax === "VAT 5%") {
-    vat5 = (vat! / 1.12) * 0.05;
+    vat5 =  vatDecimal!
+      .div("1.12")
+      .mul("0.05");
   }
 
   if (tax === "PT 3%") {
-    pt3 = vat! * 0.02;
+    pt3 = vatDecimal.mul("0.02");
   }
 
   if (type === "vat-s") {
-    ewt2 = (vat! / 1.12) * 0.02;
+    ewt2 = vatDecimal
+      .div("1.12")
+      .mul("0.02");
   }
 
   if (type === "nvat-s") {
-    ewt2 = vat! * 0.02;
+    ewt2 = vatDecimal.mul("0.02");
   }
 
   if (type === "vat-g") {
-    ewt1 = (vat! / 1.12) * 0.01;
+    ewt1 = vatDecimal
+      .div("1.12")
+      .mul("0.01");
   }
 
   if (type === "nvat-g") {
-    ewt1 = vat! * 0.01;
+    ewt1 = vatDecimal.mul("0.01");
   }
 
-  netAmount = [vat!, vat5, pt3, ewt2, ewt1]
-    .filter(n => n !== null)
-    .reduce((a, c) => a - c);
-
-  if (netAmount === vat!) {
-    netAmount = null;
-  }
+  netAmount = [vat5, pt3, ewt2, ewt1]
+    .filter((n): n is Decimal => n !== null)
+    .reduce((a, c) => a.sub(c), vatDecimal);
 
   return {
     tax,
-    vat5,
-    pt3,
-    ewt2,
-    ewt1,
-    netAmount,
+    vat5: vat5?.toString() ?? null,
+    pt3: pt3?.toString() ?? null,
+    ewt2: ewt2?.toString() ?? null,
+    ewt1: ewt1?.toString() ?? null,
+    netAmount: netAmount?.toString() ?? null,
   };
 }
 
@@ -1580,7 +1586,7 @@ type CreateNewRequestType = {
     responsibilityCenterId: string;
     expenseCodeId: string;
     particulars: string;
-    amount: number;
+    amount: string;
   }>
 }
 
@@ -1605,7 +1611,7 @@ type ObrRequestType = {
   }
   requestItems: Array<{
     particulars: string;
-    amount: number;
+    amount: string;
     expenseCode: {
       id: string;
       name: string;
@@ -1640,11 +1646,11 @@ type ApproverObject = {
 
 type ObrDisbursementTaxBreakdown = {
   tax: Optional<string>;
-  vat5: Optional<number>;
-  pt3: Optional<number>;
-  ewt2: Optional<number>;
-  ewt1: Optional<number>;
-  netAmount: Optional<number>;
+  vat5: Optional<string>;
+  pt3: Optional<string>;
+  ewt2: Optional<string>;
+  ewt1: Optional<string>;
+  netAmount: Optional<string>;
 }
 
 type ObrDisbursementVoucher = {
@@ -1653,8 +1659,8 @@ type ObrDisbursementVoucher = {
   payee: string;
   address: string;
   particulars: string;
-  grossAmount: Optional<number>;
-  vatableAmount: Optional<number>;
+  grossAmount: Optional<string>;
+  vatableAmount: Optional<string>;
   taxType: Optional<string>;
   taxBreakdown: ObrDisbursementTaxBreakdown,
   responsibilityCenter: {
@@ -1697,7 +1703,7 @@ type DisbursementStatus = "PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEAS
 
 type CreateDisbursementVoucherPayload = {
   targetItemId: string;
-  vatableAmount: Optional<number>;
+  vatableAmount: Optional<string>;
   taxType: Optional<TaxType>;
   fundTypeId: Optional<string>;
   status: Optional<DisbursementStatus>;
@@ -1708,7 +1714,7 @@ type CreateDisbursementVoucherPayload = {
 };
 
 type UpdateDisbursementVoucherPayload = {
-  vatableAmount: Optional<number>;
+  vatableAmount: Optional<string>;
   taxType: Optional<TaxType>;
   fundTypeId: Optional<string>;
   status: Optional<DisbursementStatus>;

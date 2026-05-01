@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
               return { ok: false, error: "Invalid target item id at position " + i };
             }
 
-            if (validatorUtilities.isExisty(vi.vatableAmount) && !validatorUtilities.isNumber(vi.vatableAmount, false, true)) {
+            if (validatorUtilities.isNotEmpty(vi.vatableAmount) && !validatorUtilities.isNumber(vi.vatableAmount, false, true)) {
               return { ok: false, error: "Invalid vatable value at position " + i };
             }
 
@@ -119,7 +119,7 @@ type CreateNewRequestType = {
   requestId: string;
   items: Array<{
     targetItemId: string;
-    vatableAmount: Optional<number>;
+    vatableAmount: Optional<string>;
     taxType: Optional<"vat-g" | "vat-s" | "nvat-g" | "nvat-s">;
     fundTypeId: Optional<string>;
     status: Optional<"PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID">;

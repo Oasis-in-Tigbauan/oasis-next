@@ -2,15 +2,21 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { redirect, RedirectType } from "next/navigation";
 
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 
 export default async function UnverifiedLayout({ children }: { children: ReactNode}) {
   const session = await auth.verify();
 
-  // No account found.
-  if (!session) return redirect("/auth/signin");
+  if (session.redirectTo) {
+    return redirect(session.redirectTo, RedirectType.replace);
+  }
 
-  if (session.user.activated) {
+  // Invalid sessions
+  if (session.code !== SessionCode.Ok) {
+    return redirect("/auth/signin");
+  }
+
+  if (session.user!.activated) {
     redirect("/auth/check", RedirectType.replace);
   }
 

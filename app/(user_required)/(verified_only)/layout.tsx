@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect, RedirectType } from "next/navigation";
 
-import { session as auth } from "@/lib/auth";
+import { session as auth, SessionCode } from "@/lib/auth";
 
 import AppSidebar from "@/components/app-sidebar";
 import BreadcrumbComponent from "@/components/breadcrumb";
@@ -15,16 +15,18 @@ import {
 export default async function VerifiedLayout({ children }: { children: ReactNode}) {
   const session = await auth.verify();
 
-  // No account found.
-  if (!session) return redirect("/auth/signin");
-
   if (session.redirectTo) {
-    redirect(session.redirectTo, RedirectType.replace);
+    return redirect(session.redirectTo, RedirectType.replace);
+  }
+
+  // Invalid sessions
+  if (session.code !== SessionCode.Ok) {
+    return redirect("/auth/signin");
   }
 
   return (
     <SidebarProvider>
-      <AppSidebar user={session.user} />
+      <AppSidebar user={session.user!} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
