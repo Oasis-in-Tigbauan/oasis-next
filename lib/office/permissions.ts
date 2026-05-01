@@ -1,4 +1,5 @@
 import * as permissions from "@/lib/db/permissions";
+import { OBR_DISBURSEMENT_MAYOR_APPROVE, OBR_DISBURSEMENT_TREASURER_APPROVE } from "@/lib/db/permissions";
 
 export const permissionDescriptors: Array<PermissionDescriptor> = [
   {
@@ -70,6 +71,18 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.OBR_DISBURSEMENT_CREATE,
     description: "People with this permission can create disbursement item on approved OBRs.",
   },
+  {
+    permission: permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
+    description: "People with this permission can approve disbursement item on approved OBRs. (For Accountants)",
+  },
+  {
+    permission: permissions.OBR_DISBURSEMENT_TREASURER_APPROVE,
+    description: "People with this permission can approve disbursement item on approved OBRs. (For Treasurers)",
+  },
+  {
+    permission: permissions.OBR_DISBURSEMENT_MAYOR_APPROVE,
+    description: "People with this permission can approve disbursement item on approved OBRs. (For Mayors)",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -90,6 +103,9 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.OBR_REQUEST_CREATE,
     permissions.OBR_REQUEST_READ,
     permissions.OBR_DISBURSEMENT_CREATE,
+    permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
+    permissions.OBR_DISBURSEMENT_TREASURER_APPROVE,
+    permissions.OBR_DISBURSEMENT_MAYOR_APPROVE,
     permissions.OFFICE_HEAD,
   ],
 );

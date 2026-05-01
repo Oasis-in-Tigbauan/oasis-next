@@ -84,6 +84,21 @@ export const OBR_REQUEST_READ: Permissions = "obr.request.read";
  */
 export const OBR_DISBURSEMENT_CREATE: Permissions = "obr.disbursement.create";
 
+/**
+ * People with this permission can approve disbursement item on approved OBRs.
+ */
+export const OBR_DISBURSEMENT_ACCOUNTANT_APPROVE: Permissions = "obr.disbursement.accountant.approve";
+
+/**
+ * People with this permission can approve disbursement item on approved OBRs.
+ */
+export const OBR_DISBURSEMENT_TREASURER_APPROVE: Permissions = "obr.disbursement.treasurer.approve";
+
+/**
+ * People with this permission can approve disbursement item on approved OBRs.
+ */
+export const OBR_DISBURSEMENT_MAYOR_APPROVE: Permissions = "obr.disbursement.mayor.approve";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -101,4 +116,7 @@ export type Permissions =
     | "obr.request.create"
     | "obr.request.read"
     | "obr.disbursement.create"
+    | "obr.disbursement.accountant.approve"
+    | "obr.disbursement.treasurer.approve"
+    | "obr.disbursement.mayor.approve"
     | "office.head";
