@@ -293,6 +293,78 @@ export const obrRequestApprovers = pgTable("obr_request_approvers", {
   actedAt: timestamp("acted_at", { withTimezone: true, mode: "date" }),
 });
 
+export const disbursementStatuses = pgEnum("disbursement_statuses", [
+  "PREPARATION",
+  "PROCESSING",
+  "ON HOLD",
+  "FOR RELEASE",
+  "PAID",
+]);
+export const taxTypes = pgEnum("tax_types", ["vat-g", "vat-s", "nvat-g", "nvat-s"]);
+
+export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  disbursementVoucherNumber: text("disbursement_voucher_number")
+    .notNull(),
+  payee: text("payee")
+    .notNull(),
+  address: text("address")
+    .notNull(),
+  particulars: text("particulars")
+    .notNull(),
+  prNumber: text("pr_number"),
+  grossAmount: decimal("gross_amount"),
+  vatableAmount: decimal("vatable_amount"),
+  taxType: taxTypes("tax_type"),
+  status: disbursementStatuses("status"),
+  responsibilityCenterId: text("reponsibility_center_id")
+    .references(() => officeCodes.id)
+    .notNull(),
+
+  // Signers
+  headUserId: text("head_user_id")
+    .references(() => user.id)
+    .notNull(),
+  headUserName: text("head_name").notNull(),
+  headUserPositionName: text("head_position_name").notNull(),
+
+  accountantId: text("accountant_user_id")
+    .references(() => user.id)
+    .notNull(),
+  accountantName: text("accountant_name").notNull(),
+  accountantPositionName: text("accountant_position_name").notNull(),
+
+  treasurerId: text("treasurer_user_id")
+    .references(() => user.id)
+    .notNull(),
+  treasurerName: text("treasurer_name").notNull(),
+  treasurerPositionName: text("treasurer_position_name").notNull(),
+
+  mayorId: text("mayor_id")
+    .references(() => user.id)
+    .notNull(),
+  mayorName: text("mayor_name").notNull(),
+  mayorPositionName: text("mayor_position_name").notNull(),
+
+  fundTypeId: text("fund_type_id")
+    .references(() => fundTypes.id),
+  requestId: text("request_id")
+    .references(() => obrRequests.id)
+    .notNull(),
+  disbursedBy: text("disbursed_by")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
