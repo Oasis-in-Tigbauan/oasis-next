@@ -25,6 +25,9 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/settings/expense-types") return "Data: Expense Types Management";
     if (pathname === "/dashboard/settings/fund-types") return "Data: Fund Types Management";
     if (pathname === "/dashboard/settings/office-codes") return "Data: Office Codes Management";
+    if (pathname === "/dashboard/obr") return "OBR: Dashboard";
+    if (pathname === "/dashboard/obr/requests") return "OBR: Requests";
+    if (pathname === "/dashboard/obr/approvals") return "OBR: Approvals";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 

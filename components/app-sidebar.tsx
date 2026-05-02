@@ -2,6 +2,7 @@
 
 import {
   ChevronRight,
+  FileSpreadsheet,
   LampDesk,
   Mail,
   PhilippinePeso,
@@ -59,6 +60,17 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
       </SidebarHeader>
       <SidebarContent>
         {/* Workspaces/Worksheets */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Worksheets</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenuItem>
+              <SidebarMenuButton>
+                <FileSpreadsheet />
+                <a href="/dashboard/obr">OBR</a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
         {/* Data Types Management */}
         {

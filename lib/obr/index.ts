@@ -220,6 +220,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
     return new Success({
       id: transaction.id,
       type: transaction.type,
+      requestNumber: transaction.requestNumber,
       payee: transaction.payee,
       officeAddress: transaction.officeAddress,
       obrNumber: transaction.obrNumber,
@@ -283,7 +284,7 @@ export async function setApproverState(entryId: string, user: User, status: "pen
     const [role] = await db
       .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
       .from(officePosition)
-      .where(eq(officePosition.officeId, user.office.role.id));
+      .where(eq(officePosition.id, user.office.role.id));
     if (!role) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
@@ -406,38 +407,71 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
       );
     }
 
+    const requestItemCountSubquery = db
+      .select({
+        requestId: obrRequestItems.requestId,
+        requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as("requestItemsCount"),
+      })
+      .from(obrRequestItems)
+      .groupBy(obrRequestItems.requestId)
+      .as("request_item_count_subquery");
+
+    const requestApproversSubquery = db
+      .select({
+        requestId: obrRequestApprovers.requestId,
+        approvers: sql<({ status: ApprovalState })[]>`COALESCE(
+          json_agg(
+            json_build_object(
+              'status', ${obrRequestApprovers.status}
+            )
+          ),
+          '[]'::json
+        )`.as("approvers"),
+      })
+      .from(obrRequestApprovers)
+      .groupBy(obrRequestApprovers.requestId)
+      .as("request_approvers_subquery");
+
     // Fetch all items
     const all = await db
       .select({
         id: obrRequests.id,
+        requestNumber: obrRequests.requestNumber,
         type: obrRequests.type,
         payee: obrRequests.payee,
         officeAddress: obrRequests.officeAddress,
         obrNumber: obrRequests.obrNumber,
         prNumber: obrRequests.prNumber,
-        requestItemsCount: sql<number>`
-            SELECT COUNT(*) FROM ${obrRequestItems} WHERE ${obrRequestItems.requestId} = ${obrRequests.id}
-        `,
-        approvers: sql<({ status: ApprovalState })[]>`
-            SELECT COALESCE(
-                json_agg(
-                    json_build_object(
-                        'status', ${obrRequestApprovers.status}
-                    )
-                ),
-                '[]'::json
-            )
-            FROM ${obrRequestApprovers}
-            WHERE ${obrRequestApprovers.requestId} = ${obrRequests.id}
-        `,
+        requestItemsCount: sql<number>`COALESCE(${requestItemCountSubquery.requestItemsCount}, 0)`,
+        approvers: sql<({ status: ApprovalState })[]>`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
       })
       .from(obrRequests)
-      .where(validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined)
+      .leftJoin(
+        requestItemCountSubquery,
+        eq(requestItemCountSubquery.requestId, obrRequests.id),
+      )
+      .leftJoin(
+        requestApproversSubquery,
+        eq(requestApproversSubquery.requestId, obrRequests.id),
+      )
+      .where(
+        and(
+          validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined,
+          validate.positionId
+            ? sql`EXISTS (
+                SELECT 1 FROM ${obrRequestApprovers}
+                WHERE ${obrRequestApprovers.requestId} = ${obrRequests.id}
+                  AND ${obrRequestApprovers.positionId} = ${validate.positionId}
+              )`
+            : undefined,
+        ),
+      )
       .orderBy(desc(obrRequests.createdAt));
 
     return new Success(all.map(i => ({
       id: i.id,
       type: i.type,
+      requestNumber: i.requestNumber,
       payee: i.payee,
       officeAddress: i.officeAddress,
       obrNumber: i.obrNumber,
@@ -496,46 +530,47 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
       .select({
         id: obrRequests.id,
         type: obrRequests.type,
+        requestNumber: obrRequests.requestNumber,
         payee: obrRequests.payee,
         officeAddress: obrRequests.officeAddress,
         obrNumber: obrRequests.obrNumber,
         prNumber: obrRequests.prNumber,
         publisherId: obrRequests.publisherId,
         officeId: obrRequests.originatingOfficeId,
-        requestItems: sql<({ particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`
-            SELECT COALESCE(
-                json_agg(
-                    json_build_object(
-                        'particulars', ${obrRequestItems.particulars},
-                        'amount', ${obrRequestItems.amount},
-                        'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId},
-                        'expenseCodeId', ${obrRequestItems.expenseCodeId}
-                    )
-                ),
-                '[]'::json
-            )
-            FROM ${obrRequestItems}
-            WHERE ${obrRequestItems.requestId} = ${obrRequests.id}
-        `,
-        requestItemsCount: sql<number>`
-            SELECT COUNT(*) FROM ${obrRequestItems} WHERE ${obrRequestItems.requestId} = ${obrRequests.id}
-        `,
-        approvers: sql<({ status: ApprovalState, positionId: string, reason?: string, actedUserId?: string, actedAt?: Date })[]>`
-            SELECT COALESCE(
-                json_agg(
-                    json_build_object(
-                        'status', ${obrRequestApprovers.status},
-                        'positionId', ${obrRequestApprovers.positionId},
-                        'reason', ${obrRequestApprovers.reason},
-                        'actedUserId', ${obrRequestApprovers.actedUserId},
-                        'actedAt', ${obrRequestApprovers.actedAt}
-                    )
-                ),
-                '[]'::json
-            )
-            FROM ${obrRequestApprovers}
-            WHERE ${obrRequestApprovers.requestId} = ${obrRequests.id}
-        `,
+        requestItems: sql<({ particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'particulars', ${obrRequestItems.particulars},
+                'amount', ${obrRequestItems.amount},
+                'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId},
+                'expenseCodeId', ${obrRequestItems.expenseCodeId}
+              )
+            ),
+            '[]'::json
+          )
+          FROM ${obrRequestItems}
+          WHERE ${obrRequestItems.requestId} = ${requestId}
+        )`,
+        requestItemsCount: sql<number>`(
+          SELECT COUNT(*) FROM ${obrRequestItems} WHERE ${obrRequestItems.requestId} = ${requestId}
+        )`,
+        approvers: sql<({ status: ApprovalState, positionId: string, reason?: string, actedUserId?: string, actedAt?: Date })[]>`(
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'status', ${obrRequestApprovers.status},
+                'positionId', ${obrRequestApprovers.positionId},
+                'reason', ${obrRequestApprovers.reason},
+                'actedUserId', ${obrRequestApprovers.actedUserId},
+                'actedAt', ${obrRequestApprovers.actedAt}
+              )
+            ),
+            '[]'::json
+          )
+          FROM ${obrRequestApprovers}
+          WHERE ${obrRequestApprovers.requestId} = ${requestId}
+        )`,
       })
       .from(obrRequests)
       .where(whereQuery.length >= 2 ? and(...whereQuery) : whereQuery[0]);
@@ -603,6 +638,7 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
     const mapped: ObrRequestType = {
       id: result.id,
       type: result.type,
+      requestNumber: result.requestNumber,
       payee: result.payee,
       officeAddress: result.officeAddress,
       obrNumber: result.obrNumber,
@@ -727,34 +763,34 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
         payee: obrRequests.payee,
         officeAddress: obrRequests.officeAddress,
         prNumber: obrRequests.prNumber,
-        requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string })[]>`
-            SELECT COALESCE(
-                json_agg(
-                    json_build_object(
-                        'id', ${obrRequestItems.id},
-                        'particulars', ${obrRequestItems.particulars},
-                        'amount', ${obrRequestItems.amount},
-                        'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId}
-                    )
-                ),
-                '[]'::json
-            )
-            FROM ${obrRequestItems}
-            WHERE ${obrRequestItems.requestId} = ${obrRequests.id}
-        `,
-        approvers: sql<({ actorUserId: Optional<string>; status: ApprovalState })[]>`
-            SELECT COALESCE(
-                json_agg(
-                    json_build_object(
-                        'actedUserId', ${obrRequestApprovers.actedUserId},
-                        'status', ${obrRequestApprovers.status}
-                    )
-                ),
-                '[]'::json
-            )
-            FROM ${obrRequestApprovers}
-            WHERE ${obrRequestApprovers.requestId} = ${obrRequests.id}
-        `,
+        requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string })[]>`(
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', ${obrRequestItems.id},
+                'particulars', ${obrRequestItems.particulars},
+                'amount', ${obrRequestItems.amount},
+                'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId}
+              )
+            ),
+            '[]'::json
+          )
+          FROM ${obrRequestItems}
+          WHERE ${obrRequestItems.requestId} = ${obrRequestId}
+        )`,
+        approvers: sql<({ actorUserId: Optional<string>; status: ApprovalState })[]>`(
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'actedUserId', ${obrRequestApprovers.actedUserId},
+                'status', ${obrRequestApprovers.status}
+              )
+            ),
+            '[]'::json
+          )
+          FROM ${obrRequestApprovers}
+          WHERE ${obrRequestApprovers.requestId} = ${obrRequestId}
+        )`,
       })
       .from(obrRequests)
       .where(eq(obrRequests.id, obrRequestId));
@@ -1249,8 +1285,9 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
  *
  * @description
  * Evaluates the provided approver states and returns a single summary status. If any approver is still pending, the
- * summary is pending. If all approvers are no longer pending but do not share the same state, the summary is mixed.
- * Otherwise, the shared approver state is returned.
+ * summary is pending. If no approvers are pending and one or more are binned, the summary is mixed. If all approvers
+ * are no longer pending but do not share the same state, the summary is mixed. Otherwise, the shared approver state
+ * is returned.
  *
  * @function getSummaryOfStates
  * @param {Array<{ status: ApprovalState }>} states - Approver state entries to summarize.
@@ -1258,18 +1295,21 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
  *
  * @remarks
  * - Pending takes priority over all other states.
+ * - If any non-pending state is binned, mixed is returned.
  * - Mixed is returned when completed approver states differ.
  * - The function expects at least one state entry.
  */
 function getSummaryOfStates(states: Array<{ status: "pending" | "approved" | "binned" }>): ApprovalStateResponseType {
-  // Mark it as pending if one of status is pending.
-  const hasPending = states.some(s => s.status === "pending");
-  if (hasPending) return "pending";
+  if (states.length === 0) return "pending";
 
-  const isEqualState = states.some(s => s.status === states[0].status);
-  if (!isEqualState) return "mixed";
+  const isEqualState = states.every(s => s.status === states[0].status);
+  if (isEqualState) return states[0].status;
 
-  return states[0].status;
+  // If binned is present among completed states, treat it as mixed for summary purposes.
+  const hasBinned = states.some(s => s.status === "binned");
+  if (hasBinned) return "mixed";
+
+  return "pending";
 }
 
 /**
@@ -1300,7 +1340,7 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
     const [role] = await db
       .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
       .from(officePosition)
-      .where(eq(officePosition.officeId, user.office.role.id));
+      .where(eq(officePosition.id, user.office.role.id));
     if (!role) {
       return { error: ErrorCodes.InsufficientPermissions };
     }
@@ -1316,8 +1356,10 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
       return { error: ErrorCodes.InsufficientPermissions };
     }
 
+    const isOfficeLimited = permissionSet.has(permissions.OBR_REQUEST_READ);
     return {
-      officeLimited: permissionSet.has(permissions.OBR_REQUEST_READ),
+      officeLimited: isOfficeLimited,
+      positionId: isOfficeLimited ? undefined : role.id,
     };
   } catch (e) {
     return {
@@ -1569,6 +1611,7 @@ type AccessRequestReaderValidationResult = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   stack?: any,
   officeLimited?: boolean,
+  positionId?: string,
 }
 
 type AccessDisbursementValidationResult = Omit<AccessRequestReaderValidationResult, "officeLimited">;
@@ -1593,6 +1636,7 @@ type CreateNewRequestType = {
 type BaseObrRequestType = {
   id: string;
   type: string;
+  requestNumber: string;
   payee: string;
   officeAddress: string;
   obrNumber: Optional<string>;
