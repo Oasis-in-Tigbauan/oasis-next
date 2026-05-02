@@ -21,6 +21,8 @@ import type { OfficesListResponse } from "@/lib/http/client/responses/OfficesLis
 import type { PermissionDefinitionResponse } from "@/lib/http/client/responses/PermissionDefinitionResponse";
 import type { RoleDefinitionResponse } from "@/lib/http/client/responses/RoleDefinitionResponse";
 import type { UnactivatedListResponse } from "@/lib/http/client/responses/UnactivatedListResponse";
+import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib/http/client/responses/ObrRequestSummaryListResponse";
+import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, ObrRequestDetailApprover } from "@/lib/http/client/responses/ObrRequestDetailResponse";
 
 export type {
   AccountsListResponse,
@@ -44,6 +46,12 @@ export type {
   PermissionDefinitionResponse,
   RoleDefinitionResponse,
   UnactivatedListResponse,
+  ObrRequestSummaryListResponse,
+  ObrRequestSummaryItem,
+  ObrRequestDetailResponse,
+  ObrRequestDetail,
+  ObrRequestDetailItem,
+  ObrRequestDetailApprover,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

@@ -13,6 +13,7 @@ export async function PATCH(
   { params }: RouteContext<"/api/obr/disbursements/[id]">,
 ) {
   const session = await auth.verify([
+    permission.OBR_DISBURSEMENT_CREATE,
     permission.OBR_APPROVER_BASIC_HIGH_WRITE,
   ], "or");
   if (!session || session.code !== SessionCode.Ok) {

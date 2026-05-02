@@ -26,8 +26,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth.verify([
+    permission.OBR_DISBURSEMENT_CREATE,
     permission.OBR_APPROVER_BASIC_HIGH_WRITE,
-  ]);
+  ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
