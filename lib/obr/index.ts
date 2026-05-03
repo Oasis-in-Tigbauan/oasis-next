@@ -485,6 +485,116 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
 }
 
 /**
+ * Retrieves all approved OBR request summaries available for disbursement processing.
+ *
+ * @description
+ * Validates that the user has disbursement write access, then fetches OBR requests with their request-item counts and
+ * approver states. The results are ordered by creation date, filtered to include only fully approved requests, and mapped
+ * into request summary objects.
+ *
+ * On success, wraps the approved request summaries in a {@link Success}. On access validation failure, returns a
+ * {@link Failure} describing why requests cannot be listed. On unexpected failure, wraps the error in a fatal
+ * {@link Failure}.
+ *
+ * @async
+ * @function listAllApproved
+ * @param {User} user - User attempting to list approved OBR requests for disbursement.
+ * @returns {Promise<Result<Array<ObrRequestSummaryType>>>} A result wrapper containing approved OBR request summaries
+ *                                                          on success, or a failure result on error.
+ *
+ * @remarks
+ * - Requires disbursement write access from the user.
+ * - Only requests whose computed approval status is approved are returned.
+ * - Each summary includes request metadata, request item count, and computed approval status.
+ */
+export async function listAllApproved(user: User): Promise<Result<Array<ObrRequestSummaryType>>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(user);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to list requests",
+        { userId: user.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const requestItemCountSubquery = db
+      .select({
+        requestId: obrRequestItems.requestId,
+        requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as("requestItemsCount"),
+      })
+      .from(obrRequestItems)
+      .groupBy(obrRequestItems.requestId)
+      .as("request_item_count_subquery");
+
+    const requestApproversSubquery = db
+      .select({
+        requestId: obrRequestApprovers.requestId,
+        approvers: sql<({ status: ApprovalState })[]>`COALESCE(
+          json_agg(
+            json_build_object(
+              'status', ${obrRequestApprovers.status}
+            )
+          ),
+          '[]'::json
+        )`.as("approvers"),
+      })
+      .from(obrRequestApprovers)
+      .groupBy(obrRequestApprovers.requestId)
+      .as("request_approvers_subquery");
+
+    // Fetch all items
+    const all = await db
+      .select({
+        id: obrRequests.id,
+        requestNumber: obrRequests.requestNumber,
+        type: obrRequests.type,
+        payee: obrRequests.payee,
+        officeAddress: obrRequests.officeAddress,
+        obrNumber: obrRequests.obrNumber,
+        prNumber: obrRequests.prNumber,
+        requestItemsCount: sql<number>`COALESCE(${requestItemCountSubquery.requestItemsCount}, 0)`,
+        approvers: sql<({ status: ApprovalState })[]>`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
+      })
+      .from(obrRequests)
+      .leftJoin(
+        requestItemCountSubquery,
+        eq(requestItemCountSubquery.requestId, obrRequests.id),
+      )
+      .leftJoin(
+        requestApproversSubquery,
+        eq(requestApproversSubquery.requestId, obrRequests.id),
+      )
+      .where(
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${obrDisbursementVouchers}
+          WHERE ${obrDisbursementVouchers.requestId} = ${obrRequests.id}
+        )`,
+      )
+      .orderBy(desc(obrRequests.createdAt));
+
+    const filtered: ObrRequestSummaryType[] = all
+      .filter(i => getSummaryOfStates(i.approvers) === "approved")
+      .map(i => ({
+        id: i.id,
+        type: i.type,
+        requestNumber: i.requestNumber,
+        payee: i.payee,
+        officeAddress: i.officeAddress,
+        obrNumber: i.obrNumber,
+        prNumber: i.prNumber,
+        requestItemsCount: i.requestItemsCount,
+        approvalStatus: getSummaryOfStates(i.approvers),
+      }));
+
+    return new Success(filtered);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to list requests", { userId: user.id }, e);
+  }
+}
+
+/**
  * Retrieves a detailed OBR request by its identifier for the given user.
  *
  * @description
@@ -537,10 +647,11 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
         prNumber: obrRequests.prNumber,
         publisherId: obrRequests.publisherId,
         officeId: obrRequests.originatingOfficeId,
-        requestItems: sql<({ particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
+        requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
           SELECT COALESCE(
             json_agg(
               json_build_object(
+                'id', ${obrRequestItems.id},
                 'particulars', ${obrRequestItems.particulars},
                 'amount', ${obrRequestItems.amount},
                 'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId},
@@ -653,6 +764,7 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
       },
       requestItemsCount: result.requestItemsCount,
       requestItems: result.requestItems.map(i => ({
+        id: i.id,
         particulars: i.particulars,
         amount: i.amount,
         expenseCode: {
@@ -782,7 +894,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
           SELECT COALESCE(
             json_agg(
               json_build_object(
-                'actedUserId', ${obrRequestApprovers.actedUserId},
+                'actorUserId', ${obrRequestApprovers.actedUserId},
                 'status', ${obrRequestApprovers.status}
               )
             ),
@@ -803,11 +915,9 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
     }
 
     // Find the head user
-    const headUserList = result.approvers.flatMap(a =>
-      a.status === "approved" && validatorUtilities.isNotEmpty(a.actorUserId)
-        ? [a.actorUserId!]
-        : [],
-    );
+    const headUserList = result.approvers
+      .filter(u => u.status === "approved")
+      .map(u => u.actorUserId as string);
     const headUser = await findOfficeHead(headUserList);
     if (!headUser) {
       return new Failure(
@@ -853,6 +963,20 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
           { obrRequestId, payload, actorId: actor.id },
         );
       }
+    }
+
+    // Check for existing disbursement vouchers on this request
+    const existingVouchers = await db
+      .select({ id: obrDisbursementVouchers.id })
+      .from(obrDisbursementVouchers)
+      .where(eq(obrDisbursementVouchers.requestId, obrRequestId))
+      .limit(1);
+    if (existingVouchers.length > 0) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "A disbursement voucher has already been created for this request.",
+        { obrRequestId, payload, actorId: actor.id },
+      );
     }
 
     // Fund Types
@@ -914,6 +1038,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
       data.map(d => ({
         id: d.id,
         disbursementVoucherNumber: d.disbursementVoucherNumber,
+        createdAt: d.createdAt,
         payee: d.payee,
         address: d.address,
         particulars: d.particulars,
@@ -1094,6 +1219,7 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
     return new Success({
       id: result.id,
       disbursementVoucherNumber: result.disbursementVoucherNumber,
+      createdAt: result.createdAt,
       payee: result.payee,
       address: result.address,
       particulars: result.particulars,
@@ -1210,6 +1336,7 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
 
         disbursedById: user.id,
         disbursedByName: user.name,
+        createdAt: obrDisbursementVouchers.createdAt,
       })
       .from(obrDisbursementVouchers)
       .innerJoin(
@@ -1228,6 +1355,7 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
     return new Success(all.map(ref => ({
       id: ref.id,
       disbursementVoucherNumber: ref.disbursementVoucherNumber,
+      createdAt: ref.createdAt,
       payee: ref.payee,
       address: ref.address,
       particulars: ref.particulars,
@@ -1277,6 +1405,52 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
       {},
       e,
     );
+  }
+}
+
+/**
+ * Retrieves users who are valid approvers for a specific disbursement approval role.
+ *
+ * @description
+ * Validates the requested disbursement approval permission filter, then fetches users whose assigned office position
+ * includes that permission. The returned users are mapped into lightweight identifier/name objects suitable for signer
+ * selection lists.
+ *
+ * On success, wraps the matching users in a {@link Success}. On invalid filter input, returns a validation
+ * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function getValidUsersAsApprovers
+ * @param {ValidApproverPermissionType} filter - Disbursement approval permission used to filter eligible users.
+ * @returns {Promise<Result<{ id: string; name: string; }[]>>} A result wrapper containing valid approver users on
+ *                                                             success, or a failure result on error.
+ *
+ * @remarks
+ * - Only supported disbursement approval permission filters are accepted.
+ * - Users must have the requested permission through their assigned office position.
+ * - Intended for disbursement signer selection flows.
+ */
+export async function getValidUsersAsApprovers(
+  filter: ValidApproverPermissionType,
+): Promise<Result<{ id: string; name: string; }[]>> {
+  try {
+    if (
+      filter !== "obr.disbursement.mayor.approve" &&
+      filter !== "obr.disbursement.accountant.approve" &&
+      filter !== "obr.disbursement.treasurer.approve"
+    ) {
+      return new Failure(ErrorCodes.ValidationFailure, "Invalid filter.", { filter });
+    }
+
+    const users = await db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .innerJoin(officePosition, eq(user.officePositionId, officePosition.id))
+      .where(sql`${officePosition.permissions} @> ARRAY[${filter}]`);
+
+    return new Success(users);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to fetch valid users.", { filter }, e);
   }
 }
 
@@ -1396,7 +1570,7 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
     const [role] = await db
       .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
       .from(officePosition)
-      .where(eq(officePosition.officeId, user.office.role.id));
+      .where(eq(officePosition.id, user.office.role.id));
     if (!role) {
       return { error: ErrorCodes.InsufficientPermissions };
     }
@@ -1654,6 +1828,7 @@ type ObrRequestType = {
     name: string;
   }
   requestItems: Array<{
+    id: string;
     particulars: string;
     amount: string;
     expenseCode: {
@@ -1700,6 +1875,7 @@ type ObrDisbursementTaxBreakdown = {
 type ObrDisbursementVoucher = {
   id: string;
   disbursementVoucherNumber: string;
+  createdAt: Date;
   payee: string;
   address: string;
   particulars: string;
@@ -1741,6 +1917,11 @@ type ObrDisbursementVoucher = {
   status: Optional<string>;
   prNumber: Optional<string>;
 }
+
+export type ValidApproverPermissionType =
+  | "obr.disbursement.accountant.approve"
+  | "obr.disbursement.treasurer.approve"
+  | "obr.disbursement.mayor.approve";
 
 type TaxType = "vat-g" | "vat-s" | "nvat-g" | "nvat-s";
 type DisbursementStatus = "PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID";

@@ -8,7 +8,7 @@ import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator, validatorUtilities } from "@/lib/validators";
 
-export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/management/data/expense-classes/[id]">) {
+export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/management/data/fund-types/[id]">) {
   const session = await auth.verify([
     permissions.DATA_TYPES_MANAGE_READ,
     permissions.DATA_TYPES_MANAGE_WRITE,

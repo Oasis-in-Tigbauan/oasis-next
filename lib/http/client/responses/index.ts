@@ -23,6 +23,7 @@ import type { RoleDefinitionResponse } from "@/lib/http/client/responses/RoleDef
 import type { UnactivatedListResponse } from "@/lib/http/client/responses/UnactivatedListResponse";
 import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib/http/client/responses/ObrRequestSummaryListResponse";
 import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, ObrRequestDetailApprover } from "@/lib/http/client/responses/ObrRequestDetailResponse";
+import type { ObrDisbursementVoucherListResponse, ObrDisbursementVoucherItem, ObrDisbursementTaxBreakdown } from "@/lib/http/client/responses/ObrDisbursementVoucherListResponse";
 
 export type {
   AccountsListResponse,
@@ -52,6 +53,9 @@ export type {
   ObrRequestDetail,
   ObrRequestDetailItem,
   ObrRequestDetailApprover,
+  ObrDisbursementVoucherListResponse,
+  ObrDisbursementVoucherItem,
+  ObrDisbursementTaxBreakdown,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

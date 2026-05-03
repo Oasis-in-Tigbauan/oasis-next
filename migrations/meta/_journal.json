@@ -120,6 +120,13 @@
       "when": 1777664593404,
       "tag": "0016_old_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1777804968997,
+      "tag": "0017_melodic_dragon_man",
+      "breakpoints": true
     }
   ]
 }

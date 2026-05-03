@@ -72,13 +72,21 @@ export default function Page() {
                 <CardContent className="flex items-center gap-2">
                   <Badge variant="secondary">Available</Badge>
                 </CardContent>
-                <CardFooter>
-                  <Button asChild className="w-full">
+                <CardFooter className="flex flex-row gap-2">
+                  <Button asChild className="grow">
                     <Link href={item.href}>
-                      Go to page
+                      {item.primaryLabel ?? "Go to page"}
                       <ArrowRight className="size-4" />
                     </Link>
                   </Button>
+                  {item.secondaryHref && (
+                    <Button asChild variant="outline" className="grow">
+                      <Link href={item.secondaryHref}>
+                        {item.secondaryLabel ?? item.secondaryHref}
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             );
@@ -129,7 +137,10 @@ const allMenuItems: Array<MenuItem> = [
   {
     title: "Disbursements",
     description: "Create and maintain disbursement vouchers from approved requests.",
-    href: "/dashboard/obr/disbursements",
+    href: "/dashboard/obr/disbursement",
+    primaryLabel: "Create Disbursements",
+    secondaryHref: "/dashboard/obr/disbursement/manage",
+    secondaryLabel: "Manage Disbursements",
     icon: Wallet,
     required: [
       permissions.OBR_DISBURSEMENT_CREATE,
@@ -152,6 +163,9 @@ type MenuItem = {
   title: string;
   description: string;
   href: string;
+  primaryLabel?: string;
+  secondaryHref?: string;
+  secondaryLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
   required: permissions.Permissions[];
 }
