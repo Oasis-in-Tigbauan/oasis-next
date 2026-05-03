@@ -1,6 +1,7 @@
 import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
 
 export type ObrRequestDetailItem = {
+  id: string;
   particulars: string;
   amount: string;
   expenseCode: {

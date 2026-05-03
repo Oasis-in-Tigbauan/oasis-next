@@ -229,8 +229,6 @@ export const obrRequests = pgTable("obr_requests", {
   prNumber: text("pr_number"),
   type: obrRequestType("request_type").notNull(),
 
-  disbursementId: text("disbursement_id"),
-  obrId: text("obr_id"),
   publisherId: text("publisher_id")
     .references(() => user.id)
     .notNull(),
