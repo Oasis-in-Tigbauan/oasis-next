@@ -352,6 +352,9 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
   requestId: text("request_id")
     .references(() => obrRequests.id)
     .notNull(),
+  requestItemId: text("request_item_id")
+    .references(() => obrRequestItems.id)
+    .notNull(),
   disbursedBy: text("disbursed_by")
     .references(() => user.id)
     .notNull(),
@@ -360,6 +363,54 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const obrItems = pgTable("obr_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  payee: text("payee").notNull(),
+  address: text("address").notNull(),
+  particulars: text("particulars").notNull(),
+
+  requestingOfficialId: text("requesting_official_id") // Head of the office?
+    .references(() => user.id)
+    .notNull(),
+  disbursementRefId: text("disbursement_ref_id")
+    .references(() => obrDisbursementVouchers.id)
+    .notNull(),
+  publishedBy: text("disbursed_by")
+    .references(() => user.id)
+    .notNull(),
+  requestId: text("request_id")
+    .references(() => obrRequests.id)
+    .notNull(),
+  requestItemId: text("request_item_id")
+    .references(() => obrRequestItems.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const obrOfficeItem = pgTable("obr_office_item", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  amount: decimal("amount").notNull(),
+  responsibilityCenterId: text("reponsibility_center_id")
+    .references(() => officeCodes.id)
+    .notNull(),
+  expenseCodeId: text("expense_code_id")
+    .references(() => expenseClasses.id)
+    .notNull(),
+  itemId: text("item_id")
+    .references(() => obrItems.id)
     .notNull(),
 });
 

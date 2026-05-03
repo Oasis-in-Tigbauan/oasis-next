@@ -30,6 +30,8 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/obr/approvals") return "OBR: Approvals";
     if (pathname === "/dashboard/obr/disbursement") return "OBR: Disbursement";
     if (pathname === "/dashboard/obr/disbursement/manage") return "OBR: Manage Disbursements";
+    if (pathname === "/dashboard/obr/management") return "OBR: Create OBR Items";
+    if (pathname === "/dashboard/obr/management/manage") return "OBR: Manage OBR Items";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 

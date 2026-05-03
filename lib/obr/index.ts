@@ -9,6 +9,8 @@ import {
   expenseClasses,
   fundTypes,
   obrDisbursementVouchers,
+  obrItems,
+  obrOfficeItem,
   obrRequestApprovers,
   obrRequestItems,
   obrRequests,
@@ -407,66 +409,18 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
       );
     }
 
-    const requestItemCountSubquery = db
-      .select({
-        requestId: obrRequestItems.requestId,
-        requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as("requestItemsCount"),
-      })
-      .from(obrRequestItems)
-      .groupBy(obrRequestItems.requestId)
-      .as("request_item_count_subquery");
-
-    const requestApproversSubquery = db
-      .select({
-        requestId: obrRequestApprovers.requestId,
-        approvers: sql<({ status: ApprovalState })[]>`COALESCE(
-          json_agg(
-            json_build_object(
-              'status', ${obrRequestApprovers.status}
-            )
-          ),
-          '[]'::json
-        )`.as("approvers"),
-      })
-      .from(obrRequestApprovers)
-      .groupBy(obrRequestApprovers.requestId)
-      .as("request_approvers_subquery");
-
-    // Fetch all items
-    const all = await db
-      .select({
-        id: obrRequests.id,
-        requestNumber: obrRequests.requestNumber,
-        type: obrRequests.type,
-        payee: obrRequests.payee,
-        officeAddress: obrRequests.officeAddress,
-        obrNumber: obrRequests.obrNumber,
-        prNumber: obrRequests.prNumber,
-        requestItemsCount: sql<number>`COALESCE(${requestItemCountSubquery.requestItemsCount}, 0)`,
-        approvers: sql<({ status: ApprovalState })[]>`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
-      })
-      .from(obrRequests)
-      .leftJoin(
-        requestItemCountSubquery,
-        eq(requestItemCountSubquery.requestId, obrRequests.id),
-      )
-      .leftJoin(
-        requestApproversSubquery,
-        eq(requestApproversSubquery.requestId, obrRequests.id),
-      )
-      .where(
-        and(
-          validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined,
-          validate.positionId
-            ? sql`EXISTS (
+    const all = await _getAllObrRequestAsSummaries(
+      and(
+        validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined,
+        validate.positionId
+          ? sql`EXISTS (
                 SELECT 1 FROM ${obrRequestApprovers}
                 WHERE ${obrRequestApprovers.requestId} = ${obrRequests.id}
                   AND ${obrRequestApprovers.positionId} = ${validate.positionId}
               )`
-            : undefined,
-        ),
-      )
-      .orderBy(desc(obrRequests.createdAt));
+          : undefined,
+      )!,
+    );
 
     return new Success(all.map(i => ({
       id: i.id,
@@ -497,7 +451,7 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
  * {@link Failure}.
  *
  * @async
- * @function listAllApproved
+ * @function listAllValidForDisbursement
  * @param {User} user - User attempting to list approved OBR requests for disbursement.
  * @returns {Promise<Result<Array<ObrRequestSummaryType>>>} A result wrapper containing approved OBR request summaries
  *                                                          on success, or a failure result on error.
@@ -507,7 +461,7 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
  * - Only requests whose computed approval status is approved are returned.
  * - Each summary includes request metadata, request item count, and computed approval status.
  */
-export async function listAllApproved(user: User): Promise<Result<Array<ObrRequestSummaryType>>> {
+export async function listAllValidForDisbursement(user: User): Promise<Result<Array<ObrRequestSummaryType>>> {
   try {
     const validate = await isWriterUserValidForDisbursement(user);
     if (validate?.error) {
@@ -519,60 +473,81 @@ export async function listAllApproved(user: User): Promise<Result<Array<ObrReque
       );
     }
 
-    const requestItemCountSubquery = db
-      .select({
-        requestId: obrRequestItems.requestId,
-        requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as("requestItemsCount"),
-      })
-      .from(obrRequestItems)
-      .groupBy(obrRequestItems.requestId)
-      .as("request_item_count_subquery");
-
-    const requestApproversSubquery = db
-      .select({
-        requestId: obrRequestApprovers.requestId,
-        approvers: sql<({ status: ApprovalState })[]>`COALESCE(
-          json_agg(
-            json_build_object(
-              'status', ${obrRequestApprovers.status}
-            )
-          ),
-          '[]'::json
-        )`.as("approvers"),
-      })
-      .from(obrRequestApprovers)
-      .groupBy(obrRequestApprovers.requestId)
-      .as("request_approvers_subquery");
-
-    // Fetch all items
-    const all = await db
-      .select({
-        id: obrRequests.id,
-        requestNumber: obrRequests.requestNumber,
-        type: obrRequests.type,
-        payee: obrRequests.payee,
-        officeAddress: obrRequests.officeAddress,
-        obrNumber: obrRequests.obrNumber,
-        prNumber: obrRequests.prNumber,
-        requestItemsCount: sql<number>`COALESCE(${requestItemCountSubquery.requestItemsCount}, 0)`,
-        approvers: sql<({ status: ApprovalState })[]>`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
-      })
-      .from(obrRequests)
-      .leftJoin(
-        requestItemCountSubquery,
-        eq(requestItemCountSubquery.requestId, obrRequests.id),
-      )
-      .leftJoin(
-        requestApproversSubquery,
-        eq(requestApproversSubquery.requestId, obrRequests.id),
-      )
-      .where(
-        sql`NOT EXISTS (
+    const all = await _getAllObrRequestAsSummaries(
+      sql`NOT EXISTS (
           SELECT 1 FROM ${obrDisbursementVouchers}
           WHERE ${obrDisbursementVouchers.requestId} = ${obrRequests.id}
         )`,
-      )
-      .orderBy(desc(obrRequests.createdAt));
+    );
+
+    const filtered: ObrRequestSummaryType[] = all
+      .filter(i => getSummaryOfStates(i.approvers) === "approved")
+      .map(i => ({
+        id: i.id,
+        type: i.type,
+        requestNumber: i.requestNumber,
+        payee: i.payee,
+        officeAddress: i.officeAddress,
+        obrNumber: i.obrNumber,
+        prNumber: i.prNumber,
+        requestItemsCount: i.requestItemsCount,
+        approvalStatus: getSummaryOfStates(i.approvers),
+      }));
+
+    return new Success(filtered);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to list requests", { userId: user.id }, e);
+  }
+}
+
+/**
+ * Retrieves all approved OBR request summaries available for creation of disbursement vouchers.
+ *
+ * @description
+ * Validates that the user has OBR management permissions, then fetches OBR requests with their item counts and
+ * approver states. The results are filtered to include only fully approved requests that already have disbursement
+ * vouchers associated with them, and mapped into request summary objects.
+ *
+ * On success, wraps the approved request summaries in a {@link Success}. On access validation failure, returns a
+ * {@link Failure} describing why requests cannot be listed. On unexpected failure, wraps the error in a fatal
+ * {@link Failure}.
+ *
+ * @async
+ * @function listAllValidForObrCreate
+ * @param {User} user - User attempting to list OBR requests for disbursement voucher creation.
+ * @returns {Promise<Result<Array<ObrRequestSummaryType>>>} A result wrapper containing approved OBR request summaries
+ *                                                          on success, or a failure result on error.
+ *
+ * @remarks
+ * - Requires OBR management access from the user.
+ * - Only requests whose computed approval status is approved are returned.
+ * - Only requests that have existing disbursement vouchers are included.
+ * - Each summary includes request metadata, request item count, and computed approval status.
+ */
+export async function listAllValidForObrCreate(user: User) {
+  try {
+    const validate = await isUserValidForObrManagement(user);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to list requests",
+        { userId: user.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const all = await _getAllObrRequestAsSummaries(
+      and(
+        sql`EXISTS (
+            SELECT 1 FROM ${obrDisbursementVouchers}
+            WHERE ${obrDisbursementVouchers.requestId} = ${obrRequests.id}
+          )`,
+        sql`NOT EXISTS (
+            SELECT 1 FROM ${obrItems}
+            WHERE ${obrItems.requestId} = ${obrRequests.id}
+          )`,
+      )!,
+    );
 
     const filtered: ObrRequestSummaryType[] = all
       .filter(i => getSummaryOfStates(i.approvers) === "approved")
@@ -636,163 +611,12 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
     ];
     if (validate.officeLimited) whereQuery.push(eq(obrRequests.originatingOfficeId, user.office.id));
 
-    const [result] = await db
-      .select({
-        id: obrRequests.id,
-        type: obrRequests.type,
-        requestNumber: obrRequests.requestNumber,
-        payee: obrRequests.payee,
-        officeAddress: obrRequests.officeAddress,
-        obrNumber: obrRequests.obrNumber,
-        prNumber: obrRequests.prNumber,
-        publisherId: obrRequests.publisherId,
-        officeId: obrRequests.originatingOfficeId,
-        requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
-          SELECT COALESCE(
-            json_agg(
-              json_build_object(
-                'id', ${obrRequestItems.id},
-                'particulars', ${obrRequestItems.particulars},
-                'amount', ${obrRequestItems.amount},
-                'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId},
-                'expenseCodeId', ${obrRequestItems.expenseCodeId}
-              )
-            ),
-            '[]'::json
-          )
-          FROM ${obrRequestItems}
-          WHERE ${obrRequestItems.requestId} = ${requestId}
-        )`,
-        requestItemsCount: sql<number>`(
-          SELECT COUNT(*) FROM ${obrRequestItems} WHERE ${obrRequestItems.requestId} = ${requestId}
-        )`,
-        approvers: sql<({ status: ApprovalState, positionId: string, reason?: string, actedUserId?: string, actedAt?: Date })[]>`(
-          SELECT COALESCE(
-            json_agg(
-              json_build_object(
-                'status', ${obrRequestApprovers.status},
-                'positionId', ${obrRequestApprovers.positionId},
-                'reason', ${obrRequestApprovers.reason},
-                'actedUserId', ${obrRequestApprovers.actedUserId},
-                'actedAt', ${obrRequestApprovers.actedAt}
-              )
-            ),
-            '[]'::json
-          )
-          FROM ${obrRequestApprovers}
-          WHERE ${obrRequestApprovers.requestId} = ${requestId}
-        )`,
-      })
-      .from(obrRequests)
-      .where(whereQuery.length >= 2 ? and(...whereQuery) : whereQuery[0]);
+    const result: ObrRequestType | null = await _getObrRequestById(requestId, whereQuery);
     if (!result) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId, userId: user.id });
+      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
     }
 
-    // Get the codes, user, positions and originating office
-    const rcIds = [...new Set(result.requestItems.map(o => o.responsibilityCenterId))];
-    const ecIds = [...new Set(result.requestItems.map(e => e.expenseCodeId))];
-
-    const [responsibilityCenters, expenseCodes, users, positions, originatingOffice] = await Promise.all([
-      db
-        .select({ id: officeCodes.id, aa: officeCodes.aa })
-        .from(officeCodes)
-        .where(inArray(officeCodes.id, rcIds)),
-
-      db
-        .select({
-          id: expenseClasses.id,
-          name: expenseClasses.accountName,
-          fpp: expenseClasses.fpp,
-          accountCode: expenseClasses.accountCode,
-        })
-        .from(expenseClasses)
-        .where(inArray(expenseClasses.id, ecIds)),
-
-      db
-        .select({ id: userSchema.id, name: userSchema.name })
-        .from(userSchema)
-        .where(
-          inArray(
-            userSchema.id,
-            [
-              result.publisherId,
-              ...result.approvers
-                .filter(a => validatorUtilities.isNotEmpty(a.actedUserId))
-                .map(a => a.actedUserId!),
-            ],
-          ),
-        ),
-
-      db
-        .select({ id: officePosition.id, name: officePosition.name })
-        .from(officePosition)
-        .where(
-          inArray(
-            officePosition.id,
-            result.approvers.map(a => a.positionId),
-          ),
-        ),
-
-      db
-        .select({ id: office.id, name: office.name })
-        .from(office)
-        .where(eq(office.id, result.officeId)),
-    ]);
-
-    const rcMap = new Map(responsibilityCenters.map(r => [r.id, r]));
-    const ecMap = new Map(expenseCodes.map(e => [e.id, e]));
-    const uMap = new Map(users.map(u => [u.id, u]));
-    const pMap = new Map(positions.map(p => [p.id, p]));
-
-    // Map
-    const mapped: ObrRequestType = {
-      id: result.id,
-      type: result.type,
-      requestNumber: result.requestNumber,
-      payee: result.payee,
-      officeAddress: result.officeAddress,
-      obrNumber: result.obrNumber,
-      prNumber: result.prNumber,
-      publisher: {
-        id: uMap.get(result.publisherId)!.id,
-        name: uMap.get(result.publisherId)!.name,
-      },
-      office: {
-        id: originatingOffice[0].id,
-        name: originatingOffice[0].name,
-      },
-      requestItemsCount: result.requestItemsCount,
-      requestItems: result.requestItems.map(i => ({
-        id: i.id,
-        particulars: i.particulars,
-        amount: i.amount,
-        expenseCode: {
-          id: ecMap.get(i.expenseCodeId)!.id,
-          name: ecMap.get(i.expenseCodeId)!.name,
-          fpp: ecMap.get(i.expenseCodeId)!.fpp,
-          accountCode: ecMap.get(i.expenseCodeId)!.accountCode,
-        },
-        responsibilityCenter: {
-          id: rcMap.get(i.responsibilityCenterId)!.id,
-          name: rcMap.get(i.responsibilityCenterId)!.aa,
-        },
-      })),
-      approvers: result.approvers.map(a => ({
-        status: a.status,
-        reason: a.reason,
-        position: {
-          id: pMap.get(a.positionId)!.id,
-          name: pMap.get(a.positionId)!.name,
-        },
-        signer: validatorUtilities.isNotEmpty(a.actedUserId)
-          ? { id: uMap.get(a.actedUserId!)!.id, name: uMap.get(a.actedUserId!)!.name }
-          : null,
-        signedAt: a.actedAt,
-      })),
-    };
-
-    return new Success(mapped);
+    return new Success(result);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
@@ -1017,6 +841,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
         mayorPositionName: signers.get(i.mayorId)!.positionName,
         disbursedBy: actor.id,
         requestId: result.id,
+        requestItemId: i.targetItemId,
 
         // Optional values
         ...(validatorUtilities.isNotEmpty(result.prNumber) ? { prNumber: result.prNumber } : {}),
@@ -1409,6 +1234,313 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
 }
 
 /**
+ * Creates OBR item records from an approved and fully disbursed OBR request.
+ *
+ * @description
+ * Validates that the user has disbursement write access, retrieves the target OBR request, verifies that the request is
+ * fully approved, confirms that every request item has an associated disbursement voucher, resolves the approving office
+ * head, and creates the corresponding OBR item and office-item records in a transaction.
+ *
+ * On success, wraps the created OBR items in a {@link Success}. On access, request lookup, approval-state, office-head,
+ * or disbursement validation failure, returns a {@link Failure} describing why the items could not be created. On
+ * unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function createObrItem
+ * @param {string} requestId - Identifier of the approved and disbursed OBR request to convert into OBR items.
+ * @param {User} user - User attempting to create the OBR item records.
+ * @returns {Promise<Result<ObrItem[]>>} A result wrapper containing the created OBR items on success, or a failure
+ *                                       result on error.
+ *
+ * @remarks
+ * - Requires disbursement write access from the user.
+ * - The source OBR request must be fully approved.
+ * - Every request item must already have a matching disbursement voucher.
+ * - The approving office head is used as the requesting official for the created OBR items.
+ * - OBR item and office-item records are created within a single transaction.
+ */
+export async function createObrItem(requestId: string, user: User): Promise<Result<ObrItem[]>> {
+  try {
+    const validate = await isUserValidForObrManagement(user);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to update the object you requested.",
+        { userId: user.id, requestId },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    // Get the obr request
+    const request = await _getObrRequestById(
+      requestId,
+      [
+        eq(obrRequests.id, requestId),
+      ],
+    );
+    if (!request) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+    }
+
+    // Validate if the request is actually approved.
+    const stateSummary = getSummaryOfStates(
+      request.approvers.map(a => ({ status: a.status as ApprovalState })),
+    );
+    if (stateSummary !== "approved") {
+      return new Failure(ErrorCodes.ValidationFailure, "Invalid request.", { requestId, stateSummary });
+    }
+
+    // Validate if these are disbursed
+    const disbursedVouchers = await db
+      .select({
+        id: obrDisbursementVouchers.id,
+        disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+        requestId: obrDisbursementVouchers.requestId,
+        requestItemId: obrDisbursementVouchers.requestItemId,
+      })
+      .from(obrDisbursementVouchers)
+      .where(
+        and(
+          eq(obrDisbursementVouchers.requestId, request.id),
+          inArray(obrDisbursementVouchers.requestItemId, [...request.requestItems.map(i => i.id)]),
+        ),
+      );
+
+    const officeHead = await findOfficeHead(
+      request.approvers
+        .filter(i => i.signer?.id)
+        .map(i => i.signer!.id),
+    );
+    if (!officeHead) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "No valid office head. This may be an error.",
+        { reqId: request.id },
+      );
+    }
+
+    const disbursed = new Map<string, { id: string; disbursementVoucherNumber: string; requestId: string }>(
+      disbursedVouchers.map(d => [d.requestItemId, d]),
+    );
+    if (disbursed.size !== request.requestItems.length) {
+      return new Failure(ErrorCodes.ValidationFailure, "These items are not yet disbursed!");
+    }
+
+    const rcMap = new Map<string, { id: string; name: string }>(
+      request.requestItems.map(i => [i.responsibilityCenter.id, i.responsibilityCenter]),
+    );
+    const exMap = new Map<string, ExpenseCodeObject>(
+      request.requestItems.map(i => [i.expenseCode.id, i.expenseCode]),
+    );
+
+    // Create obr entries for them
+    const transaction = await db.transaction(async tx => {
+      // Create obr items first
+      const items = await tx
+        .insert(obrItems)
+        .values(
+          request.requestItems.map(i => ({
+            payee: request.payee,
+            address: request.officeAddress,
+            particulars: i.particulars,
+            requestingOfficialId: officeHead.id,
+            disbursementRefId: disbursed.get(i.id)!.id,
+            publishedBy: user.id,
+            requestId: request.id,
+            requestItemId: i.id,
+          })),
+        )
+        .returning();
+
+      const itemMap = new Map<string, string>(
+        items.map(i => [i.requestItemId, i.id]),
+      );
+
+      const officeItems = await tx
+        .insert(obrOfficeItem)
+        .values(
+          request.requestItems.map(i => ({
+            amount: casts.castToDecimal(i.amount),
+            responsibilityCenterId: i.responsibilityCenter.id,
+            expenseCodeId: i.expenseCode.id,
+            itemId: itemMap.get(i.id)!,
+          })),
+        )
+        .returning();
+
+      const itemOfficeMap = new Map<string, ObrItemOfficeData>(
+        officeItems.map(i => [i.itemId, {
+          id: i.id,
+          amount: i.amount,
+          responsibilityCenter: rcMap.get(i.responsibilityCenterId)!,
+          expenseCode: exMap.get(i.expenseCodeId)!,
+        }]),
+      );
+
+      return items.map(i => ({
+        id: i.id,
+        obrRefNumber: request.requestNumber,
+        dvRefNumber: disbursed.get(i.requestItemId)!.disbursementVoucherNumber,
+        date: i.createdAt,
+        payee: i.payee,
+        address: i.address,
+        particulars: i.particulars,
+        amounts: [
+          itemOfficeMap.get(i.id)!,
+        ],
+        overallAmount: itemOfficeMap.get(i.id)!.amount,
+        requestingOfficial: {
+          id: officeHead.id,
+          name: officeHead.name,
+          position: officeHead.positionName,
+        },
+        publisher: {
+          id: user.id,
+          name: user.fullName,
+          position: user.office.role.name,
+        },
+      } satisfies ObrItem));
+    });
+
+    return new Success(transaction);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Unable to create OBR item.",
+      { requestId, userId: user.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Retrieves all created OBR items.
+ *
+ * @description
+ * Fetches OBR item records, resolves related requesting official and publisher users, loads associated office-item
+ * amount entries with responsibility-center and expense-code details, groups those entries by OBR item, and computes
+ * each item's overall amount.
+ *
+ * On success, wraps the mapped OBR items in a {@link Success}. If no OBR items exist, returns an empty success list.
+ * On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function getObrItems
+ * @returns {Promise<Result<ObrItem[]>>} A result wrapper containing OBR items on success, or a failure result on error.
+ *
+ * @remarks
+ * - Each returned item includes its amount breakdown entries.
+ * - Overall amounts are computed from the item's associated office-item amounts.
+ * - Missing user details are represented with fallback `"Unknown"` values.
+ */
+export async function getObrItems(): Promise<Result<ObrItem[]>> {
+  try {
+    const items = await db
+      .select({
+        id: obrItems.id,
+        obrRefNumber: obrRequests.requestNumber,
+        dvRefNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+        date: obrItems.createdAt,
+        payee: obrItems.payee,
+        address: obrItems.address,
+        particulars: obrItems.particulars,
+        requestingOfficialId: obrItems.requestingOfficialId,
+        publishedBy: obrItems.publishedBy,
+      })
+      .from(obrItems)
+      .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
+      .innerJoin(
+        obrDisbursementVouchers,
+        eq(obrDisbursementVouchers.id, obrItems.disbursementRefId),
+      );
+
+    if (items.length === 0) return new Success([]);
+
+    const userIds = Array.from(
+      new Set(items.flatMap(i => [i.requestingOfficialId, i.publishedBy])),
+    );
+
+    const [users, officeItems] = await Promise.all([
+      db
+        .select({
+          id: user.id,
+          name: user.name,
+          positionName: officePosition.name,
+        })
+        .from(user)
+        .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
+        .where(inArray(user.id, userIds)),
+
+      db
+        .select({
+          id: obrOfficeItem.id,
+          itemId: obrOfficeItem.itemId,
+          amount: obrOfficeItem.amount,
+          rcId: officeCodes.id,
+          rcName: officeCodes.aa,
+          ecId: expenseClasses.id,
+          ecName: expenseClasses.accountName,
+          ecFpp: expenseClasses.fpp,
+          ecAccountCode: expenseClasses.accountCode,
+        })
+        .from(obrOfficeItem)
+        .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
+        .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
+        .where(inArray(obrOfficeItem.itemId, items.map(i => i.id))),
+    ]);
+
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const officeItemsByItem = new Map<string, ObrItemOfficeData[]>();
+    for (const oi of officeItems) {
+      const existing = officeItemsByItem.get(oi.itemId) ?? [];
+      existing.push({
+        id: oi.id,
+        amount: oi.amount,
+        responsibilityCenter: { id: oi.rcId, name: oi.rcName },
+        expenseCode: {
+          id: oi.ecId,
+          name: oi.ecName,
+          fpp: oi.ecFpp,
+          accountCode: oi.ecAccountCode,
+        },
+      });
+      officeItemsByItem.set(oi.itemId, existing);
+    }
+
+    const overallAmountByItem = new Map<string, string>();
+    for (const [itemId, ois] of officeItemsByItem) {
+      const sum = ois.reduce((acc, oi) => acc.plus(new Decimal(oi.amount)), new Decimal(0));
+      overallAmountByItem.set(itemId, sum.toFixed(2));
+    }
+
+    return new Success(items.map(i => ({
+      id: i.id,
+      obrRefNumber: i.obrRefNumber,
+      dvRefNumber: i.dvRefNumber,
+      date: i.date,
+      payee: i.payee,
+      address: i.address,
+      particulars: i.particulars,
+      amounts: officeItemsByItem.get(i.id) ?? [],
+      overallAmount: overallAmountByItem.get(i.id) ?? "0.00",
+      requestingOfficial: {
+        id: i.requestingOfficialId,
+        name: userMap.get(i.requestingOfficialId)?.name ?? "Unknown",
+        position: userMap.get(i.requestingOfficialId)?.positionName ?? "Unknown",
+      },
+      publisher: {
+        id: i.publishedBy,
+        name: userMap.get(i.publishedBy)?.name ?? "Unknown",
+        position: userMap.get(i.publishedBy)?.positionName ?? "Unknown",
+      },
+    } satisfies ObrItem)));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to fetch list of OBR items", {}, e);
+  }
+}
+
+/**
  * Retrieves users who are valid approvers for a specific disbursement approval role.
  *
  * @description
@@ -1557,14 +1689,14 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
  * @async
  * @function isWriterUserValidForDisbursement
  * @param {User} user - User whose disbursement write access should be validated.
- * @returns {Promise<null | AccessDisbursementValidationResult>} `null` when the user is allowed to write disbursement
+ * @returns {Promise<null | AccessRequestValidationResult>} `null` when the user is allowed to write disbursement
  *                                                               data, or a validation error result otherwise.
  *
  * @remarks
  * - Requires the configured budget-officer approval write permission.
  * - Intended to be used as a guard before disbursement write operations.
  */
-async function isWriterUserValidForDisbursement(user: User): Promise<null | AccessDisbursementValidationResult> {
+async function isWriterUserValidForDisbursement(user: User): Promise<null | AccessRequestValidationResult> {
   try {
     // Fetch the position of the user in the office
     const [role] = await db
@@ -1578,6 +1710,50 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
     // Check for the position if the user contains the required permissions.
     const permissionSet = new Set(role.permissions);
     if (!permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)) {
+      return { error: ErrorCodes.InsufficientPermissions };
+    }
+
+    return null;
+  } catch (e) {
+    return { error: ErrorCodes.Fatal, stack: e };
+  }
+}
+
+/**
+ * Validates whether a user can access OBR management operations.
+ *
+ * @description
+ * Resolves the user's office position and checks whether the position has the required OBR management permissions.
+ * Returns `null` when the user is valid, or a lightweight validation result when access is denied or an unexpected error
+ * occurs.
+ *
+ * On success, returns `null`. On permission failure, returns an insufficient-permissions error. On unexpected failure,
+ * returns a fatal error with the caught stack value.
+ *
+ * @async
+ * @function isUserValidForObrManagement
+ * @param {User} user - User whose OBR management access should be validated.
+ * @returns {Promise<null | AccessRequestValidationResult>} `null` when the user is allowed to access OBR management
+ *                                                               operations, or a validation error result otherwise.
+ *
+ * @remarks
+ * - Requires the configured OBR management permissions.
+ * - Intended to be used as a guard before OBR management read or write operations.
+ */
+async function isUserValidForObrManagement(user: User): Promise<null | AccessRequestValidationResult> {
+  try {
+    // Fetch the position of the user in the office
+    const [role] = await db
+      .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
+      .from(officePosition)
+      .where(eq(officePosition.id, user.office.role.id));
+    if (!role) {
+      return { error: ErrorCodes.InsufficientPermissions };
+    }
+
+    // Check for the position if the user contains the required permissions.
+    const permissionSet = new Set(role.permissions);
+    if (!(permissionSet.has(permissions.OBR_MANAGEMENT_READ) && permissions.OBR_MANAGEMENT_WRITE)) {
       return { error: ErrorCodes.InsufficientPermissions };
     }
 
@@ -1780,6 +1956,262 @@ async function findOfficeHead(signers: string[]): Promise<{ id: string; name: st
   }
 }
 
+/**
+ * Retrieves and maps an OBR request using the provided query conditions.
+ *
+ * @description
+ * Fetches a single OBR request matching the supplied conditions, including its request items and approver states.
+ * Related responsibility centers, expense codes, users, approver positions, and originating office details are then
+ * resolved and mapped into a complete OBR request object.
+ *
+ * On success, returns the mapped OBR request. If no matching request is found, returns `null`.
+ *
+ * @async
+ * @function _getObrRequestById
+ * @param {string} requestId - Identifier of the OBR request to retrieve and use for related subqueries.
+ * @param {SQL[]} whereQuery - Query conditions used to locate the target OBR request.
+ * @returns {Promise<ObrRequestType | null>} The mapped OBR request when found, or `null` when no matching request exists.
+ *
+ * @remarks
+ * - Intended as an internal helper for request lookup and mapping.
+ * - The returned request includes publisher, originating office, request items, and approver/signing details.
+ * - Related records are fetched in parallel after the base request is resolved.
+ */
+async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise<ObrRequestType | null> {
+  const [result] = await db
+    .select({
+      id: obrRequests.id,
+      type: obrRequests.type,
+      requestNumber: obrRequests.requestNumber,
+      payee: obrRequests.payee,
+      officeAddress: obrRequests.officeAddress,
+      obrNumber: obrRequests.obrNumber,
+      prNumber: obrRequests.prNumber,
+      publisherId: obrRequests.publisherId,
+      officeId: obrRequests.originatingOfficeId,
+      requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', ${obrRequestItems.id},
+                'particulars', ${obrRequestItems.particulars},
+                'amount', ${obrRequestItems.amount},
+                'responsibilityCenterId', ${obrRequestItems.responsibilityCenterId},
+                'expenseCodeId', ${obrRequestItems.expenseCodeId}
+              )
+            ),
+            '[]'::json
+          )
+          FROM ${obrRequestItems}
+          WHERE ${obrRequestItems.requestId} = ${requestId}
+        )`,
+      requestItemsCount: sql<number>`(
+          SELECT COUNT(*) FROM ${obrRequestItems} WHERE ${obrRequestItems.requestId} = ${requestId}
+        )`,
+      approvers: sql<({ status: ApprovalState, positionId: string, reason?: string, actedUserId?: string, actedAt?: Date })[]>`(
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'status', ${obrRequestApprovers.status},
+                'positionId', ${obrRequestApprovers.positionId},
+                'reason', ${obrRequestApprovers.reason},
+                'actedUserId', ${obrRequestApprovers.actedUserId},
+                'actedAt', ${obrRequestApprovers.actedAt}
+              )
+            ),
+            '[]'::json
+          )
+          FROM ${obrRequestApprovers}
+          WHERE ${obrRequestApprovers.requestId} = ${requestId}
+        )`,
+    })
+    .from(obrRequests)
+    .where(whereQuery.length >= 2 ? and(...whereQuery) : whereQuery[0]);
+  if (!result) return null;
+
+  // Get the codes, user, positions and originating office
+  const rcIds = [...new Set(result.requestItems.map(o => o.responsibilityCenterId))];
+  const ecIds = [...new Set(result.requestItems.map(e => e.expenseCodeId))];
+
+  const [responsibilityCenters, expenseCodes, users, positions, originatingOffice] = await Promise.all([
+    db
+      .select({ id: officeCodes.id, aa: officeCodes.aa })
+      .from(officeCodes)
+      .where(inArray(officeCodes.id, rcIds)),
+
+    db
+      .select({
+        id: expenseClasses.id,
+        name: expenseClasses.accountName,
+        fpp: expenseClasses.fpp,
+        accountCode: expenseClasses.accountCode,
+      })
+      .from(expenseClasses)
+      .where(inArray(expenseClasses.id, ecIds)),
+
+    db
+      .select({ id: userSchema.id, name: userSchema.name })
+      .from(userSchema)
+      .where(
+        inArray(
+          userSchema.id,
+          [
+            result.publisherId,
+            ...result.approvers
+              .filter(a => validatorUtilities.isNotEmpty(a.actedUserId))
+              .map(a => a.actedUserId!),
+          ],
+        ),
+      ),
+
+    db
+      .select({ id: officePosition.id, name: officePosition.name })
+      .from(officePosition)
+      .where(
+        inArray(
+          officePosition.id,
+          result.approvers.map(a => a.positionId),
+        ),
+      ),
+
+    db
+      .select({ id: office.id, name: office.name })
+      .from(office)
+      .where(eq(office.id, result.officeId)),
+  ]);
+
+  const rcMap = new Map(responsibilityCenters.map(r => [r.id, r]));
+  const ecMap = new Map(expenseCodes.map(e => [e.id, e]));
+  const uMap = new Map(users.map(u => [u.id, u]));
+  const pMap = new Map(positions.map(p => [p.id, p]));
+
+  // Map
+  return {
+    id: result.id,
+    type: result.type,
+    requestNumber: result.requestNumber,
+    payee: result.payee,
+    officeAddress: result.officeAddress,
+    obrNumber: result.obrNumber,
+    prNumber: result.prNumber,
+    publisher: {
+      id: uMap.get(result.publisherId)!.id,
+      name: uMap.get(result.publisherId)!.name,
+    },
+    office: {
+      id: originatingOffice[0].id,
+      name: originatingOffice[0].name,
+    },
+    requestItemsCount: result.requestItemsCount,
+    requestItems: result.requestItems.map(i => ({
+      id: i.id,
+      particulars: i.particulars,
+      amount: i.amount,
+      expenseCode: {
+        id: ecMap.get(i.expenseCodeId)!.id,
+        name: ecMap.get(i.expenseCodeId)!.name,
+        fpp: ecMap.get(i.expenseCodeId)!.fpp,
+        accountCode: ecMap.get(i.expenseCodeId)!.accountCode,
+      },
+      responsibilityCenter: {
+        id: rcMap.get(i.responsibilityCenterId)!.id,
+        name: rcMap.get(i.responsibilityCenterId)!.aa,
+      },
+    })),
+    approvers: result.approvers.map(a => ({
+      status: a.status,
+      reason: a.reason,
+      position: {
+        id: pMap.get(a.positionId)!.id,
+        name: pMap.get(a.positionId)!.name,
+      },
+      signer: validatorUtilities.isNotEmpty(a.actedUserId)
+        ? { id: uMap.get(a.actedUserId!)!.id, name: uMap.get(a.actedUserId!)!.name }
+        : null,
+      signedAt: a.actedAt,
+    })),
+  } satisfies ObrRequestType;
+}
+
+/**
+ * Retrieves OBR request summaries with aggregated item counts and approver states.
+ *
+ * @description
+ * Constructs and executes a query that fetches OBR requests with their aggregated request item counts and approver
+ * states. The results are filtered using the provided SQL condition and ordered by creation date in descending order.
+ * Request item counts and approver states are joined from subqueries that aggregate counts and approval statuses
+ * respectively.
+ *
+ * On success, returns the list of OBR request summaries. If no requests match the provided filter, returns an empty list.
+ *
+ * @async
+ * @function _getAllObrRequestAsSummaries
+ * @param {SQL} filter - SQL condition used to filter OBR requests. Common filters include existence checks for related
+ *                       disbursement vouchers or office-limited conditions.
+ * @returns {Promise<Array<{id: string, requestNumber: string, type: string, payee: string, officeAddress: string, obrNumber?: string, prNumber?: string, requestItemsCount: number, approvers: Array<{status: ApprovalState}>}>>}
+ *          A promise resolving to an array of OBR request summaries with aggregated counts and approver states.
+ *
+ * @remarks
+ * - Intended as an internal helper function for request listing operations.
+ * - Results are ordered by creation date in descending order (newest first).
+ * - Request item counts default to 0 when no items exist.
+ * - Approver states default to an empty array when no approvers exist.
+ * - The filter parameter is required and should be a valid Drizzle SQL condition.
+ */
+async function _getAllObrRequestAsSummaries(filter: SQL) {
+  const requestItemCountSubquery = db
+    .select({
+      requestId: obrRequestItems.requestId,
+      requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as("requestItemsCount"),
+    })
+    .from(obrRequestItems)
+    .groupBy(obrRequestItems.requestId)
+    .as("request_item_count_subquery");
+
+  const requestApproversSubquery = db
+    .select({
+      requestId: obrRequestApprovers.requestId,
+      approvers: sql<({ status: ApprovalState })[]>`COALESCE(
+          json_agg(
+            json_build_object(
+              'status', ${obrRequestApprovers.status}
+            )
+          ),
+          '[]'::json
+        )`.as("approvers"),
+    })
+    .from(obrRequestApprovers)
+    .groupBy(obrRequestApprovers.requestId)
+    .as("request_approvers_subquery");
+
+  // Fetch all items
+  const all = await db
+    .select({
+      id: obrRequests.id,
+      requestNumber: obrRequests.requestNumber,
+      type: obrRequests.type,
+      payee: obrRequests.payee,
+      officeAddress: obrRequests.officeAddress,
+      obrNumber: obrRequests.obrNumber,
+      prNumber: obrRequests.prNumber,
+      requestItemsCount: sql<number>`COALESCE(${requestItemCountSubquery.requestItemsCount}, 0)`,
+      approvers: sql<({ status: ApprovalState })[]>`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
+    })
+    .from(obrRequests)
+    .leftJoin(
+      requestItemCountSubquery,
+      eq(requestItemCountSubquery.requestId, obrRequests.id),
+    )
+    .leftJoin(
+      requestApproversSubquery,
+      eq(requestApproversSubquery.requestId, obrRequests.id),
+    )
+    .where(filter)
+    .orderBy(desc(obrRequests.createdAt));
+
+  return all;
+}
+
 type AccessRequestReaderValidationResult = {
   error?: ErrorCodes | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1788,7 +2220,7 @@ type AccessRequestReaderValidationResult = {
   positionId?: string,
 }
 
-type AccessDisbursementValidationResult = Omit<AccessRequestReaderValidationResult, "officeLimited">;
+type AccessRequestValidationResult = Omit<AccessRequestReaderValidationResult, "officeLimited">;
 
 type ApprovalState = "pending" | "approved" | "binned";
 type ApprovalStateResponseType = ApprovalState | "mixed";
@@ -1822,6 +2254,13 @@ type ObrRequestSummaryType = {
   approvalStatus:  "pending" | "approved" | "binned" | "mixed"
 } & BaseObrRequestType;
 
+type ExpenseCodeObject = {
+  id: string;
+  name: string;
+  fpp: Optional<string>;
+  accountCode: Optional<string>;
+}
+
 type ObrRequestType = {
   office: {
     id: string;
@@ -1831,12 +2270,7 @@ type ObrRequestType = {
     id: string;
     particulars: string;
     amount: string;
-    expenseCode: {
-      id: string;
-      name: string;
-      fpp: Optional<string>;
-      accountCode: Optional<string>;
-    }
+    expenseCode: ExpenseCodeObject;
     responsibilityCenter: {
       id: string;
       name: string;
@@ -1944,3 +2378,35 @@ type UpdateDisbursementVoucherPayload = {
   fundTypeId: Optional<string>;
   status: Optional<DisbursementStatus>;
 }
+
+type ObrItemOfficeData = {
+  id: string;
+  amount: string;
+  responsibilityCenter: {
+    id: string;
+    name: string;
+  }
+  expenseCode: ExpenseCodeObject;
+}
+
+type ObrItem = {
+  id: string;
+  obrRefNumber: string;
+  dvRefNumber: string;
+  date: Date;
+  payee: string;
+  address: string;
+  particulars: string;
+  amounts: ObrItemOfficeData[];
+  overallAmount: string;
+  requestingOfficial: {
+    id: string;
+    name: string;
+    position: string;
+  }
+  publisher: {
+    id: string;
+    name: string;
+    position: string;
+  }
+};
