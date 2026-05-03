@@ -35,7 +35,7 @@ export async function create(payload: CreateFundTypePayload): Promise<Result<Fun
       description: fundType.description,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create office code.", payload, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to create fund type.", payload, e);
   }
 }
 
@@ -52,7 +52,7 @@ export async function all(): Promise<Result<Array<FundType>>> {
 
     return new Success(allFundTypes);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch office codes.", {}, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to fetch fund type.", {}, e);
   }
 }
 
@@ -90,7 +90,7 @@ export async function update(id: string, payload: Partial<UpdateFundTypePayload>
       description: updated.description,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update office code.", { ...payload, id }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to update fund type.", { ...payload, id }, e);
   }
 }
 

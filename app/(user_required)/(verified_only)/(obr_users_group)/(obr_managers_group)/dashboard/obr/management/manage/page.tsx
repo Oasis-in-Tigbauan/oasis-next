@@ -111,13 +111,8 @@ export default function Page() {
   const items = data.data.data;
 
   return (
-    <div className="relative flex w-full flex-col gap-4 overflow-x-hidden p-6">
-      <div>
-        <Typography variant="h2">Manage OBR Items</Typography>
-        <Typography variant="muted">
-          View all created OBR items and inspect detailed amount breakdowns.
-        </Typography>
-      </div>
+    <div className="relative flex w-full flex-col overflow-x-hidden p-4">
+      <Typography variant="h3" className="mb-4 grow">OBR Management</Typography>
 
       <div className="w-full overflow-x-auto">
         <Table className="min-w-max">

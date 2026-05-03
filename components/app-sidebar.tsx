@@ -81,7 +81,13 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                 <SidebarMenuItem>
                   <SidebarMenuButton>
                     <PhilippinePeso />
-                    <a href="/dashboard/settings/expense-types">Expense Code Definitions</a>
+                    <a href="/dashboard/settings/expense-types">Expense Types Definitions</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <PhilippinePeso />
+                    <a href="/dashboard/settings/expense-codes">Expense Code Definitions</a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>

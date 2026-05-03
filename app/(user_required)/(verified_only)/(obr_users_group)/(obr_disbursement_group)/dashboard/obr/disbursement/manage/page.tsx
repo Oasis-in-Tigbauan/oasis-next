@@ -467,13 +467,8 @@ export default function Page() {
   if (listError || listData?.error || !listData?.data?.data) return <DeadHamster />;
 
   return (
-    <div className="relative flex flex-col gap-4 p-6">
-      <div>
-        <Typography variant="h2">Manage Disbursements</Typography>
-        <Typography variant="muted">
-          View and edit all created disbursement vouchers.
-        </Typography>
-      </div>
+    <div className="relative flex flex-col p-4">
+      <Typography variant="h3" className="mb-4 grow">OBR Disbursements</Typography>
 
       <div className="w-full overflow-x-auto">
         <Table className="min-w-max">

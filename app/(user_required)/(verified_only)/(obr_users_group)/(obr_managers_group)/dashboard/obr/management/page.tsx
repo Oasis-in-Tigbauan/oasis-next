@@ -98,13 +98,8 @@ export default function Page() {
   const requests = listData.data.data;
 
   return (
-    <div className="relative flex w-full flex-col gap-4 overflow-x-hidden p-6">
-      <div>
-        <Typography variant="h2">OBR Management</Typography>
-        <Typography variant="muted">
-          Create OBR items from approved OBR requests.
-        </Typography>
-      </div>
+    <div className="relative flex w-full flex-col overflow-x-hidden p-4">
+      <Typography variant="h3" className="mb-4 grow">OBR Management</Typography>
 
       <div className="w-full overflow-x-auto">
         <Table className="min-w-max">

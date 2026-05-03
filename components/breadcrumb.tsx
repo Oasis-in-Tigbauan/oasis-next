@@ -22,7 +22,7 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/settings/roles") return "Offices & Role Management";
     if (pathname === "/dashboard/settings/invitations") return "Invitations";
     if (pathname === "/dashboard/settings/users") return "User Management";
-    if (pathname === "/dashboard/settings/expense-types") return "Data: Expense Types Management";
+    if (pathname === "/dashboard/settings/expense-codes") return "Data: Expense Types Management";
     if (pathname === "/dashboard/settings/fund-types") return "Data: Fund Types Management";
     if (pathname === "/dashboard/settings/office-codes") return "Data: Office Codes Management";
     if (pathname === "/dashboard/obr") return "OBR: Dashboard";

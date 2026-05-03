@@ -83,6 +83,14 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.OBR_DISBURSEMENT_MAYOR_APPROVE,
     description: "People with this permission can approve disbursement item on approved OBRs. (For Mayors)",
   },
+  {
+    permission: permissions.ESRE_READ,
+    description: "People with this permission can read ESRE related data.",
+  },
+  {
+    permission: permissions.ESRE_WRITE,
+    description: "People with this permission can write ESRE related data.",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -107,6 +115,8 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.OBR_DISBURSEMENT_TREASURER_APPROVE,
     permissions.OBR_DISBURSEMENT_MAYOR_APPROVE,
     permissions.OFFICE_HEAD,
+    permissions.ESRE_READ,
+    permissions.ESRE_WRITE,
   ],
 );
 

@@ -178,12 +178,7 @@ export default function Page() {
 
   return (
     <div className="relative flex flex-col gap-4 p-6">
-      <div>
-        <Typography variant="h2">OBR Requests</Typography>
-        <Typography variant="muted">
-          Manage and review obligation requests from your office.
-        </Typography>
-      </div>
+      <Typography variant="h3" className="mb-4 grow">OBR Requests</Typography>
 
       <Table>
         {requests.length === 0 && (

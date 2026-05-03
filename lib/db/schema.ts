@@ -215,6 +215,22 @@ export const fundTypes = pgTable("fund_types", {
     .notNull(),
 });
 
+export const expenseType = pgTable("expense_type", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  name: text("name").notNull(),
+  description: text("description"),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
 
 export const obrRequests = pgTable("obr_requests", {

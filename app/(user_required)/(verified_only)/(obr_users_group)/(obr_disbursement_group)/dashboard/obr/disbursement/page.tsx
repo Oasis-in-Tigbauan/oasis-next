@@ -113,13 +113,8 @@ export default function Page() {
   const requests = listData.data.data;
 
   return (
-    <div className="relative flex flex-col gap-4 p-6">
-      <div>
-        <Typography variant="h2">OBR Disbursement</Typography>
-        <Typography variant="muted">
-          Create disbursement vouchers from approved obligation requests.
-        </Typography>
-      </div>
+    <div className="relative flex flex-col p-4">
+      <Typography variant="h3" className="mb-4 grow">OBR Disbursement</Typography>
 
       <Table>
         {requests.length === 0 && (
