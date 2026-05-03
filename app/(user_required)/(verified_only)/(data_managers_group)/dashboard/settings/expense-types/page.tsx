@@ -8,7 +8,8 @@ import { $fetch } from "@/lib/http/client/fetch";
 import {
   ApiResponseException,
   BetterFetchResponse,
-  ExpenseClassListResponse, ExpenseClassResponse,
+  ExpenseTypeListResponse,
+  ExpenseTypeResponse,
 } from "@/lib/http/client/responses";
 
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,8 @@ import Typography from "@/components/typography";
 import { validatorUtilities } from "@/lib/validators";
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>>("/api/management/data/expense-classes", $fetch);
+  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ExpenseTypeListResponse, ApiResponseException>>(
+    "/api/management/data/expense-type", $fetch);
 
   if (isLoading) {
     return (<Loading />);
@@ -50,7 +52,7 @@ export default function Page() {
     return (<DeadHamster />);
   }
 
-  const handleCreateMutate = (item: ExpenseClassResponse) => {
+  const handleCreateMutate = (item: ExpenseTypeResponse) => {
     if (data?.data?.data && Array.isArray(data?.data?.data)) {
       mutate({
         data: {
@@ -62,7 +64,7 @@ export default function Page() {
     }
   };
 
-  const handleUpdateMutate = (item: ExpenseClassResponse) => {
+  const handleUpdateMutate = (item: ExpenseTypeResponse) => {
     if (data?.data?.data && Array.isArray(data?.data?.data)) {
       mutate({
         data: {
@@ -80,8 +82,8 @@ export default function Page() {
   return (
     <div className="p-4 pt-0 w-full">
       <div className="w-full flex gap-4">
-        <Typography variant="h3" className="mb-4 grow">Expense Codes</Typography>
-        <CreateExpenseClassDialog mutate={handleCreateMutate} />
+        <Typography variant="h3" className="mb-4 grow">Expense Types</Typography>
+        <CreateExpenseTypeDialog mutate={handleCreateMutate} />
       </div>
       <Table>
         <TableCaption>
@@ -92,19 +94,14 @@ export default function Page() {
         </TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead>Account Name</TableHead>
-            <TableHead>FPP</TableHead>
-            <TableHead>Classification</TableHead>
-            <TableHead>Sub-Classification</TableHead>
-            <TableHead>Group</TableHead>
-            <TableHead>Account Code</TableHead>
-            <TableHead>Expense Class</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {
             (data?.data?.data || []).map(x => (
-              <ExpenseClassRow key={x.id} data={x} mutate={handleUpdateMutate} />
+              <ExpenseTypeRow key={x.id} data={x} mutate={handleUpdateMutate} />
             ))
           }
         </TableBody>
@@ -113,36 +110,33 @@ export default function Page() {
   );
 }
 
-function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassResponse) => void}) {
+function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeResponse) => void}) {
   const [open, setOpen] = useState(false);
 
-  const [payload, setPayload] = useState<ExpenseClassPayload>({
-    accountName: "",
-    fpp: undefined,
-    classification: undefined,
-    subClassification: undefined,
-    group: undefined,
-    accountCode: undefined,
-    class: undefined,
+  const [payload, setPayload] = useState<ExpenseTypePayload>({
+    name: "",
+    description: null,
   });
 
-  const handleInput = (key: keyof ExpenseClassPayload, value: string) => {
+  const handleInput = (key: keyof ExpenseTypePayload, value: string) => {
     setPayload(prev => ({
       ...prev,
-      [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
     }));
   };
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const res = await $fetch<ExpenseClassResponse, ApiResponseException>("/api/management/data/expense-classes", {
-      method: "POST",
-      body: payload,
-    });
+    const res = await $fetch<ExpenseTypeResponse, ApiResponseException>(
+      "/api/management/data/expense-type",
+      {
+        method: "POST",
+        body: payload,
+      });
 
     if (res.error || !res.data.data)  {
-      alert("Failed to create expense class. Try again later.");
+      alert("Failed to create expense type. Try again later.");
       return;
     }
 
@@ -150,16 +144,11 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
     mutate(res.data);
 
     // Reset and close.
-    alert("Expense class created successfully.");
+    alert("Expense type created successfully.");
 
     setPayload({
-      accountName: "",
-      fpp: undefined,
-      classification: undefined,
-      subClassification: undefined,
-      group: undefined,
-      accountCode: undefined,
-      class: undefined,
+      name: "",
+      description: null,
     });
     setOpen(false);
   };
@@ -169,104 +158,42 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
       <DialogTrigger asChild>
         <Button variant="outline" className="ml-auto">
           <Plus />
-          Add a new Expense Code
+          Add a new Expense Type
         </Button>
       </DialogTrigger>
-      <DialogContent className="min-w-[75%]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create a new Expense Code</DialogTitle>
+          <DialogTitle>Create a new Expense Type</DialogTitle>
           <DialogDescription>
-            Enter the details of the expense code you want to create.
+            Enter the details of the expense type you want to create.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <FieldGroup>
+          <FieldGroup className="mb-4">
             <Field>
-              <Label htmlFor="accountName">Account Name</Label>
+              <Label htmlFor="name">Name</Label>
               <Input
-                id="accountName"
+                id="name"
                 type="text"
-                placeholder="Enter the account name"
-                value={payload.accountName}
-                onInput={e => handleInput("accountName", e.currentTarget.value)}
+                placeholder="Enter the expense type name"
+                value={payload.name}
+                onInput={e => handleInput("name", e.currentTarget.value)}
                 required
               />
             </Field>
           </FieldGroup>
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="fpp">FPP</Label>
-                <Input
-                  id="fpp"
-                  type="text"
-                  placeholder="Enter the FPP"
-                  value={payload.fpp ?? ""}
-                  onInput={e => handleInput("fpp", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="classification">Classification</Label>
-                <Input
-                  id="classification"
-                  type="text"
-                  placeholder="Enter the account name"
-                  value={payload.classification ?? ""}
-                  onInput={e => handleInput("classification", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="subClassification">Sub-classification</Label>
-                <Input
-                  id="subClassification"
-                  type="text"
-                  placeholder="Enter the sub-classification"
-                  value={payload.subClassification ?? ""}
-                  onInput={e => handleInput("subClassification", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="group">Group</Label>
-                <Input
-                  id="group"
-                  type="text"
-                  placeholder="Enter the group name"
-                  value={payload.group ?? ""}
-                  onInput={e => handleInput("group", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="accountCode">Account Code</Label>
-                <Input
-                  id="accountCode"
-                  type="text"
-                  placeholder="Enter the account code"
-                  value={payload.accountCode ?? ""}
-                  onInput={e => handleInput("accountCode", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="expenseClass">Expense Class</Label>
-                <Input
-                  id="expenseClass"
-                  type="text"
-                  placeholder="Enter the expense class"
-                  value={payload.class ?? ""}
-                  onInput={e => handleInput("class", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-          </div>
+          <FieldGroup>
+            <Field>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Enter the expense type description"
+                value={payload.description ?? ""}
+                onInput={e => handleInput("description", e.currentTarget.value)}
+              />
+            </Field>
+          </FieldGroup>
           <DialogFooter className="mt-4">
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
@@ -279,24 +206,19 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
   );
 }
 
-function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"], mutate: (item: ExpenseClassResponse) => void }) {
+function ExpenseTypeRow({ data, mutate }: { data: ExpenseTypeResponse["data"], mutate: (item: ExpenseTypeResponse) => void }) {
   const [open, setOpen] = useState(false);
 
-  const [payload, setPayload] = useState<ExpenseClassPayload>({
-    accountName: data.accountName,
-    fpp: data.fpp,
-    classification: data.classification,
-    subClassification: data.subClassification,
-    group: data.group,
-    accountCode: data.accountCode,
-    class: data.class,
+  const [payload, setPayload] = useState<ExpenseTypePayload>({
+    name: data.name,
+    description: data.description,
   });
 
-  const handleInput = (key: keyof ExpenseClassPayload, value: string) => {
+  const handleInput = (key: keyof ExpenseTypePayload, value: string) => {
     setPayload(prev => {
       return {
         ...prev,
-        [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+        [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
       };
     });
   };
@@ -304,13 +226,15 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const res = await $fetch<ExpenseClassResponse, ApiResponseException>(`/api/management/data/expense-classes/${data.id}`, {
-      method: "PATCH",
-      body: payload,
-    });
+    const res = await $fetch<ExpenseTypeResponse, ApiResponseException>(
+      `/api/management/data/expense-type/${data.id}`,
+      {
+        method: "PATCH",
+        body: payload,
+      });
 
     if (res.error || !res.data.data)  {
-      alert("Failed to update expense class. Try again later.");
+      alert("Failed to update expense type. Try again later.");
       return;
     }
 
@@ -318,7 +242,7 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
     mutate(res.data);
 
     // Close.
-    alert("Expense class updated successfully.");
+    alert("Expense type updated successfully.");
     setOpen(false);
   };
 
@@ -326,110 +250,43 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <TableRow className="cursor-pointer">
-          <TableCell className="font-medium">{data.accountName}</TableCell>
-          <TableCell>{data.fpp}</TableCell>
-          <TableCell>{data.classification}</TableCell>
-          <TableCell>{data.subClassification}</TableCell>
-          <TableCell>{data.group}</TableCell>
-          <TableCell>{data.accountCode}</TableCell>
-          <TableCell>{data.class}</TableCell>
+          <TableCell className="font-medium">{data.name}</TableCell>
+          <TableCell>{data.description}</TableCell>
         </TableRow>
       </DialogTrigger>
-      <DialogContent className="min-w-[75%]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Update Expense Code</DialogTitle>
+          <DialogTitle>Update Expense Type</DialogTitle>
           <DialogDescription>
-            Update the expense code details.
+            Update the expense type details.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <FieldGroup>
+          <FieldGroup className="mb-4">
             <Field>
-              <Label htmlFor="accountName">Account Name</Label>
+              <Label htmlFor="name">Name</Label>
               <Input
-                id="accountName"
+                id="name"
                 type="text"
                 placeholder="Enter the account name"
-                value={payload.accountName}
-                onInput={e => handleInput("accountName", e.currentTarget.value)}
+                value={payload.name}
+                onInput={e => handleInput("name", e.currentTarget.value)}
                 required
               />
             </Field>
           </FieldGroup>
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="fpp">FPP</Label>
-                <Input
-                  id="fpp"
-                  type="text"
-                  placeholder="Enter the FPP"
-                  value={payload.fpp ?? ""}
-                  onInput={e => handleInput("fpp", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="classification">Classification</Label>
-                <Input
-                  id="classification"
-                  type="text"
-                  placeholder="Enter the account name"
-                  value={payload.classification ?? ""}
-                  onInput={e => handleInput("classification", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="subClassification">Sub-classification</Label>
-                <Input
-                  id="subClassification"
-                  type="text"
-                  placeholder="Enter the sub-classification"
-                  value={payload.subClassification ?? ""}
-                  onInput={e => handleInput("subClassification", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="group">Group</Label>
-                <Input
-                  id="group"
-                  type="text"
-                  placeholder="Enter the group name"
-                  value={payload.group ?? ""}
-                  onInput={e => handleInput("group", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="accountCode">Account Code</Label>
-                <Input
-                  id="accountCode"
-                  type="text"
-                  placeholder="Enter the account code"
-                  value={payload.accountCode ?? ""}
-                  onInput={e => handleInput("accountCode", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-            <FieldGroup>
-              <Field>
-                <Label htmlFor="expenseClass">Expense Class</Label>
-                <Input
-                  id="expenseClass"
-                  type="text"
-                  placeholder="Enter the expense class"
-                  value={payload.class ?? ""}
-                  onInput={e => handleInput("class", e.currentTarget.value)}
-                />
-              </Field>
-            </FieldGroup>
-          </div>
+          <FieldGroup>
+            <Field>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Enter the expense type description"
+                value={payload.description ?? ""}
+                onInput={e => handleInput("description", e.currentTarget.value)}
+              />
+            </Field>
+          </FieldGroup>
           <DialogFooter className="mt-4">
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
@@ -442,12 +299,7 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
   );
 }
 
-type ExpenseClassPayload = {
-  accountName: string;
-  fpp: Optional<string>;
-  classification: Optional<string>;
-  subClassification: Optional<string>;
-  group: Optional<string>;
-  accountCode: Optional<string>;
-  class: Optional<string>;
+type ExpenseTypePayload = {
+  name: string;
+  description: Optional<string>;
 }

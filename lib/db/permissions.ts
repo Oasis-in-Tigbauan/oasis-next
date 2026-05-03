@@ -99,6 +99,16 @@ export const OBR_DISBURSEMENT_TREASURER_APPROVE: Permissions = "obr.disbursement
  */
 export const OBR_DISBURSEMENT_MAYOR_APPROVE: Permissions = "obr.disbursement.mayor.approve";
 
+/**
+ * People with this permission can read ESRE worksheets.
+ */
+export const ESRE_READ: Permissions = "esre.read";
+
+/**
+ * People with this permission can write ESRE worksheets.
+ */
+export const ESRE_WRITE: Permissions = "esre.write";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -119,4 +129,6 @@ export type Permissions =
     | "obr.disbursement.accountant.approve"
     | "obr.disbursement.treasurer.approve"
     | "obr.disbursement.mayor.approve"
-    | "office.head";
+    | "office.head"
+    | "esre.read"
+    | "esre.write";

@@ -2,6 +2,8 @@ import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsL
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
 import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseClassResponse";
 import type { ExpenseClassListResponse } from "@/lib/http/client/responses/ExpenseClassListResponse";
+import type { ExpenseTypeListResponse } from "@/lib/http/client/responses/ExpenseTypeListResponse";
+import type { ExpenseTypeResponse } from "@/lib/http/client/responses/ExpenseTypeResponse";
 import type { UserResponse } from "@/lib/http/client/responses/UserResponse";
 import type { EnrollmentEligibilityResponse } from "@/lib/http/client/responses/EnrollmentEligibilityResponse";
 import type { FundTypesListResponse } from "@/lib/http/client/responses/FundTypeListResponse";
@@ -31,6 +33,8 @@ export type {
   ApiResponseException,
   ExpenseClassResponse,
   ExpenseClassListResponse,
+  ExpenseTypeListResponse,
+  ExpenseTypeResponse,
   UserResponse,
   EnrollmentEligibilityResponse,
   FundTypesListResponse,

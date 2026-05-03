@@ -102,13 +102,8 @@ export default function Page() {
   const requests = listData.data.data;
 
   return (
-    <div className="relative flex flex-col gap-4 p-6">
-      <div>
-        <Typography variant="h2">OBR Approvals</Typography>
-        <Typography variant="muted">
-          Review and sign off on obligation requests assigned to your role.
-        </Typography>
-      </div>
+    <div className="relative flex flex-col p-4">
+      <Typography variant="h3" className="mb-4 grow">OBR Approvals</Typography>
 
       <Table>
         {requests.length === 0 && (
