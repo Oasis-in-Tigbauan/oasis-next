@@ -141,6 +141,13 @@
       "when": 1777833107911,
       "tag": "0019_magical_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1777838880725,
+      "tag": "0020_unusual_violations",
+      "breakpoints": true
     }
   ]
 }

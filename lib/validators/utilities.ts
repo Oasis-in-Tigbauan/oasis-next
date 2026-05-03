@@ -110,12 +110,12 @@ export function isEmail(email: string): boolean {
  * isUuid("550e8400-e29b-41d4-a716-446655440000"); // true
  * isUuid("not-a-uuid"); // false
  */
-export function isUuid(uuid: string): boolean {
+export function isUuid(uuid: Optional<string>): boolean {
   // Fail on empty strings
   if (!isNotEmpty(uuid)) return false;
 
   // Check via regex
-  return /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/.test(uuid);
+  return /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/.test(uuid!);
 }
 
 /**

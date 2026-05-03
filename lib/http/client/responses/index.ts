@@ -1,5 +1,6 @@
 import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
+import type { EsreListResponse, EsreItem as EsreItemResponse } from "@/lib/http/client/responses/EsreListResponse";
 import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseClassResponse";
 import type { ExpenseClassListResponse } from "@/lib/http/client/responses/ExpenseClassListResponse";
 import type { ExpenseTypeListResponse } from "@/lib/http/client/responses/ExpenseTypeListResponse";
@@ -27,10 +28,13 @@ import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib
 import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, ObrRequestDetailApprover } from "@/lib/http/client/responses/ObrRequestDetailResponse";
 import type { ObrDisbursementVoucherListResponse, ObrDisbursementVoucherItem, ObrDisbursementTaxBreakdown } from "@/lib/http/client/responses/ObrDisbursementVoucherListResponse";
 import type { ObrItemListResponse, ObrItem, ObrItemOfficeData } from "@/lib/http/client/responses/ObrItemListResponse";
+import type { ObrSearchResponse, ObrSearchItem } from "@/lib/http/client/responses/ObrSearchResponse";
 
 export type {
   AccountsListResponse,
   ApiResponseException,
+  EsreListResponse,
+  EsreItemResponse,
   ExpenseClassResponse,
   ExpenseClassListResponse,
   ExpenseTypeListResponse,
@@ -64,6 +68,8 @@ export type {
   ObrItemListResponse,
   ObrItem,
   ObrItemOfficeData,
+  ObrSearchResponse,
+  ObrSearchItem,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {
