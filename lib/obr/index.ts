@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
@@ -1541,6 +1541,108 @@ export async function getObrItems(): Promise<Result<ObrItem[]>> {
 }
 
 /**
+ * Searches created OBR items by keyword across key reference and descriptive fields.
+ *
+ * @description
+ * Performs a case-insensitive partial match against OBR item payee, address, particulars,
+ * disbursement-voucher reference number, and OBR request reference number. Matching items are
+ * returned with their amount breakdowns and computed overall amount.
+ *
+ * On success, wraps the matching OBR items in a {@link Success}. If no matches are found,
+ * returns an empty success list. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function searchObrItems
+ * @param {string} query - Search keyword used for partial matching.
+ * @returns {Promise<Result<ObrItem[]>>} A result wrapper containing matching OBR items on success,
+ *                                       or a failure result on error.
+ */
+export async function searchObrItems(query: string): Promise<Result<ObrSearchResultItem[]>> {
+  try {
+    const normalized = query.trim();
+    if (!validatorUtilities.isNotEmpty(normalized)) {
+      return new Success([]);
+    }
+
+    const wildcard = `%${normalized}%`;
+
+    const items = await db
+      .select({
+        id: obrItems.id,
+        obrRefNumber: obrRequests.requestNumber,
+        dvRefNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+        payee: obrItems.payee,
+        address: obrItems.address,
+        particulars: obrItems.particulars,
+      })
+      .from(obrItems)
+      .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
+      .innerJoin(
+        obrDisbursementVouchers,
+        eq(obrDisbursementVouchers.id, obrItems.disbursementRefId),
+      )
+      .where(
+        or(
+          ilike(obrItems.payee, wildcard),
+          ilike(obrItems.address, wildcard),
+          ilike(obrItems.particulars, wildcard),
+          ilike(obrDisbursementVouchers.disbursementVoucherNumber, wildcard),
+          ilike(obrRequests.requestNumber, wildcard),
+        ),
+      );
+
+    if (items.length === 0) return new Success([]);
+
+    const officeItems = await db
+      .select({
+        itemId: obrOfficeItem.itemId,
+        ecId: expenseClasses.id,
+        ecName: expenseClasses.accountName,
+        ecAccountCode: expenseClasses.accountCode,
+        ecSubClassification: expenseClasses.subClassification,
+        officeId: office.id,
+        officeName: office.name,
+      })
+      .from(obrOfficeItem)
+      .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
+      .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
+      .innerJoin(office, eq(office.id, officeCodes.officeId))
+      .where(inArray(obrOfficeItem.itemId, items.map(i => i.id)));
+
+    const firstOfficeItemByItem = new Map<string, typeof officeItems[number]>();
+    for (const oi of officeItems) {
+      if (!firstOfficeItemByItem.has(oi.itemId)) {
+        firstOfficeItemByItem.set(oi.itemId, oi);
+      }
+    }
+
+    return new Success(items.map(i => {
+      const oi = firstOfficeItemByItem.get(i.id) ?? null;
+      return {
+        id: i.id,
+        obrRefNumber: i.obrRefNumber,
+        dvRefNumber: i.dvRefNumber,
+        payee: i.payee,
+        address: i.address,
+        particulars: i.particulars,
+        expenseClass: oi ? {
+          id: oi.ecId,
+          accountName: oi.ecName,
+          accountCode: oi.ecAccountCode,
+          subClassification: oi.ecSubClassification,
+        } : null,
+        office: oi ? {
+          id: oi.officeId,
+          name: oi.officeName,
+        } : null,
+      } satisfies ObrSearchResultItem;
+    }));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to search obr items", { query }, e);
+  }
+}
+
+/**
  * Retrieves users who are valid approvers for a specific disbursement approval role.
  *
  * @description
@@ -2409,4 +2511,23 @@ type ObrItem = {
     name: string;
     position: string;
   }
+};
+
+export type ObrSearchResultItem = {
+  id: string;
+  obrRefNumber: string;
+  dvRefNumber: string;
+  payee: string;
+  address: string;
+  particulars: string;
+  expenseClass: {
+    id: string;
+    accountName: string;
+    accountCode: string | null;
+    subClassification: string | null;
+  } | null;
+  office: {
+    id: string;
+    name: string;
+  } | null;
 };

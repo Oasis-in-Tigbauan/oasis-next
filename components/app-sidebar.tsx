@@ -63,12 +63,32 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
         <SidebarGroup>
           <SidebarGroupLabel>Worksheets</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenuItem>
-              <SidebarMenuButton>
-                <FileSpreadsheet />
-                <a href="/dashboard/obr">OBR</a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {
+              permissionMap.has(permissions.ESRE_READ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/esre">ESRE</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
+            {
+              (
+                permissionMap.has(permissions.OBR_MANAGEMENT_READ)
+                || permissionMap.has(permissions.OBR_APPROVER_BASIC_READ)
+                || permissionMap.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)
+                || permissionMap.has(permissions.OBR_APPROVER_ADVANCED_READ)
+                || permissionMap.has(permissions.OBR_REQUEST_READ)
+              ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/obr">OBR</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
           </SidebarGroupContent>
         </SidebarGroup>
 

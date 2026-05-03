@@ -430,6 +430,41 @@ export const obrOfficeItem = pgTable("obr_office_item", {
     .notNull(),
 });
 
+export const checkStatusEnum = pgEnum("check_status_enum", [
+  "PAID",
+  "FOR RELEASE",
+  "ON HOLD",
+  "CANCELLED",
+]);
+
+export const esre = pgTable("esre", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  checkNumber: text("check_number"),
+  fundingSourceId: text("funding_source_id")
+    .references(() => fundTypes.id)
+    .notNull(),
+  dvOrPayrollNumber: text("dv_or_payroll_number"),
+  obrItemId: text("obr_item_id")
+    .references(() => obrItems.id),
+  payee: text("payee").notNull(),
+  natureOfPayment: text("nature_of_payment").notNull(),
+  amount: decimal("amount").notNull(),
+  checkStatus: checkStatusEnum("check_status"),
+  charges: text("charges"),
+  remarks: text("remarks"),
+  expenseTypeId: text("expense_type_id")
+    .references(() => expenseType.id),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
