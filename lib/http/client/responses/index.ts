@@ -24,6 +24,7 @@ import type { UnactivatedListResponse } from "@/lib/http/client/responses/Unacti
 import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib/http/client/responses/ObrRequestSummaryListResponse";
 import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, ObrRequestDetailApprover } from "@/lib/http/client/responses/ObrRequestDetailResponse";
 import type { ObrDisbursementVoucherListResponse, ObrDisbursementVoucherItem, ObrDisbursementTaxBreakdown } from "@/lib/http/client/responses/ObrDisbursementVoucherListResponse";
+import type { ObrItemListResponse, ObrItem, ObrItemOfficeData } from "@/lib/http/client/responses/ObrItemListResponse";
 
 export type {
   AccountsListResponse,
@@ -56,6 +57,9 @@ export type {
   ObrDisbursementVoucherListResponse,
   ObrDisbursementVoucherItem,
   ObrDisbursementTaxBreakdown,
+  ObrItemListResponse,
+  ObrItem,
+  ObrItemOfficeData,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

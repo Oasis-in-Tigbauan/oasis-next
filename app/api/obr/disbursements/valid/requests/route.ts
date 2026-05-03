@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   // Get the list of the requests
-  const users = await obr.listAllApproved(session.user!);
+  const users = await obr.listAllValidForDisbursement(session.user!);
   return oneOf(users).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),

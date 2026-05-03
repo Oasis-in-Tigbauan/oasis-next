@@ -151,6 +151,9 @@ const allMenuItems: Array<MenuItem> = [
     title: "Management",
     description: "Open OBR administrative and worksheet management tools.",
     href: "/dashboard/obr/management",
+    primaryLabel: "Create OBR Items",
+    secondaryHref: "/dashboard/obr/management/manage",
+    secondaryLabel: "Manage OBR Items",
     icon: FolderCog,
     required: [
       permissions.OBR_MANAGEMENT_READ,
