@@ -465,6 +465,32 @@ export const esre = pgTable("esre", {
     .notNull(),
 });
 
+export const supplementalTypeEnum = pgEnum("supplemental_type", [
+  "less",
+  "add",
+]);
+
+export const supplemental = pgTable("supplemental", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  supplementalOrAugmentation: text("supplemental_or_augmentation"),
+  charges: text("charges"),
+  amount: decimal("amount").notNull(),
+  aipCode: text("aip_code"),
+  supplementalType: supplementalTypeEnum("supplemental_type").notNull(),
+
+  author: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

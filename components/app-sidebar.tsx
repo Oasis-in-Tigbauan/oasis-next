@@ -89,6 +89,16 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                 </SidebarMenuItem>
               )
             }
+            {
+              permissionMap.has(permissions.SUPPLEMENTAL_READ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/supplemental">Supplemental</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
           </SidebarGroupContent>
         </SidebarGroup>
 

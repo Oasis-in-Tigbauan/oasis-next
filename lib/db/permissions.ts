@@ -109,6 +109,16 @@ export const ESRE_READ: Permissions = "esre.read";
  */
 export const ESRE_WRITE: Permissions = "esre.write";
 
+/**
+ * People with this permission can read Supplemental worksheets.
+ */
+export const SUPPLEMENTAL_READ: Permissions = "supplemental.read";
+
+/**
+ * People with this permission can write Supplemental worksheets.
+ */
+export const SUPPLEMENTAL_WRITE: Permissions = "supplemental.write";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -131,4 +141,6 @@ export type Permissions =
     | "obr.disbursement.mayor.approve"
     | "office.head"
     | "esre.read"
-    | "esre.write";
+    | "esre.write"
+    | "supplemental.read"
+    | "supplemental.write";
