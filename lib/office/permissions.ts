@@ -91,6 +91,14 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.ESRE_WRITE,
     description: "People with this permission can write ESRE related data.",
   },
+  {
+    permission: permissions.SUPPLEMENTAL_READ,
+    description: "People with this permission can read Supplemental related data.",
+  },
+  {
+    permission: permissions.SUPPLEMENTAL_WRITE,
+    description: "People with this permission can write Supplemental related data.",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -117,6 +125,8 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.OFFICE_HEAD,
     permissions.ESRE_READ,
     permissions.ESRE_WRITE,
+    permissions.SUPPLEMENTAL_READ,
+    permissions.SUPPLEMENTAL_WRITE,
   ],
 );
 

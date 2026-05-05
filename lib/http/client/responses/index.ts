@@ -29,6 +29,10 @@ import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, 
 import type { ObrDisbursementVoucherListResponse, ObrDisbursementVoucherItem, ObrDisbursementTaxBreakdown } from "@/lib/http/client/responses/ObrDisbursementVoucherListResponse";
 import type { ObrItemListResponse, ObrItem, ObrItemOfficeData } from "@/lib/http/client/responses/ObrItemListResponse";
 import type { ObrSearchResponse, ObrSearchItem } from "@/lib/http/client/responses/ObrSearchResponse";
+import type {
+  SupplementalListResponse,
+  SupplementalItem as SupplementalItemResponse,
+} from "@/lib/http/client/responses/SupplementalListResponse";
 
 export type {
   AccountsListResponse,
@@ -70,6 +74,8 @@ export type {
   ObrItemOfficeData,
   ObrSearchResponse,
   ObrSearchItem,
+  SupplementalListResponse,
+  SupplementalItemResponse,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {
