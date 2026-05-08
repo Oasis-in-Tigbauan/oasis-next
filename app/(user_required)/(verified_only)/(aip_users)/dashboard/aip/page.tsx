@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, File, Folder, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, File, Pencil, Plus, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -461,32 +461,32 @@ export default function Page() {
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead rowSpan={2} className="min-w-8"></TableHead>
-                  <TableHead rowSpan={2} className="min-w-64">AIP Reference Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-80">Program/Project/Activity Description</TableHead>
-                  <TableHead rowSpan={2} className="min-w-56">Implementing Office</TableHead>
+                  <TableHead rowSpan={2} className="min-w-64 text-center">AIP Reference Code</TableHead>
+                  <TableHead rowSpan={2} className="min-w-80 text-center">Program/Project/Activity Description</TableHead>
+                  <TableHead rowSpan={2} className="min-w-56 text-center">Implementing Office</TableHead>
                   <TableHead colSpan={2} className="text-center">Schedule of Implementation</TableHead>
-                  <TableHead rowSpan={2} className="min-w-72">Expected Outputs</TableHead>
-                  <TableHead rowSpan={2} className="min-w-56">Funding Source</TableHead>
+                  <TableHead rowSpan={2} className="min-w-72 text-center">Expected Outputs</TableHead>
+                  <TableHead rowSpan={2} className="min-w-56 text-center">Funding Source</TableHead>
                   <TableHead colSpan={4} className="text-center">Amount</TableHead>
                   <TableHead colSpan={4} className="text-center">Amount In Thousands</TableHead>
                   <TableHead colSpan={2} className="text-center">Amount of Climate Change PPAs</TableHead>
-                  <TableHead rowSpan={2} className="min-w-48">CC Topology Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-24">Gadable</TableHead>
-                  <TableHead rowSpan={2} className="min-w-40">GAD Amount</TableHead>
+                  <TableHead rowSpan={2} className="min-w-48 text-center">CC Topology Code</TableHead>
+                  <TableHead rowSpan={2} className="min-w-24 text-center">Gadable</TableHead>
+                  <TableHead rowSpan={2} className="min-w-40 text-center">GAD Amount</TableHead>
                 </TableRow>
                 <TableRow>
                   <TableHead className="text-center">Start</TableHead>
                   <TableHead className="text-center">Completion</TableHead>
-                  <TableHead className="text-right">PS</TableHead>
-                  <TableHead className="text-right">MOOE</TableHead>
-                  <TableHead className="text-right">CO</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">PS</TableHead>
-                  <TableHead className="text-right">MOOE</TableHead>
-                  <TableHead className="text-right">CO</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Climate Change Adaption</TableHead>
-                  <TableHead className="text-right">Climate Change Mitigation</TableHead>
+                  <TableHead className="text-center">PS</TableHead>
+                  <TableHead className="text-center">MOOE</TableHead>
+                  <TableHead className="text-center">CO</TableHead>
+                  <TableHead className="text-center">Total</TableHead>
+                  <TableHead className="text-center">PS</TableHead>
+                  <TableHead className="text-center">MOOE</TableHead>
+                  <TableHead className="text-center">CO</TableHead>
+                  <TableHead className="text-center">Total</TableHead>
+                  <TableHead className="text-center">Climate Change Adaption</TableHead>
+                  <TableHead className="text-center">Climate Change Mitigation</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -556,17 +556,16 @@ export default function Page() {
                             <span className="inline-block size-4" />
                           )}
 
-                          {isGroup ? <Folder className="size-4" /> : <File className="size-4" />}
-                          <span className="whitespace-normal break-words">{node.aipReferenceCode}</span>
+                          <span className="whitespace-normal wrap-break-word">{node.aipReferenceCode}</span>
                         </div>
                       </TableCell>
 
-                      <TableCell className="whitespace-normal break-words">{node.description}</TableCell>
-                      <TableCell className="whitespace-normal break-words">{node.implementingOffice ?? "-"}</TableCell>
+                      <TableCell className="whitespace-normal wrap-break-word">{node.description}</TableCell>
+                      <TableCell className="whitespace-normal wrap-break-word">{node.implementingOffice ?? "-"}</TableCell>
                       <TableCell className="text-center">{formatMonth(node.implementationStart)}</TableCell>
                       <TableCell className="text-center">{formatMonth(node.implementationCompletion)}</TableCell>
-                      <TableCell className="whitespace-normal break-words">{node.expectedOutputs ?? "-"}</TableCell>
-                      <TableCell className="whitespace-normal break-words">{node.fundingSource ?? "-"}</TableCell>
+                      <TableCell className="whitespace-normal wrap-break-word">{node.expectedOutputs ?? "-"}</TableCell>
+                      <TableCell className="whitespace-normal wrap-break-word">{node.fundingSource ?? "-"}</TableCell>
 
                       <TableCell className="text-right">{formatMoney(amountPS)}</TableCell>
                       <TableCell className="text-right">{formatMoney(amountMOOE)}</TableCell>
