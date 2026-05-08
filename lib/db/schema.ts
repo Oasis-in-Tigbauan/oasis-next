@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, integer } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -522,6 +522,117 @@ export const aipReferences = pgTable("aip_references", {
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const lbacGroups = pgTable("lbac_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  aipRefCode: text("aip_ref_code")
+    .references(() => aipReferences.id),
+  name: text("string").notNull(),
+  implementingUnitId: text("implementing_unit_id")
+    .references(() => officeCodes.id),
+
+  // Other metadata fields
+  officeId: text("office_id")
+    .references(() => office.id)
+    .notNull(),
+
+  // Groupings
+  parentId: text("parent_id"),
+
+  // Creation metadata
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => ({
+  parentFk: foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+}));
+
+export const lbacItems = pgTable("lbac_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  // Main data
+  aipRefCode: text("aip_ref_code")
+    .references(() => aipReferences.id),
+  mfoPpa: text("mfo_ppa").notNull(),
+  majorFinalOutput: text("major_final_output"),
+  performanceOutputIndicator: text("performance_output_indicator"),
+  targetForBudgetYear: text("target_for_budget_year"),
+  proposedBudgetPS: decimal("proposed_budget_ps").notNull(),
+  proposedBudgetMOOE: decimal("proposed_budget_mooe").notNull(),
+  proposedBudgetCO: decimal("proposed_budget_co").notNull(),
+  proposedBudgetTotal: decimal("proposed_budget_total").notNull(),
+  remarks: text("remarks"),
+
+  // References
+  implementingUnitId: text("implementing_unit_id")
+    .references(() => officeCodes.id),
+  expenseCodeId: text("expense_code_id")
+    .references(() => expenseClasses.id),
+
+  // Parent
+  parentId: text("parent_id")
+    .references(() => lbacGroups.id)
+    .notNull(),
+
+  // Table metadata
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const lbacQuarterlyReport = pgTable("lbac_quarterly_report", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  // Main link
+  lbacTargetId: text("lbac_target_id")
+    .references(() => lbacItems.id)
+    .notNull(),
+
+  priorYearAccomplishments: text("prior_year_accomplishments"),
+  physicalTargetQ1: text("physical_target_q1"),
+  physicalTargetQ2: text("physical_target_q2"),
+  physicalTargetQ3: text("physical_target_q3"),
+  physicalTargetQ4: text("physical_target_q4"),
+  physicalTargetTotal: text("physical_target_total"),
+  actualPhysicalPerformanceQ1: text("actual_physical_performance_q1"),
+  actualPhysicalPerformanceQ2: text("actual_physical_performance_q2"),
+  actualPhysicalPerformanceQ3: text("actual_physical_performance_q3"),
+  actualPhysicalPerformanceQ4: text("actual_physical_performance_q4"),
+  actualPhysicalPerformanceTotal: text("actual_physical_performance_total"),
+  variance: text("variance"),
+  accomplishmentPercentage: text("accomplishment_percentage"),
+  remarks: text("remarks"),
+  targetForBudgetYear: text("target_for_budget_year"),
+
+  // Other metadata
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
