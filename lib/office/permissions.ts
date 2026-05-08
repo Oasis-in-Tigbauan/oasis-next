@@ -1,5 +1,4 @@
 import * as permissions from "@/lib/db/permissions";
-import { OBR_DISBURSEMENT_MAYOR_APPROVE, OBR_DISBURSEMENT_TREASURER_APPROVE } from "@/lib/db/permissions";
 
 export const permissionDescriptors: Array<PermissionDescriptor> = [
   {
@@ -99,6 +98,30 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.SUPPLEMENTAL_WRITE,
     description: "People with this permission can write Supplemental related data.",
   },
+  {
+    permission: permissions.LBAC_DATA_READ,
+    description: "People with this permission can read LBAC Data related worksheets.",
+  },
+  {
+    permission: permissions.LBAC_DATA_WRITE,
+    description: "People with this permission can write to LBAC Data related worksheets.",
+  },
+  {
+    permission: permissions.LBAC_OFFICE_READ,
+    description: "People with this permission can read the Office specific LBAC Data.",
+  },
+  {
+    permission: permissions.LBAC_OFFICE_WRITE,
+    description: "People with this permission can write to Office specific LBAC Data.",
+  },
+  {
+    permission: permissions.AIP_READ,
+    description: "People with this permission can read AIP related worksheets.",
+  },
+  {
+    permission: permissions.AIP_WRITE,
+    description: "People with this permission can write to AIP related worksheets.",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -127,6 +150,12 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.ESRE_WRITE,
     permissions.SUPPLEMENTAL_READ,
     permissions.SUPPLEMENTAL_WRITE,
+    permissions.LBAC_DATA_READ,
+    permissions.LBAC_DATA_WRITE,
+    permissions.LBAC_OFFICE_READ,
+    permissions.LBAC_OFFICE_WRITE,
+    permissions.AIP_READ,
+    permissions.AIP_WRITE,
   ],
 );
 

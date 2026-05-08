@@ -1,0 +1,26 @@
+CREATE TYPE "public"."aip_reference_type" AS ENUM('group', 'item');--> statement-breakpoint
+CREATE TABLE "aip_references" (
+	"id" text PRIMARY KEY NOT NULL,
+	"type" "aip_reference_type" NOT NULL,
+	"parent_id" text,
+	"sector" text,
+	"code" text,
+	"office" text,
+	"aip_reference_code" text NOT NULL,
+	"description" text NOT NULL,
+	"implementing_office" text,
+	"implementation_start" integer,
+	"implementation_completion" integer,
+	"expected_outputs" text,
+	"funding_source" text,
+	"amount_ps" numeric,
+	"amount_mooe" numeric,
+	"amount_co" numeric,
+	"amount_cc_adapt" numeric,
+	"amount_cc_mitigate" numeric,
+	"cc_topology_code" text,
+	"gadable" boolean DEFAULT false NOT NULL,
+	"gad_amount" numeric,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);

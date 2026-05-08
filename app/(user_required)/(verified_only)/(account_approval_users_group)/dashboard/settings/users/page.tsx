@@ -4,12 +4,11 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
-  type TableMeta,
   type RowData,
   useReactTable,
 } from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
-import { type SubmitEvent, useEffect, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -88,7 +87,7 @@ const columns: ColumnDef<User>[] = [
       return(
         <UserActions
           user={row.original}
-          mutateFn={table.options.meta?.mutateUserFn || ((i, u) => { })}
+          mutateFn={table.options.meta?.mutateUserFn || (() => { })}
         />
       );
     },
@@ -136,8 +135,6 @@ export default function UsersPage() {
 }
 
 function UserDataTable({ columns, data, mutateUserFn }: UserDataTableProps) {
-  const [activeUser, setActiveUser] = useState<User | null>(null);
-
   const table = useReactTable({
     data,
     columns,
