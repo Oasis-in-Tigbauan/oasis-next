@@ -33,6 +33,12 @@ import type {
   SupplementalListResponse,
   SupplementalItem as SupplementalItemResponse,
 } from "@/lib/http/client/responses/SupplementalListResponse";
+import type {
+  AipListResponse,
+  AipNodeResponse,
+  AipReferenceResponse,
+  AipReferenceSingleResponse,
+} from "@/lib/http/client/responses/AipListResponse";
 
 export type {
   AccountsListResponse,
@@ -76,6 +82,10 @@ export type {
   ObrSearchItem,
   SupplementalListResponse,
   SupplementalItemResponse,
+  AipListResponse,
+  AipNodeResponse,
+  AipReferenceResponse,
+  AipReferenceSingleResponse,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

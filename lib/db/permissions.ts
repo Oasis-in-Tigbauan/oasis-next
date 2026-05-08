@@ -119,6 +119,36 @@ export const SUPPLEMENTAL_READ: Permissions = "supplemental.read";
  */
 export const SUPPLEMENTAL_WRITE: Permissions = "supplemental.write";
 
+/**
+ * People with this permission can read LBAC Data related worksheets.
+ */
+export const LBAC_DATA_READ: Permissions = "lbac.data.read";
+
+/**
+ * People with this permission can write to LBAC Data related worksheets.
+ */
+export const LBAC_DATA_WRITE: Permissions = "lbac.data.write";
+
+/**
+ * People with this permission can read the Office-specific LBAC Data.
+ */
+export const LBAC_OFFICE_READ: Permissions = "lbac.office.read";
+
+/**
+ * People with this permission can write the Office-specific LBAC Data.
+ */
+export const LBAC_OFFICE_WRITE: Permissions = "lbac.office.write";
+
+/**
+ * People with this permission can read the AIP worksheets.
+ */
+export const AIP_READ: Permissions = "aip.read";
+
+/**
+ * People with this permission can write to the AIP worksheets.
+ */
+export const AIP_WRITE: Permissions = "aip.write";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -143,4 +173,10 @@ export type Permissions =
     | "esre.read"
     | "esre.write"
     | "supplemental.read"
-    | "supplemental.write";
+    | "supplemental.write"
+    | "lbac.office.read"
+    | "lbac.office.write"
+    | "lbac.data.read"
+    | "lbac.data.write"
+    | "aip.read"
+    | "aip.write";

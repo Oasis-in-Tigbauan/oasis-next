@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgEnum, pgTable, text, timestamp, boolean, index, decimal } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, integer } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -487,6 +487,41 @@ export const supplemental = pgTable("supplemental", {
     .defaultNow()
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const aipReferenceType = pgEnum("aip_reference_type", ["group", "item"]);
+
+export const aipReferences = pgTable("aip_references", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  type: aipReferenceType("type").notNull(),
+  parentId: text("parent_id"),
+  sector: text("sector"),
+  code: text("code"),
+  office: text("office"),
+  aipReferenceCode: text("aip_reference_code").notNull(),
+  description: text("description").notNull(),
+  implementingOffice: text("implementing_office"),
+  implementationStart: integer("implementation_start"),
+  implementationCompletion: integer("implementation_completion"),
+  expectedOutputs: text("expected_outputs"),
+  fundingSource: text("funding_source"),
+  amountPS: decimal("amount_ps"),
+  amountMOOE: decimal("amount_mooe"),
+  amountCO: decimal("amount_co"),
+  amountCCAdapt: decimal("amount_cc_adapt"),
+  amountCCMitigate: decimal("amount_cc_mitigate"),
+  ccTopologyCode: text("cc_topology_code"),
+  gadable: boolean("gadable").default(false).notNull(),
+  gadAmount: decimal("gad_amount"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });

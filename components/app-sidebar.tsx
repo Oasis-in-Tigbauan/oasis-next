@@ -99,6 +99,16 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                 </SidebarMenuItem>
               )
             }
+            {
+              permissionMap.has(permissions.AIP_READ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/aip">AIP</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
           </SidebarGroupContent>
         </SidebarGroup>
 
