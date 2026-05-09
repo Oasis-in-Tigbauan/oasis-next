@@ -144,16 +144,27 @@ const allMenuItems: Array<MenuItem> = [
     icon: Wallet,
     required: [
       permissions.OBR_DISBURSEMENT_CREATE,
-      permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
     ],
   },
   {
     title: "Management",
-    description: "Open OBR administrative and worksheet management tools.",
+    description: "Open OBR office-only and worksheet management tools.",
     href: "/dashboard/obr/management",
     primaryLabel: "Create OBR Items",
     secondaryHref: "/dashboard/obr/management/manage",
     secondaryLabel: "Manage OBR Items",
+    icon: FolderCog,
+    required: [
+      permissions.OBR_APPROVER_BASIC_READ,
+    ],
+  },
+  {
+    title: "Main Data",
+    description: "Open OBR administrative and worksheet management tools.",
+    href: "/dashboard/obr/main/create",
+    primaryLabel: "Create OBR Items",
+    secondaryHref: "/dashboard/obr/main/manage",
+    secondaryLabel: "Manage OBR Main Data",
     icon: FolderCog,
     required: [
       permissions.OBR_MANAGEMENT_READ,

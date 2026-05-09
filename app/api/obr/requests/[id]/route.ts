@@ -17,6 +17,7 @@ export async function GET(
     permission.OBR_APPROVER_BASIC_HIGH_WRITE,
     permission.OBR_APPROVER_ADVANCED_READ,
     permission.OBR_REQUEST_READ,
+    permission.OBR_MANAGEMENT_READ,
   ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();

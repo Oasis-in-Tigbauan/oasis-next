@@ -183,6 +183,27 @@
       "when": 1778326762088,
       "tag": "0025_shocking_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1778334316559,
+      "tag": "0026_illegal_frog_thor",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1778338529302,
+      "tag": "0027_worthless_naoko",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1778346436260,
+      "tag": "0028_condemned_lockheed",
+      "breakpoints": true
     }
   ]
 }

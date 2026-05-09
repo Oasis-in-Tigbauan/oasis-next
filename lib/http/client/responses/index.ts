@@ -40,6 +40,8 @@ import type {
   AipReferenceResponse,
   AipReferenceSingleResponse,
 } from "@/lib/http/client/responses/AipListResponse";
+import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/responses/AipSearchResponse";
+import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
 
 export type {
   AccountsListResponse,
@@ -88,6 +90,11 @@ export type {
   AipNodeResponse,
   AipReferenceResponse,
   AipReferenceSingleResponse,
+  AipSearchResponse,
+  AipSearchResultItem,
+  ObrMainDataListResponse,
+  ObrMainDataItemResponse,
+  ObrMainDataAipReference,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

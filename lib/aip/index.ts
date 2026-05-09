@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ilike, or } from "drizzle-orm";
 
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
@@ -802,3 +802,49 @@ export type UpdateGroupPayload = SharedUpdatePayload & {
 export type UpdateItemPayload = SharedUpdatePayload & {
   parentId?: string | null;
 };
+
+export type AipSearchResultItem = {
+  id: string;
+  aipReferenceCode: string;
+  description: string;
+};
+
+/**
+ * Searches AIP references by code or description.
+ *
+ * @description
+ * Performs a case-insensitive partial match on `aipReferenceCode` and `description`. Returns up to
+ * 20 results ordered by AIP reference code.
+ *
+ * On success, wraps the result list in a {@link Success}. On unexpected failure, wraps the error in
+ * a fatal {@link Failure}.
+ *
+ * @async
+ * @function searchAipCode
+ * @param {string} query - The search term to match against code or description.
+ * @returns {Promise<Result<AipSearchResultItem[]>>} A result wrapper containing matching AIP references
+ *                                                   on success, or a failure result on error.
+ */
+export async function searchAipCode(query: string): Promise<Result<AipSearchResultItem[]>> {
+  try {
+    const term = `%${query}%`;
+    const rows = await db
+      .select({
+        id: aipReferences.id,
+        aipReferenceCode: aipReferences.aipReferenceCode,
+        description: aipReferences.description,
+      })
+      .from(aipReferences)
+      .where(or(ilike(aipReferences.aipReferenceCode, term), ilike(aipReferences.description, term)))
+      .orderBy(aipReferences.aipReferenceCode)
+      .limit(20);
+
+    return new Success(rows.map(r => ({
+      id: r.id,
+      aipReferenceCode: r.aipReferenceCode,
+      description: r.description,
+    })));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to search AIP references.", { query }, e);
+  }
+}

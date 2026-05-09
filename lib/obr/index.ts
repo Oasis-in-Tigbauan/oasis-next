@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
@@ -6,10 +6,14 @@ import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import {
+  aipReferences,
+  esre,
   expenseClasses,
   fundTypes,
   obrDisbursementVouchers,
   obrItems,
+  obrMainAipReferences,
+  obrMainData,
   obrOfficeItem,
   obrRequestApprovers,
   obrRequestItems,
@@ -566,6 +570,54 @@ export async function listAllValidForObrCreate(user: User) {
     return new Success(filtered);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to list requests", { userId: user.id }, e);
+  }
+}
+
+/**
+ * Lists all approved OBR requests that are eligible for OBR main data creation.
+ *
+ * @description
+ * Returns approved OBR requests that do not yet have any associated {@link obrMainData} records. Access checks
+ * are handled at the API layer; no permission validation is performed here.
+ *
+ * On success, wraps the filtered request summaries in a {@link Success}. On unexpected failure, wraps the error
+ * in a fatal {@link Failure}.
+ *
+ * @async
+ * @function listAllValidForObrMainDataCreate
+ * @returns {Promise<Result<Array<ObrRequestSummaryType>>>} A result wrapper containing approved OBR request summaries
+ *                                                          on success, or a failure result on error.
+ *
+ * @remarks
+ * - Only fully approved requests (all approvers signed) are returned.
+ * - Requests that already have OBR main data records are excluded.
+ */
+export async function listAllValidForObrMainDataCreate(): Promise<Result<ObrRequestSummaryType[]>> {
+  try {
+    const all = await _getAllObrRequestAsSummaries(
+      sql`NOT EXISTS (
+          SELECT 1 FROM ${obrMainData}
+          WHERE ${obrMainData.requestSourceId} = ${obrRequests.id}
+        )`,
+    );
+
+    const filtered: ObrRequestSummaryType[] = all
+      .filter(i => getSummaryOfStates(i.approvers) === "approved")
+      .map(i => ({
+        id: i.id,
+        type: i.type,
+        requestNumber: i.requestNumber,
+        payee: i.payee,
+        officeAddress: i.officeAddress,
+        obrNumber: i.obrNumber,
+        prNumber: i.prNumber,
+        requestItemsCount: i.requestItemsCount,
+        approvalStatus: getSummaryOfStates(i.approvers),
+      }));
+
+    return new Success(filtered);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to list requests for OBR main data creation.", {}, e);
   }
 }
 
@@ -1541,23 +1593,341 @@ export async function getObrItems(): Promise<Result<ObrItem[]>> {
 }
 
 /**
- * Searches created OBR items by keyword across key reference and descriptive fields.
+ * Creates OBR main data records from an approved OBR request.
  *
  * @description
- * Performs a case-insensitive partial match against OBR item payee, address, particulars,
- * disbursement-voucher reference number, and OBR request reference number. Matching items are
- * returned with their amount breakdowns and computed overall amount.
+ * Validates that the target OBR request exists and is fully approved, then creates one {@link obrMainData} record
+ * per request item. The `alobs` code is computed from the expense class, current UTC+8 year/month, and the provided
+ * OBR number. When AIP references are supplied, they are looked up and linked to every created OBR main data record.
+ * The source request's `obrNumber` is updated, and `prNumber` is updated when provided.
  *
- * On success, wraps the matching OBR items in a {@link Success}. If no matches are found,
+ * On success, wraps the array of created {@link ObrMainDataItem} objects in a {@link Success}. On request lookup,
+ * approval-state, or AIP reference validation failure, returns a descriptive {@link Failure}. On unexpected failure,
+ * wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function createObrMainDataFromApprovedRequest
+ * @param {string} requestId - Identifier of the approved OBR request to generate main data from.
+ * @param {CreateObrMainDataPayload} payload - Creation payload including required OBR number and optional PR/AIP data.
+ * @param {User} author - User creating the OBR main data records (stored as author).
+ * @returns {Promise<Result<ObrMainDataItem[]>>} A result wrapper containing the created OBR main data items on success,
+ *                                               or a failure result on error.
+ *
+ * @remarks
+ * - The source request must be fully approved before main data can be created.
+ * - One OBR main data record is created per request item.
+ * - `alobs` is derived from: expenseClass-YY-MM-obrNumber (all joined with "-").
+ * - AIP references, when provided, are associated with every created main data record.
+ * - Duplicate creation for the same request is prevented by a pre-insert existence check.
+ */
+export async function createObrMainDataFromApprovedRequest(
+  requestId: string,
+  payload: CreateObrMainDataPayload,
+  author: User,
+): Promise<Result<ObrMainDataItem[]>> {
+  try {
+    const request = await _getObrRequestById(requestId, [eq(obrRequests.id, requestId)]);
+    if (!request) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+    }
+
+    const stateSummary = getSummaryOfStates(
+      request.approvers.map(a => ({ status: a.status as ApprovalState })),
+    );
+    if (stateSummary !== "approved") {
+      return new Failure(ErrorCodes.ValidationFailure, "Request is not approved.", { requestId, stateSummary });
+    }
+
+    // Prevent duplicate creation for the same request
+    const [existing] = await db
+      .select({ id: obrMainData.id })
+      .from(obrMainData)
+      .where(eq(obrMainData.requestSourceId, requestId))
+      .limit(1);
+    if (existing) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "OBR main data has already been created for this request.",
+        { requestId },
+      );
+    }
+
+    // Resolve expense class codes for alobs construction
+    const expenseCodeIds = [...new Set(request.requestItems.map(i => i.expenseCode.id))];
+    const ecClassRows = await db
+      .select({ id: expenseClasses.id, class: expenseClasses.class })
+      .from(expenseClasses)
+      .where(inArray(expenseClasses.id, expenseCodeIds));
+    const ecClassMap = new Map(ecClassRows.map(e => [e.id, e.class ?? ""]));
+
+    // Validate and resolve AIP references if provided
+    const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
+    if (payload.aipReferences && payload.aipReferences.length > 0) {
+      const aipIds = payload.aipReferences.map(r => r.aipId);
+      const refs = await db
+        .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
+        .from(aipReferences)
+        .where(inArray(aipReferences.id, aipIds));
+      for (const ref of refs) {
+        aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
+      }
+      for (const aip of payload.aipReferences) {
+        if (!aipRefMap.has(aip.aipId)) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "One or more AIP references are not valid.",
+            { requestId, aipId: aip.aipId },
+          );
+        }
+      }
+    }
+
+    // Determine current UTC+8 date components for alobs
+    const now = DateTime.now().setZone("Asia/Manila");
+    const yy = now.toFormat("yy");
+    const mm = now.toFormat("MM");
+
+    const createdIds = await db.transaction(async tx => {
+      // Update the originating request numbers
+      await tx
+        .update(obrRequests)
+        .set({
+          obrNumber: payload.obrNumber,
+          ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
+        })
+        .where(eq(obrRequests.id, requestId));
+
+      // Insert one obrMainData record per request item
+      const isMultiItem = request.requestItems.length > 1;
+      const mainDataValues = request.requestItems.map((item, idx) => ({
+        obrNumber: isMultiItem ? `${payload.obrNumber}-${idx + 1}` : payload.obrNumber,
+        alobs: [ecClassMap.get(item.expenseCode.id) ?? "", yy, mm, isMultiItem ? `${payload.obrNumber}-${idx + 1}` : payload.obrNumber].join("-"),
+        payee: request.payee,
+        address: request.officeAddress,
+        particulars: item.particulars,
+        obligated: casts.castToDecimal(item.amount),
+        responsibilityCenterId: item.responsibilityCenter.id,
+        expenseCodeId: item.expenseCode.id,
+        requestSourceId: requestId,
+        authorId: author.id,
+        ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
+        ...(validatorUtilities.isNumber(payload.prAmount)
+          ? { prAmount: casts.castToDecimal(payload.prAmount!) }
+          : {}),
+      }));
+
+      const inserted = await tx
+        .insert(obrMainData)
+        .values(mainDataValues)
+        .returning({ id: obrMainData.id });
+
+      // Link AIP references to every created main data record
+      if (payload.aipReferences && payload.aipReferences.length > 0) {
+        const aipValues = inserted.flatMap(item =>
+          payload.aipReferences!.map((aip, idx) => ({
+            aipReferenceId: aip.aipId,
+            aipReferenceCode: aipRefMap.get(aip.aipId)!.code,
+            aipDescription: aipRefMap.get(aip.aipId)!.description,
+            amount: casts.castToDecimal(aip.amount),
+            index: idx,
+            obrId: item.id,
+          })),
+        );
+        await tx.insert(obrMainAipReferences).values(aipValues);
+      }
+
+      return inserted.map(i => i.id);
+    });
+
+    const mapped = await _fetchObrMainDataItems(inArray(obrMainData.id, createdIds));
+    return new Success(mapped);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Unable to create OBR main data.",
+      { requestId, payload, authorId: author.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Retrieves all OBR main data records sorted by OBR number.
+ *
+ * @description
+ * Fetches all {@link obrMainData} records with their linked responsibility centers, expense codes, publisher details,
+ * AIP references, and computed disbursed amounts. Results are sorted in ascending order by OBR number.
+ *
+ * On success, wraps the mapped OBR main data list in a {@link Success}. On unexpected failure, wraps the error in a
+ * fatal {@link Failure}.
+ *
+ * @async
+ * @function getAllObrMainData
+ * @returns {Promise<Result<ObrMainDataItem[]>>} A result wrapper containing all OBR main data items on success,
+ *                                               or a failure result on error.
+ */
+export async function getAllObrMainData(): Promise<Result<ObrMainDataItem[]>> {
+  try {
+    const items = await _fetchObrMainDataItems();
+    return new Success(items);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to fetch OBR main data.", {}, e);
+  }
+}
+
+/**
+ * Updates an existing OBR main data record.
+ *
+ * @description
+ * Validates that the target {@link obrMainData} record exists, then applies the provided field updates. When
+ * `aipReferences` is supplied, the existing AIP reference entries for this record are replaced with the new set.
+ * The updated record is returned in full mapped form.
+ *
+ * On success, wraps the updated {@link ObrMainDataItem} in a {@link Success}. On record lookup or AIP reference
+ * validation failure, returns a descriptive {@link Failure}. If the payload contains no updatable fields, returns
+ * a validation {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function updateObrMainData
+ * @param {string} id - Identifier of the OBR main data record to update.
+ * @param {UpdateObrMainDataPayload} payload - Fields to update; at least one must be present.
+ * @param {User} actor - User performing the update (used for context in error reporting).
+ * @returns {Promise<Result<ObrMainDataItem>>} A result wrapper containing the updated OBR main data item on success,
+ *                                             or a failure result on error.
+ *
+ * @remarks
+ * - Supported updatable fields: `obrNumber`, `prNumber`, `prAmount`, and `aipReferences`.
+ * - When `aipReferences` is provided the existing references are deleted and replaced.
+ * - At least one updatable scalar field or an AIP references replacement must be provided.
+ */
+export async function updateObrMainData(
+  id: string,
+  payload: UpdateObrMainDataPayload,
+  actor: User,
+): Promise<Result<ObrMainDataItem>> {
+  try {
+    const [existing] = await db
+      .select({ id: obrMainData.id })
+      .from(obrMainData)
+      .where(eq(obrMainData.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such OBR main data record found.", { id });
+    }
+
+    // Build scalar update payload
+    const updateFields: Partial<{
+      obrNumber: string;
+      prNumber: string;
+      prAmount: string;
+    }> = {};
+
+    if (validatorUtilities.isNotEmpty(payload.obrNumber)) {
+      updateFields.obrNumber = payload.obrNumber!;
+    }
+    if (validatorUtilities.isNotEmpty(payload.prNumber)) {
+      updateFields.prNumber = payload.prNumber!;
+    }
+    if (validatorUtilities.isNumber(payload.prAmount)) {
+      updateFields.prAmount = casts.castToDecimal(payload.prAmount!);
+    }
+
+    const hasScalarUpdates = Object.keys(updateFields).length > 0;
+    const hasAipUpdates = Array.isArray(payload.aipReferences);
+
+    if (!hasScalarUpdates && !hasAipUpdates) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "No updatable fields provided.",
+        { id, payload, actorId: actor.id },
+      );
+    }
+
+    // Validate AIP references if provided
+    const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
+    if (hasAipUpdates && payload.aipReferences!.length > 0) {
+      const aipIds = payload.aipReferences!.map(r => r.aipId);
+      const refs = await db
+        .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
+        .from(aipReferences)
+        .where(inArray(aipReferences.id, aipIds));
+      for (const ref of refs) {
+        aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
+      }
+      for (const aip of payload.aipReferences!) {
+        if (!aipRefMap.has(aip.aipId)) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "One or more AIP references are not valid.",
+            { id, aipId: aip.aipId },
+          );
+        }
+      }
+    }
+
+    await db.transaction(async tx => {
+      if (hasScalarUpdates) {
+        await tx
+          .update(obrMainData)
+          .set(updateFields)
+          .where(eq(obrMainData.id, id));
+      }
+
+      if (hasAipUpdates) {
+        // Delete all existing AIP references then re-insert
+        await tx
+          .delete(obrMainAipReferences)
+          .where(eq(obrMainAipReferences.obrId, id));
+
+        if (payload.aipReferences!.length > 0) {
+          await tx.insert(obrMainAipReferences).values(
+            payload.aipReferences!.map((aip, idx) => ({
+              aipReferenceId: aip.aipId,
+              aipReferenceCode: aipRefMap.get(aip.aipId)!.code,
+              aipDescription: aipRefMap.get(aip.aipId)!.description,
+              amount: casts.castToDecimal(aip.amount),
+              index: idx,
+              obrId: id,
+            })),
+          );
+        }
+      }
+    });
+
+    const [updated] = await _fetchObrMainDataItems(eq(obrMainData.id, id));
+    if (!updated) {
+      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated OBR main data.", { id });
+    }
+
+    return new Success(updated);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Unable to update OBR main data.",
+      { id, payload, actorId: actor.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Searches OBR main data records by keyword across key descriptive and reference fields.
+ *
+ * @description
+ * Performs a case-insensitive partial match against OBR main data payee, address, particulars,
+ * OBR number, PR number, and alobs. No joins are required as all searchable fields exist on
+ * the main data table. Returns a lightweight result shape optimised for search result lists.
+ *
+ * On success, wraps the matching records in a {@link Success}. If no matches are found,
  * returns an empty success list. On unexpected failure, wraps the error in a fatal {@link Failure}.
  *
  * @async
  * @function searchObrItems
  * @param {string} query - Search keyword used for partial matching.
- * @returns {Promise<Result<ObrItem[]>>} A result wrapper containing matching OBR items on success,
- *                                       or a failure result on error.
+ * @returns {Promise<Result<ObrMainDataSearchResultItem[]>>} A result wrapper containing matching records on success,
+ *                                                           or a failure result on error.
  */
-export async function searchObrItems(query: string): Promise<Result<ObrSearchResultItem[]>> {
+export async function searchObrItems(query: string): Promise<Result<ObrMainDataSearchResultItem[]>> {
   try {
     const normalized = query.trim();
     if (!validatorUtilities.isNotEmpty(normalized)) {
@@ -1568,77 +1938,38 @@ export async function searchObrItems(query: string): Promise<Result<ObrSearchRes
 
     const items = await db
       .select({
-        id: obrItems.id,
-        obrRefNumber: obrRequests.requestNumber,
-        dvRefNumber: obrDisbursementVouchers.disbursementVoucherNumber,
-        payee: obrItems.payee,
-        address: obrItems.address,
-        particulars: obrItems.particulars,
+        id: obrMainData.id,
+        alobs: obrMainData.alobs,
+        createdAt: obrMainData.createdAt,
+        particulars: obrMainData.particulars,
+        obrNumber: obrMainData.obrNumber,
+        address: obrMainData.address,
       })
-      .from(obrItems)
-      .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
-      .innerJoin(
-        obrDisbursementVouchers,
-        eq(obrDisbursementVouchers.id, obrItems.disbursementRefId),
-      )
+      .from(obrMainData)
       .where(
         or(
-          ilike(obrItems.payee, wildcard),
-          ilike(obrItems.address, wildcard),
-          ilike(obrItems.particulars, wildcard),
-          ilike(obrDisbursementVouchers.disbursementVoucherNumber, wildcard),
-          ilike(obrRequests.requestNumber, wildcard),
+          ilike(obrMainData.obrNumber, wildcard),
+          ilike(obrMainData.prNumber, wildcard),
+          ilike(obrMainData.particulars, wildcard),
+          ilike(obrMainData.payee, wildcard),
+          ilike(obrMainData.address, wildcard),
+          ilike(obrMainData.alobs, wildcard),
         ),
-      );
+      )
+      .orderBy(asc(obrMainData.obrNumber));
 
-    if (items.length === 0) return new Success([]);
-
-    const officeItems = await db
-      .select({
-        itemId: obrOfficeItem.itemId,
-        ecId: expenseClasses.id,
-        ecName: expenseClasses.accountName,
-        ecAccountCode: expenseClasses.accountCode,
-        ecSubClassification: expenseClasses.subClassification,
-        officeId: office.id,
-        officeName: office.name,
-      })
-      .from(obrOfficeItem)
-      .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
-      .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
-      .innerJoin(office, eq(office.id, officeCodes.officeId))
-      .where(inArray(obrOfficeItem.itemId, items.map(i => i.id)));
-
-    const firstOfficeItemByItem = new Map<string, typeof officeItems[number]>();
-    for (const oi of officeItems) {
-      if (!firstOfficeItemByItem.has(oi.itemId)) {
-        firstOfficeItemByItem.set(oi.itemId, oi);
-      }
-    }
-
-    return new Success(items.map(i => {
-      const oi = firstOfficeItemByItem.get(i.id) ?? null;
-      return {
+    return new Success(
+      items.map(i => ({
         id: i.id,
-        obrRefNumber: i.obrRefNumber,
-        dvRefNumber: i.dvRefNumber,
-        payee: i.payee,
-        address: i.address,
+        alobs: i.alobs,
+        date: DateTime.fromJSDate(i.createdAt).setZone("Asia/Manila").toISO()!,
         particulars: i.particulars,
-        expenseClass: oi ? {
-          id: oi.ecId,
-          accountName: oi.ecName,
-          accountCode: oi.ecAccountCode,
-          subClassification: oi.ecSubClassification,
-        } : null,
-        office: oi ? {
-          id: oi.officeId,
-          name: oi.officeName,
-        } : null,
-      } satisfies ObrSearchResultItem;
-    }));
+        obrNumber: i.obrNumber,
+        address: i.address,
+      } satisfies ObrMainDataSearchResultItem)),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to search obr items", { query }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to search OBR main data", { query }, e);
   }
 }
 
@@ -2314,6 +2645,157 @@ async function _getAllObrRequestAsSummaries(filter: SQL) {
   return all;
 }
 
+/**
+ * Fetches and maps OBR main data records into {@link ObrMainDataItem} objects.
+ *
+ * @description
+ * Selects OBR main data records with their joined responsibility center, expense code, and author details, then
+ * fetches associated AIP references and ESRE disbursed totals in parallel. Computes derived fields including
+ * disbursed variance, AIP-vs-F4 variance, quarter, and UTC+8-formatted date. When `filter` is omitted, all
+ * records are returned sorted by OBR number.
+ *
+ * @async
+ * @function _fetchObrMainDataItems
+ * @param {SQL} [filter] - Optional Drizzle SQL condition used to narrow the result set.
+ * @returns {Promise<ObrMainDataItem[]>} The mapped array of OBR main data items. Returns an empty array when no
+ *                                       records match the filter.
+ *
+ * @remarks
+ * - Intended as an internal helper shared across create, update, and list operations.
+ * - AIP references are ordered by their stored index.
+ * - Disbursed amounts are derived from linked ESRE records.
+ */
+async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> {
+  const rows = await db
+    .select({
+      id: obrMainData.id,
+      obrNumber: obrMainData.obrNumber,
+      alobs: obrMainData.alobs,
+      payee: obrMainData.payee,
+      address: obrMainData.address,
+      prNumber: obrMainData.prNumber,
+      particulars: obrMainData.particulars,
+      obligated: obrMainData.obligated,
+      prAmount: obrMainData.prAmount,
+      createdAt: obrMainData.createdAt,
+      requestSourceId: obrMainData.requestSourceId,
+
+      rcId: officeCodes.id,
+      rcName: officeCodes.aa,
+      rcSector: officeCodes.sector,
+      rcFunction: officeCodes.function,
+
+      ecId: expenseClasses.id,
+      ecName: expenseClasses.accountName,
+      ecAccountCode: expenseClasses.accountCode,
+      ecSubClassification: expenseClasses.subClassification,
+      ecClass: expenseClasses.class,
+
+      authorId: userSchema.id,
+      authorName: userSchema.name,
+    })
+    .from(obrMainData)
+    .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
+    .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+    .innerJoin(userSchema, eq(userSchema.id, obrMainData.authorId))
+    .where(filter)
+    .orderBy(asc(obrMainData.obrNumber));
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map(r => r.id);
+
+  const [aipRefs, esreSums] = await Promise.all([
+    db
+      .select({
+        id: obrMainAipReferences.id,
+        obrId: obrMainAipReferences.obrId,
+        aipReferenceCode: obrMainAipReferences.aipReferenceCode,
+        aipDescription: obrMainAipReferences.aipDescription,
+        amount: obrMainAipReferences.amount,
+      })
+      .from(obrMainAipReferences)
+      .where(inArray(obrMainAipReferences.obrId, ids))
+      .orderBy(asc(obrMainAipReferences.index)),
+
+    db
+      .select({
+        obrItemId: esre.obrItemId,
+        total: sql<string>`COALESCE(SUM(${esre.amount}), '0')`,
+      })
+      .from(esre)
+      .where(inArray(esre.obrItemId, ids))
+      .groupBy(esre.obrItemId),
+  ]);
+
+  const aipRefsByItem = new Map<string, Array<{ id: string; aipCode: string; aipDescription: string; amount: string }>>();
+  for (const ref of aipRefs) {
+    const existing = aipRefsByItem.get(ref.obrId) ?? [];
+    existing.push({
+      id: ref.id,
+      aipCode: ref.aipReferenceCode ?? "",
+      aipDescription: ref.aipDescription ?? "",
+      amount: ref.amount ?? "0",
+    });
+    aipRefsByItem.set(ref.obrId, existing);
+  }
+
+  const esreByItem = new Map<string, string>(
+    esreSums
+      .filter(e => e.obrItemId !== null)
+      .map(e => [e.obrItemId!, e.total]),
+  );
+
+  return rows.map(r => {
+    const disbursedStr = esreByItem.get(r.id) ?? "0";
+    const aipRefsForItem = aipRefsByItem.get(r.id) ?? [];
+    const aipTotal = aipRefsForItem.reduce(
+      (acc, ref) => acc.plus(new Decimal(ref.amount)),
+      new Decimal(0),
+    );
+    const obligatedDec = casts.castFromDecimal(r.obligated);
+    const disbursedDec = new Decimal(disbursedStr);
+    const dt = DateTime.fromJSDate(r.createdAt).setZone("Asia/Manila");
+
+    return {
+      id: r.id,
+      obrNumber: r.obrNumber,
+      alobs: r.alobs,
+      date: dt.toISO()!,
+      payee: r.payee,
+      address: r.address,
+      requestSourceId: r.requestSourceId,
+      responsibilityCenter: {
+        id: r.rcId,
+        name: r.rcName,
+        sector: r.rcSector,
+        function: r.rcFunction,
+      },
+      expenseCode: {
+        id: r.ecId,
+        expenseName: r.ecName,
+        accountCode: r.ecAccountCode,
+        subClassification: r.ecSubClassification,
+        expenseClass: r.ecClass,
+      },
+      prNumber: r.prNumber ?? "",
+      particulars: r.particulars,
+      obligated: r.obligated,
+      prAmount: r.prAmount ?? "0",
+      disbursed: disbursedDec.toFixed(2),
+      varianceDisbursed: obligatedDec.minus(disbursedDec).toFixed(2),
+      remarks: null,
+      aipReferences: aipRefsForItem,
+      varObrVsF4: obligatedDec.minus(aipTotal).toFixed(2),
+      quarter: String(Math.ceil(dt.month / 3)),
+      publisher: {
+        id: r.authorId,
+        name: r.authorName,
+      },
+    } satisfies ObrMainDataItem;
+  });
+}
+
 type AccessRequestReaderValidationResult = {
   error?: ErrorCodes | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2530,4 +3012,75 @@ export type ObrSearchResultItem = {
     id: string;
     name: string;
   } | null;
+};
+
+export type ObrMainDataItem = {
+  id: string;
+  obrNumber: string;
+  alobs: string;
+  date: string;
+  payee: string;
+  address: string;
+  requestSourceId: string;
+  responsibilityCenter: {
+    id: string;
+    name: string;
+    sector: Optional<string>;
+    function: Optional<string>;
+  };
+  expenseCode: {
+    id: string;
+    expenseName: string;
+    accountCode: Optional<string>;
+    subClassification: Optional<string>;
+    expenseClass: Optional<string>;
+  };
+  prNumber: string;
+  particulars: string;
+  obligated: string;
+  prAmount: string;
+  disbursed: string;
+  varianceDisbursed: string;
+  remarks: Optional<string>;
+  aipReferences: Array<{
+    id: string;
+    aipCode: string;
+    aipDescription: string;
+    amount: string;
+  }>;
+  varObrVsF4: string;
+  quarter: string;
+  publisher: {
+    id: string;
+    name: string;
+  };
+};
+
+export type ObrMainDataSearchResultItem = {
+  id: string;
+  alobs: string;
+  date: string;
+  particulars: string;
+  obrNumber: string;
+  address: string;
+};
+
+type CreateObrMainDataPayload = {
+  obrNumber: string;
+  prNumber?: string;
+  prAmount?: string;
+  aipReferences?: Array<{
+    aipId: string;
+    amount: string;
+  }>;
+};
+
+type UpdateObrMainDataPayload = {
+  obrNumber?: string;
+  prNumber?: string;
+  prAmount?: string;
+  aipReferences?: Array<{
+    aipId: string;
+    amount: string;
+  }>;
 };
