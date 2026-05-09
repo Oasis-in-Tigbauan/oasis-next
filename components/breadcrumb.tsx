@@ -32,6 +32,8 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/obr/disbursement/manage") return "OBR: Manage Disbursements";
     if (pathname === "/dashboard/obr/management") return "OBR: Create OBR Items";
     if (pathname === "/dashboard/obr/management/manage") return "OBR: Manage OBR Items";
+    if (pathname === "/dashboard/obr/main/create") return "OBR: Create OBR from Requests";
+    if (pathname === "/dashboard/obr/main/manage") return "OBR: Manage OBR Main Data";
     if (pathname === "/dashboard/supplemental") return "Supplemental";
     if (pathname === "/dashboard/aip") return "Annual Investment Program";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";

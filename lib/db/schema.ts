@@ -450,41 +450,6 @@ export const obrOfficeItem = pgTable("obr_office_item", {
     .notNull(),
 });
 
-export const checkStatusEnum = pgEnum("check_status_enum", [
-  "PAID",
-  "FOR RELEASE",
-  "ON HOLD",
-  "CANCELLED",
-]);
-
-export const esre = pgTable("esre", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => uuidv7()),
-  checkNumber: text("check_number"),
-  fundingSourceId: text("funding_source_id")
-    .references(() => fundTypes.id)
-    .notNull(),
-  dvOrPayrollNumber: text("dv_or_payroll_number"),
-  obrItemId: text("obr_item_id")
-    .references(() => obrItems.id),
-  payee: text("payee").notNull(),
-  natureOfPayment: text("nature_of_payment").notNull(),
-  amount: decimal("amount").notNull(),
-  checkStatus: checkStatusEnum("check_status"),
-  charges: text("charges"),
-  remarks: text("remarks"),
-  expenseTypeId: text("expense_type_id")
-    .references(() => expenseType.id),
-
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
-
 export const supplementalTypeEnum = pgEnum("supplemental_type", [
   "less",
   "add",
@@ -682,6 +647,7 @@ export const obrMainData = pgTable("obr_main_data", {
   particulars: text("particulars").notNull(),
   obligated: decimal("obligated").notNull(),
   prAmount: decimal("pr_amount"),
+  remarks: text("remarks"),
 
   responsibilityCenterId: text("responsibility_center_id")
     .references(() => officeCodes.id)
@@ -691,6 +657,71 @@ export const obrMainData = pgTable("obr_main_data", {
     .notNull(),
 
   // Other metadata
+  requestSourceId: text("request_source_id")
+    .references(() => obrRequests.id)
+    .notNull(),
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const obrMainAipReferences = pgTable("obr_main_aip_references", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  aipReferenceId: text("aip_reference_id")
+    .references(() => aipReferences.id),
+  aipReferenceCode: text("aip_reference_code"),
+  aipDescription: text("aip_description"),
+  amount: decimal("amount"),
+
+  // Other metadata
+  index: integer("idx").notNull(),
+  obrId: text("obr_id")
+    .references(() => obrMainData.id, { onDelete: "cascade" })
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const checkStatusEnum = pgEnum("check_status_enum", [
+  "PAID",
+  "FOR RELEASE",
+  "ON HOLD",
+  "CANCELLED",
+]);
+
+export const esre = pgTable("esre", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  checkNumber: text("check_number"),
+  fundingSourceId: text("funding_source_id")
+    .references(() => fundTypes.id)
+    .notNull(),
+  dvOrPayrollNumber: text("dv_or_payroll_number"),
+  obrItemId: text("obr_item_id")
+    .references(() => obrMainData.id),
+  payee: text("payee").notNull(),
+  natureOfPayment: text("nature_of_payment").notNull(),
+  amount: decimal("amount").notNull(),
+  checkStatus: checkStatusEnum("check_status"),
+  charges: text("charges"),
+  remarks: text("remarks"),
+  expenseTypeId: text("expense_type_id")
+    .references(() => expenseType.id),
+
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),

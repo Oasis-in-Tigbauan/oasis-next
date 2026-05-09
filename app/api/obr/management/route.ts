@@ -10,7 +10,7 @@ import { validator } from "@/lib/validators";
 
 export async function GET() {
   const session = await auth.verify([
-    permission.OBR_MANAGEMENT_READ,
+    permission.OBR_APPROVER_BASIC_READ,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
@@ -26,7 +26,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth.verify([
-    permission.OBR_MANAGEMENT_WRITE,
+    permission.OBR_APPROVER_BASIC_WRITE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();

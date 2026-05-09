@@ -4,7 +4,7 @@ import { redirect, RedirectType } from "next/navigation";
 import { session as auth, SessionCode } from "@/lib/auth";
 import * as permissions from "@/lib/db/permissions";
 
-export default async function AccountApprovalUsersGroupLayout({ children }: { children: ReactNode }) {
+export default async function ObrUsersGroupLayout({ children }: { children: ReactNode }) {
   const session = await auth.verify([
     permissions.OBR_MANAGEMENT_READ,
     permissions.OBR_APPROVER_BASIC_READ,

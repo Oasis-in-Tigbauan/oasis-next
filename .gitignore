@@ -43,6 +43,7 @@ next-env.d.ts
 
 # Ignore IDE files
 .idea/
+.vscode/
 
 # Deployment configs
 .deployment-configs/
