@@ -38,6 +38,22 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
       group: { type: "string", formatter: "non-empty-string" },
       accountCode: { type: "string", formatter: "non-empty-string" },
       class: { type: "string", formatter: "non-empty-string" },
+      allowedOfficeCodeIds: {
+        type: "object",
+        formatterFn: async v => {
+          if (!Array.isArray(v)) {
+            return { ok: false, error: "Invalid array." };
+          }
+
+          for (let i = 0; i < v.length; i++) {
+            if (!validatorUtilities.isUuid(v[i])) {
+              return { ok: false, error: "Invalid item at position " + i };
+            }
+          }
+
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
@@ -54,6 +70,28 @@ export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/man
   );
 }
 
+export async function DELETE(req: NextRequest, { params }: RouteContext<"/api/management/data/expense-classes/[id]">) {
+  const session = await auth.verify([
+    permissions.DATA_TYPES_MANAGE_READ,
+    permissions.DATA_TYPES_MANAGE_WRITE,
+  ]);
+  if (!session || session.code !== SessionCode.Ok) {
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
+  }
+
+  const { id } = await params;
+  if (!validatorUtilities.isNotEmpty(id)) {
+    return ApiResponseBuilder.createError(StatusCodes.Status404NotFound, "Not found.")
+      .build();
+  }
+
+  const data = await expenseClasses.removeSoftly(id);
+  return oneOf(data).match(
+    () => ApiResponseBuilder.create(StatusCodes.Status202Accepted).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
+  );
+}
+
 type PatchPayload = Partial<{
   accountName: string;
   fpp: Optional<string>;
@@ -62,4 +100,5 @@ type PatchPayload = Partial<{
   group: Optional<string>;
   accountCode: Optional<string>;
   class: Optional<string>;
+  allowedOfficeCodeIds: string[];
 }>

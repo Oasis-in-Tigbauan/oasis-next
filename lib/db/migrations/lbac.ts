@@ -6,12 +6,11 @@ import type { MigratorFn } from "@/lib/db/types";
 export const lbacMigration: MigratorFn = async (): Promise<void> => {
   console.log("Migrating LBAC Data...");
 
-  await exportLbacProjection();
+  const lbacObjects = await parseLbacEntries();
 };
 
-export async function exportLbacProjection(): Promise<LbacGroup[]> {
+export async function parseLbacEntries(): Promise<LbacGroup[]> {
   const sourceFile = path.join(__dirname, "data/lbac.tsv");
-  const outputFile = path.join(__dirname, "data/lbac-parsed.json");
 
   const rows = (await fsp.readFile(sourceFile, "utf-8"))
     .split(/\r?\n/)
@@ -19,21 +18,13 @@ export async function exportLbacProjection(): Promise<LbacGroup[]> {
     .slice(4)
     .filter(row => row.some(column => normalizeText(column) !== null));
 
-  if (rows.length < 3) {
-    await fsp.writeFile(outputFile, JSON.stringify([], null, 4), "utf-8");
-    return [];
-  }
-
   const schemaKeys = buildSchemaKeys(rows[0], rows[1]);
 
   const entries = rows.slice(2);
 
-  const projected = groupOfficeBlocks(entries)
+  return groupOfficeBlocks(entries)
     .map(block => mapOfficeBlock(schemaKeys, block))
     .filter((group): group is LbacGroup => group !== null);
-
-  await fsp.writeFile(outputFile, JSON.stringify(projected, null, 4), "utf-8");
-  return projected;
 }
 
 function buildSchemaKeys(primaryHeader: string[], secondaryHeader: string[]): Array<string | null> {

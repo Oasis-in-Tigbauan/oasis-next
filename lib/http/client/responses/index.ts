@@ -1,6 +1,7 @@
 import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
 import type { EsreListResponse, EsreItem as EsreItemResponse } from "@/lib/http/client/responses/EsreListResponse";
+import type { ExpenseClassByOfficeCodeListResponse } from "@/lib/http/client/responses/ExpenseClassByOfficeCodeListResponse";
 import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseClassResponse";
 import type { ExpenseClassListResponse } from "@/lib/http/client/responses/ExpenseClassListResponse";
 import type { ExpenseTypeListResponse } from "@/lib/http/client/responses/ExpenseTypeListResponse";
@@ -45,6 +46,7 @@ export type {
   ApiResponseException,
   EsreListResponse,
   EsreItemResponse,
+  ExpenseClassByOfficeCodeListResponse,
   ExpenseClassResponse,
   ExpenseClassListResponse,
   ExpenseTypeListResponse,
@@ -89,6 +91,6 @@ export type {
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {
-    data: TSuccess,
-    error?: TError
+  data: TSuccess,
+  error?: TError
 }
