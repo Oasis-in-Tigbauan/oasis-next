@@ -1,0 +1,1 @@
+ALTER TABLE "obr_main_aip_references" ADD COLUMN "aip_description" text;
