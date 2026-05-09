@@ -6,7 +6,7 @@ import { oneOf } from "@/lib/one-of";
 import * as permissions from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
-import { validator } from "@/lib/validators";
+import { validator, validatorUtilities } from "@/lib/validators";
 
 export async function GET() {
   const session = await auth.verify();
@@ -45,8 +45,24 @@ export async function POST(req: NextRequest) {
       group: { type: "string", formatter: "non-empty-string" },
       accountCode: { type: "string", formatter: "non-empty-string" },
       class: { type: "string", formatter: "non-empty-string" },
+      allowedOfficeCodeIds: {
+        type: "object",
+        formatterFn: async v => {
+          if (!Array.isArray(v)) {
+            return {ok: false, error: "Invalid array."};
+          }
+
+          for (let i = 0; i < v.length; i++) {
+            if (!validatorUtilities.isUuid(v[i])) {
+              return {ok: false, error: "Invalid item at position " + i};
+            }
+          }
+
+          return {ok: true};
+        },
+      },
     },
-    requiredProperties: [],
+    requiredProperties: ["accountName"],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
@@ -69,4 +85,5 @@ type PostPayload = {
   group: Optional<string>;
   accountCode: Optional<string>;
   class: Optional<string>;
+  allowedOfficeCodeIds?: string[];
 }

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -164,6 +164,7 @@ export const expenseClasses = pgTable("expense_classes", {
   accountCode: text("account_code"),
   class: text("class"),
 
+  deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),
@@ -171,6 +172,25 @@ export const expenseClasses = pgTable("expense_classes", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+export const expenseClassOfficeCodes = pgTable("expense_classes_office_codes", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  expenseClassId: text("expense_name_id")
+    .references(() => expenseClasses.id)
+    .notNull(),
+  officeCodeId: text("office_code_id")
+    .references(() => officeCodes.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+}, (table) => [
+  uniqueIndex("expense_names_office_codes_unique").on(table.expenseClassId, table.officeCodeId),
+]);
 
 export const officeCodes = pgTable("office_codes", {
   id: text("id")
@@ -554,12 +574,12 @@ export const lbacGroups = pgTable("lbac_groups", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
-}, table => ({
-  parentFk: foreignKey({
+}, table => [
+  foreignKey({
     columns: [table.parentId],
     foreignColumns: [table.id],
   }),
-}));
+]);
 
 export const lbacItems = pgTable("lbac_items", {
   id: text("id")
@@ -578,6 +598,15 @@ export const lbacItems = pgTable("lbac_items", {
   proposedBudgetCO: decimal("proposed_budget_co").notNull(),
   proposedBudgetTotal: decimal("proposed_budget_total").notNull(),
   remarks: text("remarks"),
+  remarksForAllocation: text("remarks_for_allocations"),
+
+  // Other metadata?
+  gadable: boolean("gadable").default(false).notNull(),
+  tagging: text("tagging"),
+  amountAttributed: decimal("ammount_attributed"),
+  physicalTargets: text("physical_targets"),
+  priorYearAccomplishments: text("prior_year_accomplishments"),
+  remarksForOtherMetadata: text("remarks_for_other_metadata"),
 
   // References
   implementingUnitId: text("implementing_unit_id")
@@ -593,6 +622,9 @@ export const lbacItems = pgTable("lbac_items", {
   // Table metadata
   authorId: text("author_id")
     .references(() => user.id)
+    .notNull(),
+  officeId: text("office_id")
+    .references(() => office.id)
     .notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -627,6 +659,36 @@ export const lbacQuarterlyReport = pgTable("lbac_quarterly_report", {
   accomplishmentPercentage: text("accomplishment_percentage"),
   remarks: text("remarks"),
   targetForBudgetYear: text("target_for_budget_year"),
+
+  // Other metadata
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const obrMainData = pgTable("obr_main_data", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  obrNumber: text("obr_number").notNull(),
+  alobs: text("alobs").notNull(),
+  payee: text("payee").notNull(),
+  address: text("address").notNull(),
+  prNumber: text("pr_number"),
+  particulars: text("particulars").notNull(),
+  obligated: decimal("obligated").notNull(),
+  prAmount: decimal("pr_amount"),
+
+  responsibilityCenterId: text("responsibility_center_id")
+    .references(() => officeCodes.id)
+    .notNull(),
+  expenseCodeId: text("expense_code_id")
+    .references(() => expenseClasses.id)
+    .notNull(),
 
   // Other metadata
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })

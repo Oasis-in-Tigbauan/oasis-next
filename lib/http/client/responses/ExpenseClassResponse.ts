@@ -9,6 +9,7 @@ type Response = {
   group: Optional<string>;
   accountCode: Optional<string>;
   class: Optional<string>;
+  allowedFor: Array<{ id: string; aa: string }>;
 }
 
 export type ExpenseClassResponse = GenericOkResponse<Response>;

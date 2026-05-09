@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "components/ui/**",
+    "hooks/use-mobile.ts", // shadcn, generated file, we don't want to touch it.
   ]),
   {
     rules: {

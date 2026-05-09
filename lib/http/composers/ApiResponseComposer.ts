@@ -7,6 +7,7 @@ import { StatusCodes } from "@/lib/http/composers/StatusCodes";
 export class ApiResponseBuilder<TResponse> implements IResponseComposer<TResponse> {
   private _code: StatusCodes | number = StatusCodes.Status200Ok;
   private readonly _additionalHeaders: Record<string, string> = {};
+  private _hasBodySet: boolean = false;
 
   private readonly _body: IApiResponse<TResponse> = {
     ok: true,
@@ -34,13 +35,14 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
   }
 
   withBody(body: TResponse): IResponseComposer<TResponse> {
+    this._hasBodySet = true;
     this._body.data = body;
     return this;
   }
 
   build(): NextResponse {
     // For empty responses, Next.js returns a 204 No Content response.
-    if (this._code === StatusCodes.Status204NoContent) {
+    if (this._code === StatusCodes.Status204NoContent || !this._hasBodySet) {
       return new NextResponse(null, { status: this._code });
     }
 

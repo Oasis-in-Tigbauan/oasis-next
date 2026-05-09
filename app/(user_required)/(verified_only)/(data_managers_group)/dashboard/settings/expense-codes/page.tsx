@@ -1,17 +1,20 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
+import { type SubmitEvent, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
 import {
   ApiResponseException,
   BetterFetchResponse,
-  ExpenseClassListResponse, ExpenseClassResponse,
+  ExpenseClassListResponse,
+  ExpenseClassResponse,
+  OfficeCodeListResponse,
 } from "@/lib/http/client/responses";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import DeadHamster from "@/components/dead-hamster";
 import {
   Dialog,
@@ -39,8 +42,18 @@ import {
 import Typography from "@/components/typography";
 import { validatorUtilities } from "@/lib/validators";
 
+type ExpenseClassItem = ExpenseClassListResponse["data"][number];
+
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>>("/api/management/data/expense-classes", $fetch);
+  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>>(
+    "/api/management/data/expense-classes",
+    $fetch,
+  );
+
+  const { data: officeCodesData } = useSWR<BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>>(
+    "/api/management/data/office-codes",
+    $fetch,
+  );
 
   if (isLoading) {
     return (<Loading />);
@@ -50,12 +63,14 @@ export default function Page() {
     return (<DeadHamster />);
   }
 
+  const officeCodes = officeCodesData?.data?.data ?? [];
+
   const handleCreateMutate = (item: ExpenseClassResponse) => {
-    if (data?.data?.data && Array.isArray(data?.data?.data)) {
+    if (data?.data?.data && Array.isArray(data.data.data)) {
       mutate({
         data: {
           ok: true,
-          data: [...(data?.data?.data || []), item.data],
+          data: [...data.data.data, item.data],
         },
         error: undefined,
       }).catch(console.error);
@@ -63,14 +78,23 @@ export default function Page() {
   };
 
   const handleUpdateMutate = (item: ExpenseClassResponse) => {
-    if (data?.data?.data && Array.isArray(data?.data?.data)) {
+    if (data?.data?.data && Array.isArray(data.data.data)) {
       mutate({
         data: {
           ok: true,
-          data: (data?.data?.data || []).map(x => {
-            if (x.id === item.data.id) return item.data;
-            return x;
-          }),
+          data: data.data.data.map(x => x.id === item.data.id ? item.data : x),
+        },
+        error: undefined,
+      }).catch(console.error);
+    }
+  };
+
+  const handleDeleteMutate = (id: string) => {
+    if (data?.data?.data && Array.isArray(data.data.data)) {
+      mutate({
+        data: {
+          ok: true,
+          data: data.data.data.filter(x => x.id !== id),
         },
         error: undefined,
       }).catch(console.error);
@@ -81,7 +105,7 @@ export default function Page() {
     <div className="p-4 pt-0 w-full">
       <div className="w-full flex gap-4">
         <Typography variant="h3" className="mb-4 grow">Expense Codes</Typography>
-        <CreateExpenseClassDialog mutate={handleCreateMutate} />
+        <CreateExpenseClassDialog mutate={handleCreateMutate} officeCodes={officeCodes} />
       </div>
       <Table>
         <TableCaption>
@@ -99,12 +123,19 @@ export default function Page() {
             <TableHead>Group</TableHead>
             <TableHead>Account Code</TableHead>
             <TableHead>Expense Class</TableHead>
+            <TableHead>Allowed Office Codes</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {
-            (data?.data?.data || []).map(x => (
-              <ExpenseClassRow key={x.id} data={x} mutate={handleUpdateMutate} />
+            (data?.data?.data ?? []).map(x => (
+              <ExpenseClassRow
+                key={x.id}
+                data={x}
+                mutate={handleUpdateMutate}
+                mutateDelete={handleDeleteMutate}
+                officeCodes={officeCodes}
+              />
             ))
           }
         </TableBody>
@@ -113,7 +144,35 @@ export default function Page() {
   );
 }
 
-function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassResponse) => void}) {
+function OfficeCodes({ officeCodes, selectedIds, onToggle }: {
+  officeCodes: OfficeCodeListResponse["data"];
+  selectedIds: string[];
+  onToggle: (id: string, checked: boolean) => void;
+}) {
+  const selectedSet = new Set(selectedIds);
+  return (
+    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded p-2">
+      {officeCodes.map(oc => (
+        <div key={oc.id} className="flex items-center gap-2">
+          <Checkbox
+            id={`oc-${oc.id}`}
+            checked={selectedSet.has(oc.id)}
+            onCheckedChange={checked => onToggle(oc.id, checked === true)}
+          />
+          <Label htmlFor={`oc-${oc.id}`} className="cursor-pointer">{oc.aa}</Label>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CreateExpenseClassDialog({
+  mutate,
+  officeCodes,
+}: {
+  mutate: (item: ExpenseClassResponse) => void;
+  officeCodes: OfficeCodeListResponse["data"];
+}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<ExpenseClassPayload>({
@@ -124,13 +183,23 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
     group: undefined,
     accountCode: undefined,
     class: undefined,
+    allowedOfficeCodeIds: [],
   });
 
-  const handleInput = (key: keyof ExpenseClassPayload, value: string) => {
+  const handleInput = (key: keyof Omit<ExpenseClassPayload, "allowedOfficeCodeIds">, value: string) => {
     setPayload(prev => ({
       ...prev,
       [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
     }));
+  };
+
+  const handleToggleOfficeCode = (id: string, checked: boolean) => {
+    setPayload(prev => {
+      const ids = new Set(prev.allowedOfficeCodeIds);
+      if (checked) ids.add(id);
+      else ids.delete(id);
+      return { ...prev, allowedOfficeCodeIds: Array.from(ids) };
+    });
   };
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
@@ -141,15 +210,12 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
       body: payload,
     });
 
-    if (res.error || !res.data.data)  {
+    if (res.error || !res.data.data) {
       alert("Failed to create expense class. Try again later.");
       return;
     }
 
-    // Mutate the parent response.
     mutate(res.data);
-
-    // Reset and close.
     alert("Expense class created successfully.");
 
     setPayload({
@@ -160,6 +226,7 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
       group: undefined,
       accountCode: undefined,
       class: undefined,
+      allowedOfficeCodeIds: [],
     });
     setOpen(false);
   };
@@ -212,7 +279,7 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
                 <Input
                   id="classification"
                   type="text"
-                  placeholder="Enter the account name"
+                  placeholder="Enter the classification"
                   value={payload.classification ?? ""}
                   onInput={e => handleInput("classification", e.currentTarget.value)}
                 />
@@ -267,6 +334,16 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
               </Field>
             </FieldGroup>
           </div>
+          <FieldGroup className="mt-4">
+            <Field>
+              <Label>Allowed Office Codes <span className="text-muted-foreground text-xs">(leave empty to allow all)</span></Label>
+              <OfficeCodes
+                officeCodes={officeCodes}
+                selectedIds={payload.allowedOfficeCodeIds ?? []}
+                onToggle={handleToggleOfficeCode}
+              />
+            </Field>
+          </FieldGroup>
           <DialogFooter className="mt-4">
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
@@ -279,7 +356,17 @@ function CreateExpenseClassDialog({ mutate }: { mutate: (item: ExpenseClassRespo
   );
 }
 
-function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"], mutate: (item: ExpenseClassResponse) => void }) {
+function ExpenseClassRow({
+  data,
+  mutate,
+  mutateDelete,
+  officeCodes,
+}: {
+  data: ExpenseClassItem;
+  mutate: (item: ExpenseClassResponse) => void;
+  mutateDelete: (id: string) => void;
+  officeCodes: OfficeCodeListResponse["data"];
+}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<ExpenseClassPayload>({
@@ -290,40 +377,85 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
     group: data.group,
     accountCode: data.accountCode,
     class: data.class,
+    allowedOfficeCodeIds: data.allowedFor.map(x => x.id),
   });
 
-  const handleInput = (key: keyof ExpenseClassPayload, value: string) => {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      setPayload({
+        accountName: data.accountName,
+        fpp: data.fpp,
+        classification: data.classification,
+        subClassification: data.subClassification,
+        group: data.group,
+        accountCode: data.accountCode,
+        class: data.class,
+        allowedOfficeCodeIds: data.allowedFor.map(x => x.id),
+      });
+    }
+    setOpen(isOpen);
+  };
+
+  const allowedOfficeCodesText = useMemo(() => {
+    if (!data.allowedFor.length) return "All";
+    return data.allowedFor.map(x => x.aa).join(", ");
+  }, [data.allowedFor]);
+
+  const handleInput = (key: keyof Omit<ExpenseClassPayload, "allowedOfficeCodeIds">, value: string) => {
+    setPayload(prev => ({
+      ...prev,
+      [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+    }));
+  };
+
+  const handleToggleOfficeCode = (id: string, checked: boolean) => {
     setPayload(prev => {
-      return {
-        ...prev,
-        [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
-      };
+      const ids = new Set(prev.allowedOfficeCodeIds);
+      if (checked) ids.add(id);
+      else ids.delete(id);
+      return { ...prev, allowedOfficeCodeIds: Array.from(ids) };
     });
   };
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const res = await $fetch<ExpenseClassResponse, ApiResponseException>(`/api/management/data/expense-classes/${data.id}`, {
-      method: "PATCH",
-      body: payload,
-    });
+    const res = await $fetch<ExpenseClassResponse, ApiResponseException>(
+      `/api/management/data/expense-classes/${data.id}`,
+      { method: "PATCH", body: payload },
+    );
 
-    if (res.error || !res.data.data)  {
+    if (res.error || !res.data.data) {
       alert("Failed to update expense class. Try again later.");
       return;
     }
 
-    // Mutate the parent response.
     mutate(res.data);
-
-    // Close.
     alert("Expense class updated successfully.");
     setOpen(false);
   };
 
+  const handleDelete = async () => {
+    const confirmed = confirm("Soft delete this expense class?");
+    if (!confirmed) return;
+
+    const res = await $fetch<null, ApiResponseException>(
+      `/api/management/data/expense-classes/${data.id}`,
+      { method: "DELETE" },
+    );
+
+    if (res.error) {
+      alert("Failed to delete expense class. Try again later.");
+      return;
+    }
+
+    mutateDelete(data.id);
+    alert("Expense class deleted successfully.");
+    setOpen(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <TableRow className="cursor-pointer">
           <TableCell className="font-medium">{data.accountName}</TableCell>
@@ -333,6 +465,7 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
           <TableCell>{data.group}</TableCell>
           <TableCell>{data.accountCode}</TableCell>
           <TableCell>{data.class}</TableCell>
+          <TableCell>{allowedOfficeCodesText}</TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent className="min-w-[75%]">
@@ -375,7 +508,7 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
                 <Input
                   id="classification"
                   type="text"
-                  placeholder="Enter the account name"
+                  placeholder="Enter the classification"
                   value={payload.classification ?? ""}
                   onInput={e => handleInput("classification", e.currentTarget.value)}
                 />
@@ -430,7 +563,18 @@ function ExpenseClassRow({ data, mutate }: { data: ExpenseClassResponse["data"],
               </Field>
             </FieldGroup>
           </div>
+          <FieldGroup className="mt-4">
+            <Field>
+              <Label>Allowed Office Codes <span className="text-muted-foreground text-xs">(leave empty to allow all)</span></Label>
+              <OfficeCodes
+                officeCodes={officeCodes}
+                selectedIds={payload.allowedOfficeCodeIds ?? []}
+                onToggle={handleToggleOfficeCode}
+              />
+            </Field>
+          </FieldGroup>
           <DialogFooter className="mt-4">
+            <Button type="button" variant="destructive" onClick={handleDelete}>Delete</Button>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
@@ -450,4 +594,5 @@ type ExpenseClassPayload = {
   group: Optional<string>;
   accountCode: Optional<string>;
   class: Optional<string>;
+  allowedOfficeCodeIds: string[];
 }
