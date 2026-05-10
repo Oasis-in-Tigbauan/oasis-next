@@ -6,18 +6,14 @@ import { session as auth, SessionCode } from "@/lib/auth";
 export default async function BannedUsersGroupLayout({ children }: { children: ReactNode}) {
   const session = await auth.verify();
 
-  // Redirect back to the dashboard if not verified.
-  if (session.redirectTo) {
-    return redirect(session.redirectTo, RedirectType.replace);
-  }
-
-  // Invalid sessions
-  if (session.code !== SessionCode.Ok) {
+  // No valid session → sign in
+  if (session.code === SessionCode.SessionInvalid) {
     return redirect("/auth/signin");
   }
 
+  // Non-banned users don't belong here
   if (!session.user?.banned) {
-    redirect("/auth/check", RedirectType.replace);
+    return redirect("/auth/check", RedirectType.replace);
   }
 
   return (<>{children}</>);
