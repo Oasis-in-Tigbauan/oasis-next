@@ -20,7 +20,7 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: true,
   },
-  plugins: [nextCookies(), twoFactor()],
+  plugins: [twoFactor(), nextCookies()],
 
   // Additional properties configuration
   user: {

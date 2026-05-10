@@ -7,17 +7,21 @@ import { session as auth, SessionCode } from "@/lib/auth";
 export default async function UnverifiedLayout({ children }: { children: ReactNode}) {
   const session = await auth.verify();
 
-  if (session.redirectTo) {
-    return redirect(session.redirectTo, RedirectType.replace);
-  }
-
-  // Invalid sessions
-  if (session.code !== SessionCode.Ok) {
+  // No valid session → sign in
+  if (session.code === SessionCode.SessionInvalid) {
     return redirect("/auth/signin");
   }
 
-  if (session.user!.activated) {
-    redirect("/auth/check", RedirectType.replace);
+  // Banned users have their own page
+  if (session.code === SessionCode.Banned) {
+    return redirect("/banned", RedirectType.replace);
+  }
+
+  // Shadow-banned users are silently allowed through to appear as pending
+
+  // Activated users don't belong here
+  if (session.user?.activated) {
+    return redirect("/auth/check", RedirectType.replace);
   }
 
   return (
