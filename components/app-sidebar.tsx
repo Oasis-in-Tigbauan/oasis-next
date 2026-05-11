@@ -100,6 +100,19 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
               )
             }
             {
+              (
+                permissionMap.has(permissions.LBAC_DATA_READ)
+                || permissionMap.has(permissions.LBAC_OFFICE_READ)
+              ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/lbac">LBAC</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
+            {
               permissionMap.has(permissions.AIP_READ) && (
                 <SidebarMenuItem>
                   <SidebarMenuButton>

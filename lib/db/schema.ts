@@ -518,7 +518,7 @@ export const lbacGroups = pgTable("lbac_groups", {
     .$defaultFn(() => uuidv7()),
   aipRefCode: text("aip_ref_code")
     .references(() => aipReferences.id),
-  name: text("string").notNull(),
+  name: text("name").notNull(),
   implementingUnitId: text("implementing_unit_id")
     .references(() => officeCodes.id),
 

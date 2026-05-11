@@ -36,6 +36,9 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/obr/main/manage") return "OBR: Manage OBR Main Data";
     if (pathname === "/dashboard/supplemental") return "Supplemental";
     if (pathname === "/dashboard/aip") return "Annual Investment Program";
+    if (pathname === "/dashboard/lbac") return "LBAC: Dashboard";
+    if (pathname === "/dashboard/lbac/office") return "LBAC: Quarterly Reports";
+    if (pathname === "/dashboard/lbac/data") return "LBAC: Data";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 
