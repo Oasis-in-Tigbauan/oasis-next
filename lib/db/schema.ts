@@ -462,9 +462,10 @@ export const supplemental = pgTable("supplemental", {
   supplementalOrAugmentation: text("supplemental_or_augmentation"),
   charges: text("charges"),
   amount: decimal("amount").notNull(),
-  aipCode: text("aip_code"),
   supplementalType: supplementalTypeEnum("supplemental_type").notNull(),
 
+  aipRefCode: text("aip_ref_code")
+    .references(() => aipReferences.id),
   author: text("author_id")
     .references(() => user.id)
     .notNull(),
@@ -546,68 +547,10 @@ export const lbacGroups = pgTable("lbac_groups", {
   }),
 ]);
 
-export const lbacItems = pgTable("lbac_items", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => uuidv7()),
-
-  // Main data
-  aipRefCode: text("aip_ref_code")
-    .references(() => aipReferences.id),
-  mfoPpa: text("mfo_ppa").notNull(),
-  majorFinalOutput: text("major_final_output"),
-  performanceOutputIndicator: text("performance_output_indicator"),
-  targetForBudgetYear: text("target_for_budget_year"),
-  proposedBudgetPS: decimal("proposed_budget_ps").notNull(),
-  proposedBudgetMOOE: decimal("proposed_budget_mooe").notNull(),
-  proposedBudgetCO: decimal("proposed_budget_co").notNull(),
-  proposedBudgetTotal: decimal("proposed_budget_total").notNull(),
-  remarks: text("remarks"),
-  remarksForAllocation: text("remarks_for_allocations"),
-
-  // Other metadata?
-  gadable: boolean("gadable").default(false).notNull(),
-  tagging: text("tagging"),
-  amountAttributed: decimal("ammount_attributed"),
-  physicalTargets: text("physical_targets"),
-  priorYearAccomplishments: text("prior_year_accomplishments"),
-  remarksForOtherMetadata: text("remarks_for_other_metadata"),
-
-  // References
-  implementingUnitId: text("implementing_unit_id")
-    .references(() => officeCodes.id),
-  expenseCodeId: text("expense_code_id")
-    .references(() => expenseClasses.id),
-
-  // Parent
-  parentId: text("parent_id")
-    .references(() => lbacGroups.id)
-    .notNull(),
-
-  // Table metadata
-  authorId: text("author_id")
-    .references(() => user.id)
-    .notNull(),
-  officeId: text("office_id")
-    .references(() => office.id)
-    .notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
-
 export const lbacQuarterlyReport = pgTable("lbac_quarterly_report", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => uuidv7()),
-
-  // Main link
-  lbacTargetId: text("lbac_target_id")
-    .references(() => lbacItems.id)
-    .notNull(),
 
   priorYearAccomplishments: text("prior_year_accomplishments"),
   physicalTargetQ1: text("physical_target_q1"),
@@ -626,6 +569,64 @@ export const lbacQuarterlyReport = pgTable("lbac_quarterly_report", {
   targetForBudgetYear: text("target_for_budget_year"),
 
   // Other metadata
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const lbacItems = pgTable("lbac_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  // Main data
+  aipRefCode: text("aip_ref_code")
+    .references(() => aipReferences.id),
+  mfoPpa: text("mfo_ppa").notNull(),
+  majorFinalOutput: text("major_final_output"),
+  performanceOutputIndicator: text("performance_output_indicator"),
+  targetForBudgetYear: text("target_for_budget_year"),
+  proposedBudgetPS: decimal("proposed_budget_ps").notNull(),
+  proposedBudgetMOOE: decimal("proposed_budget_mooe").notNull(),
+  proposedBudgetFE: decimal("proposed_budget_fe").notNull(),
+  proposedBudgetCO: decimal("proposed_budget_co").notNull(),
+  remarks: text("remarks"),
+  remarksForAllocation: text("remarks_for_allocations"),
+
+  // Other metadata?
+  gadable: boolean("gadable").default(false).notNull(),
+  tagging: text("tagging"),
+  amountAttributed: decimal("ammount_attributed"),
+  physicalTargets: text("physical_targets"),
+  priorYearAccomplishments: text("prior_year_accomplishments"),
+  remarksForOtherMetadata: text("remarks_for_other_metadata"),
+
+  // References
+  implementingUnitId: text("implementing_unit_id")
+    .references(() => officeCodes.id),
+  expenseCodeId: text("expense_code_id")
+    .references(() => expenseClasses.id),
+
+  // Quarterly Reports
+  quarterlyReportId: text("lbac_quarterly_report")
+    .references(() => lbacQuarterlyReport.id)
+    .notNull(),
+
+  // Parent
+  parentId: text("parent_id")
+    .references(() => lbacGroups.id)
+    .notNull(),
+
+  // Table metadata
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  officeId: text("office_id")
+    .references(() => office.id)
+    .notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),
