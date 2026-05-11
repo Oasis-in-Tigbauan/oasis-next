@@ -51,12 +51,12 @@ export class Validator {
   }
 
   /**
-     * Checks if the provided value matches the specified validation type.
-     *
-     * @param type The validation type to check against.
-     * @param value The value to validate.
-     * @return Returns true if the value matches the specified type, otherwise false.
-     */
+   * Checks if the provided value matches the specified validation type.
+   *
+   * @param type The validation type to check against.
+   * @param value The value to validate.
+   * @return Returns true if the value matches the specified type, otherwise false.
+   */
   private isTypeMatches<T>(type: ValidationTypes, value: T): boolean {
     // Check if the property is a type of Array
     if (type === "array") {
@@ -78,26 +78,26 @@ export class Validator {
   }
 
   /**
-     * Checks whether the provided value is neither `undefined` nor `null`.
-     *
-     * @template T
-     * @param {T} value - The value to check for existence.
-     * @return {boolean} Returns `true` if the value is not `undefined` and not `null`, otherwise `false`.
-     */
+   * Checks whether the provided value is neither `undefined` nor `null`.
+   *
+   * @template T
+   * @param {T} value - The value to check for existence.
+   * @return {boolean} Returns `true` if the value is not `undefined` and not `null`, otherwise `false`.
+   */
   private isExist<T>(value: T): boolean {
     return value !== undefined && value !== null;
   }
 
   /**
-     * Checks if the given value satisfies the specified minimum and/or maximum constraints
-     * based on its type (string or number).
-     *
-     * @param type The type of the value to validate. Allowed values are "string" or "number".
-     * @param value The value to validate against the min and max constraints.
-     * @param min The optional minimum threshold for the value. For strings, it represents the minimum length.
-     * @param max The optional maximum threshold for the value. For strings, it represents the maximum length.
-     * @return Returns true if the value complies with the specified min and max constraints, or if the type is unsupported. Returns false otherwise.
-     */
+   * Checks if the given value satisfies the specified minimum and/or maximum constraints
+   * based on its type (string or number).
+   *
+   * @param type The type of the value to validate. Allowed values are "string" or "number".
+   * @param value The value to validate against the min and max constraints.
+   * @param min The optional minimum threshold for the value. For strings, it represents the minimum length.
+   * @param max The optional maximum threshold for the value. For strings, it represents the maximum length.
+   * @return Returns true if the value complies with the specified min and max constraints, or if the type is unsupported. Returns false otherwise.
+   */
   private checkMinMax<T>(type: ValidationTypes, value: T, min?: number, max?: number): MinMaxValidator {
     // Unsupported types get a free pass.
     if (type !== "string" && type !== "number") {
@@ -157,14 +157,14 @@ export class Validator {
   }
 
   /**
-     * Validates whether a given date value falls within specified minimum and maximum date boundaries.
-     *
-     * @param {ValidationTypes} type The type of validation. This method checks only when the type is "date".
-     * @param {Date} value The date value to validate.
-     * @param {DateTime} [min] The minimum allowed date. Optional.
-     * @param {DateTime} [max] The maximum allowed date. Optional.
-     * @return {MinMaxValidator} An object indicating whether the validation was successful (OK: true) or failed (OK: false with an error message).
-     */
+   * Validates whether a given date value falls within specified minimum and maximum date boundaries.
+   *
+   * @param {ValidationTypes} type The type of validation. This method checks only when the type is "date".
+   * @param {Date} value The date value to validate.
+   * @param {DateTime} [min] The minimum allowed date. Optional.
+   * @param {DateTime} [max] The maximum allowed date. Optional.
+   * @return {MinMaxValidator} An object indicating whether the validation was successful (OK: true) or failed (OK: false with an error message).
+   */
   private checkMinMaxDate(type: ValidationTypes, value: Date, min?: DateTime, max?: DateTime): MinMaxValidator {
     // Pass if not date. Nothing to check.
     if (type !== "date") {
@@ -199,12 +199,12 @@ export class Validator {
   }
 
   /**
-     * Validates an object against a specified validation schema and returns the validation result.
-     *
-     * @param object The object to validate against the schema.
-     * @param schema The validation schema defining properties, requirements, and rules for the object.
-     * @return A promise that resolves to a `ValidationResult` indicating whether the object passed validation and any validation errors.
-     */
+   * Validates an object against a specified validation schema and returns the validation result.
+   *
+   * @param object The object to validate against the schema.
+   * @param schema The validation schema defining properties, requirements, and rules for the object.
+   * @return A promise that resolves to a `ValidationResult` indicating whether the object passed validation and any validation errors.
+   */
   async validate<T extends object>(object: T, schema: Schema<T>): Promise<ValidationResult<T>> {
     // Check if any of the properties are not part of the validation
     if (!schema.allowUnvalidatedProperties) {
