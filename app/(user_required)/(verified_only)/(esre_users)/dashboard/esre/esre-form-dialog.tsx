@@ -79,8 +79,8 @@ function makeInitialObr(editItem: EsreItemResponse | undefined): ObrSearchItem |
   if (!editItem?.obr) return null;
   return {
     id: editItem.obr.id,
-    obrRefNumber: editItem.obr.requestNumber,
-    dvRefNumber: "",
+    obrNumber: editItem.obr.requestNumber,
+    alobs: "",
     payee: "",
     address: "",
     particulars: "",
@@ -345,7 +345,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                     onInput={e => {
                       const value = e.currentTarget.value;
                       setObrQuery(value);
-                      if (selectedObr && value !== selectedObr.obrRefNumber) {
+                      if (selectedObr && value !== selectedObr.obrNumber) {
                         setSelectedObr(null);
                       }
                     }}
@@ -375,11 +375,11 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                             className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-accent"
                             onMouseDown={() => {
                               setSelectedObr(r);
-                              setObrQuery(r.obrRefNumber);
+                              setObrQuery(r.obrNumber);
                               setObrDropdownOpen(false);
                             }}
                           >
-                            <span className="font-medium">{r.obrRefNumber}</span>
+                            <span className="font-medium">{r.obrNumber}</span>
                             <span className="text-xs text-muted-foreground">{r.payee}</span>
                           </button>
                         ))
