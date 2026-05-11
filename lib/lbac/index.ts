@@ -1202,7 +1202,6 @@ function _buildLbacQuarterlyObject(
   supplementals: SupplementalEntry[],
   obrAmounts: ObrAipEntry[],
 ): LbacQuarterlyObject {
-  const currentYear = _getCurrentYearUtc8();
   const monthStart = _getCurrentMonthStartUtc8();
 
   const ps = casts.castFromDecimal(item.proposedBudgetPS);
@@ -1220,16 +1219,6 @@ function _buildLbacQuarterlyObject(
     ? casts.castFromDecimal(_obrSumBefore(obrAmounts, item.aipRefId, monthStart))
     : new Decimal(0);
   const cutOffBalance = appropriationTotal.minus(cutOffObligation);
-
-  const _afpQ = (q: number): Decimal =>
-    item.aipRefId
-      ? casts.castFromDecimal(_obrSumForQuarter(obrAmounts, item.aipRefId, currentYear, q))
-      : new Decimal(0);
-  const afpQ1 = _afpQ(1);
-  const afpQ2 = _afpQ(2);
-  const afpQ3 = _afpQ(3);
-  const afpQ4 = _afpQ(4);
-  const afpTotal = afpQ1.plus(afpQ2).plus(afpQ3).plus(afpQ4);
 
   const qr = report;
 
@@ -1253,13 +1242,6 @@ function _buildLbacQuarterlyObject(
       balance: cutOffBalance.toString(),
     },
     priorYearAccomplishments: qr?.priorYearAccomplishments ?? null,
-    actualFinancialPerformance: {
-      Q1: afpQ1.toString(),
-      Q2: afpQ2.toString(),
-      Q3: afpQ3.toString(),
-      Q4: afpQ4.toString(),
-      total: afpTotal.toString(),
-    },
     physicalTargets: {
       Q1: qr?.physicalTargetQ1 ?? null,
       Q2: qr?.physicalTargetQ2 ?? null,
@@ -1543,13 +1525,6 @@ export type LbacQuarterlyObject = {
     balance: string;
   };
   priorYearAccomplishments: string | null;
-  actualFinancialPerformance: {
-    Q1: string;
-    Q2: string;
-    Q3: string;
-    Q4: string;
-    total: string;
-  };
   physicalTargets: {
     Q1: string | null;
     Q2: string | null;

@@ -218,6 +218,13 @@
       "when": 1778503914380,
       "tag": "0030_superb_young_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1778521894798,
+      "tag": "0031_abandoned_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

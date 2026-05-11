@@ -1,0 +1,1 @@
+ALTER TABLE "lbac_groups" RENAME COLUMN "string" TO "name";
