@@ -9,9 +9,7 @@ import {
   expenseClasses,
   expenseType as expenseTypeTable,
   fundTypes,
-  obrItems,
-  obrOfficeItem,
-  obrRequests,
+  obrMainData,
   office,
   officeCodes,
 } from "@/lib/db/schema";
@@ -66,37 +64,35 @@ export async function all(): Promise<Result<EsreItem[]>> {
     const obrItemIds = [...new Set(rows.filter(r => r.obrItemId).map(r => r.obrItemId!))];
     const expenseTypeIds = [...new Set(rows.filter(r => r.expenseTypeId).map(r => r.expenseTypeId!))];
 
-    const [obrOfficeItems, expenseTypes] = await Promise.all([
+    const [obrMainDataItems, expenseTypes] = await Promise.all([
       obrItemIds.length > 0
         ? db
           .select({
-            itemId: obrOfficeItem.itemId,
-            amount: obrOfficeItem.amount,
+            id: obrMainData.id,
+            obligated: obrMainData.obligated,
+            obrNumber: obrMainData.obrNumber,
             expenseClassId: expenseClasses.id,
             accountName: expenseClasses.accountName,
             accountCode: expenseClasses.accountCode,
             subClassification: expenseClasses.subClassification,
             officeId: office.id,
             officeName: office.name,
-            requestNumber: obrRequests.requestNumber,
           })
-          .from(obrOfficeItem)
-          .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
-          .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
+          .from(obrMainData)
+          .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+          .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
           .innerJoin(office, eq(office.id, officeCodes.officeId))
-          .innerJoin(obrItems, eq(obrItems.id, obrOfficeItem.itemId))
-          .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
-          .where(inArray(obrOfficeItem.itemId, obrItemIds))
+          .where(inArray(obrMainData.id, obrItemIds))
         : Promise.resolve([] as Array<{
-          itemId: string;
-          amount: string;
+          id: string;
+          obligated: string;
+          obrNumber: string;
           expenseClassId: string;
           accountName: string;
           accountCode: string | null;
           subClassification: string | null;
           officeId: string;
           officeName: string;
-          requestNumber: string;
         }>),
       expenseTypeIds.length > 0
         ? db
@@ -107,17 +103,17 @@ export async function all(): Promise<Result<EsreItem[]>> {
     ]);
 
     // Take the FIRST obrOfficeItem per obrItemId (skip subsequent entries)
-    const obrOfficeItemByObrId = new Map<string, typeof obrOfficeItems[number]>();
-    for (const oi of obrOfficeItems) {
-      if (!obrOfficeItemByObrId.has(oi.itemId)) {
-        obrOfficeItemByObrId.set(oi.itemId, oi);
+    const obrMainDataById = new Map<string, typeof obrMainDataItems[number]>();
+    for (const item of obrMainDataItems) {
+      if (!obrMainDataById.has(item.id)) {
+        obrMainDataById.set(item.id, item);
       }
     }
 
     const expenseTypeMap = new Map(expenseTypes.map(et => [et.id, et]));
 
     return new Success(rows.map(row => {
-      const officeItem = row.obrItemId ? obrOfficeItemByObrId.get(row.obrItemId) : undefined;
+      const obrEntry = row.obrItemId ? obrMainDataById.get(row.obrItemId) : undefined;
       const et = row.expenseTypeId ? expenseTypeMap.get(row.expenseTypeId) : undefined;
 
       return {
@@ -133,24 +129,24 @@ export async function all(): Promise<Result<EsreItem[]>> {
         remarks: row.remarks,
         fundingSource: { id: row.fundingSourceId, name: row.fundingSourceName },
         expenseType: et ? { id: et.id, name: et.name } : null,
-        obr: officeItem && row.obrItemId
+        obr: obrEntry && row.obrItemId
           ? {
             id: row.obrItemId,
-            requestNumber: officeItem.requestNumber,
+            requestNumber: obrEntry.obrNumber,
             expenseClass: {
-              id: officeItem.expenseClassId,
-              accountName: officeItem.accountName,
-              accountCode: officeItem.accountCode,
-              subClassification: officeItem.subClassification,
+              id: obrEntry.expenseClassId,
+              accountName: obrEntry.accountName,
+              accountCode: obrEntry.accountCode,
+              subClassification: obrEntry.subClassification,
             },
             office: {
-              id: officeItem.officeId,
-              name: officeItem.officeName,
+              id: obrEntry.officeId,
+              name: obrEntry.officeName,
             },
           }
           : null,
-        disbursed: officeItem
-          ? new Decimal(officeItem.amount).minus(new Decimal(row.amount)).toFixed(2)
+        disbursed: obrEntry
+          ? new Decimal(obrEntry.obligated).minus(new Decimal(row.amount)).toFixed(2)
           : "0.00",
       } satisfies EsreItem;
     }));
@@ -195,29 +191,24 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
       return new Failure(ErrorCodes.ValidationFailure, "Invalid funding source.", { payload });
     }
 
-    // Derive charges from the first OBR office item if an OBR item is linked
+    // Derive charges from obrMainData if an OBR item is linked
     let charges: string | null = null;
     if (validatorUtilities.isUuid(payload.obrId)) {
-      const [obrItemRow] = await db
-        .select({ id: obrItems.id })
-        .from(obrItems)
-        .where(eq(obrItems.id, payload.obrId!))
+      const [obrMainDataRow] = await db
+        .select({
+          accountName: expenseClasses.accountName,
+          officeName: office.name,
+        })
+        .from(obrMainData)
+        .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+        .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
+        .innerJoin(office, eq(office.id, officeCodes.officeId))
+        .where(eq(obrMainData.id, payload.obrId!))
         .limit(1);
-      if (!obrItemRow) {
+      if (!obrMainDataRow) {
         return new Failure(ErrorCodes.ValidationFailure, "Invalid OBR item.", { payload });
       }
-
-      const [officeItem] = await db
-        .select({ accountName: expenseClasses.accountName, officeName: office.name })
-        .from(obrOfficeItem)
-        .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
-        .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
-        .innerJoin(office, eq(office.id, officeCodes.officeId))
-        .where(eq(obrOfficeItem.itemId, payload.obrId!))
-        .limit(1);
-      if (officeItem) {
-        charges = `${officeItem.officeName} ${officeItem.accountName}`;
-      }
+      charges = `${obrMainDataRow.officeName} ${obrMainDataRow.accountName}`;
     }
 
     // Validate expense type if provided
@@ -317,27 +308,24 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
       if (payload.obrId === null) {
         obrItemUpdate = { obrItemId: null, charges: null };
       } else if (validatorUtilities.isUuid(payload.obrId)) {
-        const [obrItemRow] = await db
-          .select({ id: obrItems.id })
-          .from(obrItems)
-          .where(eq(obrItems.id, payload.obrId))
+        const [obrMainDataRow] = await db
+          .select({
+            accountName: expenseClasses.accountName,
+            officeName: office.name,
+          })
+          .from(obrMainData)
+          .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+          .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
+          .innerJoin(office, eq(office.id, officeCodes.officeId))
+          .where(eq(obrMainData.id, payload.obrId))
           .limit(1);
-        if (!obrItemRow) {
+        if (!obrMainDataRow) {
           return new Failure(ErrorCodes.ValidationFailure, "Invalid OBR item.", { payload });
         }
 
-        const [officeItem] = await db
-          .select({ accountName: expenseClasses.accountName, officeName: office.name })
-          .from(obrOfficeItem)
-          .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
-          .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
-          .innerJoin(office, eq(office.id, officeCodes.officeId))
-          .where(eq(obrOfficeItem.itemId, payload.obrId))
-          .limit(1);
-
         obrItemUpdate = {
           obrItemId: payload.obrId,
-          charges: officeItem ? `${officeItem.officeName} ${officeItem.accountName}` : null,
+          charges: `${obrMainDataRow.officeName} ${obrMainDataRow.accountName}`,
         };
       }
     }
@@ -445,42 +433,40 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
   let obrData: EsreItem["obr"] = null;
   let disbursed = "0.00";
   if (row.obrItemId) {
-    const [officeItem] = await db
+    const [obrEntry] = await db
       .select({
-        amount: obrOfficeItem.amount,
+        obligated: obrMainData.obligated,
+        obrNumber: obrMainData.obrNumber,
         expenseClassId: expenseClasses.id,
         accountName: expenseClasses.accountName,
         accountCode: expenseClasses.accountCode,
         subClassification: expenseClasses.subClassification,
         officeId: office.id,
         officeName: office.name,
-        requestNumber: obrRequests.requestNumber,
       })
-      .from(obrOfficeItem)
-      .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
-      .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
+      .from(obrMainData)
+      .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+      .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
       .innerJoin(office, eq(office.id, officeCodes.officeId))
-      .innerJoin(obrItems, eq(obrItems.id, obrOfficeItem.itemId))
-      .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
-      .where(eq(obrOfficeItem.itemId, row.obrItemId))
+      .where(eq(obrMainData.id, row.obrItemId))
       .limit(1);
 
-    if (officeItem) {
+    if (obrEntry) {
       obrData = {
         id: row.obrItemId,
-        requestNumber: officeItem.requestNumber,
+        requestNumber: obrEntry.obrNumber,
         expenseClass: {
-          id: officeItem.expenseClassId,
-          accountName: officeItem.accountName,
-          accountCode: officeItem.accountCode,
-          subClassification: officeItem.subClassification,
+          id: obrEntry.expenseClassId,
+          accountName: obrEntry.accountName,
+          accountCode: obrEntry.accountCode,
+          subClassification: obrEntry.subClassification,
         },
         office: {
-          id: officeItem.officeId,
-          name: officeItem.officeName,
+          id: obrEntry.officeId,
+          name: obrEntry.officeName,
         },
       };
-      disbursed = new Decimal(officeItem.amount).minus(new Decimal(row.amount)).toFixed(2);
+      disbursed = new Decimal(obrEntry.obligated).minus(new Decimal(row.amount)).toFixed(2);
     }
   }
 

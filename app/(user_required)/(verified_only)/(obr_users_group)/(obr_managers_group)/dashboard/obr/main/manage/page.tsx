@@ -421,7 +421,7 @@ function ObrRequestViewDialog({
 function aipRefToRow(ref: ObrMainDataAipReference): AipRefRow {
   return {
     rowId: ref.id,
-    aipId: ref.id,
+    aipId: ref.aipReferenceId,
     aipCode: ref.aipCode,
     aipDescription: ref.aipDescription,
     amount: ref.amount,

@@ -2,6 +2,7 @@ import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkRes
 
 export type ObrMainDataAipReference = {
   id: string;
+  aipReferenceId: string;
   aipCode: string;
   aipDescription: string;
   amount: string;

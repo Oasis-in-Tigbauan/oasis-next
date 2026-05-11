@@ -28,7 +28,6 @@ import * as permissions from "@/lib/db/permissions";
 import { validatorUtilities } from "@/lib/validators";
 import { type User } from "@/lib/accounts";
 
-
 /**
  * Creates a new OBR request for the given user.
  *
@@ -1850,7 +1849,9 @@ export async function updateObrMainData(
       const refs = await db
         .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
         .from(aipReferences)
-        .where(inArray(aipReferences.id, aipIds));
+        .where(
+          inArray(aipReferences.id, aipIds),
+        );
       for (const ref of refs) {
         aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
       }
@@ -1944,8 +1945,18 @@ export async function searchObrItems(query: string): Promise<Result<ObrMainDataS
         particulars: obrMainData.particulars,
         obrNumber: obrMainData.obrNumber,
         address: obrMainData.address,
+        payee: obrMainData.payee,
+        ecId: expenseClasses.id,
+        ecAccountName: expenseClasses.accountName,
+        ecAccountCode: expenseClasses.accountCode,
+        ecSubClassification: expenseClasses.subClassification,
+        officeId: office.id,
+        officeName: office.name,
       })
       .from(obrMainData)
+      .leftJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+      .leftJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
+      .leftJoin(office, eq(office.id, officeCodes.officeId))
       .where(
         or(
           ilike(obrMainData.obrNumber, wildcard),
@@ -1966,6 +1977,14 @@ export async function searchObrItems(query: string): Promise<Result<ObrMainDataS
         particulars: i.particulars,
         obrNumber: i.obrNumber,
         address: i.address,
+        payee: i.payee,
+        expenseClass: i.ecId ? {
+          id: i.ecId,
+          accountName: i.ecAccountName!,
+          accountCode: i.ecAccountCode ?? null,
+          subClassification: i.ecSubClassification ?? null,
+        } : null,
+        office: i.officeId ? { id: i.officeId, name: i.officeName! } : null,
       } satisfies ObrMainDataSearchResultItem)),
     );
   } catch (e) {
@@ -2142,7 +2161,7 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
 
     // Check for the position if the user contains the required permissions.
     const permissionSet = new Set(role.permissions);
-    if (!permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)) {
+    if (!permissionSet.has(permissions.OBR_DISBURSEMENT_CREATE)) {
       return { error: ErrorCodes.InsufficientPermissions };
     }
 
@@ -2186,7 +2205,7 @@ async function isUserValidForObrManagement(user: User): Promise<null | AccessReq
 
     // Check for the position if the user contains the required permissions.
     const permissionSet = new Set(role.permissions);
-    if (!(permissionSet.has(permissions.OBR_MANAGEMENT_READ) && permissions.OBR_MANAGEMENT_WRITE)) {
+    if (!(permissionSet.has(permissions.OBR_APPROVER_BASIC_READ) && permissions.OBR_APPROVER_BASIC_WRITE)) {
       return { error: ErrorCodes.InsufficientPermissions };
     }
 
@@ -2710,6 +2729,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       .select({
         id: obrMainAipReferences.id,
         obrId: obrMainAipReferences.obrId,
+        aipReferenceId: obrMainAipReferences.aipReferenceId,
         aipReferenceCode: obrMainAipReferences.aipReferenceCode,
         aipDescription: obrMainAipReferences.aipDescription,
         amount: obrMainAipReferences.amount,
@@ -2728,11 +2748,12 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       .groupBy(esre.obrItemId),
   ]);
 
-  const aipRefsByItem = new Map<string, Array<{ id: string; aipCode: string; aipDescription: string; amount: string }>>();
+  const aipRefsByItem = new Map<string, Array<{ id: string; aipReferenceId: string; aipCode: string; aipDescription: string; amount: string }>>();
   for (const ref of aipRefs) {
     const existing = aipRefsByItem.get(ref.obrId) ?? [];
     existing.push({
       id: ref.id,
+      aipReferenceId: ref.aipReferenceId ?? "",
       aipCode: ref.aipReferenceCode ?? "",
       aipDescription: ref.aipDescription ?? "",
       amount: ref.amount ?? "0",
@@ -3044,6 +3065,7 @@ export type ObrMainDataItem = {
   remarks: Optional<string>;
   aipReferences: Array<{
     id: string;
+    aipReferenceId: string;
     aipCode: string;
     aipDescription: string;
     amount: string;
@@ -3063,6 +3085,17 @@ export type ObrMainDataSearchResultItem = {
   particulars: string;
   obrNumber: string;
   address: string;
+  payee: string;
+  expenseClass: {
+    id: string;
+    accountName: string;
+    accountCode: string | null;
+    subClassification: string | null;
+  } | null;
+  office: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 type CreateObrMainDataPayload = {

@@ -2,8 +2,8 @@ import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkRes
 
 export type ObrSearchItem = {
   id: string;
-  obrRefNumber: string;
-  dvRefNumber: string;
+  obrNumber: string;
+  alobs: string;
   payee: string;
   address: string;
   particulars: string;
