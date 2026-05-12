@@ -1,9 +1,20 @@
+import { count } from "drizzle-orm";
+
 import type { MigratorFn } from "@/lib/db/types";
 import * as permissions from "@/lib/db/permissions";
 import * as schema from "@/lib/db/schema";
 
 export const roleMigration: MigratorFn = async (client): Promise<void> => {
   console.log("Migrating Offices, Positions and Roles...");
+
+  // Check if there are items. Skip if there are items.
+  const [result] = await client
+    .select({ count: count(schema.office.id)})
+    .from(schema.office);
+  if (Number(result.count) > 0) {
+    console.log("-> Skipped due to offices and roles exists.");
+    return;
+  }
 
   // Offices to seed
   const offices = [

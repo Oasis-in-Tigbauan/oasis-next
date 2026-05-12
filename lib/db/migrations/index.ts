@@ -4,12 +4,25 @@ import { lbacMigration } from "@/lib/db/migrations/lbac";
 import { roleMigration } from "@/lib/db/migrations/role";
 import { officeCodesMigration } from "@/lib/db/migrations/office-code";
 import { supplementalMigration } from "@/lib/db/migrations/supplemental";
+import { MigratorFn } from "../types";
 
-export const migrations = [
+// Check for flags
+const flags = new Set(process.argv.slice(2));
+
+const migrations: MigratorFn[] = [
   roleMigration,
-  aipMigration,
-  officeCodesMigration,
-  expenseCodesMigration,
-  lbacMigration,
-  supplementalMigration,
 ];
+
+if (!flags.has("--critical-only")) {
+  migrations.push(
+    ...[
+      aipMigration,
+      officeCodesMigration,
+      expenseCodesMigration,
+      lbacMigration,
+      supplementalMigration,
+    ],
+  );
+}
+
+export { migrations };

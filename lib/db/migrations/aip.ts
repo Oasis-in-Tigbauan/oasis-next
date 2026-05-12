@@ -1,3 +1,4 @@
+import { count } from "drizzle-orm";
 import fsp from "fs/promises";
 import path from "path";
 
@@ -6,6 +7,15 @@ import * as schema from "@/lib/db/schema";
 
 export const aipMigration: MigratorFn = async (client): Promise<void> => {
   console.log("Migrating AIP Codes...");
+
+  // Check if there are items in the AIP. Skip if there are items.
+  const [aips] = await client
+    .select({ count: count(schema.aipReferences.id )})
+    .from(schema.aipReferences);
+  if (Number(aips.count) > 0) {
+    console.log("-> Skipped due to AIP codes exists");
+    return;
+  }
 
   // Read the TSV file.
   const file = path.join(__dirname, "data/aip.tsv");

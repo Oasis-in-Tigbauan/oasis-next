@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import { DateTime } from "luxon";
@@ -9,6 +9,15 @@ import { castToDecimal } from "@/lib/types/casts";
 
 export const supplementalMigration: MigratorFn = async (client): Promise<void> => {
   console.log("Migrating Supplemental...");
+
+  // Check if there are items. Skip if there are items.
+  const [result] = await client
+    .select({ count: count(supplemental.id)})
+    .from(supplemental);
+  if (Number(result.count) > 0) {
+    console.log("-> Skipped due to items present in supplemental.");
+    return;
+  }
 
   // Get the heathcliff user
   const [heathcliffRole] = await client
