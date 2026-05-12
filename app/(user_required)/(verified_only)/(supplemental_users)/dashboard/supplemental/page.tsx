@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
-import {
+import type {
   ApiResponseException,
   BetterFetchResponse,
   SupplementalItemResponse,
@@ -16,6 +17,8 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import { SupplementalFormDialog } from "@/app/(user_required)/(verified_only)/(supplemental_users)/dashboard/supplemental/supplemental-form-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -25,6 +28,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const TOTAL_COLS = 8;
+
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<SupplementalListResponse, ApiResponseException>>(
     "/api/supplemental",
@@ -32,18 +37,59 @@ export default function Page() {
   );
 
   const [selectedItem, setSelectedItem] = useState<SupplementalItemResponse | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const items = data?.data?.data;
+  const filteredItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const sourceItems = items ?? [];
+    if (!query) return sourceItems;
+
+    return sourceItems.filter(item => {
+      return (
+        item.supplementalOrAugmentation?.toLowerCase().includes(query) ||
+        item.charges?.toLowerCase().includes(query) ||
+        item.quarter.toLowerCase().includes(query) ||
+        item.amount.toLowerCase().includes(query) ||
+        item.aipCode?.aipRefCode?.toLowerCase().includes(query)
+      );
+    });
+  }, [items, searchQuery]);
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer({
+    count: filteredItems.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 40,
+    overscan: 15,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
 
-  const items = data?.data?.data ?? [];
-
   return (
     <div className="flex flex-col gap-2 p-4 pt-0 w-full">
-      <div className="flex gap-1 p-2 border rounded-lg w-full">
+      <div className="flex items-center gap-1 p-2 border rounded-lg w-full">
+        <div className="relative flex items-center mr-2">
+          <Search className="absolute left-2 size-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-7 h-8 w-56 text-xs"
+            placeholder="Search supplemental records..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <Separator orientation="vertical" className="h-6 mx-1" />
         <Button
           variant="outline"
           size="icon-sm"
@@ -92,30 +138,78 @@ export default function Page() {
         </Button>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Supplemental/Augmentation</TableHead>
-              <TableHead>Charges</TableHead>
-              <TableHead>Less: Source of Funds</TableHead>
-              <TableHead>Add: Object of Expenditures</TableHead>
-              <TableHead>Quarter</TableHead>
-              <TableHead>AIP Code</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map(item => (
-              <SupplementalTableRow
-                key={item.id}
-                item={item}
-                selected={selectedItem?.id === item.id}
-                onSelect={() => setSelectedItem(prev => (prev?.id === item.id ? null : item))}
-              />
-            ))}
-          </TableBody>
-        </Table>
+      <div className="border rounded-lg p-2">
+        {filteredItems.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            {searchQuery ? "No results match your search." : "No supplemental records found."}
+          </div>
+        ) : (
+          <div
+            ref={tableScrollRef}
+            className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+          >
+            <Table className="w-max min-w-full table-fixed text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableRow>
+                  <TableHead className="w-40 min-w-40">Date</TableHead>
+                  <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Supplemental/Augmentation</TableHead>
+                  <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Charges</TableHead>
+                  <TableHead className="w-44 min-w-44">Less: Source of Funds</TableHead>
+                  <TableHead className="w-48 min-w-48">Add: Object of Expenditures</TableHead>
+                  <TableHead className="w-28 min-w-28">Quarter</TableHead>
+                  <TableHead className="w-28 min-w-28">AIP Code</TableHead>
+                  <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">AIP Description</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paddingTop > 0 && (
+                  <TableRow>
+                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                  </TableRow>
+                )}
+
+                {virtualRows.map(vr => {
+                  const item = filteredItems[vr.index]!;
+                  const selected = selectedItem?.id === item.id;
+
+                  return (
+                    <TableRow
+                      ref={rowVirtualizer.measureElement}
+                      key={item.id}
+                      data-index={vr.index}
+                      className={`cursor-pointer select-none ${selected ? "bg-accent" : ""}`}
+                      title="Double-click to edit"
+                      onClick={() => setSelectedItem(prev => (prev?.id === item.id ? null : item))}
+                      onDoubleClick={() => {
+                        setSelectedItem(item);
+                        setEditOpen(true);
+                      }}
+                    >
+                      <TableCell className="w-40 min-w-40">{formatDate(item.date)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.supplementalOrAugmentation ?? "—"}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.charges ?? "—"}</TableCell>
+                      <TableCell className="w-44 min-w-44 text-right font-mono">
+                        {item.supplementalType === "less" ? formatMoney(item.amount) : "—"}
+                      </TableCell>
+                      <TableCell className="w-48 min-w-48 text-right font-mono">
+                        {item.supplementalType === "add" ? formatMoney(item.amount) : "—"}
+                      </TableCell>
+                      <TableCell className="w-28 min-w-28">{item.quarter}</TableCell>
+                      <TableCell className="w-28 min-w-28">{item.aipCode?.aipRefCode ?? "—"}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.aipCode?.description ?? "—"}</TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {paddingBottom > 0 && (
+                  <TableRow>
+                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <SupplementalFormDialog
@@ -137,35 +231,21 @@ export default function Page() {
   );
 }
 
-function SupplementalTableRow({
-  item,
-  selected,
-  onSelect,
-}: {
-  item: SupplementalItemResponse;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <TableRow
-      className={selected ? "bg-accent" : undefined}
-      onClick={onSelect}
-      style={{ cursor: "pointer" }}
-    >
-      <TableCell>{formatDate(item.date)}</TableCell>
-      <TableCell>{item.supplementalOrAugmentation ?? "—"}</TableCell>
-      <TableCell>{item.charges ?? "—"}</TableCell>
-      <TableCell>{item.supplementalType === "less" ? item.amount : "—"}</TableCell>
-      <TableCell>{item.supplementalType === "add" ? item.amount : "—"}</TableCell>
-      <TableCell>{item.quarter}</TableCell>
-      <TableCell>{item.aipCode ?? "—"}</TableCell>
-    </TableRow>
-  );
-}
-
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-PH", {
     timeZone: "Asia/Manila",
     dateStyle: "medium",
+  });
+}
+
+function formatMoney(value: string): string {
+  const parsed = Number(value.replace(/,/g, ""));
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  return parsed.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }

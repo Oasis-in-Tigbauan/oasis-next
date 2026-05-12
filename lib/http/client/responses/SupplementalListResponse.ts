@@ -6,7 +6,11 @@ export type SupplementalItem = {
   charges: string | null | undefined;
   amount: string;
   supplementalType: "less" | "add";
-  aipCode: string | null | undefined;
+  aipCode: {
+    id: string;
+    aipRefCode: string;
+    description: string;
+  } | null | undefined;
   date: string;
   quarter: string;
 };

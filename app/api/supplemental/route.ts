@@ -6,7 +6,7 @@ import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { oneOf } from "@/lib/one-of";
 import * as supplementalService from "@/lib/supplemental";
-import { validator } from "@/lib/validators";
+import { validator, validatorUtilities } from "@/lib/validators";
 
 export async function GET() {
   const session = await auth.verify([permission.SUPPLEMENTAL_READ]);
@@ -48,7 +48,16 @@ export async function POST(req: NextRequest) {
           return { ok: true };
         },
       },
-      aipCode: { type: "string", formatter: "non-empty-string" },
+      aipCode: {
+        type: "string",
+        formatterFn: async v => {
+          if (!validatorUtilities.isUuid(v)) {
+            return { ok: false, error: "Invalid AIP reference ID." };
+          }
+
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: ["amount", "supplementalType"],
     allowUnvalidatedProperties: false,
