@@ -45,7 +45,16 @@ export async function PATCH(
           return { ok: true };
         },
       },
-      aipCode: { type: "string", formatter: "non-empty-string" },
+      aipCode: {
+        type: "string",
+        formatterFn: async v => {
+          if (!validatorUtilities.isUuid(v)) {
+            return { ok: false, error: "Invalid AIP reference ID." };
+          }
+
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,

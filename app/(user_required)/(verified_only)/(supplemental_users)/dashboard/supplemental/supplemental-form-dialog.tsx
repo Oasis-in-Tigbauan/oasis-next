@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
 import type {
   ApiResponseException,
+  AipSearchResponse,
+  AipSearchResultItem,
+  BetterFetchResponse,
   SupplementalItemResponse,
 } from "@/lib/http/client/responses";
 
@@ -41,7 +45,6 @@ type FormState = {
   charges: string;
   amount: string;
   supplementalType: "less" | "add";
-  aipCode: string;
 };
 
 function makeEmptyForm(): FormState {
@@ -50,7 +53,6 @@ function makeEmptyForm(): FormState {
     charges: "",
     amount: "",
     supplementalType: "less",
-    aipCode: "",
   };
 }
 
@@ -60,7 +62,20 @@ function makeEditForm(item: SupplementalItemResponse): FormState {
     charges: item.charges ?? "",
     amount: item.amount,
     supplementalType: item.supplementalType,
-    aipCode: item.aipCode ?? "",
+  };
+}
+
+function makeInitialAip(item: SupplementalItemResponse | undefined): {
+  id: string;
+  code: string;
+  description: string;
+} | null {
+  if (!item?.aipCode) return null;
+
+  return {
+    id: item.aipCode.id,
+    code: item.aipCode.aipRefCode,
+    description: item.aipCode.description,
   };
 }
 
@@ -69,6 +84,9 @@ export function SupplementalFormDialog({ mode, editItem, open, onOpenChange, onS
     mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm(),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [selectedAip, setSelectedAip] = useState<{ id: string; code: string; description: string } | null>(
+    () => makeInitialAip(editItem),
+  );
 
   const update = (key: keyof FormState, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -92,7 +110,7 @@ export function SupplementalFormDialog({ mode, editItem, open, onOpenChange, onS
           ? { supplementalOrAugmentation: form.supplementalOrAugmentation.trim() }
           : {}),
         ...(form.charges.trim() ? { charges: form.charges.trim() } : {}),
-        ...(form.aipCode.trim() ? { aipCode: form.aipCode.trim() } : {}),
+        ...(selectedAip ? { aipCode: selectedAip.id } : {}),
       };
 
       const res = await $fetch<unknown, ApiResponseException>("/api/supplemental", {
@@ -113,7 +131,7 @@ export function SupplementalFormDialog({ mode, editItem, open, onOpenChange, onS
           ? { supplementalOrAugmentation: form.supplementalOrAugmentation.trim() }
           : {}),
         ...(form.charges.trim() ? { charges: form.charges.trim() } : {}),
-        ...(form.aipCode.trim() ? { aipCode: form.aipCode.trim() } : {}),
+        ...(selectedAip ? { aipCode: selectedAip.id } : {}),
       };
 
       const res = await $fetch<unknown, ApiResponseException>(`/api/supplemental/${editItem!.id}`, {
@@ -200,11 +218,10 @@ export function SupplementalFormDialog({ mode, editItem, open, onOpenChange, onS
 
           <div className="grid gap-2">
             <Label htmlFor="aipCode">AIP Code</Label>
-            <Input
-              id="aipCode"
-              placeholder="Enter AIP code"
-              value={form.aipCode}
-              onInput={e => update("aipCode", e.currentTarget.value)}
+            <AipSearchCombobox
+              value={selectedAip}
+              onChange={setSelectedAip}
+              disabled={submitting}
             />
           </div>
         </form>
@@ -219,5 +236,82 @@ export function SupplementalFormDialog({ mode, editItem, open, onOpenChange, onS
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AipSearchCombobox({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: { id: string; code: string; description: string } | null;
+  onChange: (val: { id: string; code: string; description: string }) => void;
+  disabled: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading } = useSWR<BetterFetchResponse<AipSearchResponse, ApiResponseException>>(
+    !disabled && open && query.length >= 2 ? `/api/aip/search?query=${encodeURIComponent(query)}` : null,
+    $fetch,
+  );
+
+  const results = data?.data?.data ?? [];
+
+  return (
+    <div className="relative flex flex-1 flex-col gap-1">
+      <Input
+        id="aipCode"
+        placeholder="Search AIP code or description..."
+        value={open ? query : (value ? `${value.code} — ${value.description}` : "")}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => {
+          setQuery(e.target.value);
+        }}
+        disabled={disabled}
+      />
+      {open && (
+        <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+          {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>}
+          {!isLoading && results.length === 0 && query.length >= 2 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
+          )}
+          {!isLoading && query.length < 2 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+          )}
+          {results.map(r => (
+            <AipSearchOption key={r.id} item={r} onSelect={onChange} close={() => {
+              setOpen(false);
+              setQuery("");
+            }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AipSearchOption({
+  item,
+  onSelect,
+  close,
+}: {
+  item: AipSearchResultItem;
+  onSelect: (val: { id: string; code: string; description: string }) => void;
+  close: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent"
+      onMouseDown={() => {
+        onSelect({ id: item.id, code: item.aipReferenceCode, description: item.description });
+        close();
+      }}
+    >
+      <span className="font-medium">{item.aipReferenceCode}</span>
+      <span className="text-xs text-muted-foreground">{item.description}</span>
+    </button>
   );
 }

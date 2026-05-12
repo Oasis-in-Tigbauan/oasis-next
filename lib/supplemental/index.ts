@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
-import { supplemental } from "@/lib/db/schema";
+import { aipReferences, supplemental } from "@/lib/db/schema";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import { validatorUtilities } from "@/lib/validators";
 
@@ -35,10 +35,13 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
         charges: supplemental.charges,
         amount: supplemental.amount,
         supplementalType: supplemental.supplementalType,
-        aipCode: supplemental.aipCode,
+        aipCodeId: aipReferences.id,
+        aipCodeValue: aipReferences.aipReferenceCode,
+        aipCodeDescription: aipReferences.description,
         date: supplemental.createdAt,
       })
       .from(supplemental)
+      .leftJoin(aipReferences, eq(supplemental.aipRefCode, aipReferences.id))
       .orderBy(asc(supplemental.createdAt), asc(supplemental.id));
 
     return new Success(rows.map(row => _mapRowToItem(row)));
@@ -70,6 +73,11 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
  */
 export async function create(payload: CreateSupplementalItem, authorId: string): Promise<Result<SupplementalItem>> {
   try {
+    const aipValidation = await _validateAipReference(payload.aipCode, { payload, authorId });
+    if (aipValidation instanceof Failure) {
+      return aipValidation;
+    }
+
     const [inserted] = await db
       .insert(supplemental)
       .values({
@@ -77,7 +85,7 @@ export async function create(payload: CreateSupplementalItem, authorId: string):
         charges: _toNullableText(payload.charges),
         amount: casts.castToDecimal(payload.amount),
         supplementalType: payload.supplementalType,
-        aipCode: _toNullableText(payload.aipCode),
+        aipRefCode: aipValidation,
         author: authorId,
       })
       .returning({ id: supplemental.id });
@@ -134,8 +142,17 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
       charges: string | null;
       amount: string;
       supplementalType: SupplementalType;
-      aipCode: string | null;
+      aipRefCode: string | null;
     }> = {};
+
+    if ("aipCode" in payload) {
+      const aipValidation = await _validateAipReference(payload.aipCode, { supplementalId, payload });
+      if (aipValidation instanceof Failure) {
+        return aipValidation;
+      }
+
+      updateSet.aipRefCode = aipValidation;
+    }
 
     if ("supplementalOrAugmentation" in payload) {
       updateSet.supplementalOrAugmentation = _toNullableText(payload.supplementalOrAugmentation);
@@ -149,10 +166,6 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
     if ("supplementalType" in payload && payload.supplementalType !== undefined) {
       updateSet.supplementalType = payload.supplementalType;
     }
-    if ("aipCode" in payload) {
-      updateSet.aipCode = _toNullableText(payload.aipCode);
-    }
-
     if (Object.keys(updateSet).length > 0) {
       await db
         .update(supplemental)
@@ -212,10 +225,13 @@ async function _getSupplementalById(id: string): Promise<SupplementalItem | null
       charges: supplemental.charges,
       amount: supplemental.amount,
       supplementalType: supplemental.supplementalType,
-      aipCode: supplemental.aipCode,
+      aipCodeId: aipReferences.id,
+      aipCodeValue: aipReferences.aipReferenceCode,
+      aipCodeDescription: aipReferences.description,
       date: supplemental.createdAt,
     })
     .from(supplemental)
+    .leftJoin(aipReferences, eq(supplemental.aipRefCode, aipReferences.id))
     .where(eq(supplemental.id, id))
     .limit(1);
 
@@ -230,10 +246,43 @@ function _mapRowToItem(row: SupplementalRow): SupplementalItem {
     charges: row.charges,
     amount: row.amount,
     supplementalType: row.supplementalType,
-    aipCode: row.aipCode,
+    aipCode: row.aipCodeId && row.aipCodeValue && row.aipCodeDescription
+      ? {
+        id: row.aipCodeId,
+        aipRefCode: row.aipCodeValue,
+        description: row.aipCodeDescription,
+      }
+      : null,
     date: row.date,
     quarter: _getQuarterLabelUtcPlus8(row.date),
   };
+}
+
+async function _validateAipReference(
+  aipCode: Optional<string>,
+  context: Record<string, unknown>,
+): Promise<string | null | Failure> {
+  if (!validatorUtilities.isNotEmpty(aipCode)) {
+    return null;
+  }
+
+  if (!validatorUtilities.isUuid(aipCode)) {
+    return new Failure(ErrorCodes.ValidationFailure, "Invalid AIP reference ID.", context);
+  }
+
+  const aipReferenceId: string = aipCode!;
+
+  const [aipReference] = await db
+    .select({ id: aipReferences.id })
+    .from(aipReferences)
+    .where(eq(aipReferences.id, aipReferenceId))
+    .limit(1);
+
+  if (!aipReference) {
+    return new Failure(ErrorCodes.ValidationFailure, "Invalid AIP reference.", context);
+  }
+
+  return aipReference.id;
 }
 
 function _getQuarterLabelUtcPlus8(date: Date): string {
@@ -256,7 +305,9 @@ type SupplementalRow = {
   charges: Optional<string>;
   amount: string;
   supplementalType: SupplementalType;
-  aipCode: Optional<string>;
+  aipCodeId: Optional<string>;
+  aipCodeValue: Optional<string>;
+  aipCodeDescription: Optional<string>;
   date: Date;
 };
 
@@ -266,7 +317,11 @@ type SupplementalItem = {
   charges: Optional<string>;
   amount: string;
   supplementalType: SupplementalType;
-  aipCode: Optional<string>;
+  aipCode: Optional<{
+    id: string;
+    aipRefCode: string;
+    description: string;
+  }>;
   date: Date;
   quarter: string;
 };
