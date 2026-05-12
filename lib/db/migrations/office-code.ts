@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 
@@ -7,6 +7,15 @@ import { officeCodes, officePosition, user } from "@/lib/db/schema";
 
 export const officeCodesMigration: MigratorFn = async (client): Promise<void> => {
   console.log("Migrating Office Codes...");
+
+  // Check if there are items. Skip if there are items.
+  const [result] = await client
+    .select({ count: count(officeCodes.id )})
+    .from(officeCodes);
+  if (Number(result.count) > 0) {
+    console.log("-> Skipped due to office codes exists");
+    return;
+  }
 
   // Get the heathcliff user
   const [heathcliffRole] = await client

@@ -1,6 +1,6 @@
+import { count, eq } from "drizzle-orm";
 import fsp from "fs/promises";
 import path from "path";
-import { eq } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 
 import type { MigratorFn } from "@/lib/db/types";
@@ -16,6 +16,15 @@ import {
 
 export const lbacMigration: MigratorFn = async (client): Promise<void> => {
   console.log("Migrating LBAC Data...");
+
+  // Check if there are items. Skip if there are items.
+  const [result] = await client
+    .select({ count: count(lbacItems.id)})
+    .from(lbacItems);
+  if (Number(result.count) > 0) {
+    console.log("-> Skipped due to LBAC items exists");
+    return;
+  }
 
   // Resolve system user (Heathcliff role)
   const [heathcliffRole] = await client

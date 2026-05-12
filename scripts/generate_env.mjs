@@ -104,7 +104,7 @@ async function main() {
     await utils.timers.wait(5);
 
     // Seed
-    await utils.process.spawnAsync("pnpm", ["run", "db:seed"], {
+    await utils.process.spawnAsync("pnpm", ["run", "db:seed", "--", "--critical-only"], {
       cwd: path.join(__dirname, "../"),
     });
 
@@ -116,16 +116,24 @@ async function main() {
     });
 
     console.log("");
-    console.log("Your development environment has finished configuring. Happy coding!");
+    console.log("Your development environment has finished configuring.");
     console.log("");
-
+    console.log("Before you can do anything, you need to do this first:");
+    console.log("  1. Run the server: pnpm run dev");
+    console.log("  2. Finish the registration process.");
+    console.log("  3. Enable your account via drizzle studio: users -> your account -> emailVerified to true");
+    console.log("  4. Seed the rest of the data: pnpm run db:seed");
+    console.log("");
+    console.log("Happy coding!");
+    console.log("");
   } catch {
     console.warn("");
     console.warn("One or more commands failed to run to setup your database. You need to do this manually.");
     console.warn("");
     console.warn("  1. pnpm run db:migrate");
-    console.warn("  2. pnpm run db:seed");
-    console.warn("  3. pnpm run setup:admin");
+    console.warn("  2. pnpm run db:seed -- --critical-only");
+    console.warn("  3. pnpm run dev");
+    console.warn("  4. pnpm run setup:admin");
     console.warn("");
     console.warn("Happy coding!");
     console.warn("");

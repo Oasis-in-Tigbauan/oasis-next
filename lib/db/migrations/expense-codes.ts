@@ -1,3 +1,4 @@
+import { count } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 
@@ -6,6 +7,15 @@ import { expenseClasses } from "@/lib/db/schema";
 
 export const expenseCodesMigration: MigratorFn = async (client): Promise<void> => {
   console.log("Migrating Expense Codes...");
+
+  // Check if there are items. Skip if there are items.
+  const [result] = await client
+    .select({ count: count(expenseClasses.id )})
+    .from(expenseClasses);
+  if (Number(result.count) > 0) {
+    console.log("-> Skipped due to expense codes exists.");
+    return;
+  }
 
   // Create migrations
   const codes = await read();
