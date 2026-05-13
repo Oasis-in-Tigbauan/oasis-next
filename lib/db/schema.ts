@@ -731,6 +731,52 @@ export const esre = pgTable("esre", {
     .notNull(),
 });
 
+export const saaobEntryGroup = pgTable("saaob_entry_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const saaobEntries = pgTable("saaob_entries", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+  accountCode: text("account_code"),
+  annualBudget: decimal("annual_budget")
+    .notNull(),
+  refCode: text("ref_code"),
+
+  parentId: text("parent_id")
+    .references(() => saaobEntryGroup.id)
+    .notNull(),
+  expenseCodeId: text("expense_code")
+    .references(() => expenseClasses.id),
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

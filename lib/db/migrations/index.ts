@@ -3,6 +3,7 @@ import { expenseCodesMigration } from "@/lib/db/migrations/expense-codes";
 import { lbacMigration } from "@/lib/db/migrations/lbac";
 import { roleMigration } from "@/lib/db/migrations/role";
 import { officeCodesMigration } from "@/lib/db/migrations/office-code";
+import { saaobEntriesMigration } from "@/lib/db/migrations/saaob";
 import { supplementalMigration } from "@/lib/db/migrations/supplemental";
 import { MigratorFn } from "../types";
 
@@ -21,6 +22,7 @@ if (!flags.has("--critical-only")) {
       expenseCodesMigration,
       lbacMigration,
       supplementalMigration,
+      saaobEntriesMigration,
     ],
   );
 }

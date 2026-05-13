@@ -1,0 +1,1 @@
+ALTER TABLE "saaob_entries" ADD COLUMN "ref_code" text;

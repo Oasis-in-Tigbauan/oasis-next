@@ -225,6 +225,20 @@
       "when": 1778521894798,
       "tag": "0031_abandoned_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1778659456225,
+      "tag": "0032_fluffy_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1778660415635,
+      "tag": "0033_charming_molten_man",
+      "breakpoints": true
     }
   ]
 }
