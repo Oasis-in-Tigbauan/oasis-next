@@ -14,6 +14,7 @@ import {
   obrMainAipReferences,
   obrMainData,
   officeCodes,
+  saaobEntries,
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
@@ -159,6 +160,13 @@ export async function createLbacItem(
         return new Failure(ErrorCodes.ValidationFailure, "The specified expense code does not exist.", { expenseCodeId: payload.expenseCodeId });
       }
     }
+    if (payload.saaobId) {
+      const [saaob] = await db.select({ id: saaobEntries.id }).from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId)).limit(1);
+      if (!saaob) {
+        return new Failure(ErrorCodes.ValidationFailure, "The specified SAAOB entry does not exist.", { saaobId: payload.saaobId });
+      }
+    }
 
     const newItemId = await db.transaction(async (tx) => {
       const [qr] = await tx.insert(lbacQuarterlyReport).values({}).returning({ id: lbacQuarterlyReport.id });
@@ -183,6 +191,7 @@ export async function createLbacItem(
         remarksForOtherMetadata: payload.remarksForOtherMetadata ?? null,
         implementingUnitId: payload.implementingUnitId ?? null,
         expenseCodeId: payload.expenseCodeId ?? null,
+        saaobId: payload.saaobId ?? null,
         quarterlyReportId: qr.id,
         parentId: groupId,
         authorId: user.id,
@@ -329,6 +338,13 @@ export async function updateLbacItem(
         return new Failure(ErrorCodes.ValidationFailure, "The specified expense code does not exist.", { expenseCodeId: payload.expenseCodeId });
       }
     }
+    if (payload.saaobId) {
+      const [saaob] = await db.select({ id: saaobEntries.id }).from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId)).limit(1);
+      if (!saaob) {
+        return new Failure(ErrorCodes.ValidationFailure, "The specified SAAOB entry does not exist.", { saaobId: payload.saaobId });
+      }
+    }
 
     const updateValues: Record<string, unknown> = {};
     if (payload.aipRefCode !== undefined) updateValues.aipRefCode = payload.aipRefCode;
@@ -350,6 +366,7 @@ export async function updateLbacItem(
     if (payload.remarksForOtherMetadata !== undefined) updateValues.remarksForOtherMetadata = payload.remarksForOtherMetadata;
     if (payload.implementingUnitId !== undefined) updateValues.implementingUnitId = payload.implementingUnitId;
     if (payload.expenseCodeId !== undefined) updateValues.expenseCodeId = payload.expenseCodeId;
+    if (payload.saaobId !== undefined) updateValues.saaobId = payload.saaobId;
 
     if (Object.keys(updateValues).length > 0) {
       await db.update(lbacItems).set(updateValues).where(eq(lbacItems.id, lbacId));
@@ -831,13 +848,15 @@ function _computeSupplementalAmount(
   aipRefId: string,
   quarterFilter?: number,
   yearFilter?: number,
+  maxQuarter?: number,
 ): Decimal {
   const currentYear = yearFilter ?? _getCurrentYearUtc8();
   const relevant = supplementals.filter(
     (s) =>
       s.aipRefId === aipRefId &&
       s.year === currentYear &&
-      (quarterFilter === undefined || s.quarter === quarterFilter),
+      (quarterFilter === undefined || s.quarter === quarterFilter) &&
+      (maxQuarter === undefined || s.quarter <= maxQuarter),
   );
   return relevant.reduce((acc, s) => {
     const amt = casts.castFromDecimal(s.amount);
@@ -944,6 +963,7 @@ async function _fetchItems(officeIds: string[] | null): Promise<LbacItemRow[]> {
       expenseCodeId: expenseClasses.id,
       expenseAccountName: expenseClasses.accountName,
       expenseAccountCode: expenseClasses.accountCode,
+      saaobId: lbacItems.saaobId,
       quarterlyReportId: lbacItems.quarterlyReportId,
       parentId: lbacItems.parentId,
       officeId: lbacItems.officeId,
@@ -1021,7 +1041,7 @@ function _buildLbacItemObject(
 
   // Appropriation
   const contOrSupplemental = item.aipRefId
-    ? _computeSupplementalAmount(supplementals, item.aipRefId)
+    ? _computeSupplementalAmount(supplementals, item.aipRefId, undefined, undefined, currentQuarter)
     : new Decimal(0);
   const appropriationCurrent = proposedBudgetTotal;
   const appropriationTotal = appropriationCurrent.plus(contOrSupplemental);
@@ -1145,6 +1165,7 @@ function _buildLbacItemObject(
           accountCode: item.expenseAccountCode,
         }
         : null,
+      saaobId: item.saaobId,
       priorYearAccomplishments: item.priorYearAccomplishments,
       physicalTargets: item.physicalTargets,
       remarks: item.remarksForOtherMetadata,
@@ -1202,6 +1223,7 @@ function _buildLbacQuarterlyObject(
   supplementals: SupplementalEntry[],
   obrAmounts: ObrAipEntry[],
 ): LbacQuarterlyObject {
+  const currentQuarter = _getCurrentQuarterUtc8();
   const monthStart = _getCurrentMonthStartUtc8();
 
   const ps = casts.castFromDecimal(item.proposedBudgetPS);
@@ -1211,7 +1233,7 @@ function _buildLbacQuarterlyObject(
   const appropriationCurrent = ps.plus(mooe).plus(fe).plus(co);
 
   const contOrSupplemental = item.aipRefId
-    ? _computeSupplementalAmount(supplementals, item.aipRefId)
+    ? _computeSupplementalAmount(supplementals, item.aipRefId, undefined, undefined, currentQuarter)
     : new Decimal(0);
   const appropriationTotal = appropriationCurrent.plus(contOrSupplemental);
 
@@ -1458,6 +1480,7 @@ export type LbacObject = {
       accountName: string;
       accountCode: string | null;
     } | null;
+    saaobId: string | null;
     priorYearAccomplishments: string | null;
     physicalTargets: string | null;
     remarks: string | null;
@@ -1575,6 +1598,7 @@ export type CreateLbacItemPayload = {
   remarksForOtherMetadata?: string | null;
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
+  saaobId?: string | null;
 };
 
 export type UpdateLbacItemPayload = Partial<CreateLbacItemPayload>;
@@ -1635,6 +1659,7 @@ type LbacItemRow = {
   expenseCodeId: string | null;
   expenseAccountName: string | null;
   expenseAccountCode: string | null;
+  saaobId: string | null;
   quarterlyReportId: string;
   parentId: string;
   officeId: string;

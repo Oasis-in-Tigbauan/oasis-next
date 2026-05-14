@@ -55,6 +55,16 @@ export async function PATCH(
           return { ok: true };
         },
       },
+      saaobId: {
+        type: "string",
+        formatterFn: async v => {
+          if (!validatorUtilities.isUuid(v)) {
+            return { ok: false, error: "Invalid SAAOB entry ID." };
+          }
+
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
@@ -100,5 +110,6 @@ type PatchSupplementalRequest = {
   charges?: string;
   amount?: string;
   supplementalType?: "less" | "add";
+  saaobId?: string;
   aipCode?: string;
 };
