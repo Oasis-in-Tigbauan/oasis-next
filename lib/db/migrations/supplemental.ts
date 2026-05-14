@@ -4,7 +4,7 @@ import path from "path";
 import { DateTime } from "luxon";
 
 import type { MigratorFn } from "@/lib/db/types";
-import { aipReferences, officePosition, supplemental, user } from "@/lib/db/schema";
+import { aipReferences, officePosition, supplemental, saaobEntries, user } from "@/lib/db/schema";
 import { castToDecimal } from "@/lib/types/casts";
 
 export const supplementalMigration: MigratorFn = async (client): Promise<void> => {
@@ -56,6 +56,15 @@ export const supplementalMigration: MigratorFn = async (client): Promise<void> =
     .from(aipReferences);
   const aipRefByCode = new Map(aipRows.map(row => [row.code.trim().toLowerCase(), row.id]));
 
+  const saaobRows = await client
+    .select({ id: saaobEntries.id, refCode: saaobEntries.refCode })
+    .from(saaobEntries);
+  const saaobByRefCode = new Map(
+    saaobRows
+      .filter(r => r.refCode)
+      .map(r => [r.refCode!.trim(), r.id]),
+  );
+
   const records: Array<typeof supplemental.$inferInsert> = [];
 
   for (const row of codes) {
@@ -85,10 +94,10 @@ export const supplementalMigration: MigratorFn = async (client): Promise<void> =
 
     records.push({
       supplementalOrAugmentation: normalizeText(row["SUPPLEMENTAL/ AUGMENTATION"]),
-      charges: normalizeText(row.CHARGES),
       amount,
       supplementalType,
       aipRefCode,
+      saaobId: saaobByRefCode.get((row["CHARGES"] ?? "").trim()) ?? null,
       author: systemUser.id,
       createdAt,
       updatedAt: createdAt,
@@ -159,7 +168,7 @@ function parseDateUtcFromUtc8(value: Optional<string>): Date | null {
   if (!normalized) return null;
 
   const parsed = DateTime
-    .fromFormat(normalized, "dd/MM/yyyy", { zone: "Asia/Manila" })
+    .fromFormat(normalized, "MM/dd/yyyy", { zone: "Asia/Manila" })
     .startOf("day");
   if (!parsed.isValid) {
     return null;

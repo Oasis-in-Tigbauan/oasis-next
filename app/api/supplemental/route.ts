@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
   const validate = await validator.validate<CreateSupplementalRequest>(body, {
     properties: {
       supplementalOrAugmentation: { type: "string", formatter: "non-empty-string" },
-      charges: { type: "string", formatter: "non-empty-string" },
       amount: { type: "string", formatter: "decimal" },
       supplementalType: {
         type: "string",
@@ -80,7 +79,6 @@ export async function POST(req: NextRequest) {
 
   const result = await supplementalService.create({
     supplementalOrAugmentation: body.supplementalOrAugmentation,
-    charges: body.charges,
     amount: body.amount,
     supplementalType: body.supplementalType,
     saaobId: body.saaobId,
@@ -94,7 +92,6 @@ export async function POST(req: NextRequest) {
 
 type CreateSupplementalRequest = {
   supplementalOrAugmentation?: string;
-  charges?: string;
   amount: string;
   supplementalType: "less" | "add";
   saaobId?: string;

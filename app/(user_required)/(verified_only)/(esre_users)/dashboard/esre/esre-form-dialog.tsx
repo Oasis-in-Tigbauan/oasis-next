@@ -12,7 +12,11 @@ import type {
   FundTypesListResponse,
   ObrSearchItem,
   ObrSearchResponse,
+  SaaobSearchEntry,
+  SaaobSearchGroup,
+  SaaobSearchResponse,
 } from "@/lib/http/client/responses";
+import { isSaaobGroup } from "@/lib/http/client/responses";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +93,46 @@ function makeInitialObr(editItem: EsreItemResponse | undefined): ObrSearchItem |
   };
 }
 
+type SaaobSelection = { id: string; name: string; accountCode?: string | null };
+
+function makeInitialSaaob(editItem: EsreItemResponse | undefined): SaaobSelection | null {
+  if (!editItem?.saaob) return null;
+  return { id: editItem.saaob.id, name: editItem.saaob.name };
+}
+
+function renderSaaobNodes(
+  nodes: Array<SaaobSearchGroup | SaaobSearchEntry>,
+  depth: number,
+  onSelect: (entry: SaaobSearchEntry) => void,
+): React.ReactNode {
+  return nodes.map(node =>
+    isSaaobGroup(node) ? (
+      <div key={node.id}>
+        <div
+          className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide select-none"
+          style={{ paddingLeft: `${12 + depth * 12}px` }}
+        >
+          {node.name}
+        </div>
+        {renderSaaobNodes(node.children, depth + 1, onSelect)}
+      </div>
+    ) : (
+      <button
+        key={node.id}
+        type="button"
+        className="flex w-full flex-col items-start py-2 text-left text-sm hover:bg-accent"
+        style={{ paddingLeft: `${12 + depth * 12}px` }}
+        onMouseDown={() => onSelect(node)}
+      >
+        <span className="font-medium">{node.name}</span>
+        {node.accountCode && (
+          <span className="text-xs text-muted-foreground">{node.accountCode}</span>
+        )}
+      </button>
+    ),
+  );
+}
+
 type Props = {
   mode: "add" | "edit";
   editItem?: EsreItemResponse;
@@ -111,6 +155,14 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
     makeInitialObr(editItem),
   );
 
+  const [saaobQuery, setSaaobQuery] = useState(() =>
+    mode === "edit" && editItem?.saaob ? editItem.saaob.name : "",
+  );
+  const [saaobDropdownOpen, setSaaobDropdownOpen] = useState(false);
+  const [selectedSaaob, setSelectedSaaob] = useState<SaaobSelection | null>(() =>
+    makeInitialSaaob(editItem),
+  );
+
   // Data sources <only fetch when the dialog is open
   const { data: fundTypeData } = useSWR<
     BetterFetchResponse<FundTypesListResponse, ApiResponseException>
@@ -129,9 +181,19 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
     $fetch,
   );
 
+  const { data: saaobSearchData, isLoading: saaobSearchLoading } = useSWR<
+    BetterFetchResponse<SaaobSearchResponse, ApiResponseException>
+  >(
+    open && saaobDropdownOpen && saaobQuery.length > 0
+      ? `/api/saaob/search?query=${encodeURIComponent(saaobQuery)}`
+      : null,
+    $fetch,
+  );
+
   const fundTypes = fundTypeData?.data?.data ?? [];
   const expenseTypes = expenseTypeData?.data?.data ?? [];
   const obrResults = obrSearchData?.data?.data ?? [];
+  const saaobResults = saaobSearchData?.data?.data ?? [];
 
   const update = (key: keyof FormState, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -156,6 +218,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
         ...(form.checkNumber.trim() ? { checkNumber: form.checkNumber.trim() } : {}),
         ...(form.remarks.trim() ? { remarks: form.remarks.trim() } : {}),
         ...(selectedObr ? { obrId: selectedObr.id } : {}),
+        ...(selectedSaaob ? { saaobId: selectedSaaob.id } : {}),
         ...(form.expenseTypeId ? { expenseTypeId: form.expenseTypeId } : {}),
       };
 
@@ -178,6 +241,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
         ...(form.checkNumber.trim() ? { checkNumber: form.checkNumber.trim() } : {}),
         ...(form.remarks.trim() ? { remarks: form.remarks.trim() } : {}),
         obrId: selectedObr ? selectedObr.id : null,
+        saaobId: selectedSaaob ? selectedSaaob.id : null,
         ...(form.expenseTypeId ? { expenseTypeId: form.expenseTypeId } : {}),
       };
 
@@ -429,6 +493,59 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   className="bg-muted/50"
                   tabIndex={-1}
                 />
+              </div>
+            </div>
+
+            {/* Section 4 - SAAOB linking */}
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="saaobSearch">SAAOB Entry</Label>
+                <div className="relative">
+                  <Input
+                    id="saaobSearch"
+                    placeholder="Search by entry name or account code…"
+                    value={saaobQuery}
+                    onFocus={() => setSaaobDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setSaaobDropdownOpen(false), 150)}
+                    onInput={e => {
+                      const value = e.currentTarget.value;
+                      setSaaobQuery(value);
+                      if (selectedSaaob && value !== selectedSaaob.name) {
+                        setSelectedSaaob(null);
+                      }
+                    }}
+                    autoComplete="off"
+                  />
+                  {selectedSaaob && (
+                    <button
+                      type="button"
+                      aria-label="Clear SAAOB selection"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setSelectedSaaob(null);
+                        setSaaobQuery("");
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {saaobDropdownOpen && (saaobSearchLoading || saaobResults.length > 0) && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-md">
+                      {saaobSearchLoading ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
+                      ) : (
+                        renderSaaobNodes(saaobResults, 0, entry => {
+                          setSelectedSaaob(entry);
+                          setSaaobQuery(entry.name);
+                          setSaaobDropdownOpen(false);
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+                {selectedSaaob?.accountCode && (
+                  <p className="text-xs text-muted-foreground">Account Code: {selectedSaaob.accountCode}</p>
+                )}
               </div>
             </div>
 

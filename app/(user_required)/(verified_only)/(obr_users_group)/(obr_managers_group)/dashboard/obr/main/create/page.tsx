@@ -11,7 +11,11 @@ import type {
   ObrRequestDetailResponse,
   ObrRequestSummaryItem,
   ObrRequestSummaryListResponse,
+  SaaobSearchResponse,
+  SaaobSearchGroup,
+  SaaobSearchEntry,
 } from "@/lib/http/client/responses";
+import { isSaaobGroup } from "@/lib/http/client/responses";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -228,6 +232,82 @@ function AipSearchCombobox({
   );
 }
 
+function SaaobSearchCombobox({
+  value,
+  onChange,
+}: {
+  value: { id: string; name: string } | null;
+  onChange: (val: { id: string; name: string } | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading } = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
+    open && query.length >= 2 ? `/api/saaob/search?query=${encodeURIComponent(query)}` : null,
+    $fetch,
+  );
+
+  const results = data?.data?.data ?? [];
+
+  function renderNodes(nodes: Array<SaaobSearchGroup | SaaobSearchEntry>, depth = 0) {
+    return nodes.map(node => {
+      if (isSaaobGroup(node)) {
+        return (
+          <div key={node.id}>
+            <div
+              className="px-3 py-1 text-xs font-semibold text-muted-foreground select-none"
+              style={{ paddingLeft: `${12 + depth * 12}px` }}
+            >
+              {node.name}
+            </div>
+            {renderNodes(node.children, depth + 1)}
+          </div>
+        );
+      }
+      return (
+        <button
+          key={node.id}
+          type="button"
+          className="flex w-full flex-col py-2 pr-3 text-left text-sm hover:bg-accent"
+          style={{ paddingLeft: `${12 + depth * 12}px` }}
+          onMouseDown={() => {
+            onChange({ id: node.id, name: node.name });
+            setOpen(false);
+            setQuery("");
+          }}
+        >
+          <span>{node.name}</span>
+          {node.accountCode && <span className="text-xs text-muted-foreground">{node.accountCode}</span>}
+        </button>
+      );
+    });
+  }
+
+  return (
+    <div className="relative flex flex-1 flex-col gap-1">
+      <Input
+        placeholder="Search SAAOB entry…"
+        value={open ? query : (value ? value.name : "")}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => setQuery(e.target.value)}
+      />
+      {open && (
+        <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+          {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>}
+          {!isLoading && results.length === 0 && query.length >= 2 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
+          )}
+          {!isLoading && query.length < 2 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+          )}
+          {renderNodes(results)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ObrRequestViewDialog({
   id,
   open,
@@ -346,6 +426,7 @@ function ObrMainDataCreateDialog({
   const [prNumber, setPrNumber] = useState("");
   const [prAmount, setPrAmount] = useState("");
   const [aipRefs, setAipRefs] = useState<AipRefRow[]>([]);
+  const [saaob, setSaaob] = useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -384,6 +465,7 @@ function ObrMainDataCreateDialog({
       if (aipRefs.length > 0) {
         body.aipReferences = aipRefs.map(r => ({ aipId: r.aipId, amount: r.amount }));
       }
+      if (saaob) body.saaobId = saaob.id;
 
       const response = await fetch("/api/obr/main", {
         method: "POST",
@@ -455,6 +537,29 @@ function ObrMainDataCreateDialog({
                     onChange={e => setPrAmount(e.target.value)}
                     disabled={submitting}
                   />
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex flex-col gap-2">
+                <Typography variant="muted" className="text-xs font-semibold uppercase">
+                  SAAOB Link
+                </Typography>
+                <div className="flex items-center gap-2">
+                  <SaaobSearchCombobox value={saaob} onChange={setSaaob} />
+                  {saaob && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => setSaaob(null)}
+                      disabled={submitting}
+                    >
+                      Clear
+                    </Button>
+                  )}
                 </div>
               </div>
 

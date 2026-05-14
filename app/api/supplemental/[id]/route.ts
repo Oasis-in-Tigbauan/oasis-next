@@ -34,7 +34,6 @@ export async function PATCH(
   const validate = await validator.validate<PatchSupplementalRequest>(body, {
     properties: {
       supplementalOrAugmentation: { type: "string", formatter: "non-empty-string" },
-      charges: { type: "string", formatter: "non-empty-string" },
       amount: { type: "string", formatter: "decimal" },
       supplementalType: {
         type: "string",
@@ -107,9 +106,8 @@ export async function DELETE(
 
 type PatchSupplementalRequest = {
   supplementalOrAugmentation?: string;
-  charges?: string;
   amount?: string;
   supplementalType?: "less" | "add";
-  saaobId?: string;
+  saaobId?: string | null;
   aipCode?: string;
 };

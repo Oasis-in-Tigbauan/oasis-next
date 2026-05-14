@@ -34,7 +34,8 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
         supplementalOrAugmentation: supplemental.supplementalOrAugmentation,
         amount: supplemental.amount,
         supplementalType: supplemental.supplementalType,
-        saaobId: supplemental.saaobId,
+        saaobId: saaobEntries.id,
+        saaobName: saaobEntries.name,
         aipCodeId: aipReferences.id,
         aipCodeValue: aipReferences.aipReferenceCode,
         aipCodeDescription: aipReferences.description,
@@ -42,6 +43,7 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
       })
       .from(supplemental)
       .leftJoin(aipReferences, eq(supplemental.aipRefCode, aipReferences.id))
+      .leftJoin(saaobEntries, eq(supplemental.saaobId, saaobEntries.id))
       .orderBy(asc(supplemental.createdAt), asc(supplemental.id));
 
     return new Success(rows.map(row => _mapRowToItem(row)));
@@ -144,7 +146,6 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
 
     const updateSet: Partial<{
       supplementalOrAugmentation: string | null;
-      charges: string | null;
       amount: string;
       supplementalType: SupplementalType;
       saaobId: string | null;
@@ -236,7 +237,8 @@ async function _getSupplementalById(id: string): Promise<SupplementalItem | null
       supplementalOrAugmentation: supplemental.supplementalOrAugmentation,
       amount: supplemental.amount,
       supplementalType: supplemental.supplementalType,
-      saaobId: supplemental.saaobId,
+      saaobId: saaobEntries.id,
+      saaobName: saaobEntries.name,
       aipCodeId: aipReferences.id,
       aipCodeValue: aipReferences.aipReferenceCode,
       aipCodeDescription: aipReferences.description,
@@ -244,6 +246,7 @@ async function _getSupplementalById(id: string): Promise<SupplementalItem | null
     })
     .from(supplemental)
     .leftJoin(aipReferences, eq(supplemental.aipRefCode, aipReferences.id))
+    .leftJoin(saaobEntries, eq(supplemental.saaobId, saaobEntries.id))
     .where(eq(supplemental.id, id))
     .limit(1);
 
@@ -257,7 +260,12 @@ function _mapRowToItem(row: SupplementalRow): SupplementalItem {
     supplementalOrAugmentation: row.supplementalOrAugmentation,
     amount: row.amount,
     supplementalType: row.supplementalType,
-    saaobId: row.saaobId,
+    saaob: row.saaobId && row.saaobName
+      ? {
+        id: row.saaobId,
+        name: row.saaobName,
+      }
+      : null,
     aipCode: row.aipCodeId && row.aipCodeValue && row.aipCodeDescription
       ? {
         id: row.aipCodeId,
@@ -344,6 +352,7 @@ type SupplementalRow = {
   amount: string;
   supplementalType: SupplementalType;
   saaobId: Optional<string>;
+  saaobName: Optional<string>;
   aipCodeId: Optional<string>;
   aipCodeValue: Optional<string>;
   aipCodeDescription: Optional<string>;
@@ -355,7 +364,10 @@ type SupplementalItem = {
   supplementalOrAugmentation: Optional<string>;
   amount: string;
   supplementalType: SupplementalType;
-  saaobId: Optional<string>;
+  saaob: Optional<{
+    id: string;
+    name: string;
+  }>;
   aipCode: Optional<{
     id: string;
     aipRefCode: string;

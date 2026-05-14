@@ -44,6 +44,8 @@ import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/r
 import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
 import type { LbacDataResponse, LbacGroupResponse, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
 import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
+import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
+export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
 
 export type {
   AccountsListResponse,
@@ -105,6 +107,9 @@ export type {
   LbacOfficeQuarterlyResponse,
   LbacQuarterlyGroupResponse,
   LbacQuarterlyItemResponse,
+  SaaobSearchResponse,
+  SaaobSearchGroup,
+  SaaobSearchEntry,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {
