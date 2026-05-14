@@ -9,13 +9,16 @@ export type EsreItem = {
   checkStatus: string | null | undefined;
   checkNumber: string | null | undefined;
   dvOrPayrollNumber: string | null | undefined;
-  charges: string | null | undefined;
   remarks: string | null | undefined;
   fundingSource: {
     id: string;
     name: string;
   };
   expenseType: {
+    id: string;
+    name: string;
+  } | null | undefined;
+  saaob: {
     id: string;
     name: string;
   } | null | undefined;

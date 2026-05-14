@@ -66,8 +66,7 @@ validator.addFormat("valid-number", {
 validator.addFormat("decimal", {
   forType: "string",
   formatterFn: async (v) => {
-    const value = Number(v);
-    if (!Number.isNaN(value) && Number.isFinite(value)) {
+    if (utilities.isNumber(v, false, false)) {
       return { ok: true };
     }
 

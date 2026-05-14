@@ -15,8 +15,8 @@ export type ObrMainDataItem = {
   date: string;
   payee: string;
   address: string;
-  requestSourceId: string;
-  saaobId: string | null;
+  requestSourceId: string | null;
+  saaob: { id: string; name: string } | null;
   responsibilityCenter: {
     id: string;
     name: string;

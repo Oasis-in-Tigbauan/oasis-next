@@ -13,7 +13,11 @@ import type {
   ObrMainDataItemResponse,
   ObrMainDataListResponse,
   ObrRequestDetailResponse,
+  SaaobSearchResponse,
+  SaaobSearchGroup,
+  SaaobSearchEntry,
 } from "@/lib/http/client/responses";
+import { isSaaobGroup } from "@/lib/http/client/responses";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +34,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -172,21 +182,21 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-8rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-6.7rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="[&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+            <Table className="text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead className="min-w-32">OBR</TableHead>
                   <TableHead className="min-w-48">ALOBS</TableHead>
                   <TableHead className="min-w-28">Date</TableHead>
-                  <TableHead className="min-w-40">Payee</TableHead>
-                  <TableHead className="min-w-48">Address</TableHead>
+                  <TableHead className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words">Payee</TableHead>
+                  <TableHead className="w-[220px] min-w-[220px] max-w-[220px] whitespace-normal break-words">Address</TableHead>
                   <TableHead className="min-w-44">Responsibility Center</TableHead>
-                  <TableHead className="min-w-44">Expense Name</TableHead>
+                  <TableHead className="w-[240px] min-w-[240px] max-w-[240px] whitespace-normal break-words">Expense Name</TableHead>
                   <TableHead className="min-w-36">Account Code</TableHead>
                   <TableHead className="min-w-28">PR #</TableHead>
-                  <TableHead className="min-w-56">Particulars</TableHead>
+                  <TableHead className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words">Particulars</TableHead>
                   <TableHead className="min-w-36 text-right">Obligated</TableHead>
                   <TableHead className="min-w-36 text-right">PR Amount</TableHead>
                   <TableHead className="min-w-36 text-right">Disbursed</TableHead>
@@ -204,27 +214,26 @@ export default function Page() {
 
                 {virtualRows.map(virtualRow => {
                   const item = items[virtualRow.index]!;
+                  const isSelected = selected?.id === item.id;
                   return (
                     <TableRow
                       ref={rowVirtualizer.measureElement}
                       key={item.id}
                       data-index={virtualRow.index}
-                      className="cursor-pointer select-none"
+                      className={`cursor-pointer select-none ${isSelected ? "bg-accent" : ""}`}
                       title="Double-click to edit"
                       onDoubleClick={() => handleRowDoubleClick(item)}
                     >
                       <TableCell className="font-medium">{item.obrNumber}</TableCell>
                       <TableCell>{item.alobs}</TableCell>
                       <TableCell>{formatDate(item.date)}</TableCell>
-                      <TableCell>{item.payee}</TableCell>
-                      <TableCell>{item.address}</TableCell>
+                      <TableCell className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words align-top">{item.payee}</TableCell>
+                      <TableCell className="w-[220px] min-w-[220px] max-w-[220px] whitespace-normal break-words align-top">{item.address}</TableCell>
                       <TableCell>{item.responsibilityCenter.name}</TableCell>
-                      <TableCell>{item.expenseCode.expenseName}</TableCell>
+                      <TableCell className="w-[240px] min-w-[240px] max-w-[240px] whitespace-normal break-words align-top">{item.expenseCode.expenseName}</TableCell>
                       <TableCell>{item.expenseCode.accountCode ?? "-"}</TableCell>
                       <TableCell>{item.prNumber || "-"}</TableCell>
-                      <TableCell className="max-w-[22rem] truncate" title={item.particulars}>
-                        {item.particulars}
-                      </TableCell>
+                      <TableCell className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words align-top">{item.particulars}</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(item.obligated)}</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(item.prAmount)}</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(item.disbursed)}</TableCell>
@@ -319,13 +328,13 @@ function ObrRequestViewDialog({
   open,
   onOpenChange,
 }: {
-  id: string;
+  id: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { data, error, isLoading } = useSWR<
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
-  >(open ? `/api/obr/requests/${id}` : null, $fetch);
+  >(open && id ? `/api/obr/requests/${id}` : null, $fetch);
 
   const detail = data?.data?.data;
 
@@ -418,6 +427,82 @@ function ObrRequestViewDialog({
   );
 }
 
+function SaaobSearchCombobox({
+  value,
+  onChange,
+}: {
+  value: { id: string; name: string } | null;
+  onChange: (val: { id: string; name: string } | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading } = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
+    open && query.length >= 2 ? `/api/saaob/search?query=${encodeURIComponent(query)}` : null,
+    $fetch,
+  );
+
+  const results = data?.data?.data ?? [];
+
+  function renderNodes(nodes: Array<SaaobSearchGroup | SaaobSearchEntry>, depth = 0) {
+    return nodes.map(node => {
+      if (isSaaobGroup(node)) {
+        return (
+          <div key={node.id}>
+            <div
+              className="px-3 py-1 text-xs font-semibold text-muted-foreground select-none"
+              style={{ paddingLeft: `${12 + depth * 12}px` }}
+            >
+              {node.name}
+            </div>
+            {renderNodes(node.children, depth + 1)}
+          </div>
+        );
+      }
+      return (
+        <button
+          key={node.id}
+          type="button"
+          className="flex w-full flex-col py-2 pr-3 text-left text-sm hover:bg-accent"
+          style={{ paddingLeft: `${12 + depth * 12}px` }}
+          onMouseDown={() => {
+            onChange({ id: node.id, name: node.name });
+            setOpen(false);
+            setQuery("");
+          }}
+        >
+          <span>{node.name}</span>
+          {node.accountCode && <span className="text-xs text-muted-foreground">{node.accountCode}</span>}
+        </button>
+      );
+    });
+  }
+
+  return (
+    <div className="relative flex flex-1 flex-col gap-1">
+      <Input
+        placeholder="Search SAAOB entry…"
+        value={open ? query : (value ? value.name : "")}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => setQuery(e.target.value)}
+      />
+      {open && (
+        <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+          {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>}
+          {!isLoading && results.length === 0 && query.length >= 2 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
+          )}
+          {!isLoading && query.length < 2 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+          )}
+          {renderNodes(results)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function aipRefToRow(ref: ObrMainDataAipReference): AipRefRow {
   return {
     rowId: ref.id,
@@ -444,6 +529,7 @@ function ObrMainDataEditDialog({
   const [prNumber, setPrNumber] = useState(item.prNumber ?? "");
   const [prAmount, setPrAmount] = useState(item.prAmount ?? "");
   const [aipRefs, setAipRefs] = useState<AipRefRow[]>(item.aipReferences.map(aipRefToRow));
+  const [saaob, setSaaob] = useState<{ id: string; name: string } | null>(item.saaob);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -481,6 +567,7 @@ function ObrMainDataEditDialog({
       if (prNumber.trim()) body.prNumber = prNumber.trim();
       if (prAmount.trim()) body.prAmount = prAmount.trim();
       body.aipReferences = aipRefs.map(r => ({ aipId: r.aipId, amount: r.amount }));
+      body.saaobId = saaob ? saaob.id : null;
 
       const response = await fetch(`/api/obr/main/${item.id}`, {
         method: "PATCH",
@@ -608,6 +695,29 @@ function ObrMainDataEditDialog({
 
               <div className="flex flex-col gap-2">
                 <Typography variant="muted" className="text-xs font-semibold uppercase">
+                  SAAOB Link
+                </Typography>
+                <div className="flex items-center gap-2">
+                  <SaaobSearchCombobox value={saaob} onChange={setSaaob} />
+                  {saaob && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => setSaaob(null)}
+                      disabled={submitting}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex flex-col gap-2">
+                <Typography variant="muted" className="text-xs font-semibold uppercase">
                   AIP References
                 </Typography>
 
@@ -652,15 +762,36 @@ function ObrMainDataEditDialog({
           )}
 
           <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setViewOpen(true)}
-              disabled={submitting}
-            >
-              View Original Request
-            </Button>
+            {item.requestSourceId ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setViewOpen(true)}
+                disabled={submitting}
+              >
+                View Original Request
+              </Button>
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        className="pointer-events-none"
+                      >
+                        View Original Request
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Request information for this OBR is not available</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <div className="flex gap-2">
               <DialogClose asChild>
                 <Button variant="outline" disabled={submitting}>Cancel</Button>

@@ -2729,6 +2729,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       createdAt: obrMainData.createdAt,
       requestSourceId: obrMainData.requestSourceId,
       saaobId: obrMainData.saaobId,
+      saaobName: saaobEntries.name,
 
       rcId: officeCodes.id,
       rcName: officeCodes.aa,
@@ -2748,6 +2749,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
     .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
     .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
     .innerJoin(userSchema, eq(userSchema.id, obrMainData.authorId))
+    .leftJoin(saaobEntries, eq(saaobEntries.id, obrMainData.saaobId))
     .where(filter)
     .orderBy(asc(obrMainData.obrNumber));
 
@@ -2816,8 +2818,8 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       date: dt.toISO()!,
       payee: r.payee,
       address: r.address,
-      requestSourceId: r.requestSourceId!,
-      saaobId: r.saaobId ?? null,
+      requestSourceId: r.requestSourceId ?? null,
+      saaob: r.saaobId ? { id: r.saaobId, name: r.saaobName ?? "" } : null,
       responsibilityCenter: {
         id: r.rcId,
         name: r.rcName,
@@ -3074,8 +3076,8 @@ export type ObrMainDataItem = {
   date: string;
   payee: string;
   address: string;
-  requestSourceId: string;
-  saaobId: Optional<string>;
+  requestSourceId: string | null;
+  saaob: { id: string; name: string } | null;
   responsibilityCenter: {
     id: string;
     name: string;

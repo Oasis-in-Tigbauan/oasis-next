@@ -7,10 +7,12 @@ import { oneOf } from "@/lib/one-of";
 import { validatorUtilities } from "@/lib/validators";
 
 export async function GET(req: NextRequest) {
-  const session = await auth.verify(
-    [permission.ESRE_READ, permission.LBAC_DATA_READ, permission.SUPPLEMENTAL_READ, permission.SAAOB_DATA_READ],
-    "and",
-  );
+  const session = await auth.verify([
+    permission.ESRE_READ,
+    permission.LBAC_DATA_READ,
+    permission.SUPPLEMENTAL_READ,
+    permission.SAAOB_DATA_READ,
+  ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }

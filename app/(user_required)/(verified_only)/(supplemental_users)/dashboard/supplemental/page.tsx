@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const TOTAL_COLS = 8;
+const TOTAL_COLS = 7;
 
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<SupplementalListResponse, ApiResponseException>>(
@@ -52,7 +52,7 @@ export default function Page() {
     return sourceItems.filter(item => {
       return (
         item.supplementalOrAugmentation?.toLowerCase().includes(query) ||
-        item.charges?.toLowerCase().includes(query) ||
+        item.saaob?.name?.toLowerCase().includes(query) ||
         item.quarter.toLowerCase().includes(query) ||
         item.amount.toLowerCase().includes(query) ||
         item.aipCode?.aipRefCode?.toLowerCase().includes(query)
@@ -153,7 +153,6 @@ export default function Page() {
                 <TableRow>
                   <TableHead className="w-40 min-w-40">Date</TableHead>
                   <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Supplemental/Augmentation</TableHead>
-                  <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Charges</TableHead>
                   <TableHead className="w-44 min-w-44">Less: Source of Funds</TableHead>
                   <TableHead className="w-48 min-w-48">Add: Object of Expenditures</TableHead>
                   <TableHead className="w-28 min-w-28">Quarter</TableHead>
@@ -187,7 +186,6 @@ export default function Page() {
                     >
                       <TableCell className="w-40 min-w-40">{formatDate(item.date)}</TableCell>
                       <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.supplementalOrAugmentation ?? "—"}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.charges ?? "—"}</TableCell>
                       <TableCell className="w-44 min-w-44 text-right font-mono">
                         {item.supplementalType === "less" ? formatMoney(item.amount) : "—"}
                       </TableCell>

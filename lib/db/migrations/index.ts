@@ -2,6 +2,7 @@ import { aipMigration } from "@/lib/db/migrations/aip";
 import { expenseCodesMigration } from "@/lib/db/migrations/expense-codes";
 import { lbacMigration } from "@/lib/db/migrations/lbac";
 import { roleMigration } from "@/lib/db/migrations/role";
+import { obrEntriesMigration } from "@/lib/db/migrations/obr";
 import { officeCodesMigration } from "@/lib/db/migrations/office-code";
 import { saaobEntriesMigration } from "@/lib/db/migrations/saaob";
 import { supplementalMigration } from "@/lib/db/migrations/supplemental";
@@ -20,9 +21,10 @@ if (!flags.has("--critical-only")) {
       aipMigration,
       officeCodesMigration,
       expenseCodesMigration,
+      saaobEntriesMigration,
       lbacMigration,
       supplementalMigration,
-      saaobEntriesMigration,
+      obrEntriesMigration,
     ],
   );
 }
