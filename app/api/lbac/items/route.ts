@@ -28,6 +28,7 @@ type CreateLbacItemBody = {
   remarksForOtherMetadata?: string | null;
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
+  saaobId?: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
       proposedBudgetCO: { type: "string", formatter: "decimal" },
       implementingUnitId: { type: "string", formatter: "uuid" },
       expenseCodeId: { type: "string", formatter: "uuid" },
+      saaobId: { type: "string", formatter: "uuid" },
       gadable: { type: "boolean" },
       majorFinalOutput: { type: "string", formatter: "non-empty-string" },
       performanceOutputIndicator: { type: "string", formatter: "non-empty-string" },

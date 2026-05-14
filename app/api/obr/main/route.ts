@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       obrNumber: { type: "string", formatter: "non-empty-string" },
       prNumber: { type: "string", formatter: "non-empty-string" },
       prAmount: { type: "string", formatter: "decimal" },
+      saaobId: { type: "string", formatter: "uuid" },
       aipReferences: {
         type: "object",
         formatterFn: async v => {
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
       obrNumber: body.obrNumber,
       prNumber: body.prNumber,
       prAmount: body.prAmount,
+      saaobId: body.saaobId,
       aipReferences: body.aipReferences,
     },
     session.user!,
@@ -96,5 +98,6 @@ type CreateObrMainDataBody = {
   obrNumber: string;
   prNumber?: string;
   prAmount?: string;
+  saaobId?: string;
   aipReferences?: Array<{ aipId: string; amount: string }>;
 };

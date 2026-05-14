@@ -58,6 +58,16 @@ export async function POST(req: NextRequest) {
           return { ok: true };
         },
       },
+      saaobId: {
+        type: "string",
+        formatterFn: async v => {
+          if (!validatorUtilities.isUuid(v)) {
+            return { ok: false, error: "Invalid SAAOB entry ID." };
+          }
+
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: ["amount", "supplementalType"],
     allowUnvalidatedProperties: false,
@@ -73,6 +83,7 @@ export async function POST(req: NextRequest) {
     charges: body.charges,
     amount: body.amount,
     supplementalType: body.supplementalType,
+    saaobId: body.saaobId,
     aipCode: body.aipCode,
   }, session.user!.id);
   return oneOf(result).match(
@@ -86,5 +97,6 @@ type CreateSupplementalRequest = {
   charges?: string;
   amount: string;
   supplementalType: "less" | "add";
+  saaobId?: string;
   aipCode?: string;
 };

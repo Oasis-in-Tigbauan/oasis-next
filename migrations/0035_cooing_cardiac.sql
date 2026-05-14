@@ -1,0 +1,2 @@
+ALTER TABLE "saaob_entry_group" ADD COLUMN "office_id" text;--> statement-breakpoint
+ALTER TABLE "saaob_entry_group" ADD CONSTRAINT "saaob_entry_group_office_id_office_id_fk" FOREIGN KEY ("office_id") REFERENCES "public"."office"("id") ON DELETE no action ON UPDATE no action;

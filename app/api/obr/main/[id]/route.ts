@@ -44,6 +44,7 @@ export async function PATCH(
       obrNumber: { type: "string", formatter: "non-empty-string" },
       prNumber: { type: "string", formatter: "non-empty-string" },
       prAmount: { type: "string", formatter: "decimal" },
+      saaobId: { type: "string", formatter: "uuid" },
       aipReferences: {
         type: "object",
         formatterFn: async v => {
@@ -84,6 +85,7 @@ export async function PATCH(
       obrNumber: body.obrNumber,
       prNumber: body.prNumber,
       prAmount: body.prAmount,
+      saaobId: body.saaobId,
       aipReferences: body.aipReferences,
     },
     session.user!,
@@ -99,5 +101,6 @@ type UpdateObrMainDataBody = {
   obrNumber?: string;
   prNumber?: string;
   prAmount?: string;
+  saaobId?: string | null;
   aipReferences?: Array<{ aipId: string; amount: string }>;
 };

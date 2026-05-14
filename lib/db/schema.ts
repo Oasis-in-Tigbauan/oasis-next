@@ -251,6 +251,55 @@ export const expenseType = pgTable("expense_type", {
     .notNull(),
 });
 
+export const saaobEntryGroup = pgTable("saaob_entry_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id"),
+  officeId: text("office_id")
+    .references(() => office.id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const saaobEntries = pgTable("saaob_entries", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+  accountCode: text("account_code"),
+  annualBudget: decimal("annual_budget")
+    .notNull(),
+  refCode: text("ref_code"),
+  remarks: text("remarks"),
+
+  parentId: text("parent_id")
+    .references(() => saaobEntryGroup.id)
+    .notNull(),
+  expenseCodeId: text("expense_code")
+    .references(() => expenseClasses.id),
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
 
 export const obrRequests = pgTable("obr_requests", {
@@ -460,10 +509,11 @@ export const supplemental = pgTable("supplemental", {
     .primaryKey()
     .$defaultFn(() => uuidv7()),
   supplementalOrAugmentation: text("supplemental_or_augmentation"),
-  charges: text("charges"),
   amount: decimal("amount").notNull(),
   supplementalType: supplementalTypeEnum("supplemental_type").notNull(),
 
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
   aipRefCode: text("aip_ref_code")
     .references(() => aipReferences.id),
   author: text("author_id")
@@ -609,6 +659,8 @@ export const lbacItems = pgTable("lbac_items", {
     .references(() => officeCodes.id),
   expenseCodeId: text("expense_code_id")
     .references(() => expenseClasses.id),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
 
   // Quarterly Reports
   quarterlyReportId: text("lbac_quarterly_report")
@@ -656,11 +708,12 @@ export const obrMainData = pgTable("obr_main_data", {
   expenseCodeId: text("expense_code_id")
     .references(() => expenseClasses.id)
     .notNull(),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
 
   // Other metadata
   requestSourceId: text("request_source_id")
-    .references(() => obrRequests.id)
-    .notNull(),
+    .references(() => obrRequests.id),
   authorId: text("author_id")
     .references(() => user.id)
     .notNull(),
@@ -718,57 +771,12 @@ export const esre = pgTable("esre", {
   natureOfPayment: text("nature_of_payment").notNull(),
   amount: decimal("amount").notNull(),
   checkStatus: checkStatusEnum("check_status"),
-  charges: text("charges"),
   remarks: text("remarks"),
   expenseTypeId: text("expense_type_id")
     .references(() => expenseType.id),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
 
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
-
-export const saaobEntryGroup = pgTable("saaob_entry_group", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => uuidv7()),
-  name: text("name").notNull(),
-
-  parentId: text("parent_id"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-}, table => [
-  foreignKey({
-    columns: [table.parentId],
-    foreignColumns: [table.id],
-  }),
-]);
-
-export const saaobEntries = pgTable("saaob_entries", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => uuidv7()),
-  name: text("name").notNull(),
-  accountCode: text("account_code"),
-  annualBudget: decimal("annual_budget")
-    .notNull(),
-  refCode: text("ref_code"),
-
-  parentId: text("parent_id")
-    .references(() => saaobEntryGroup.id)
-    .notNull(),
-  expenseCodeId: text("expense_code")
-    .references(() => expenseClasses.id),
-  authorId: text("author_id")
-    .references(() => user.id)
-    .notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),

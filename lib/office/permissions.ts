@@ -122,6 +122,18 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.AIP_WRITE,
     description: "People with this permission can write to AIP related worksheets.",
   },
+  {
+    permission: permissions.SAAOB_DATA_READ,
+    description: "People with this permission can read SAAOB Main Data entries & summaries",
+  },
+  {
+    permission: permissions.SAAOB_DATA_WRITE,
+    description: "People with this permission can write SAAOB Main Data entries & summaries",
+  },
+  {
+    permission: permissions.SAAOB_OFFICE_READ,
+    description: "People with this permission can read SAAOB office-specific entries.",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -156,6 +168,9 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.LBAC_OFFICE_WRITE,
     permissions.AIP_READ,
     permissions.AIP_WRITE,
+    permissions.SAAOB_DATA_READ,
+    permissions.SAAOB_DATA_WRITE,
+    permissions.SAAOB_OFFICE_READ,
   ],
 );
 
