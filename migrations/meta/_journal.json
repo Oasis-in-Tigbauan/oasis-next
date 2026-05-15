@@ -260,6 +260,13 @@
       "when": 1778696230813,
       "tag": "0036_pink_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1778843052571,
+      "tag": "0037_tricky_morlocks",
+      "breakpoints": true
     }
   ]
 }

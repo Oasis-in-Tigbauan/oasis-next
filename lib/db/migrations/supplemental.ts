@@ -62,7 +62,7 @@ export const supplementalMigration: MigratorFn = async (client): Promise<void> =
   const saaobByRefCode = new Map(
     saaobRows
       .filter(r => r.refCode)
-      .map(r => [r.refCode!.trim(), r.id]),
+      .map(r => [r.refCode!.trim().toUpperCase(), r.id]),
   );
 
   const records: Array<typeof supplemental.$inferInsert> = [];
@@ -97,7 +97,7 @@ export const supplementalMigration: MigratorFn = async (client): Promise<void> =
       amount,
       supplementalType,
       aipRefCode,
-      saaobId: saaobByRefCode.get((row["CHARGES"] ?? "").trim()) ?? null,
+      saaobId: saaobByRefCode.get((row["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
       author: systemUser.id,
       createdAt,
       updatedAt: createdAt,
