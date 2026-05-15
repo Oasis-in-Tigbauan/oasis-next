@@ -1,0 +1,305 @@
+"use client";
+
+import { Plus } from "lucide-react";
+import { type SubmitEvent, useState } from "react";
+import useSWR from "swr";
+
+import { $fetch } from "@/lib/http/client/fetch";
+import {
+  ApiResponseException,
+  BetterFetchResponse,
+  ProcurementTypesListResponse,
+  ProcurementTypeResponse,
+} from "@/lib/http/client/responses";
+
+import { Button } from "@/components/ui/button";
+import DeadHamster from "@/components/dead-hamster";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Field, FieldGroup } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import Loading from "@/components/loading";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import Typography from "@/components/typography";
+import { validatorUtilities } from "@/lib/validators";
+
+export default function Page() {
+  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>>(
+    "/api/management/data/procurement-types", $fetch);
+
+  if (isLoading) {
+    return (<Loading />);
+  }
+
+  if (error || data?.error) {
+    return (<DeadHamster />);
+  }
+
+  const handleCreateMutate = (item: ProcurementTypeResponse) => {
+    if (data?.data?.data && Array.isArray(data?.data?.data)) {
+      mutate({
+        data: {
+          ok: true,
+          data: [...(data?.data?.data || []), item.data],
+        },
+        error: undefined,
+      }).catch(console.error);
+    }
+  };
+
+  const handleUpdateMutate = (item: ProcurementTypeResponse) => {
+    if (data?.data?.data && Array.isArray(data?.data?.data)) {
+      mutate({
+        data: {
+          ok: true,
+          data: (data?.data?.data || []).map(x => {
+            if (x.id === item.data.id) return item.data;
+            return x;
+          }),
+        },
+        error: undefined,
+      }).catch(console.error);
+    }
+  };
+
+  return (
+    <div className="p-4 pt-0 w-full">
+      <div className="w-full flex gap-4">
+        <Typography variant="h3" className="mb-4 grow">Mode of Procurements</Typography>
+        <CreateFundTypeDialog mutate={handleCreateMutate} />
+      </div>
+      <Table>
+        <TableCaption>
+          Loaded total of&nbsp;
+          <span>
+            {data?.data?.data && Array.isArray(data.data.data) ? data.data.data.length : 0}
+          </span>&nbsp;items
+        </TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {
+            (data?.data?.data || []).map(x => (
+              <ProcurementTypeRow key={x.id} data={x} mutate={handleUpdateMutate} />
+            ))
+          }
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeResponse) => void}) {
+  const [open, setOpen] = useState(false);
+
+  const [payload, setPayload] = useState<ProcurementTypePayload>({
+    name: "",
+    description: null,
+  });
+
+  const handleInput = (key: keyof ProcurementTypePayload, value: string) => {
+    setPayload(prev => ({
+      ...prev,
+      [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+    }));
+  };
+
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const res = await $fetch<ProcurementTypeResponse, ApiResponseException>(
+      "/api/management/data/procurement-types",
+      {
+        method: "POST",
+        body: payload,
+      });
+
+    if (res.error || !res.data.data)  {
+      alert("Failed to create Procurement Type. Try again later.");
+      return;
+    }
+
+    // Mutate the parent response.
+    mutate(res.data);
+
+    // Reset and close.
+    alert("Procurement Type created successfully.");
+
+    setPayload({
+      name: "",
+      description: null,
+    });
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="ml-auto">
+          <Plus />
+          Add a new Procurement Type
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create a new Procurement Type</DialogTitle>
+          <DialogDescription>
+            Enter the details of the Procurement Type you want to create.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup className="mb-4">
+            <Field>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Enter the Procurement Type name"
+                value={payload.name}
+                onInput={e => handleInput("name", e.currentTarget.value)}
+                required
+              />
+            </Field>
+          </FieldGroup>
+          <FieldGroup>
+            <Field>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Enter the Procurement Type description"
+                value={payload.description ?? ""}
+                onInput={e => handleInput("description", e.currentTarget.value)}
+              />
+            </Field>
+          </FieldGroup>
+          <DialogFooter className="mt-4">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit">Create</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProcurementTypeRow({ data, mutate }: { data: ProcurementTypeResponse["data"], mutate: (item: ProcurementTypeResponse) => void }) {
+  const [open, setOpen] = useState(false);
+
+  const [payload, setPayload] = useState<ProcurementTypePayload>({
+    name: data.name,
+    description: data.description,
+  });
+
+  const handleInput = (key: keyof ProcurementTypePayload, value: string) => {
+    setPayload(prev => {
+      return {
+        ...prev,
+        [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      };
+    });
+  };
+
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const res = await $fetch<ProcurementTypeResponse, ApiResponseException>(
+      `/api/management/data/procurement-types/${data.id}`,
+      {
+        method: "PATCH",
+        body: payload,
+      });
+
+    if (res.error || !res.data.data)  {
+      alert("Failed to update Procurement Type. Try again later.");
+      return;
+    }
+
+    // Mutate the parent response.
+    mutate(res.data);
+
+    // Close.
+    alert("Procurement Type updated successfully.");
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <TableRow className="cursor-pointer">
+          <TableCell className="font-medium">{data.name}</TableCell>
+          <TableCell>{data.description}</TableCell>
+        </TableRow>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Update Procurement Type</DialogTitle>
+          <DialogDescription>
+            Update the Procurement Type details.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup className="mb-4">
+            <Field>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Enter the account name"
+                value={payload.name}
+                onInput={e => handleInput("name", e.currentTarget.value)}
+                required
+              />
+            </Field>
+          </FieldGroup>
+          <FieldGroup>
+            <Field>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Enter the Procurement Type description"
+                value={payload.description ?? ""}
+                onInput={e => handleInput("description", e.currentTarget.value)}
+              />
+            </Field>
+          </FieldGroup>
+          <DialogFooter className="mt-4">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit">Update</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type ProcurementTypePayload = {
+  name: string;
+  description: Optional<string>;
+}

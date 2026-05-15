@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BriefcaseBusiness,
   ChevronRight,
   FileSpreadsheet,
   LampDesk,
@@ -166,6 +167,12 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                   <SidebarMenuButton>
                     <PhilippinePeso />
                     <a href="/dashboard/settings/fund-types">Fund Types</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <BriefcaseBusiness />
+                    <a href="/dashboard/settings/procurement-types">Procurement Types</a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarGroupContent>

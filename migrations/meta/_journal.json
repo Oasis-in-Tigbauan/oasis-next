@@ -267,6 +267,13 @@
       "when": 1778843052571,
       "tag": "0037_tricky_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1778860228206,
+      "tag": "0038_lucky_iron_patriot",
+      "breakpoints": true
     }
   ]
 }
