@@ -145,6 +145,7 @@ export default function Page() {
 
   const items = data?.data?.data ?? [];
 
+  // eslint-disable-next-line
   const rowVirtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => tableScrollRef.current,

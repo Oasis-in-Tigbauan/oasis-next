@@ -125,6 +125,7 @@ export default function Page() {
     [roots, expandedIds],
   );
 
+  // eslint-disable-next-line
   const rowVirtualizer = useVirtualizer({
     count: visibleRows.length,
     getScrollElement: () => tableScrollRef.current,

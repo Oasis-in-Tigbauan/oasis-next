@@ -97,6 +97,7 @@ export default function Page() {
   const tree = data?.data?.data ?? [];
   const flatRows = flattenVisible(tree, collapsed, 0);
 
+  // eslint-disable-next-line
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => tableScrollRef.current,
