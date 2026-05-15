@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -185,7 +184,7 @@ export default function Page() {
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const tree = data?.data?.data ?? [];
+  const tree = useMemo(() => data?.data?.data ?? [], [data?.data?.data]);
   const allGroups = useMemo(() => collectGroups(tree), [tree]);
 
   const matchingGroupIds = useMemo(
@@ -198,6 +197,7 @@ export default function Page() {
     [tree, collapsed, searchQuery, matchingGroupIds],
   );
 
+  // eslint-disable-next-line
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => tableScrollRef.current,

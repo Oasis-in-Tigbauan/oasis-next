@@ -9,6 +9,7 @@ import { validator, validatorUtilities } from "@/lib/validators";
 
 type UpdateGroupBody = {
   name?: string;
+  officeId?: string | null;
 };
 
 export async function PATCH(
@@ -33,6 +34,17 @@ export async function PATCH(
   const validate = await validator.validate<UpdateGroupBody>(body, {
     properties: {
       name: { type: "string", formatter: "non-empty-string" },
+      officeId: {
+        type: "object",
+        formatterFn: async value => {
+          if (value === undefined || value === null) return { ok: true };
+          if (typeof value === "string") {
+            const ok = validatorUtilities.isUuid(value);
+            return ok ? { ok: true } : { ok: false, error: "officeId must be a valid uuid." };
+          }
+          return { ok: false, error: "officeId must be a valid uuid or null." };
+        },
+      },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
@@ -41,7 +53,11 @@ export async function PATCH(
     return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validate.errors!).build();
   }
 
-  const result = await saaob.updateGroup(id, body.name);
+  const result = await saaob.updateGroup(
+    id,
+    body.name,
+    Object.prototype.hasOwnProperty.call(body, "officeId") ? body.officeId ?? null : undefined,
+  );
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),

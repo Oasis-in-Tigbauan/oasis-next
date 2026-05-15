@@ -45,7 +45,14 @@ import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemRespons
 import type { LbacDataResponse, LbacGroupResponse, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
 import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
+import type {
+  SaaobDataResponse,
+  SaaobEntryResponse,
+  SaaobGroupResponse,
+  SaaobOfficeResponse,
+} from "@/lib/http/client/responses/SaaobDataResponse";
 export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
+export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
 
 export type {
   AccountsListResponse,
@@ -107,6 +114,10 @@ export type {
   LbacOfficeQuarterlyResponse,
   LbacQuarterlyGroupResponse,
   LbacQuarterlyItemResponse,
+  SaaobDataResponse,
+  SaaobOfficeResponse,
+  SaaobEntryResponse,
+  SaaobGroupResponse,
   SaaobSearchResponse,
   SaaobSearchGroup,
   SaaobSearchEntry,

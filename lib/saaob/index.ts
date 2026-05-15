@@ -9,6 +9,7 @@ import {
   esre,
   expenseClasses,
   lbacItems,
+  office,
   obrMainAipReferences,
   obrMainData,
   saaobEntries,
@@ -51,16 +52,22 @@ export async function getAll(): Promise<Result<SaaobElements>> {
  * Optionally accepts a `parentId` to nest the group under an existing group.
  * When `parentId` is provided the parent must exist; otherwise a
  * {@link Failure} with code {@link ErrorCodes.ResourceNotFound} is returned.
- * The new group is created with `officeId = null` (global, not office-tagged).
+ * Optionally accepts `officeId` to assign the group to a specific office.
  *
  * @async
  * @function createGroup
  * @param {string} name - Display name for the new group.
  * @param {User} _user - The authenticated user (reserved for future auditing).
  * @param {string} [parentId] - ID of the parent group, or omitted for a root group.
+ * @param {string | null} [officeId] - Optional office assignment for this group.
  * @returns {Promise<Result<SaaobGroup>>} The created group with an empty children array.
  */
-export async function createGroup(name: string, _user: User, parentId?: string): Promise<Result<SaaobGroup>> {
+export async function createGroup(
+  name: string,
+  _user: User,
+  parentId?: string,
+  officeId?: string | null,
+): Promise<Result<SaaobGroup>> {
   try {
     if (parentId) {
       const [parent] = await db
@@ -73,14 +80,30 @@ export async function createGroup(name: string, _user: User, parentId?: string):
       }
     }
 
+    if (officeId !== undefined && officeId !== null) {
+      const [officeExists] = await db
+        .select({ id: office.id })
+        .from(office)
+        .where(eq(office.id, officeId))
+        .limit(1);
+      if (!officeExists) {
+        return new Failure(ErrorCodes.ValidationFailure, "Assigned office does not exist.", { officeId });
+      }
+    }
+
     const [created] = await db
       .insert(saaobEntryGroup)
-      .values({ name, parentId: parentId ?? null, officeId: null })
-      .returning({ id: saaobEntryGroup.id, name: saaobEntryGroup.name });
+      .values({ name, parentId: parentId ?? null, officeId: officeId ?? null })
+      .returning({ id: saaobEntryGroup.id, name: saaobEntryGroup.name, officeId: saaobEntryGroup.officeId });
 
-    return new Success({ id: created.id, name: created.name, children: [] });
+    return new Success({
+      id: created.id,
+      name: created.name,
+      officeId: created.officeId ?? undefined,
+      children: [],
+    });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create SAAOB group.", { name, parentId }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to create SAAOB group.", { name, parentId, officeId }, e);
   }
 }
 
@@ -267,12 +290,17 @@ export async function moveEntry(id: string, target: string): Promise<Result<null
  * @function updateGroup
  * @param {string} id - ID of the group to update.
  * @param {string} [name] - New name for the group.
- * @returns {Promise<Result<BaseSaaobGroup>>} The updated group (id + name only).
+ * @param {string | null} [officeId] - Office assignment for the group (`null` clears assignment).
+ * @returns {Promise<Result<BaseSaaobGroup>>} The updated group.
  */
-export async function updateGroup(id: string, name?: string): Promise<Result<BaseSaaobGroup>> {
+export async function updateGroup(
+  id: string,
+  name?: string,
+  officeId?: string | null,
+): Promise<Result<BaseSaaobGroup>> {
   try {
     const [existing] = await db
-      .select({ id: saaobEntryGroup.id, name: saaobEntryGroup.name })
+      .select({ id: saaobEntryGroup.id, name: saaobEntryGroup.name, officeId: saaobEntryGroup.officeId })
       .from(saaobEntryGroup)
       .where(eq(saaobEntryGroup.id, id))
       .limit(1);
@@ -280,13 +308,40 @@ export async function updateGroup(id: string, name?: string): Promise<Result<Bas
       return new Failure(ErrorCodes.ResourceNotFound, "Group not found.", { id });
     }
 
-    if (name !== undefined) {
-      await db.update(saaobEntryGroup).set({ name }).where(eq(saaobEntryGroup.id, id));
+    if (officeId !== undefined && officeId !== null) {
+      const [officeExists] = await db
+        .select({ id: office.id })
+        .from(office)
+        .where(eq(office.id, officeId))
+        .limit(1);
+      if (!officeExists) {
+        return new Failure(ErrorCodes.ValidationFailure, "Assigned office does not exist.", { officeId });
+      }
     }
 
-    return new Success({ id, name: name ?? existing.name });
+    const updateValues: Partial<Pick<typeof saaobEntryGroup.$inferInsert, "name" | "officeId">> = {};
+    if (name !== undefined) {
+      updateValues.name = name;
+    }
+
+    if (officeId !== undefined) {
+      updateValues.officeId = officeId;
+    }
+
+    if (Object.keys(updateValues).length > 0) {
+      await db.update(saaobEntryGroup).set(updateValues).where(eq(saaobEntryGroup.id, id));
+    }
+
+    const resolvedName = name ?? existing.name;
+    const resolvedOfficeId = officeId === undefined ? existing.officeId : officeId;
+
+    return new Success({
+      id,
+      name: resolvedName,
+      officeId: resolvedOfficeId ?? undefined,
+    });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update SAAOB group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to update SAAOB group.", { id, officeId }, e);
   }
 }
 
@@ -595,6 +650,7 @@ export async function searchItems(query: string): Promise<Result<SaaobSearchResu
         return {
           id: group.id,
           name: group.name,
+          officeId: group.officeId ?? undefined,
           children: [
             ...directChildGroups.map(cg => buildPrunedGroup(cg)),
             ...directChildEntries.map(e => computedEntryMap.get(e.id)).filter((e): e is SaaobEntry => e !== undefined),
@@ -613,6 +669,7 @@ export async function searchItems(query: string): Promise<Result<SaaobSearchResu
       return {
         id: group.id,
         name: group.name,
+        officeId: group.officeId ?? undefined,
         children: [...relevantChildGroups.map(cg => buildPrunedGroup(cg)), ...relevantEntries],
       };
     };
@@ -834,6 +891,7 @@ function _buildTree(
     return {
       id: group.id,
       name: group.name,
+      officeId: group.officeId ?? undefined,
       children: [...childGroups.map(cg => buildGroup(cg)), ...childEntries],
     };
   };
@@ -1188,6 +1246,7 @@ async function _fetchLbacDataBySaaobIds(
 
 export type SaaobCreateGroupPayload = {
   parentId?: string;
+  officeId?: string | null;
   name: string;
 };
 
@@ -1245,6 +1304,7 @@ export type SaaobEntry = {
 export type BaseSaaobGroup = {
   id: string;
   name: string;
+  officeId?: string;
 };
 
 export type SaaobGroup = BaseSaaobGroup & {

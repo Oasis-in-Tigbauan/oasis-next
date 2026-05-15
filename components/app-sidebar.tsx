@@ -113,6 +113,19 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
               )
             }
             {
+              (
+                permissionMap.has(permissions.SAAOB_OFFICE_READ)
+                || permissionMap.has(permissions.SAAOB_DATA_READ)
+              ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/saaob">SAAOB</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
+            {
               permissionMap.has(permissions.AIP_READ) && (
                 <SidebarMenuItem>
                   <SidebarMenuButton>

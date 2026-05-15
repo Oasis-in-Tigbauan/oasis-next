@@ -11,6 +11,7 @@ import {
   lbacQuarterlyReport,
   officeCodes,
   officePosition,
+  saaobEntries,
   user,
 } from "@/lib/db/schema";
 
@@ -50,6 +51,13 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
 
   const officeCodeByAa = new Map(allOfficeCodes.map(r => [r.aa.trim().toLowerCase(), r.id]));
   const aipRefByCode = new Map(allAipReferences.map(r => [r.code.trim().toLowerCase(), r.id]));
+
+  const allSaaobEntries = await client.select({ id: saaobEntries.id, refCode: saaobEntries.refCode }).from(saaobEntries);
+  const saaobByRefCode = new Map(
+    allSaaobEntries
+      .filter(r => r.refCode)
+      .map(r => [r.refCode!.trim(), r.id]),
+  );
 
   // Parse source data
   const lbacObjects = await parseLbacEntries();
@@ -137,6 +145,7 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
           amountAttributed: tryGetDecimal(item["AMOUNT ATTRIBUTED"]),
           implementingUnitId,
           expenseCodeId: null,
+          saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim()) ?? null,
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: systemUser.id,
