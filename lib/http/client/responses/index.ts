@@ -56,6 +56,9 @@ import type {
   SaaobSummaryGroupResponse,
   SaaobSummaryItemResponse,
 } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+import type { ProcurementTypesListResponse  } from "@/lib/http/client/responses/ProcurementTypesListResponse";
+import type { ProcurementTypeResponse } from "@/lib/http/client/responses/ProcurementTypeResponse";
+
 export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
 export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
 export { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
@@ -130,6 +133,8 @@ export type {
   SaaobSummaryDataResponse,
   SaaobSummaryGroupResponse,
   SaaobSummaryItemResponse,
+  ProcurementTypesListResponse,
+  ProcurementTypeResponse,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

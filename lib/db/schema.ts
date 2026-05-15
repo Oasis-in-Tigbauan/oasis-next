@@ -835,6 +835,85 @@ export const esre = pgTable("esre", {
     .notNull(),
 });
 
+export const modeOfProcurements = pgTable("mode_of_procurements", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  name: text("name").notNull(),
+  description: text("description"),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+});
+
+export const purchasing = pgTable("purchasing", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  prNumber: text("pr_number").notNull(),
+  purchaseOrderNumber: text("purchse_order_number"),
+  supplier: text("supplier"),
+  address: text("address"),
+  tinNumber: text("tin_number"),
+  placeOfDelivery: text("place_of_delivery"),
+  dateOfDelivery: timestamp("date_of_delivery", { withTimezone: true, mode: "date" }),
+  deliveryTerm: text("delivery_term"),
+  paymentTerm: text("payment_term"),
+  unit: text("unit").notNull(),
+  itemDescription: text("item_description").notNull(),
+  quantity: decimal("quantity").notNull(),
+  unitCost: decimal("unit_cost").notNull(),
+  purpose: text("purpose").notNull(),
+
+  requestingOfficeId: text("requesting_office_id")
+    .references(() => office.id)
+    .notNull(),
+  headOfOfficeId: text("head_of_office_id")
+    .references(() => user.id)
+    .notNull(),
+  headOfOfficeName: text("head_of_office_name")
+    .notNull(),
+  headOfOfficePosition: text("head_of_office_position")
+    .notNull(),
+  procurementId: text("procurement_id")
+    .references(() => modeOfProcurements.id),
+  approverId: text("approver_id")
+    .references(() => user.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const purchasingAip = pgTable("purchasing_aip", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  // Lookup based on AIP Code, but we will use LBAC for reasons.
+  lbacReferenceId: text("lbac_reference_id")
+    .references(() => lbacItems.id)
+    .notNull(),
+
+  // LBAC values are cached here
+  aipCode: text("aip_code")
+    .notNull(),
+  ppa: text("ppa").notNull(),
+  sourceOfFund: text("source_of_fund"),
+  amountCharged: decimal("amount_charged"),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
