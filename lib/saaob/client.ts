@@ -3,6 +3,11 @@ import type {
   SaaobGroupResponse,
 } from "@/lib/http/client/responses/SaaobDataResponse";
 import { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
+import type {
+  SaaobSummaryGroupResponse,
+  SaaobSummaryItemResponse,
+} from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+import { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
 
 export type SaaobTreeNode = SaaobGroupResponse | SaaobEntryResponse;
 
@@ -145,4 +150,89 @@ export function fmtPercent(value: string | null | undefined): string {
 export function txt(value: string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "-";
   return value;
+}
+
+// ============================================================
+// SUMMARY OF ACCOUNTS — Client utilities
+// ============================================================
+
+export type SaaobSummaryTreeNode = SaaobSummaryGroupResponse | SaaobSummaryItemResponse;
+
+export type SaaobSummaryFlatRow =
+  | { kind: "group"; id: string; depth: number; data: SaaobSummaryGroupResponse }
+  | { kind: "item"; id: string; depth: number; data: SaaobSummaryItemResponse; groupId: string };
+
+export function collectSaaobSummaryGroups(
+  nodes: SaaobSummaryTreeNode[],
+  result: SaaobSummaryGroupResponse[] = [],
+): SaaobSummaryGroupResponse[] {
+  for (const node of nodes) {
+    if (isSaaobSummaryDataGroup(node)) {
+      result.push(node);
+      collectSaaobSummaryGroups(node.children, result);
+    }
+  }
+  return result;
+}
+
+export function filterSaaobSummaryTreeByQuery(
+  tree: SaaobSummaryGroupResponse[],
+  query: string,
+): SaaobSummaryGroupResponse[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return tree;
+
+  const filterNodes = (nodes: SaaobSummaryTreeNode[]): SaaobSummaryTreeNode[] => {
+    const output: SaaobSummaryTreeNode[] = [];
+
+    for (const node of nodes) {
+      if (isSaaobSummaryDataGroup(node)) {
+        const groupMatches = node.name.toLowerCase().includes(normalized);
+        if (groupMatches) {
+          output.push(node);
+          continue;
+        }
+        const filteredChildren = filterNodes(node.children);
+        if (filteredChildren.length > 0) {
+          output.push({ ...node, children: filteredChildren });
+        }
+        continue;
+      }
+
+      if (node.name.toLowerCase().includes(normalized)) {
+        output.push(node);
+      }
+    }
+
+    return output;
+  };
+
+  return filterNodes(tree).filter(isSaaobSummaryDataGroup);
+}
+
+export function flattenSaaobSummaryVisible(
+  nodes: SaaobSummaryTreeNode[],
+  collapsed: Set<string>,
+  depth: number,
+  ignoreCollapsed = false,
+  parentGroupId?: string,
+): SaaobSummaryFlatRow[] {
+  const rows: SaaobSummaryFlatRow[] = [];
+
+  for (const node of nodes) {
+    if (isSaaobSummaryDataGroup(node)) {
+      rows.push({ kind: "group", id: node.id, depth, data: node });
+      if (ignoreCollapsed || !collapsed.has(node.id)) {
+        rows.push(
+          ...flattenSaaobSummaryVisible(node.children, collapsed, depth + 1, ignoreCollapsed, node.id),
+        );
+      }
+      continue;
+    }
+
+    if (!parentGroupId) continue;
+    rows.push({ kind: "item", id: node.id, depth, data: node, groupId: parentGroupId });
+  }
+
+  return rows;
 }

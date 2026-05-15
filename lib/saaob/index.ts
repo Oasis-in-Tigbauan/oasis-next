@@ -14,6 +14,9 @@ import {
   obrMainData,
   saaobEntries,
   saaobEntryGroup,
+  saaobSummaryOfAccounts,
+  saaobSummaryOfAccountsGroup,
+  saaobSummaryOfAccountsLinkedGroups,
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
@@ -684,6 +687,289 @@ export async function searchItems(query: string): Promise<Result<SaaobSearchResu
   }
 }
 
+export async function getAllSummary(): Promise<Result<SaaobSummaryElements>> {
+  try {
+    const [summaryGroups, summaryItems, linkedGroupLinks] = await Promise.all([
+      db.select({
+        id: saaobSummaryOfAccountsGroup.id,
+        name: saaobSummaryOfAccountsGroup.name,
+        parentId: saaobSummaryOfAccountsGroup.parentId,
+        createdAt: saaobSummaryOfAccountsGroup.createdAt,
+      }).from(saaobSummaryOfAccountsGroup).orderBy(asc(saaobSummaryOfAccountsGroup.createdAt)),
+      db.select({
+        id: saaobSummaryOfAccounts.id,
+        name: saaobSummaryOfAccounts.name,
+        parentId: saaobSummaryOfAccounts.parentId,
+      }).from(saaobSummaryOfAccounts).orderBy(asc(saaobSummaryOfAccounts.createdAt)),
+      db.select({
+        entryId: saaobSummaryOfAccountsLinkedGroups.entryId,
+        groupRefId: saaobSummaryOfAccountsLinkedGroups.groupRefId,
+      }).from(saaobSummaryOfAccountsLinkedGroups),
+    ]);
+
+    const linkedGroupsByItem = new Map<string, string[]>();
+    for (const link of linkedGroupLinks) {
+      const arr = linkedGroupsByItem.get(link.entryId) ?? [];
+      arr.push(link.groupRefId);
+      linkedGroupsByItem.set(link.entryId, arr);
+    }
+
+    const allSaaobGroups = await _fetchAllGroups();
+    const allNeededGroupIds = new Set<string>();
+    for (const [, groupIds] of linkedGroupsByItem) {
+      for (const gId of groupIds) {
+        allNeededGroupIds.add(gId);
+        for (const desc of _collectDescendantGroupIds(gId, allSaaobGroups)) {
+          allNeededGroupIds.add(desc);
+        }
+      }
+    }
+
+    const entryRows = allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
+    const computedEntries = await _fetchAndComputeEntries(entryRows);
+    const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
+
+    const itemsByParentGroup = new Map<string, SaaobSummaryItem[]>();
+    for (const item of summaryItems) {
+      const linkedGroupIds = linkedGroupsByItem.get(item.id) ?? [];
+      const entries = _collectEntriesForGroups(linkedGroupIds, allSaaobGroups, entriesByGroup);
+      const aggregate = _computeSummaryItemAggregate(entries);
+      const computedItem: SaaobSummaryItem = { id: item.id, name: item.name, linkedGroupIds, ...aggregate };
+      const arr = itemsByParentGroup.get(item.parentId) ?? [];
+      arr.push(computedItem);
+      itemsByParentGroup.set(item.parentId, arr);
+    }
+
+    return new Success(_buildSummaryTree(summaryGroups, itemsByParentGroup));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve Summary of Accounts.", {}, e);
+  }
+}
+
+export async function createSummaryGroup(
+  name: string,
+  parentId?: string,
+): Promise<Result<BaseSaaobSummaryGroup>> {
+  try {
+    if (parentId) {
+      const [parent] = await db
+        .select({ id: saaobSummaryOfAccountsGroup.id })
+        .from(saaobSummaryOfAccountsGroup)
+        .where(eq(saaobSummaryOfAccountsGroup.id, parentId))
+        .limit(1);
+      if (!parent) {
+        return new Failure(ErrorCodes.ResourceNotFound, "Parent group does not exist.", { parentId });
+      }
+    }
+
+    const [created] = await db
+      .insert(saaobSummaryOfAccountsGroup)
+      .values({ name, parentId: parentId ?? null })
+      .returning({ id: saaobSummaryOfAccountsGroup.id, name: saaobSummaryOfAccountsGroup.name });
+
+    return new Success({ id: created.id, name: created.name });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create Summary of Accounts group.", { name }, e);
+  }
+}
+
+export async function updateSummaryGroup(
+  id: string,
+  name: string,
+): Promise<Result<BaseSaaobSummaryGroup>> {
+  try {
+    const [existing] = await db
+      .select({ id: saaobSummaryOfAccountsGroup.id })
+      .from(saaobSummaryOfAccountsGroup)
+      .where(eq(saaobSummaryOfAccountsGroup.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Summary group not found.", { id });
+    }
+
+    await db.update(saaobSummaryOfAccountsGroup).set({ name }).where(eq(saaobSummaryOfAccountsGroup.id, id));
+    return new Success({ id, name });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update Summary of Accounts group.", { id }, e);
+  }
+}
+
+export async function deleteSummaryGroup(id: string): Promise<Result<null>> {
+  try {
+    const allSummaryGroups = await db
+      .select({ id: saaobSummaryOfAccountsGroup.id, parentId: saaobSummaryOfAccountsGroup.parentId })
+      .from(saaobSummaryOfAccountsGroup);
+
+    const existing = allSummaryGroups.find(g => g.id === id);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Summary group not found.", { id });
+    }
+
+    const descendants = _collectDescendantSummaryGroupIds(id, allSummaryGroups);
+    const allGroupIds = [id, ...descendants];
+
+    const [itemInGroup] = await db
+      .select({ id: saaobSummaryOfAccounts.id })
+      .from(saaobSummaryOfAccounts)
+      .where(inArray(saaobSummaryOfAccounts.parentId, allGroupIds))
+      .limit(1);
+
+    if (itemInGroup) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Cannot delete a group that still contains items. Remove all items first.",
+        { id },
+      );
+    }
+
+    const depthMap = new Map<string, number>();
+    const computeDepth = (gId: string, depth: number) => {
+      depthMap.set(gId, depth);
+      for (const child of allSummaryGroups.filter(g => g.parentId === gId)) {
+        computeDepth(child.id, depth + 1);
+      }
+    };
+    computeDepth(id, 0);
+
+    const sortedIds = [...allGroupIds].sort((a, b) => (depthMap.get(b) ?? 0) - (depthMap.get(a) ?? 0));
+
+    await db.transaction(async tx => {
+      for (const gId of sortedIds) {
+        await tx.delete(saaobSummaryOfAccountsGroup).where(eq(saaobSummaryOfAccountsGroup.id, gId));
+      }
+    });
+
+    return new Success(null);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete Summary of Accounts group.", { id }, e);
+  }
+}
+
+export async function createSummaryItem(
+  name: string,
+  parentGroupId: string,
+  linkedGroupIds: string[],
+): Promise<Result<SaaobSummaryItem>> {
+  try {
+    const [parent] = await db
+      .select({ id: saaobSummaryOfAccountsGroup.id })
+      .from(saaobSummaryOfAccountsGroup)
+      .where(eq(saaobSummaryOfAccountsGroup.id, parentGroupId))
+      .limit(1);
+    if (!parent) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Parent group does not exist.", { parentGroupId });
+    }
+
+    if (linkedGroupIds.length > 0) {
+      const existingGroups = await db
+        .select({ id: saaobEntryGroup.id })
+        .from(saaobEntryGroup)
+        .where(inArray(saaobEntryGroup.id, linkedGroupIds));
+      const foundIds = new Set(existingGroups.map(g => g.id));
+      const missingIds = linkedGroupIds.filter(gId => !foundIds.has(gId));
+      if (missingIds.length > 0) {
+        return new Failure(ErrorCodes.ValidationFailure, "Some linked groups do not exist.", { missingIds });
+      }
+    }
+
+    const [created] = await db
+      .insert(saaobSummaryOfAccounts)
+      .values({ name, parentId: parentGroupId })
+      .returning({ id: saaobSummaryOfAccounts.id });
+
+    if (linkedGroupIds.length > 0) {
+      await db.insert(saaobSummaryOfAccountsLinkedGroups).values(
+        linkedGroupIds.map(gId => ({ entryId: created.id, groupRefId: gId })),
+      );
+    }
+
+    const item = await _fetchAndBuildSummaryItem(created.id, name, linkedGroupIds);
+    return new Success(item);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create Summary of Accounts item.", { name }, e);
+  }
+}
+
+export async function updateSummaryItem(
+  id: string,
+  name?: string,
+  linkedGroupIds?: string[],
+): Promise<Result<SaaobSummaryItem>> {
+  try {
+    const [existing] = await db
+      .select({ id: saaobSummaryOfAccounts.id, name: saaobSummaryOfAccounts.name })
+      .from(saaobSummaryOfAccounts)
+      .where(eq(saaobSummaryOfAccounts.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Summary item not found.", { id });
+    }
+
+    if (name !== undefined) {
+      await db.update(saaobSummaryOfAccounts).set({ name }).where(eq(saaobSummaryOfAccounts.id, id));
+    }
+
+    if (linkedGroupIds !== undefined) {
+      if (linkedGroupIds.length > 0) {
+        const existingGroups = await db
+          .select({ id: saaobEntryGroup.id })
+          .from(saaobEntryGroup)
+          .where(inArray(saaobEntryGroup.id, linkedGroupIds));
+        const foundIds = new Set(existingGroups.map(g => g.id));
+        const missingIds = linkedGroupIds.filter(gId => !foundIds.has(gId));
+        if (missingIds.length > 0) {
+          return new Failure(ErrorCodes.ValidationFailure, "Some linked groups do not exist.", { missingIds });
+        }
+      }
+
+      await db.transaction(async tx => {
+        await tx.delete(saaobSummaryOfAccountsLinkedGroups)
+          .where(eq(saaobSummaryOfAccountsLinkedGroups.entryId, id));
+        if (linkedGroupIds.length > 0) {
+          await tx.insert(saaobSummaryOfAccountsLinkedGroups).values(
+            linkedGroupIds.map(gId => ({ entryId: id, groupRefId: gId })),
+          );
+        }
+      });
+    }
+
+    const currentLinks = await db
+      .select({ groupRefId: saaobSummaryOfAccountsLinkedGroups.groupRefId })
+      .from(saaobSummaryOfAccountsLinkedGroups)
+      .where(eq(saaobSummaryOfAccountsLinkedGroups.entryId, id));
+
+    const resolvedName = name ?? existing.name;
+    const resolvedLinkedGroupIds = currentLinks.map(l => l.groupRefId);
+    const item = await _fetchAndBuildSummaryItem(id, resolvedName, resolvedLinkedGroupIds);
+    return new Success(item);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update Summary of Accounts item.", { id }, e);
+  }
+}
+
+export async function deleteSummaryItem(id: string): Promise<Result<null>> {
+  try {
+    const [existing] = await db
+      .select({ id: saaobSummaryOfAccounts.id })
+      .from(saaobSummaryOfAccounts)
+      .where(eq(saaobSummaryOfAccounts.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Summary item not found.", { id });
+    }
+
+    await db.transaction(async tx => {
+      await tx.delete(saaobSummaryOfAccountsLinkedGroups)
+        .where(eq(saaobSummaryOfAccountsLinkedGroups.entryId, id));
+      await tx.delete(saaobSummaryOfAccounts).where(eq(saaobSummaryOfAccounts.id, id));
+    });
+
+    return new Success(null);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete Summary of Accounts item.", { id }, e);
+  }
+}
+
 /**
  * Computes all derived financial fields for a single SAAOB entry row.
  *
@@ -1244,6 +1530,165 @@ async function _fetchLbacDataBySaaobIds(
   return result;
 }
 
+function _collectDescendantSummaryGroupIds(
+  groupId: string,
+  allGroups: { id: string; parentId: string | null }[],
+): string[] {
+  const result: string[] = [];
+  const queue = [groupId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const children = allGroups.filter(g => g.parentId === current);
+    for (const child of children) {
+      result.push(child.id);
+      queue.push(child.id);
+    }
+  }
+  return result;
+}
+
+function _collectEntriesForGroups(
+  linkedGroupIds: string[],
+  allSaaobGroups: SaaobGroupRow[],
+  entriesByGroup: Map<string, SaaobEntry[]>,
+): SaaobEntry[] {
+  const allEntries: SaaobEntry[] = [];
+  const visitedGroupIds = new Set<string>();
+
+  for (const gId of linkedGroupIds) {
+    const toVisit = [gId, ..._collectDescendantGroupIds(gId, allSaaobGroups)];
+    for (const id of toVisit) {
+      if (!visitedGroupIds.has(id)) {
+        visitedGroupIds.add(id);
+        allEntries.push(...(entriesByGroup.get(id) ?? []));
+      }
+    }
+  }
+  return allEntries;
+}
+
+function _computeSummaryItemAggregate(entries: SaaobEntry[]): SaaobSummaryItemAggregate {
+  const zero = "0";
+  if (entries.length === 0) {
+    return {
+      annualBudget: zero, supplementalOrContinuing: zero, appropriation: zero,
+      allotment: zero, obligation: zero, unObligatedBalance: zero, percentage: zero,
+      other: {
+        quarterlyAllotmentBalance: { value: zero, percentage: zero },
+        disbursed: { value: zero, percentage: zero, variance: zero },
+        lbacBudget: { value: zero, variance: zero, obligated: zero, varianceObligated: zero },
+        obligationWithPRs: { value: zero, balance: zero, percentage: zero },
+        pr: zero,
+      },
+    };
+  }
+
+  const sum = (getter: (e: SaaobEntry) => string) =>
+    entries.reduce((acc, e) => acc.plus(new Decimal(getter(e))), new Decimal(0));
+
+  const annualBudget = sum(e => e.annualBudget);
+  const supplementalOrContinuing = sum(e => e.supplementalOrContinuing);
+  const appropriation = annualBudget.plus(supplementalOrContinuing);
+  const allotment = sum(e => e.allotment);
+  const obligation = sum(e => e.obligation);
+  const unObligatedBalance = appropriation.minus(obligation);
+  const percentage = appropriation.isZero() ? new Decimal(0) : obligation.div(appropriation).mul(100);
+
+  const qabValue = allotment.minus(obligation);
+  const qabPercentage = allotment.isZero() ? new Decimal(0) : obligation.div(allotment).mul(100);
+
+  const disbursedValue = sum(e => e.other.disbursed.value);
+  const disbursedPercentage = appropriation.isZero() ? new Decimal(0) : disbursedValue.div(appropriation).mul(100);
+  const disbursedVariance = obligation.minus(disbursedValue);
+
+  const lbacValue = sum(e => e.other.lbacBudget.value);
+  const lbacVariance = sum(e => e.other.lbacBudget.variance);
+  const lbacObligated = sum(e => e.other.lbacBudget.obligated);
+  const lbacVarianceObligated = sum(e => e.other.lbacBudget.varianceObligated);
+
+  const oblWithPRsValue = sum(e => e.other.obligationWithPRs.value);
+  const oblWithPRsBalance = appropriation.minus(oblWithPRsValue);
+  const oblWithPRsPercentage = appropriation.isZero() ? new Decimal(0) : oblWithPRsValue.div(appropriation).mul(100);
+
+  const pr = sum(e => e.other.pr);
+
+  return {
+    annualBudget: annualBudget.toString(),
+    supplementalOrContinuing: supplementalOrContinuing.toString(),
+    appropriation: appropriation.toString(),
+    allotment: allotment.toString(),
+    obligation: obligation.toString(),
+    unObligatedBalance: unObligatedBalance.toString(),
+    percentage: percentage.toString(),
+    other: {
+      quarterlyAllotmentBalance: { value: qabValue.toString(), percentage: qabPercentage.toString() },
+      disbursed: {
+        value: disbursedValue.toString(),
+        percentage: disbursedPercentage.toString(),
+        variance: disbursedVariance.toString(),
+      },
+      lbacBudget: {
+        value: lbacValue.toString(),
+        variance: lbacVariance.toString(),
+        obligated: lbacObligated.toString(),
+        varianceObligated: lbacVarianceObligated.toString(),
+      },
+      obligationWithPRs: {
+        value: oblWithPRsValue.toString(),
+        balance: oblWithPRsBalance.toString(),
+        percentage: oblWithPRsPercentage.toString(),
+      },
+      pr: pr.toString(),
+    },
+  };
+}
+
+function _buildSummaryTree(
+  groups: SummaryGroupRow[],
+  itemsByParentGroup: Map<string, SaaobSummaryItem[]>,
+): SaaobSummaryElements {
+  const childGroupsByParent = new Map<string, SummaryGroupRow[]>();
+  for (const g of groups) {
+    if (g.parentId) {
+      const arr = childGroupsByParent.get(g.parentId) ?? [];
+      arr.push(g);
+      childGroupsByParent.set(g.parentId, arr);
+    }
+  }
+
+  const buildGroup = (group: SummaryGroupRow): SaaobSummaryGroup => ({
+    id: group.id,
+    name: group.name,
+    children: [
+      ...(childGroupsByParent.get(group.id) ?? []).map(cg => buildGroup(cg)),
+      ...(itemsByParentGroup.get(group.id) ?? []),
+    ],
+  });
+
+  return groups.filter(g => g.parentId === null).map(rg => buildGroup(rg));
+}
+
+async function _fetchAndBuildSummaryItem(
+  id: string,
+  name: string,
+  linkedGroupIds: string[],
+): Promise<SaaobSummaryItem> {
+  const allSaaobGroups = await _fetchAllGroups();
+  const allNeededGroupIds = new Set<string>();
+  for (const gId of linkedGroupIds) {
+    allNeededGroupIds.add(gId);
+    for (const desc of _collectDescendantGroupIds(gId, allSaaobGroups)) {
+      allNeededGroupIds.add(desc);
+    }
+  }
+  const entryRows = allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
+  const computedEntries = await _fetchAndComputeEntries(entryRows);
+  const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
+  const entries = _collectEntriesForGroups(linkedGroupIds, allSaaobGroups, entriesByGroup);
+  const aggregate = _computeSummaryItemAggregate(entries);
+  return { id, name, linkedGroupIds, ...aggregate };
+}
+
 export type SaaobCreateGroupPayload = {
   parentId?: string;
   officeId?: string | null;
@@ -1349,3 +1794,44 @@ type EsreRow = {
   saaobId: string;
   amount: string;
 };
+
+type SummaryGroupRow = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: Date;
+};
+
+export type SaaobSummaryItemAggregate = {
+  annualBudget: string;
+  supplementalOrContinuing: string;
+  appropriation: string;
+  allotment: string;
+  obligation: string;
+  unObligatedBalance: string;
+  percentage: string;
+  other: {
+    quarterlyAllotmentBalance: { value: string; percentage: string };
+    disbursed: { value: string; percentage: string; variance: string };
+    lbacBudget: { value: string; variance: string; obligated: string; varianceObligated: string };
+    obligationWithPRs: { value: string; balance: string; percentage: string };
+    pr: string;
+  };
+};
+
+export type SaaobSummaryItem = SaaobSummaryItemAggregate & {
+  id: string;
+  name: string;
+  linkedGroupIds: string[];
+};
+
+export type BaseSaaobSummaryGroup = {
+  id: string;
+  name: string;
+};
+
+export type SaaobSummaryGroup = BaseSaaobSummaryGroup & {
+  children: Array<SaaobSummaryGroup | SaaobSummaryItem>;
+};
+
+export type SaaobSummaryElements = Array<SaaobSummaryGroup>;

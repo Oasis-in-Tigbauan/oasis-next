@@ -51,8 +51,14 @@ import type {
   SaaobGroupResponse,
   SaaobOfficeResponse,
 } from "@/lib/http/client/responses/SaaobDataResponse";
+import type {
+  SaaobSummaryDataResponse,
+  SaaobSummaryGroupResponse,
+  SaaobSummaryItemResponse,
+} from "@/lib/http/client/responses/SaaobSummaryDataResponse";
 export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
 export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
+export { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
 
 export type {
   AccountsListResponse,
@@ -121,6 +127,9 @@ export type {
   SaaobSearchResponse,
   SaaobSearchGroup,
   SaaobSearchEntry,
+  SaaobSummaryDataResponse,
+  SaaobSummaryGroupResponse,
+  SaaobSummaryItemResponse,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

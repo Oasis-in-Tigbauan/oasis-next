@@ -300,6 +300,56 @@ export const saaobEntries = pgTable("saaob_entries", {
     .notNull(),
 });
 
+export const saaobSummaryOfAccountsGroup = pgTable("saaob_summary_of_accounts_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const saaobSummaryOfAccounts = pgTable("saaob_summary_of_accounts", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id")
+    .references(() => saaobSummaryOfAccountsGroup.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const saaobSummaryOfAccountsLinkedGroups = pgTable("saaob_summary_of_accounts_linked_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  groupRefId: text("group_ref_id")
+    .references(() => saaobEntryGroup.id)
+    .notNull(),
+  entryId: text("entry_id")
+    .references(() => saaobSummaryOfAccounts.id)
+    .notNull(),
+});
+
 export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
 
 export const obrRequests = pgTable("obr_requests", {

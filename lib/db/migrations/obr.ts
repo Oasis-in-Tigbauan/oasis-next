@@ -60,7 +60,7 @@ export const obrEntriesMigration: MigratorFn = async (client): Promise<void> => 
   const saaobByRefCode = new Map(
     saaobRows
       .filter(r => r.refCode)
-      .map(r => [r.refCode!.trim(), r.id]),
+      .map(r => [r.refCode!.trim().toUpperCase(), r.id]),
   );
 
   const aipRefRows = await client
@@ -127,7 +127,7 @@ export const obrEntriesMigration: MigratorFn = async (client): Promise<void> => 
       remarks: c["REMARKS"],
       responsibilityCenterId,
       expenseCodeId,
-      saaobId: saaobByRefCode.get((c["CHARGES"] ?? "").trim()) ?? null,
+      saaobId: saaobByRefCode.get((c["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
       authorId: systemUser.id,
       createdAt: DateTime.fromFormat((c["DATE"] ?? "").trim(), "MM/dd/yyyy", { zone: "Asia/Manila" }).toUTC().toJSDate(),
     };

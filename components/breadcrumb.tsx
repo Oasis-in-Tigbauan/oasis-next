@@ -42,6 +42,7 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/saaob") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES";
     if (pathname === "/dashboard/saaob/office") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Office View";
     if (pathname === "/dashboard/saaob/data") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Management";
+    if (pathname === "/dashboard/saaob/accounts-summary") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Summary Editor";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 

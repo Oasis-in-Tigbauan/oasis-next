@@ -56,7 +56,7 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
   const saaobByRefCode = new Map(
     allSaaobEntries
       .filter(r => r.refCode)
-      .map(r => [r.refCode!.trim(), r.id]),
+      .map(r => [r.refCode!.trim().toUpperCase(), r.id]),
   );
 
   // Parse source data
@@ -145,7 +145,7 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
           amountAttributed: tryGetDecimal(item["AMOUNT ATTRIBUTED"]),
           implementingUnitId,
           expenseCodeId: null,
-          saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim()) ?? null,
+          saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: systemUser.id,
