@@ -164,6 +164,16 @@ export const SAAOB_DATA_WRITE: Permissions = "saaob.data.write";
  */
 export const SAAOB_OFFICE_READ: Permissions = "saaob.office.read";
 
+/**
+ * People with this permission can create Purchase Requests
+ */
+export const PURCHASING_REQUEST_CREATE: Permissions = "purchasing.request.create";
+
+/**
+ * People with this permission can modify Purchase Requests, and additionally able to produce Purchase Orders.
+ */
+export const PURCHASING_REQUEST_MANAGE: Permissions = "purchasing.request.manage";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -197,4 +207,6 @@ export type Permissions =
     | "aip.write"
     | "saaob.data.read"
     | "saaob.data.write"
-    | "saaob.office.read";
+    | "saaob.office.read"
+    | "purchasing.request.create"
+    | "purchasing.request.manage";
