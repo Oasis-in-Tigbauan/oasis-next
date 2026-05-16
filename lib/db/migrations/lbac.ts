@@ -52,11 +52,11 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
   const officeCodeByAa = new Map(allOfficeCodes.map(r => [r.aa.trim().toLowerCase(), r.id]));
   const aipRefByCode = new Map(allAipReferences.map(r => [r.code.trim().toLowerCase(), r.id]));
 
-  const allSaaobEntries = await client.select({ id: saaobEntries.id, refCode: saaobEntries.refCode }).from(saaobEntries);
+  const allSaaobEntries = await client.select({ id: saaobEntries.id, refCode: saaobEntries.refCode, expenseCodeId: saaobEntries.expenseCodeId }).from(saaobEntries);
   const saaobByRefCode = new Map(
     allSaaobEntries
       .filter(r => r.refCode)
-      .map(r => [r.refCode!.trim().toUpperCase(), r.id]),
+      .map(r => [r.refCode!.trim().toUpperCase(), r]),
   );
 
   // Parse source data
@@ -144,8 +144,8 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
           tagging: item["TAGGING"] || null,
           amountAttributed: tryGetDecimal(item["AMOUNT ATTRIBUTED"]),
           implementingUnitId,
-          expenseCodeId: null,
-          saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
+          expenseCodeId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.expenseCodeId ?? null,
+          saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.id ?? null,
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: systemUser.id,
