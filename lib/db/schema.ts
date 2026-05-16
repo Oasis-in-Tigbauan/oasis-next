@@ -909,8 +909,14 @@ export const purchasingAip = pgTable("purchasing_aip", {
   // LBAC values are cached here
   aipCode: text("aip_code")
     .notNull(),
+
+  // MFO/PPA
   ppa: text("ppa").notNull(),
+
+  // Derived from lbacItems.expenseCode.accountName + lbacItems.expenseCode.accoutCode
   sourceOfFund: text("source_of_fund"),
+
+  // Amount entry by the user.
   amountCharged: decimal("amount_charged"),
 });
 
