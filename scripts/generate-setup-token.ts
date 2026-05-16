@@ -1,14 +1,13 @@
 import "dotenv/config";
 
-import { DateTime } from "luxon";
 import { eq } from "drizzle-orm";
-import { faker } from "@faker-js/faker";
 
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { invitations, office } from "@/lib/db/schema";
+import { office, officePosition, user } from "@/lib/db/schema";
 import * as utils from "@/scripts/utils.mjs";
 
-async function generateSetupToken() {
+async function createAdministratorAccount() {
   const [targetOffice] = await db
     .select({
       id: office.id,
@@ -22,25 +21,58 @@ async function generateSetupToken() {
     return;
   }
 
-  console.log("Creating a invitation token...");
-  const token = utils.token.generatePassword(32);
-  const validity = DateTime.utc().plus({ days: 1 }).toJSDate();
-  const email = faker.internet.email().toLowerCase();
+  const [role] = await db
+    .select({ id: officePosition.id })
+    .from(officePosition)
+    .where(eq(officePosition.officeId, targetOffice.id));
+  if (!role) {
+    console.error("Role not found. Are you sure you seeded the database?");
+    return;
+  }
 
-  await db.insert(invitations).values({
-    token,
-    officeId: targetOffice.id,
-    validUntil: validity,
-    consumed: false,
-    email,
+  // Find the user within the db
+  const [administratorUser] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.email, "sys@laboratories-internal.local"))
+    .limit(1);
+  if (administratorUser) {
+    console.error("Administrator account is already created. No need to run this script again.");
+  }
+
+  // Create user
+  console.log("Creating account...");
+
+  const password = utils.token.generatePassword(16);
+  const admin = await auth.api.signUpEmail({
+    body: {
+      name: "internal system",
+      email: "sys@laboratories-internal.local",
+      password,
+      officeId: targetOffice.id,
+      officePositionId: role.id,
+    },
   });
 
-  console.log("Your invitation is generated.");
+  console.log("Activating account for first use...");
+  await db.update(user)
+    .set({ emailVerified: true })
+    .where(eq(user.id, admin.user.id));
+
+  console.log("Your account has been generated.");
   console.log("");
-  console.log("  Invitiation URL: %s", `${process.env.BETTER_AUTH_URL}/enrollment/?token=${token}`);
-  console.log("  Email: %s", email);
+  console.log("  Email:    sys@laboratories-internal.local");
+  console.log("  Password: %s", password);
+  console.log("  User ID:  %s", admin.user.id);
   console.log("");
-  console.log("For the sake of security, please only do this once.");
+  console.log("Your account credentials appear only once. Please take note of this.");
+  console.log("After server configuration, disable the maintainer account by running:");
+  console.log("");
+  console.log("  pnpm setup:admin:disable");
+  console.log("");
+  console.log("  To re-enable it:");
+  console.log("  pnpm setup:admin:enable");
+  console.log("");
 }
 
-generateSetupToken().catch(console.error);
+createAdministratorAccount().catch(console.error);
