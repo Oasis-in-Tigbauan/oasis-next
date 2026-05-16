@@ -963,7 +963,9 @@ async function _fetchItems(officeIds: string[] | null): Promise<LbacItemRow[]> {
       expenseCodeId: expenseClasses.id,
       expenseAccountName: expenseClasses.accountName,
       expenseAccountCode: expenseClasses.accountCode,
-      saaobId: lbacItems.saaobId,
+      saaobId: saaobEntries.id,
+      saaobName: saaobEntries.name,
+      saaobAccountCode: saaobEntries.accountCode,
       quarterlyReportId: lbacItems.quarterlyReportId,
       parentId: lbacItems.parentId,
       officeId: lbacItems.officeId,
@@ -972,6 +974,7 @@ async function _fetchItems(officeIds: string[] | null): Promise<LbacItemRow[]> {
     .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
     .leftJoin(officeCodes, eq(officeCodes.id, lbacItems.implementingUnitId))
     .leftJoin(expenseClasses, eq(expenseClasses.id, lbacItems.expenseCodeId))
+    .leftJoin(saaobEntries, eq(saaobEntries.id, lbacItems.saaobId))
     .orderBy(asc(lbacItems.createdAt));
 
   if (officeIds !== null) {
@@ -1165,7 +1168,13 @@ function _buildLbacItemObject(
           accountCode: item.expenseAccountCode,
         }
         : null,
-      saaobId: item.saaobId,
+      saaob: item.saaobId
+        ? {
+          id: item.saaobId,
+          name: item.saaobName!,
+          accountCode: item.saaobAccountCode,
+        }
+        : null,
       priorYearAccomplishments: item.priorYearAccomplishments,
       physicalTargets: item.physicalTargets,
       remarks: item.remarksForOtherMetadata,
@@ -1480,7 +1489,11 @@ export type LbacObject = {
       accountName: string;
       accountCode: string | null;
     } | null;
-    saaobId: string | null;
+    saaob: {
+      id: string;
+      name: string;
+      accountCode: string | null;
+    } | null;
     priorYearAccomplishments: string | null;
     physicalTargets: string | null;
     remarks: string | null;
@@ -1660,6 +1673,8 @@ type LbacItemRow = {
   expenseAccountName: string | null;
   expenseAccountCode: string | null;
   saaobId: string | null;
+  saaobName: string | null;
+  saaobAccountCode: string | null;
   quarterlyReportId: string;
   parentId: string;
   officeId: string;

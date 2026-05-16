@@ -58,6 +58,11 @@ export type LbacItemResponse = {
       accountName: string;
       accountCode: string | null;
     } | null;
+    saaob: {
+      id: string;
+      name: string;
+      accountCode: string | null;
+    } | null;
     priorYearAccomplishments: string | null;
     physicalTargets: string | null;
     remarks: string | null;
