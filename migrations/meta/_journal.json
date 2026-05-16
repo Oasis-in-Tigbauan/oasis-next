@@ -274,6 +274,20 @@
       "when": 1778860228206,
       "tag": "0038_lucky_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1778951519668,
+      "tag": "0039_sad_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1778953626665,
+      "tag": "0040_short_gargoyle",
+      "breakpoints": true
     }
   ]
 }

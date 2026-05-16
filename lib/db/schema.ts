@@ -872,9 +872,6 @@ export const purchasing = pgTable("purchasing", {
   unitCost: decimal("unit_cost").notNull(),
   purpose: text("purpose").notNull(),
 
-  requestingOfficeId: text("requesting_office_id")
-    .references(() => office.id)
-    .notNull(),
   headOfOfficeId: text("head_of_office_id")
     .references(() => user.id)
     .notNull(),
@@ -884,7 +881,17 @@ export const purchasing = pgTable("purchasing", {
     .notNull(),
   procurementId: text("procurement_id")
     .references(() => modeOfProcurements.id),
+
+  treasurerId: text("treasurer_id")
+    .references(() => user.id)
+    .notNull(),
   approverId: text("approver_id")
+    .references(() => user.id)
+    .notNull(),
+  requestingOfficeId: text("requesting_office_id")
+    .references(() => office.id)
+    .notNull(),
+  requestingUserId: text("requesting_user_id")
     .references(() => user.id)
     .notNull(),
 
@@ -900,6 +907,10 @@ export const purchasingAip = pgTable("purchasing_aip", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => uuidv7()),
+
+  purchasingId: text("purchasing_id")
+    .references(() => purchasing.id, { onDelete: "cascade" })
+    .notNull(),
 
   // Lookup based on AIP Code, but we will use LBAC for reasons.
   lbacReferenceId: text("lbac_reference_id")

@@ -35,15 +35,8 @@ export async function PATCH(
     properties: {
       name: { type: "string", formatter: "non-empty-string" },
       officeId: {
-        type: "object",
-        formatterFn: async value => {
-          if (value === undefined || value === null) return { ok: true };
-          if (typeof value === "string") {
-            const ok = validatorUtilities.isUuid(value);
-            return ok ? { ok: true } : { ok: false, error: "officeId must be a valid uuid." };
-          }
-          return { ok: false, error: "officeId must be a valid uuid or null." };
-        },
+        type: "string",
+        formatter: "uuid",
       },
     },
     requiredProperties: [],
