@@ -336,13 +336,13 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-10rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
           >
-            <Table className="text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
-              <TableHeader className="sticky top-0 z-10 bg-background">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
                   {/* ── Single-col headers (rowSpan=2) ── */}
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">AIP REF CODE</TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
                   <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">MFO/PPA</TableHead>
                   <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">Major Final Output</TableHead>
                   <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">Performance/Output Indicator</TableHead>
