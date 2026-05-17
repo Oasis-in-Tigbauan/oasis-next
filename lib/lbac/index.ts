@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, ilike, inArray, or } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
@@ -18,6 +18,105 @@ import {
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
+
+/**
+ * Searches LBAC items by mfoPpa or AIP reference code and returns a trimmed group tree
+ * containing only matching items and their ancestor groups.
+ *
+ * @async
+ * @function searchLbacItems
+ * @param {string} query - The search string (case-insensitive substring match).
+ * @returns {Promise<Result<LbacSearchResult>>} A result containing the matching group/item tree on success,
+ *                                              or a failure result on error.
+ */
+export async function searchLbacItems(query: string): Promise<Result<LbacSearchResult>> {
+  try {
+    const pattern = `%${query}%`;
+
+    const rows = await db
+      .select({
+        id: lbacItems.id,
+        mfoPpa: lbacItems.mfoPpa,
+        aipRefId: aipReferences.id,
+        aipReferenceCode: aipReferences.aipReferenceCode,
+        aipDescription: aipReferences.description,
+        expenseCodeId: expenseClasses.id,
+        expenseAccountName: expenseClasses.accountName,
+        expenseAccountCode: expenseClasses.accountCode,
+        parentId: lbacItems.parentId,
+      })
+      .from(lbacItems)
+      .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
+      .leftJoin(expenseClasses, eq(expenseClasses.id, lbacItems.expenseCodeId))
+      .where(
+        or(
+          ilike(lbacItems.mfoPpa, pattern),
+          ilike(aipReferences.aipReferenceCode, pattern),
+        ),
+      )
+      .orderBy(asc(lbacItems.createdAt));
+
+    if (rows.length === 0) return new Success([]);
+
+    const allGroups = await _fetchGroups(null);
+    const groupMap = new Map(allGroups.map((g) => [g.id, g]));
+
+    // Collect every ancestor group ID for each matching item
+    const relevantGroupIds = new Set<string>();
+    for (const row of rows) {
+      let currentId: string | null = row.parentId;
+      while (currentId) {
+        if (relevantGroupIds.has(currentId)) break;
+        relevantGroupIds.add(currentId);
+        currentId = groupMap.get(currentId)?.parentId ?? null;
+      }
+    }
+
+    // Group items by their direct parent
+    const itemsByGroup = new Map<string, LbacSearchResultItem[]>();
+    for (const row of rows) {
+      const item: LbacSearchResultItem = {
+        id: row.id,
+        mfoPpa: row.mfoPpa,
+        aipRefCode: row.aipRefId
+          ? { id: row.aipRefId, aipReferenceCode: row.aipReferenceCode!, description: row.aipDescription! }
+          : null,
+        other: {
+          expenseCode: row.expenseCodeId
+            ? { id: row.expenseCodeId, accountName: row.expenseAccountName!, accountCode: row.expenseAccountCode }
+            : null,
+        },
+      };
+      const existing = itemsByGroup.get(row.parentId) ?? [];
+      existing.push(item);
+      itemsByGroup.set(row.parentId, existing);
+    }
+
+    // Build the trimmed tree (same map-based approach as _buildGroupTree)
+    const nodeMap = new Map<string, LbacSearchGroupItem>();
+    for (const g of allGroups) {
+      if (!relevantGroupIds.has(g.id)) continue;
+      nodeMap.set(g.id, { id: g.id, name: g.name, children: [] });
+    }
+
+    const roots: LbacSearchGroupItem[] = [];
+    for (const g of allGroups) {
+      if (!relevantGroupIds.has(g.id)) continue;
+      const node = nodeMap.get(g.id)!;
+      node.children.push(...(itemsByGroup.get(g.id) ?? []));
+
+      if (g.parentId === null || !nodeMap.has(g.parentId)) {
+        roots.push(node);
+      } else {
+        nodeMap.get(g.parentId)!.children.push(node);
+      }
+    }
+
+    return new Success(roots);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to search LBAC items.", { query }, e);
+  }
+}
 
 /**
  * Returns all LBAC items and groups in a nested tree structure, including full financial computation
@@ -1714,3 +1813,30 @@ type ObrAipEntry = {
   year: number;
   createdAt: Date;
 };
+
+// ─── Search types ─────────────────────────────────────────────────────────────
+
+export type LbacSearchResultItem = {
+  id: string;
+  mfoPpa: string;
+  aipRefCode: {
+    id: string;
+    aipReferenceCode: string;
+    description: string;
+  } | null;
+  other: {
+    expenseCode: {
+      id: string;
+      accountName: string;
+      accountCode: string | null;
+    } | null;
+  };
+};
+
+export type LbacSearchGroupItem = {
+  id: string;
+  name: string;
+  children: Array<LbacSearchGroupItem | LbacSearchResultItem>;
+};
+
+export type LbacSearchResult = LbacSearchGroupItem[];

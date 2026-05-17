@@ -44,6 +44,7 @@ import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/r
 import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
 import type { LbacDataResponse, LbacGroupResponse, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
 import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
+import type { LbacSearchResponse, LbacSearchGroupItem, LbacSearchResultItem } from "@/lib/http/client/responses/LbacSearchResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
 import type {
   SaaobDataResponse,
@@ -58,10 +59,21 @@ import type {
 } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
 import type { ProcurementTypesListResponse  } from "@/lib/http/client/responses/ProcurementTypesListResponse";
 import type { ProcurementTypeResponse } from "@/lib/http/client/responses/ProcurementTypeResponse";
+import type {
+  PurchasingItemAip,
+  PurchasingItemResponse,
+  PurchasingItemSignatory,
+  PurchasingListResponse,
+} from "@/lib/http/client/responses/PurchasingListResponse";
+import type {
+  PurchasingValidSignatoriesResponse,
+  PurchasingValidSignatory,
+} from "@/lib/http/client/responses/PurchasingValidSignatoriesResponse";
 
 export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
 export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
 export { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+export { isLbacSearchGroup } from "@/lib/http/client/responses/LbacSearchResponse";
 
 export type {
   AccountsListResponse,
@@ -123,6 +135,9 @@ export type {
   LbacOfficeQuarterlyResponse,
   LbacQuarterlyGroupResponse,
   LbacQuarterlyItemResponse,
+  LbacSearchResponse,
+  LbacSearchGroupItem,
+  LbacSearchResultItem,
   SaaobDataResponse,
   SaaobOfficeResponse,
   SaaobEntryResponse,
@@ -135,6 +150,12 @@ export type {
   SaaobSummaryItemResponse,
   ProcurementTypesListResponse,
   ProcurementTypeResponse,
+  PurchasingItemAip,
+  PurchasingItemResponse,
+  PurchasingItemSignatory,
+  PurchasingListResponse,
+  PurchasingValidSignatoriesResponse,
+  PurchasingValidSignatory,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

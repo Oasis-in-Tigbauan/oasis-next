@@ -8,6 +8,7 @@ import {
   Mail,
   PhilippinePeso,
   Settings,
+  ShoppingBasket,
   ShieldUser,
   UserCheck,
 } from "lucide-react";
@@ -138,6 +139,23 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
             }
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Forms */}
+        {
+          permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Office Forms</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <ShoppingBasket />
+                    <a href="/dashboard/forms/purchasing">PR/PO Form</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        }
 
         {/* Data Types Management */}
         {
