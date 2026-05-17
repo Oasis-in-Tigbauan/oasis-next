@@ -343,10 +343,10 @@ export default function Page() {
                 <TableRow>
                   {/* ── Single-col headers (rowSpan=2) ── */}
                   <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
-                  <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">MFO/PPA</TableHead>
-                  <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">Major Final Output</TableHead>
-                  <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">Performance/Output Indicator</TableHead>
-                  <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">Target for Budget Year</TableHead>
+                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">MFO/PPA</TableHead>
+                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">Major Final Output</TableHead>
+                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">Performance/Output Indicator</TableHead>
+                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">Target for Budget Year</TableHead>
                   {/* ── Proposed Budget (5) ── */}
                   <TableHead colSpan={5} className="text-center border-b">Proposed Budget for the Budget Year</TableHead>
                   {/* ── Single ── */}
@@ -361,7 +361,7 @@ export default function Page() {
                   <TableHead colSpan={3} className="text-center border-b">Obligations Incurred</TableHead>
                   {/* ── Singles ── */}
                   <TableHead rowSpan={2} className="min-w-28 align-middle">Unobligated Amount</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">Remarks</TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Remarks</TableHead>
                   {/* ── Obligation cut-off (3) ── */}
                   <TableHead colSpan={3} className="text-center border-b">Obligation</TableHead>
                   {/* ── Other singles (8) ── */}
@@ -370,9 +370,11 @@ export default function Page() {
                   <TableHead rowSpan={2} className="min-w-28 align-middle">Amount Attributed</TableHead>
                   <TableHead rowSpan={2} className="min-w-28 align-middle">Expense Class</TableHead>
                   <TableHead rowSpan={2} className="min-w-28 align-middle">Account Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">Prior Year Accomplishments</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">Physical Targets</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">Other Remarks</TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                    Prior Year Accomplishments
+                  </TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Physical Targets</TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Other Remarks</TableHead>
                   {/* ── Financial Allocation (5) ── */}
                   <TableHead colSpan={5} className="text-center border-b">Financial Allocation</TableHead>
                   {/* ── Actual Financial Performance (5) ── */}
@@ -386,7 +388,7 @@ export default function Page() {
                   {/* ── QR singles ── */}
                   <TableHead rowSpan={2} className="min-w-24 align-middle">Variance (Performance)</TableHead>
                   <TableHead rowSpan={2} className="min-w-24 align-middle">% Accomplishment</TableHead>
-                  <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">QR Remarks</TableHead>
+                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">QR Remarks</TableHead>
                 </TableRow>
                 <TableRow>
                   {/* Proposed Budget sub-headers */}
@@ -424,16 +426,16 @@ export default function Page() {
                   <TableHead className="min-w-20">Q4</TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                   {/* Physical Targets QR sub-headers */}
-                  <TableHead className="min-w-20">Q1</TableHead>
-                  <TableHead className="min-w-20">Q2</TableHead>
-                  <TableHead className="min-w-20">Q3</TableHead>
-                  <TableHead className="min-w-20">Q4</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                   {/* Actual Physical Performance QR sub-headers */}
-                  <TableHead className="min-w-20">Q1</TableHead>
-                  <TableHead className="min-w-20">Q2</TableHead>
-                  <TableHead className="min-w-20">Q3</TableHead>
-                  <TableHead className="min-w-20">Q4</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -459,7 +461,7 @@ export default function Page() {
                         onDoubleClick={() => handleRowDoubleClick(row)}
                       >
                         <TableCell />
-                        <TableCell>
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
                           <button
                             type="button"
                             className="flex items-center gap-1 font-semibold text-left hover:text-primary w-full"
@@ -490,10 +492,10 @@ export default function Page() {
                       onDoubleClick={() => handleRowDoubleClick(row)}
                     >
                       <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
-                      <TableCell className="w-[640px] min-w-[640px] max-w-[640px] whitespace-normal break-words" style={{ paddingLeft: `${row.depth * 14 + 4}px` }}>{item.mfoPpa}</TableCell>
-                      <TableCell className="w-[640px] min-w-[640px] max-w-[640px] whitespace-normal break-words">{txt(item.majorFinalOutput)}</TableCell>
-                      <TableCell className="w-[640px] min-w-[640px] max-w-[640px] whitespace-normal break-words">{txt(item.performanceOutputIndicator)}</TableCell>
-                      <TableCell className="w-[640px] min-w-[640px] max-w-[640px] whitespace-normal break-words">{txt(item.targetForBudgetYear)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words" style={{ paddingLeft: `${row.depth * 14 + 4}px` }}>{item.mfoPpa}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.majorFinalOutput)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.performanceOutputIndicator)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.targetForBudgetYear)}</TableCell>
                       {/* Proposed Budget */}
                       <TableCell className="text-right font-mono">{fmt(item.proposedBudgetPS)}</TableCell>
                       <TableCell className="text-right font-mono">{fmt(item.proposedBudgetMOOE)}</TableCell>
@@ -518,7 +520,7 @@ export default function Page() {
                       <TableCell className="text-right font-mono">{fmt(item.obligations.total)}</TableCell>
                       {/* Unobligated / Remarks */}
                       <TableCell className="text-right font-mono">{fmt(item.unobligatedAmount)}</TableCell>
-                      <TableCell>{txt(item.remarks)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.remarks)}</TableCell>
                       {/* Obligation cut-off */}
                       <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.obligation)}</TableCell>
                       <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.balance)}</TableCell>
@@ -529,9 +531,9 @@ export default function Page() {
                       <TableCell className="text-right font-mono">{fmt(item.other.amountAttributed)}</TableCell>
                       <TableCell>{txt(item.other.expenseCode?.accountName)}</TableCell>
                       <TableCell>{txt(item.other.expenseCode?.accountCode)}</TableCell>
-                      <TableCell>{txt(item.other.priorYearAccomplishments)}</TableCell>
-                      <TableCell>{txt(item.other.physicalTargets)}</TableCell>
-                      <TableCell>{txt(item.other.remarks)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.other.priorYearAccomplishments)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.other.physicalTargets)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.other.remarks)}</TableCell>
                       {/* Financial Allocation */}
                       <TableCell className="text-right font-mono">{fmt(item.financialAllocation.Q1)}</TableCell>
                       <TableCell className="text-right font-mono">{fmt(item.financialAllocation.Q2)}</TableCell>
@@ -547,21 +549,21 @@ export default function Page() {
                       {/* Variance (Financial) */}
                       <TableCell className="text-right font-mono">{fmt(item.variance)}</TableCell>
                       {/* Physical Targets QR */}
-                      <TableCell>{txt(item.quarterlyReport.physicalTargets.Q1)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.physicalTargets.Q2)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.physicalTargets.Q3)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.physicalTargets.Q4)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q1)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q2)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q3)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q4)}</TableCell>
                       <TableCell>{txt(item.quarterlyReport.physicalTargets.total)}</TableCell>
                       {/* Actual Physical Performance QR */}
-                      <TableCell>{txt(item.quarterlyReport.actualPhysicalPerformance.Q1)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.actualPhysicalPerformance.Q2)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.actualPhysicalPerformance.Q3)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.actualPhysicalPerformance.Q4)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q1)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q2)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q3)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q4)}</TableCell>
                       <TableCell>{txt(item.quarterlyReport.actualPhysicalPerformance.total)}</TableCell>
                       {/* QR singles */}
                       <TableCell>{txt(item.quarterlyReport.variance)}</TableCell>
                       <TableCell>{txt(item.quarterlyReport.accomplishment)}</TableCell>
-                      <TableCell className="w-[640px] min-w-[640px] max-w-[640px] whitespace-normal break-words">{txt(item.quarterlyReport.remarks)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.quarterlyReport.remarks)}</TableCell>
                     </TableRow>
                   );
                 })}
