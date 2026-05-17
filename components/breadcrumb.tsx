@@ -44,6 +44,7 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/saaob/data") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Management";
     if (pathname === "/dashboard/saaob/accounts-summary") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Summary Editor";
     if (pathname === "/dashboard/settings/procurement-types") return "Data: Mode of Procurements";
+    if (pathname === "/dashboard/forms/purchasing") return "Purchase Request/Purchase Order Manager";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 

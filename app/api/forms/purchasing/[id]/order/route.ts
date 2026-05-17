@@ -61,7 +61,7 @@ export async function POST(
         },
       },
     },
-    requiredProperties: ["supplier", "address", "purchaseOrderNumber", "modeOfProcurementId", "items"],
+    requiredProperties: ["supplier", "address", "purchaseOrderNumber", "items"],
     allowUnvalidatedProperties: false,
   });
   if (!validate.ok) {

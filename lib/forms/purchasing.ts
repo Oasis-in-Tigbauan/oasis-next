@@ -165,7 +165,7 @@ export async function createPurchaseRequest(
  *
  * @description
  * Ensures all purchasing rows exist in the caller's office, verifies they share the same PR number,
- * validates the mode of procurement, then applies purchase-order fields in one update transaction.
+ * validates mode of procurement when provided, then applies purchase-order fields in one update transaction.
  *
  * @async
  * @function createPurchaseOrder
@@ -222,18 +222,27 @@ export async function createPurchaseOrder(
       );
     }
 
-    const [procurement] = await db
-      .select({ id: modeOfProcurements.id })
-      .from(modeOfProcurements)
-      .where(eq(modeOfProcurements.id, payload.modeOfProcurementId))
-      .limit(1);
+    const normalizedProcurementId = typeof payload.modeOfProcurementId === "string"
+      ? payload.modeOfProcurementId.trim()
+      : "";
 
-    if (!procurement) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "Invalid mode of procurement.",
-        { payload, userId: user.id },
-      );
+    let procurementId: string | null = null;
+    if (normalizedProcurementId) {
+      const [procurement] = await db
+        .select({ id: modeOfProcurements.id })
+        .from(modeOfProcurements)
+        .where(eq(modeOfProcurements.id, normalizedProcurementId))
+        .limit(1);
+
+      if (!procurement) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "Invalid mode of procurement.",
+          { payload, userId: user.id },
+        );
+      }
+
+      procurementId = normalizedProcurementId;
     }
 
     const dateOfDelivery = payload.dateOfDelivery
@@ -256,7 +265,7 @@ export async function createPurchaseOrder(
           address: payload.address,
           tinNumber: payload.tinNumber ?? null,
           purchaseOrderNumber: payload.purchaseOrderNumber,
-          procurementId: payload.modeOfProcurementId,
+          procurementId,
           placeOfDelivery: payload.placeOfDelivery ?? null,
           dateOfDelivery,
           deliveryTerm: payload.deliveryTerm ?? null,
@@ -361,21 +370,29 @@ export async function updateRequest(
     }
 
     if (payload.modeOfProcurementId !== undefined) {
-      const [procurement] = await db
-        .select({ id: modeOfProcurements.id })
-        .from(modeOfProcurements)
-        .where(eq(modeOfProcurements.id, payload.modeOfProcurementId))
-        .limit(1);
+      const normalizedProcurementId = typeof payload.modeOfProcurementId === "string"
+        ? payload.modeOfProcurementId.trim()
+        : "";
 
-      if (!procurement) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "Invalid mode of procurement.",
-          { id, payload, userId: user.id },
-        );
+      if (!normalizedProcurementId) {
+        updateSet.procurementId = null;
+      } else {
+        const [procurement] = await db
+          .select({ id: modeOfProcurements.id })
+          .from(modeOfProcurements)
+          .where(eq(modeOfProcurements.id, normalizedProcurementId))
+          .limit(1);
+
+        if (!procurement) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "Invalid mode of procurement.",
+            { id, payload, userId: user.id },
+          );
+        }
+
+        updateSet.procurementId = normalizedProcurementId;
       }
-
-      updateSet.procurementId = payload.modeOfProcurementId;
     }
 
     if (payload.placeOfDelivery !== undefined) {
@@ -493,6 +510,125 @@ export async function getPurchaseRequests(user: User): Promise<Result<PurchaseRe
     return new Failure(
       ErrorCodes.Fatal,
       "Unable to fetch purchase requests.",
+      { userId: user.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Lists users eligible to sign purchasing documents for the authenticated office.
+ *
+ * @description
+ * Resolves office positions and returns users for three signing roles:
+ * - Head of Office (must be in the caller's office and hold `office.head`)
+ * - Treasurer (must hold `obr.disbursement.treasurer.approve`)
+ * - Mayor (must hold `obr.disbursement.mayor.approve`)
+ *
+ * @async
+ * @function getValidSignatories
+ * @param {User} user - Authenticated user requesting valid signatories.
+ * @returns {Promise<Result<PurchasingSignatoriesResponse>>} Signatories grouped by role.
+ */
+export async function getValidSignatories(user: User): Promise<Result<PurchasingSignatoriesResponse>> {
+  try {
+    const positions = await db
+      .select({
+        id: officePosition.id,
+        name: officePosition.name,
+        permissions: officePosition.permissions,
+        officeId: officePosition.officeId,
+      })
+      .from(officePosition);
+
+    const headPositionIds = positions
+      .filter(position =>
+        position.officeId === user.office.id
+          && position.permissions.includes(permissions.OFFICE_HEAD),
+      )
+      .map(position => position.id);
+
+    const treasurerPositionIds = positions
+      .filter(position =>
+        position.permissions.includes(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE),
+      )
+      .map(position => position.id);
+
+    const mayorPositionIds = positions
+      .filter(position =>
+        position.permissions.includes(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE),
+      )
+      .map(position => position.id);
+
+    const allPositionIds = Array.from(new Set([
+      ...headPositionIds,
+      ...treasurerPositionIds,
+      ...mayorPositionIds,
+    ]));
+
+    if (allPositionIds.length === 0) {
+      return new Success({
+        headOfOffice: [],
+        treasurer: [],
+        mayor: [],
+      });
+    }
+
+    const users = await db
+      .select({
+        id: userSchema.id,
+        name: userSchema.name,
+        positionId: officePosition.id,
+        positionName: officePosition.name,
+      })
+      .from(userSchema)
+      .innerJoin(officePosition, eq(userSchema.officePositionId, officePosition.id))
+      .where(inArray(officePosition.id, allPositionIds));
+
+    const heads: PurchasingSignatory[] = [];
+    const treasurers: PurchasingSignatory[] = [];
+    const mayors: PurchasingSignatory[] = [];
+
+    const headSet = new Set(headPositionIds);
+    const treasurerSet = new Set(treasurerPositionIds);
+    const mayorSet = new Set(mayorPositionIds);
+
+    for (const signatory of users) {
+      const entry: PurchasingSignatory = {
+        id: signatory.id,
+        name: signatory.name,
+        position: signatory.positionName,
+      };
+
+      if (headSet.has(signatory.positionId)) {
+        heads.push(entry);
+      }
+
+      if (treasurerSet.has(signatory.positionId)) {
+        treasurers.push(entry);
+      }
+
+      if (mayorSet.has(signatory.positionId)) {
+        mayors.push(entry);
+      }
+    }
+
+    const byName = (a: PurchasingSignatory, b: PurchasingSignatory) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+
+    heads.sort(byName);
+    treasurers.sort(byName);
+    mayors.sort(byName);
+
+    return new Success({
+      headOfOffice: heads,
+      treasurer: treasurers,
+      mayor: mayors,
+    });
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Unable to fetch valid purchasing signatories.",
       { userId: user.id },
       e,
     );
@@ -798,6 +934,7 @@ async function _fetchPurchaseRequestItemBatch(
       .select({
         id: purchasingAip.id,
         purchasingId: purchasingAip.purchasingId,
+        lbacReferenceId: purchasingAip.lbacReferenceId,
         aipCode: purchasingAip.aipCode,
         ppa: purchasingAip.ppa,
         sourceOfFund: purchasingAip.sourceOfFund,
@@ -835,7 +972,7 @@ async function _fetchPurchaseRequestItemBatch(
     }
 
     aipMap.get(aipRow.purchasingId)!.push({
-      id: aipRow.id,
+      id: aipRow.lbacReferenceId,
       aipCode: aipRow.aipCode,
       ppa: aipRow.ppa,
       sourceOfFund: aipRow.sourceOfFund,
@@ -892,6 +1029,10 @@ async function _fetchPurchaseRequestItemBatch(
       itemDescription: row.itemDescription,
       quantity: row.quantity,
       unitCost: row.unitCost,
+      totalCost: casts
+        .castFromDecimal(row.quantity)
+        .mul(casts.castFromDecimal(row.unitCost))
+        .toString(),
       purpose: row.purpose,
       requestingUser: {
         id: row.requestingUserId,
@@ -952,7 +1093,7 @@ export type PurchaseOrderPayload = {
   address: string;
   tinNumber?: string;
   purchaseOrderNumber: string;
-  modeOfProcurementId: string;
+  modeOfProcurementId?: string;
   placeOfDelivery?: string;
   dateOfDelivery?: string;
   deliveryTerm?: string;
@@ -991,6 +1132,7 @@ export type PurchaseRequestItem = {
   itemDescription: string;
   quantity: string;
   unitCost: string;
+  totalCost: string;
   purpose: string;
   requestingUser: {
     id: string;
@@ -1045,4 +1187,16 @@ export type PurchaseRequestPayload = {
     treasurerId: string;
     approverId: string;
   };
+};
+
+export type PurchasingSignatory = {
+  id: string;
+  name: string;
+  position: string;
+};
+
+export type PurchasingSignatoriesResponse = {
+  headOfOffice: PurchasingSignatory[];
+  treasurer: PurchasingSignatory[];
+  mayor: PurchasingSignatory[];
 };
