@@ -174,6 +174,16 @@ export const PURCHASING_REQUEST_CREATE: Permissions = "purchasing.request.create
  */
 export const PURCHASING_REQUEST_MANAGE: Permissions = "purchasing.request.manage";
 
+/**
+ * People with this permission can read Project Procurement Management Plan (PPMP)
+ */
+export const PPMP_READ: Permissions = "ppmp.read";
+
+/**
+ * People with this permission can manage Project Procurement Management Plan (PPMP)
+ */
+export const PPMP_MANAGE: Permissions = "ppmp.manage";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -209,4 +219,6 @@ export type Permissions =
     | "saaob.data.write"
     | "saaob.office.read"
     | "purchasing.request.create"
-    | "purchasing.request.manage";
+    | "purchasing.request.manage"
+    | "ppmp.read"
+    | "ppmp.manage";

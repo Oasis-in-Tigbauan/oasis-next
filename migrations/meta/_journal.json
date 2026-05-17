@@ -288,6 +288,13 @@
       "when": 1778953626665,
       "tag": "0040_short_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1779020824147,
+      "tag": "0041_stiff_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

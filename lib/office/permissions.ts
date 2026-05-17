@@ -142,6 +142,14 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.PURCHASING_REQUEST_MANAGE,
     description: "People with this permission can modify Purchase Requests, and additionally able to produce Purchase Orders.",
   },
+  {
+    permission: permissions.PPMP_READ,
+    description: "People with this permission can read Project Procurement Management Plan (PPMP)",
+  },
+  {
+    permission: permissions.PPMP_MANAGE,
+    description: "People with this permission can manage Project Procurement Management Plan (PPMP)",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -181,6 +189,8 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.SAAOB_OFFICE_READ,
     permissions.PURCHASING_REQUEST_CREATE,
     permissions.PURCHASING_REQUEST_MANAGE,
+    permissions.PPMP_READ,
+    permissions.PPMP_MANAGE,
   ],
 );
 
