@@ -102,7 +102,7 @@ export default function Page() {
       <Typography variant="h3" className="mb-4 grow">OBR Management</Typography>
 
       <div className="w-full overflow-x-auto">
-        <Table className="min-w-max">
+        <Table className="text-sm min-w-max">
           {requests.length === 0 && (
             <TableCaption>No approved OBR requests available for OBR item creation.</TableCaption>
           )}
