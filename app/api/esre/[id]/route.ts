@@ -76,6 +76,15 @@ export async function PATCH(
       },
       dvOrPayrollNumber: { type: "string", formatter: "non-empty-string" },
       checkNumber: { type: "string", formatter: "non-empty-string" },
+      saaobId: {
+        type: "string",
+        formatterFn: async v => {
+          if (!validatorUtilities.isUuid(v)) {
+            return { ok: false, error: "Invalid SAAOB entry ID." };
+          }
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
@@ -125,6 +134,7 @@ type PatchEsreRequest = {
   remarks?: string;
   obrId?: string | null;
   expenseTypeId?: string;
+  saaobId?: string | null;
   dvOrPayrollNumber?: string;
   checkNumber?: string;
 };

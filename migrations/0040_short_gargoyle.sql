@@ -1,0 +1,2 @@
+ALTER TABLE "purchasing_aip" ADD COLUMN "purchasing_id" text NOT NULL;--> statement-breakpoint
+ALTER TABLE "purchasing_aip" ADD CONSTRAINT "purchasing_aip_purchasing_id_purchasing_id_fk" FOREIGN KEY ("purchasing_id") REFERENCES "public"."purchasing"("id") ON DELETE cascade ON UPDATE no action;

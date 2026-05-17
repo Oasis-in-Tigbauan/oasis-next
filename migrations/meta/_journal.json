@@ -225,6 +225,69 @@
       "when": 1778521894798,
       "tag": "0031_abandoned_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1778659456225,
+      "tag": "0032_fluffy_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1778660415635,
+      "tag": "0033_charming_molten_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1778694652972,
+      "tag": "0034_lyrical_electro",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1778695779054,
+      "tag": "0035_cooing_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1778696230813,
+      "tag": "0036_pink_invaders",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1778843052571,
+      "tag": "0037_tricky_morlocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1778860228206,
+      "tag": "0038_lucky_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1778951519668,
+      "tag": "0039_sad_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1778953626665,
+      "tag": "0040_short_gargoyle",
+      "breakpoints": true
     }
   ]
 }

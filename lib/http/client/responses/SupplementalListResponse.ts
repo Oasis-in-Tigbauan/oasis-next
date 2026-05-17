@@ -3,9 +3,12 @@ import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkRes
 export type SupplementalItem = {
   id: string;
   supplementalOrAugmentation: string | null | undefined;
-  charges: string | null | undefined;
   amount: string;
   supplementalType: "less" | "add";
+  saaob: {
+    id: string;
+    name: string;
+  } | null | undefined;
   aipCode: {
     id: string;
     aipRefCode: string;

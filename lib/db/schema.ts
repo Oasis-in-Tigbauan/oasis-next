@@ -251,6 +251,105 @@ export const expenseType = pgTable("expense_type", {
     .notNull(),
 });
 
+export const saaobEntryGroup = pgTable("saaob_entry_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id"),
+  officeId: text("office_id")
+    .references(() => office.id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const saaobEntries = pgTable("saaob_entries", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+  accountCode: text("account_code"),
+  annualBudget: decimal("annual_budget")
+    .notNull(),
+  refCode: text("ref_code"),
+  remarks: text("remarks"),
+
+  parentId: text("parent_id")
+    .references(() => saaobEntryGroup.id)
+    .notNull(),
+  expenseCodeId: text("expense_code")
+    .references(() => expenseClasses.id),
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const saaobSummaryOfAccountsGroup = pgTable("saaob_summary_of_accounts_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const saaobSummaryOfAccounts = pgTable("saaob_summary_of_accounts", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+
+  parentId: text("parent_id")
+    .references(() => saaobSummaryOfAccountsGroup.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const saaobSummaryOfAccountsLinkedGroups = pgTable("saaob_summary_of_accounts_linked_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  groupRefId: text("group_ref_id")
+    .references(() => saaobEntryGroup.id)
+    .notNull(),
+  entryId: text("entry_id")
+    .references(() => saaobSummaryOfAccounts.id)
+    .notNull(),
+});
+
 export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
 
 export const obrRequests = pgTable("obr_requests", {
@@ -460,10 +559,11 @@ export const supplemental = pgTable("supplemental", {
     .primaryKey()
     .$defaultFn(() => uuidv7()),
   supplementalOrAugmentation: text("supplemental_or_augmentation"),
-  charges: text("charges"),
   amount: decimal("amount").notNull(),
   supplementalType: supplementalTypeEnum("supplemental_type").notNull(),
 
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
   aipRefCode: text("aip_ref_code")
     .references(() => aipReferences.id),
   author: text("author_id")
@@ -609,6 +709,8 @@ export const lbacItems = pgTable("lbac_items", {
     .references(() => officeCodes.id),
   expenseCodeId: text("expense_code_id")
     .references(() => expenseClasses.id),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
 
   // Quarterly Reports
   quarterlyReportId: text("lbac_quarterly_report")
@@ -656,11 +758,12 @@ export const obrMainData = pgTable("obr_main_data", {
   expenseCodeId: text("expense_code_id")
     .references(() => expenseClasses.id)
     .notNull(),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
 
   // Other metadata
   requestSourceId: text("request_source_id")
-    .references(() => obrRequests.id)
-    .notNull(),
+    .references(() => obrRequests.id),
   authorId: text("author_id")
     .references(() => user.id)
     .notNull(),
@@ -718,10 +821,11 @@ export const esre = pgTable("esre", {
   natureOfPayment: text("nature_of_payment").notNull(),
   amount: decimal("amount").notNull(),
   checkStatus: checkStatusEnum("check_status"),
-  charges: text("charges"),
   remarks: text("remarks"),
   expenseTypeId: text("expense_type_id")
     .references(() => expenseType.id),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id),
 
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -729,6 +833,102 @@ export const esre = pgTable("esre", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+});
+
+export const modeOfProcurements = pgTable("mode_of_procurements", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  name: text("name").notNull(),
+  description: text("description"),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+});
+
+export const purchasing = pgTable("purchasing", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  prNumber: text("pr_number").notNull(),
+  purchaseOrderNumber: text("purchse_order_number"),
+  supplier: text("supplier"),
+  address: text("address"),
+  tinNumber: text("tin_number"),
+  placeOfDelivery: text("place_of_delivery"),
+  dateOfDelivery: timestamp("date_of_delivery", { withTimezone: true, mode: "date" }),
+  deliveryTerm: text("delivery_term"),
+  paymentTerm: text("payment_term"),
+  unit: text("unit").notNull(),
+  itemDescription: text("item_description").notNull(),
+  quantity: decimal("quantity").notNull(),
+  unitCost: decimal("unit_cost").notNull(),
+  purpose: text("purpose").notNull(),
+
+  headOfOfficeId: text("head_of_office_id")
+    .references(() => user.id)
+    .notNull(),
+  headOfOfficeName: text("head_of_office_name")
+    .notNull(),
+  headOfOfficePosition: text("head_of_office_position")
+    .notNull(),
+  procurementId: text("procurement_id")
+    .references(() => modeOfProcurements.id),
+
+  treasurerId: text("treasurer_id")
+    .references(() => user.id)
+    .notNull(),
+  approverId: text("approver_id")
+    .references(() => user.id)
+    .notNull(),
+  requestingOfficeId: text("requesting_office_id")
+    .references(() => office.id)
+    .notNull(),
+  requestingUserId: text("requesting_user_id")
+    .references(() => user.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const purchasingAip = pgTable("purchasing_aip", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  purchasingId: text("purchasing_id")
+    .references(() => purchasing.id, { onDelete: "cascade" })
+    .notNull(),
+
+  // Lookup based on AIP Code, but we will use LBAC for reasons.
+  lbacReferenceId: text("lbac_reference_id")
+    .references(() => lbacItems.id)
+    .notNull(),
+
+  // LBAC values are cached here
+  aipCode: text("aip_code")
+    .notNull(),
+
+  // MFO/PPA
+  ppa: text("ppa").notNull(),
+
+  // Derived from lbacItems.expenseCode.accountName + lbacItems.expenseCode.accoutCode
+  sourceOfFund: text("source_of_fund"),
+
+  // Amount entry by the user.
+  amountCharged: decimal("amount_charged"),
 });
 
 export const userRelations = relations(user, ({ many }) => ({

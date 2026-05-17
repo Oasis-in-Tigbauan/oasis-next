@@ -39,6 +39,12 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/lbac") return "LBAC: Dashboard";
     if (pathname === "/dashboard/lbac/office") return "LBAC: Quarterly Reports";
     if (pathname === "/dashboard/lbac/data") return "LBAC: Data";
+    if (pathname === "/dashboard/saaob") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES";
+    if (pathname === "/dashboard/saaob/office") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Office View";
+    if (pathname === "/dashboard/saaob/data") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Management";
+    if (pathname === "/dashboard/saaob/accounts-summary") return "STATUS OF APPROPRIATION, ALLOTMENTS, OBLIGATION AND BALANCES: Summary Editor";
+    if (pathname === "/dashboard/settings/procurement-types") return "Data: Mode of Procurements";
+    if (pathname === "/dashboard/forms/purchasing") return "Purchase Request/Purchase Order Manager";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 

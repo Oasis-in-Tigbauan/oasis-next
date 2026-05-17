@@ -149,6 +149,31 @@ export const AIP_READ: Permissions = "aip.read";
  */
 export const AIP_WRITE: Permissions = "aip.write";
 
+/**
+ * People with this permission can read SAAOB Main Data entries & summaries
+ */
+export const SAAOB_DATA_READ: Permissions = "saaob.data.read";
+
+/**
+ * People with this permission can write SAAOB Main Data entries & summaries
+ */
+export const SAAOB_DATA_WRITE: Permissions = "saaob.data.write";
+
+/**
+ * People with this permission can read SAAOB office-specific entries.
+ */
+export const SAAOB_OFFICE_READ: Permissions = "saaob.office.read";
+
+/**
+ * People with this permission can create Purchase Requests
+ */
+export const PURCHASING_REQUEST_CREATE: Permissions = "purchasing.request.create";
+
+/**
+ * People with this permission can modify Purchase Requests, and additionally able to produce Purchase Orders.
+ */
+export const PURCHASING_REQUEST_MANAGE: Permissions = "purchasing.request.manage";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -179,4 +204,9 @@ export type Permissions =
     | "lbac.data.read"
     | "lbac.data.write"
     | "aip.read"
-    | "aip.write";
+    | "aip.write"
+    | "saaob.data.read"
+    | "saaob.data.write"
+    | "saaob.office.read"
+    | "purchasing.request.create"
+    | "purchasing.request.manage";

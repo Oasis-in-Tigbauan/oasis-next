@@ -9,6 +9,8 @@
     "lint": "eslint",
     "setup": "node ./scripts/generate_env.mjs",
     "setup:admin": "tsx scripts/generate-setup-token.ts",
+    "setup:admin:disable": "tsx scripts/admin-account-controls.ts --disable",
+    "setup:admin:enable": "tsx scripts/admin-account-controls.ts --enable",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/migrate.ts",
     "db:push": "drizzle-kit push",
@@ -55,7 +57,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@faker-js/faker": "^10.4.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@types/luxon": "^3.7.1",
     "@types/node": "^25.6.2",
