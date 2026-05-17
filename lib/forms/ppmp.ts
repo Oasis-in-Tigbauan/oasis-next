@@ -13,193 +13,6 @@ import {
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import * as casts from "@/lib/types/casts";
 
-// ---------------------------------------------------------------------------
-// Enums
-// ---------------------------------------------------------------------------
-
-/**
- * Discriminates which level of the PPMP hierarchy an item belongs to.
- *
- * @enum {number}
- */
-export enum ParentType {
-  /** Item is a direct child of a minor group. */
-  Minor = 6700,
-  /** Item is a direct child of a project group. */
-  Project = 6701,
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type ItemPayload = {
-  generalDescription?: string;
-  typeOfProject: string;
-  quantityOrSize: string;
-  recommendedModeOfProcurement?: string;
-  eligibleForPreProcurementConference?: boolean;
-  /** UTC+8 ISO date string — converted to UTC before writing to DB. */
-  startOfProcurementActivity: string;
-  /** UTC+8 ISO date string — converted to UTC before writing to DB. */
-  endOfProcurementActivity: string;
-  /** UTC+8 ISO date string — converted to UTC before writing to DB. */
-  expectedDeliveryPeriod: string;
-  /** Optional SAAOB ID. When omitted, the major group's SAAOB is inherited. */
-  saaobId?: string;
-  estimatedBudget: string;
-  attachedSupportingDocuments?: string;
-  remarks?: string;
-};
-
-export type BaseMajorGroupItem = {
-  id: string;
-  saaob: {
-    id: string;
-    name: string;
-  };
-};
-
-export type MajorGroupItem = {
-  children: Array<MinorGroupItem>;
-} & BaseMajorGroupItem;
-
-export type BaseMinorGroupItem = {
-  id: string;
-  lbac: {
-    id: string;
-    name: string;
-  };
-};
-
-export type MinorGroupItem = {
-  children: Array<ProjectGroupItem | PlanItem>;
-} & BaseMinorGroupItem;
-
-export type BaseProjectGroupItem = {
-  id: string;
-  title: string;
-};
-
-export type ProjectGroupItem = {
-  children: Array<PlanItem>;
-} & BaseProjectGroupItem;
-
-export type PlanItem = {
-  id: string;
-  generalDescription: Optional<string>;
-  typeOfProject: string;
-  quantityOrSize: string;
-  recommendedModeOfProcurement: Optional<string>;
-  eligibleForPreProcurementConference: boolean;
-  /** Full month name in UTC+8, e.g. "January". */
-  startOfProcurementActivity: string;
-  /** Full month name in UTC+8, e.g. "February". */
-  endOfProcurementActivity: string;
-  /** Full month name in UTC+8, e.g. "March". */
-  expectedDeliveryPeriod: string;
-  saaob: {
-    id: string;
-    name: string;
-  };
-  estimatedBudget: string;
-  attachedSupportingDocuments: Optional<string>;
-  remarks: Optional<string>;
-};
-
-// ---------------------------------------------------------------------------
-// Private helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Parses a UTC+8 ISO date string and converts it to a UTC {@link Date}.
- *
- * @description
- * Interprets the provided string in the `Asia/Manila` timezone using Luxon
- * and returns the equivalent UTC JS `Date`. Returns `null` when the string is
- * not a valid ISO date.
- *
- * @function _parseManilaDateToUtc
- * @param {string} date - UTC+8 ISO date string to parse.
- * @returns {Date | null} The UTC `Date` object, or `null` when parsing fails.
- */
-function _parseManilaDateToUtc(date: string): Date | null {
-  const dt = DateTime.fromISO(date, { zone: "Asia/Manila" });
-  if (!dt.isValid) return null;
-  return dt.toUTC().toJSDate();
-}
-
-/**
- * Formats a UTC JS `Date` as the full month name in UTC+8.
- *
- * @description
- * Converts the provided UTC `Date` to the `Asia/Manila` timezone using Luxon
- * and returns the full month name (e.g. `"January"`).
- *
- * @function _formatDateToMonthName
- * @param {Date} date - UTC date to format.
- * @returns {string} Full month name in UTC+8.
- */
-function _formatDateToMonthName(date: Date): string {
-  return DateTime.fromJSDate(date).setZone("Asia/Manila").toFormat("LLLL");
-}
-
-/**
- * Maps a raw `ppmp` DB row into a {@link PlanItem} response shape.
- *
- * @description
- * Formats all three date columns into full month names in UTC+8 and resolves
- * the SAAOB reference from the provided map entry.
- *
- * @function _mapToPlanItem
- * @param {RawPpmpRow} row - Raw item row from the database.
- * @param {{ id: string; name: string }} saaob - Resolved SAAOB reference for this item.
- * @returns {PlanItem} The mapped plan item.
- */
-function _mapToPlanItem(
-  row: RawPpmpRow,
-  saaob: { id: string; name: string },
-): PlanItem {
-  return {
-    id: row.id,
-    generalDescription: row.generalDescription ?? null,
-    typeOfProject: row.typeOfProject,
-    quantityOrSize: row.quantityOrSize,
-    recommendedModeOfProcurement: row.recommendedModeOfProcurement ?? null,
-    eligibleForPreProcurementConference: row.eligibleForPreProcurementConference,
-    startOfProcurementActivity: _formatDateToMonthName(row.startOfProcurementActivity),
-    endOfProcurementActivity: _formatDateToMonthName(row.endOfProcurementActivity),
-    expectedDeliveryPeriod: _formatDateToMonthName(row.expectedDeliveryPeriod),
-    saaob,
-    estimatedBudget: row.estimatedBudget,
-    attachedSupportingDocuments: row.attachedSupportingDocuments ?? null,
-    remarks: row.remarks ?? null,
-  };
-}
-
-/** Shape of a raw DB row read from the `ppmp` table. */
-type RawPpmpRow = {
-  id: string;
-  generalDescription: string | null;
-  typeOfProject: "goods" | "infra" | "cons-serv";
-  quantityOrSize: string;
-  recommendedModeOfProcurement: string | null;
-  eligibleForPreProcurementConference: boolean;
-  startOfProcurementActivity: Date;
-  endOfProcurementActivity: Date;
-  expectedDeliveryPeriod: Date;
-  saaobId: string | null;
-  estimatedBudget: string;
-  attachedSupportingDocuments: string | null;
-  remarks: string | null;
-  minorGroupId: string | null;
-  projectGroupId: string | null;
-};
-
-// ---------------------------------------------------------------------------
-// Public service methods
-// ---------------------------------------------------------------------------
-
 /**
  * Returns the full PPMP tree as a list of major groups with nested children.
  *
@@ -1375,3 +1188,172 @@ async function _inheritSaaobFromMajor(
 
   return saaob ?? null;
 }
+
+/**
+ * Parses a UTC+8 ISO date string and converts it to a UTC {@link Date}.
+ *
+ * @description
+ * Interprets the provided string in the `Asia/Manila` timezone using Luxon
+ * and returns the equivalent UTC JS `Date`. Returns `null` when the string is
+ * not a valid ISO date.
+ *
+ * @function _parseManilaDateToUtc
+ * @param {string} date - UTC+8 ISO date string to parse.
+ * @returns {Date | null} The UTC `Date` object, or `null` when parsing fails.
+ */
+function _parseManilaDateToUtc(date: string): Date | null {
+  const dt = DateTime.fromISO(date, { zone: "Asia/Manila" });
+  if (!dt.isValid) return null;
+  return dt.toUTC().toJSDate();
+}
+
+/**
+ * Formats a UTC JS `Date` as the full month name in UTC+8.
+ *
+ * @description
+ * Converts the provided UTC `Date` to the `Asia/Manila` timezone using Luxon
+ * and returns the full month name (e.g. `"January"`).
+ *
+ * @function _formatDateToMonthName
+ * @param {Date} date - UTC date to format.
+ * @returns {string} Full month name in UTC+8.
+ */
+function _formatDateToMonthName(date: Date): string {
+  return DateTime.fromJSDate(date).setZone("Asia/Manila").toFormat("LLLL");
+}
+
+/**
+ * Maps a raw `ppmp` DB row into a {@link PlanItem} response shape.
+ *
+ * @description
+ * Formats all three date columns into full month names in UTC+8 and resolves
+ * the SAAOB reference from the provided map entry.
+ *
+ * @function _mapToPlanItem
+ * @param {RawPpmpRow} row - Raw item row from the database.
+ * @param {{ id: string; name: string }} saaob - Resolved SAAOB reference for this item.
+ * @returns {PlanItem} The mapped plan item.
+ */
+function _mapToPlanItem(
+  row: RawPpmpRow,
+  saaob: { id: string; name: string },
+): PlanItem {
+  return {
+    id: row.id,
+    generalDescription: row.generalDescription ?? null,
+    typeOfProject: row.typeOfProject,
+    quantityOrSize: row.quantityOrSize,
+    recommendedModeOfProcurement: row.recommendedModeOfProcurement ?? null,
+    eligibleForPreProcurementConference: row.eligibleForPreProcurementConference,
+    startOfProcurementActivity: _formatDateToMonthName(row.startOfProcurementActivity),
+    endOfProcurementActivity: _formatDateToMonthName(row.endOfProcurementActivity),
+    expectedDeliveryPeriod: _formatDateToMonthName(row.expectedDeliveryPeriod),
+    saaob,
+    estimatedBudget: row.estimatedBudget,
+    attachedSupportingDocuments: row.attachedSupportingDocuments ?? null,
+    remarks: row.remarks ?? null,
+  };
+}
+
+/**
+ * Discriminates which level of the PPMP hierarchy an item belongs to.
+ * @enum {number}
+ */
+export enum ParentType {
+  /** Item is a direct child of a minor group. */
+  Minor = 6700,
+  /** Item is a direct child of a project group. */
+  Project = 6701,
+}
+
+export type ItemPayload = {
+  generalDescription?: string;
+  typeOfProject: string;
+  quantityOrSize: string;
+  recommendedModeOfProcurement?: string;
+  eligibleForPreProcurementConference?: boolean;
+  /** UTC+8 ISO date string — converted to UTC before writing to DB. */
+  startOfProcurementActivity: string;
+  /** UTC+8 ISO date string — converted to UTC before writing to DB. */
+  endOfProcurementActivity: string;
+  /** UTC+8 ISO date string — converted to UTC before writing to DB. */
+  expectedDeliveryPeriod: string;
+  /** Optional SAAOB ID. When omitted, the major group's SAAOB is inherited. */
+  saaobId?: string;
+  estimatedBudget: string;
+  attachedSupportingDocuments?: string;
+  remarks?: string;
+};
+
+export type BaseMajorGroupItem = {
+  id: string;
+  saaob: {
+    id: string;
+    name: string;
+  };
+};
+
+export type MajorGroupItem = {
+  children: Array<MinorGroupItem>;
+} & BaseMajorGroupItem;
+
+export type BaseMinorGroupItem = {
+  id: string;
+  lbac: {
+    id: string;
+    name: string;
+  };
+};
+
+export type MinorGroupItem = {
+  children: Array<ProjectGroupItem | PlanItem>;
+} & BaseMinorGroupItem;
+
+export type BaseProjectGroupItem = {
+  id: string;
+  title: string;
+};
+
+export type ProjectGroupItem = {
+  children: Array<PlanItem>;
+} & BaseProjectGroupItem;
+
+export type PlanItem = {
+  id: string;
+  generalDescription: Optional<string>;
+  typeOfProject: string;
+  quantityOrSize: string;
+  recommendedModeOfProcurement: Optional<string>;
+  eligibleForPreProcurementConference: boolean;
+  /** Full month name in UTC+8, e.g. "January". */
+  startOfProcurementActivity: string;
+  /** Full month name in UTC+8, e.g. "February". */
+  endOfProcurementActivity: string;
+  /** Full month name in UTC+8, e.g. "March". */
+  expectedDeliveryPeriod: string;
+  saaob: {
+    id: string;
+    name: string;
+  };
+  estimatedBudget: string;
+  attachedSupportingDocuments: Optional<string>;
+  remarks: Optional<string>;
+};
+
+type RawPpmpRow = {
+  id: string;
+  generalDescription: string | null;
+  typeOfProject: "goods" | "infra" | "cons-serv";
+  quantityOrSize: string;
+  recommendedModeOfProcurement: string | null;
+  eligibleForPreProcurementConference: boolean;
+  startOfProcurementActivity: Date;
+  endOfProcurementActivity: Date;
+  expectedDeliveryPeriod: Date;
+  saaobId: string | null;
+  estimatedBudget: string;
+  attachedSupportingDocuments: string | null;
+  remarks: string | null;
+  minorGroupId: string | null;
+  projectGroupId: string | null;
+};

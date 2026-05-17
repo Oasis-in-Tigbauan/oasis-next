@@ -26,7 +26,7 @@ export async function POST(
   }
 
   // Disallow banning yourself
-  if (session.user.id === id) {
+  if (session.user!.id === id) {
     return ApiResponseBuilder.createError(
       StatusCodes.Status400BadRequest,
       "You cannot ban yourself. Or can you?",
