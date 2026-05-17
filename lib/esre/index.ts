@@ -12,6 +12,7 @@ import {
   obrMainData,
   office,
   officeCodes,
+  saaobEntries,
 } from "@/lib/db/schema";
 import { validatorUtilities } from "@/lib/validators";
 
@@ -49,10 +50,10 @@ export async function all(): Promise<Result<EsreItem[]>> {
         checkStatus: esre.checkStatus,
         checkNumber: esre.checkNumber,
         dvOrPayrollNumber: esre.dvOrPayrollNumber,
-        charges: esre.charges,
         remarks: esre.remarks,
         obrItemId: esre.obrItemId,
         expenseTypeId: esre.expenseTypeId,
+        saaobId: esre.saaobId,
         fundingSourceId: fundTypes.id,
         fundingSourceName: fundTypes.name,
       })
@@ -63,8 +64,9 @@ export async function all(): Promise<Result<EsreItem[]>> {
 
     const obrItemIds = [...new Set(rows.filter(r => r.obrItemId).map(r => r.obrItemId!))];
     const expenseTypeIds = [...new Set(rows.filter(r => r.expenseTypeId).map(r => r.expenseTypeId!))];
+    const saaobIds = [...new Set(rows.filter(r => r.saaobId).map(r => r.saaobId!))];
 
-    const [obrMainDataItems, expenseTypes] = await Promise.all([
+    const [obrMainDataItems, expenseTypes, saaobItems] = await Promise.all([
       obrItemIds.length > 0
         ? db
           .select({
@@ -100,6 +102,12 @@ export async function all(): Promise<Result<EsreItem[]>> {
           .from(expenseTypeTable)
           .where(inArray(expenseTypeTable.id, expenseTypeIds))
         : Promise.resolve([] as Array<{ id: string; name: string }>),
+      saaobIds.length > 0
+        ? db
+          .select({ id: saaobEntries.id, name: saaobEntries.name })
+          .from(saaobEntries)
+          .where(inArray(saaobEntries.id, saaobIds))
+        : Promise.resolve([] as Array<{ id: string; name: string }>),
     ]);
 
     // Take the FIRST obrOfficeItem per obrItemId (skip subsequent entries)
@@ -111,10 +119,12 @@ export async function all(): Promise<Result<EsreItem[]>> {
     }
 
     const expenseTypeMap = new Map(expenseTypes.map(et => [et.id, et]));
+    const saaobMap = new Map(saaobItems.map(s => [s.id, s]));
 
     return new Success(rows.map(row => {
       const obrEntry = row.obrItemId ? obrMainDataById.get(row.obrItemId) : undefined;
       const et = row.expenseTypeId ? expenseTypeMap.get(row.expenseTypeId) : undefined;
+      const saaob = row.saaobId ? saaobMap.get(row.saaobId) : undefined;
 
       return {
         id: row.id,
@@ -125,10 +135,10 @@ export async function all(): Promise<Result<EsreItem[]>> {
         checkStatus: row.checkStatus,
         checkNumber: row.checkNumber,
         dvOrPayrollNumber: row.dvOrPayrollNumber,
-        charges: row.charges,
         remarks: row.remarks,
         fundingSource: { id: row.fundingSourceId, name: row.fundingSourceName },
         expenseType: et ? { id: et.id, name: et.name } : null,
+        saaob: saaob ? { id: saaob.id, name: saaob.name } : null,
         obr: obrEntry && row.obrItemId
           ? {
             id: row.obrItemId,
@@ -191,24 +201,16 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
       return new Failure(ErrorCodes.ValidationFailure, "Invalid funding source.", { payload });
     }
 
-    // Derive charges from obrMainData if an OBR item is linked
-    let charges: string | null = null;
+    // Validate OBR item if provided
     if (validatorUtilities.isUuid(payload.obrId)) {
       const [obrMainDataRow] = await db
-        .select({
-          accountName: expenseClasses.accountName,
-          officeName: office.name,
-        })
+        .select({ id: obrMainData.id })
         .from(obrMainData)
-        .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
-        .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
-        .innerJoin(office, eq(office.id, officeCodes.officeId))
         .where(eq(obrMainData.id, payload.obrId!))
         .limit(1);
       if (!obrMainDataRow) {
         return new Failure(ErrorCodes.ValidationFailure, "Invalid OBR item.", { payload });
       }
-      charges = `${obrMainDataRow.officeName} ${obrMainDataRow.accountName}`;
     }
 
     // Validate expense type if provided
@@ -223,6 +225,18 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
       }
     }
 
+    // Validate saaobId if provided
+    if (validatorUtilities.isUuid(payload.saaobId)) {
+      const [saaobRow] = await db
+        .select({ id: saaobEntries.id })
+        .from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId!))
+        .limit(1);
+      if (!saaobRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { payload });
+      }
+    }
+
     const [inserted] = await db
       .insert(esre)
       .values({
@@ -230,9 +244,9 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
         natureOfPayment: payload.natureOfPayment,
         amount: casts.castToDecimal(payload.amount),
         fundingSourceId: payload.fundingSourceId,
-        ...(charges !== null ? { charges } : {}),
         ...(validatorUtilities.isUuid(payload.obrId) ? { obrItemId: payload.obrId } : {}),
         ...(validatorUtilities.isUuid(payload.expenseTypeId) ? { expenseTypeId: payload.expenseTypeId } : {}),
+        ...(validatorUtilities.isUuid(payload.saaobId) ? { saaobId: payload.saaobId } : {}),
         ...(validatorUtilities.isNotEmpty(payload.remarks) ? { remarks: payload.remarks } : {}),
         ...(validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? { dvOrPayrollNumber: payload.dvOrPayrollNumber } : {}),
         ...(validatorUtilities.isNotEmpty(payload.checkNumber) ? { checkNumber: payload.checkNumber } : {}),
@@ -303,20 +317,14 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
     }
 
     // Handle obrId — undefined = no change; null = clear link; UUID = set new link and re-derive charges
-    let obrItemUpdate: { obrItemId: string | null; charges: string | null } | undefined = undefined;
+    let obrItemUpdate: { obrItemId: string | null } | undefined = undefined;
     if (typeof payload.obrId !== "undefined") {
       if (payload.obrId === null) {
-        obrItemUpdate = { obrItemId: null, charges: null };
+        obrItemUpdate = { obrItemId: null };
       } else if (validatorUtilities.isUuid(payload.obrId)) {
         const [obrMainDataRow] = await db
-          .select({
-            accountName: expenseClasses.accountName,
-            officeName: office.name,
-          })
+          .select({ id: obrMainData.id })
           .from(obrMainData)
-          .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
-          .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
-          .innerJoin(office, eq(office.id, officeCodes.officeId))
           .where(eq(obrMainData.id, payload.obrId))
           .limit(1);
         if (!obrMainDataRow) {
@@ -325,8 +333,25 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
 
         obrItemUpdate = {
           obrItemId: payload.obrId,
-          charges: `${obrMainDataRow.officeName} ${obrMainDataRow.accountName}`,
         };
+      }
+    }
+
+    // Validate saaobId if provided (null = clear, UUID = set)
+    let saaobUpdate: { saaobId: string | null } | undefined = undefined;
+    if (typeof payload.saaobId !== "undefined") {
+      if (payload.saaobId === null) {
+        saaobUpdate = { saaobId: null };
+      } else if (validatorUtilities.isUuid(payload.saaobId)) {
+        const [saaobRow] = await db
+          .select({ id: saaobEntries.id })
+          .from(saaobEntries)
+          .where(eq(saaobEntries.id, payload.saaobId))
+          .limit(1);
+        if (!saaobRow) {
+          return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { payload });
+        }
+        saaobUpdate = { saaobId: payload.saaobId };
       }
     }
 
@@ -355,6 +380,7 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
         ...(validatorUtilities.isNotEmpty(payload.checkNumber) ? { checkNumber: payload.checkNumber } : {}),
         ...(typeof payload.checkStatus !== "undefined" ? { checkStatus: payload.checkStatus } : {}),
         ...(obrItemUpdate !== undefined ? obrItemUpdate : {}),
+        ...(saaobUpdate !== undefined ? saaobUpdate : {}),
       })
       .where(eq(esre.id, id));
 
@@ -415,10 +441,10 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
       checkStatus: esre.checkStatus,
       checkNumber: esre.checkNumber,
       dvOrPayrollNumber: esre.dvOrPayrollNumber,
-      charges: esre.charges,
       remarks: esre.remarks,
       obrItemId: esre.obrItemId,
       expenseTypeId: esre.expenseTypeId,
+      saaobId: esre.saaobId,
       fundingSourceId: fundTypes.id,
       fundingSourceName: fundTypes.name,
     })
@@ -481,6 +507,17 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
     if (etRow) expenseTypeData = { id: etRow.id, name: etRow.name };
   }
 
+  // Fetch SAAOB entry details if linked
+  let saaobData: EsreItem["saaob"] = null;
+  if (row.saaobId) {
+    const [saaobRow] = await db
+      .select({ id: saaobEntries.id, name: saaobEntries.name })
+      .from(saaobEntries)
+      .where(eq(saaobEntries.id, row.saaobId))
+      .limit(1);
+    if (saaobRow) saaobData = { id: saaobRow.id, name: saaobRow.name };
+  }
+
   return {
     id: row.id,
     date: row.date,
@@ -490,10 +527,10 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
     checkStatus: row.checkStatus,
     checkNumber: row.checkNumber,
     dvOrPayrollNumber: row.dvOrPayrollNumber,
-    charges: row.charges,
     remarks: row.remarks,
     fundingSource: { id: row.fundingSourceId, name: row.fundingSourceName },
     expenseType: expenseTypeData,
+    saaob: saaobData,
     obr: obrData,
     disbursed,
   };
@@ -509,6 +546,7 @@ type CreateEsrePayload = {
   remarks?: string;
   obrId?: string;
   expenseTypeId?: string;
+  saaobId?: string;
   dvOrPayrollNumber?: string;
   checkNumber?: string;
   checkStatus?: Optional<CheckStatusType>;
@@ -523,6 +561,7 @@ type UpdateEsrePayload = {
   remarks?: string;
   obrId?: string | null;
   expenseTypeId?: string;
+  saaobId?: string | null;
   dvOrPayrollNumber?: string;
   checkNumber?: string;
 };
@@ -536,13 +575,16 @@ type EsreItem = {
   checkStatus: Optional<string>;
   checkNumber: Optional<string>;
   dvOrPayrollNumber: Optional<string>;
-  charges: Optional<string>;
   remarks: Optional<string>;
   fundingSource: {
     id: string;
     name: string;
   };
   expenseType: Optional<{
+    id: string;
+    name: string;
+  }>;
+  saaob: Optional<{
     id: string;
     name: string;
   }>;

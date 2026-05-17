@@ -27,6 +27,7 @@ type UpdateLbacItemBody = {
   remarksForOtherMetadata?: string | null;
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
+  saaobId?: string | null;
 };
 
 export async function PATCH(
@@ -72,6 +73,7 @@ export async function PATCH(
       remarksForOtherMetadata: { type: "string", formatter: "non-empty-string" },
       implementingUnitId: { type: "string", formatter: "uuid" },
       expenseCodeId: { type: "string", formatter: "uuid" },
+      saaobId: { type: "string", formatter: "uuid" },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,

@@ -21,6 +21,7 @@ import {
   office,
   officeCodes,
   officePosition,
+  saaobEntries,
   user,
   user as userSchema,
 } from "@/lib/db/schema";
@@ -1681,6 +1682,18 @@ export async function createObrMainDataFromApprovedRequest(
       }
     }
 
+    // Validate saaobId if provided
+    if (validatorUtilities.isUuid(payload.saaobId)) {
+      const [saaobRow] = await db
+        .select({ id: saaobEntries.id })
+        .from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId!))
+        .limit(1);
+      if (!saaobRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { requestId, saaobId: payload.saaobId });
+      }
+    }
+
     // Determine current UTC+8 date components for alobs
     const now = DateTime.now().setZone("Asia/Manila");
     const yy = now.toFormat("yy");
@@ -1713,6 +1726,7 @@ export async function createObrMainDataFromApprovedRequest(
         ...(validatorUtilities.isNumber(payload.prAmount)
           ? { prAmount: casts.castToDecimal(payload.prAmount!) }
           : {}),
+        ...(validatorUtilities.isUuid(payload.saaobId) ? { saaobId: payload.saaobId } : {}),
       }));
 
       const inserted = await tx
@@ -1819,6 +1833,7 @@ export async function updateObrMainData(
       obrNumber: string;
       prNumber: string;
       prAmount: string;
+      saaobId: string | null;
     }> = {};
 
     if (validatorUtilities.isNotEmpty(payload.obrNumber)) {
@@ -1829,6 +1844,9 @@ export async function updateObrMainData(
     }
     if (validatorUtilities.isNumber(payload.prAmount)) {
       updateFields.prAmount = casts.castToDecimal(payload.prAmount!);
+    }
+    if ("saaobId" in payload) {
+      updateFields.saaobId = payload.saaobId ?? null;
     }
 
     const hasScalarUpdates = Object.keys(updateFields).length > 0;
@@ -1863,6 +1881,18 @@ export async function updateObrMainData(
             { id, aipId: aip.aipId },
           );
         }
+      }
+    }
+
+    // Validate saaobId if provided
+    if (validatorUtilities.isUuid(payload.saaobId)) {
+      const [saaobRow] = await db
+        .select({ id: saaobEntries.id })
+        .from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId!))
+        .limit(1);
+      if (!saaobRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { id, saaobId: payload.saaobId });
       }
     }
 
@@ -2698,6 +2728,8 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       prAmount: obrMainData.prAmount,
       createdAt: obrMainData.createdAt,
       requestSourceId: obrMainData.requestSourceId,
+      saaobId: obrMainData.saaobId,
+      saaobName: saaobEntries.name,
 
       rcId: officeCodes.id,
       rcName: officeCodes.aa,
@@ -2717,6 +2749,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
     .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
     .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
     .innerJoin(userSchema, eq(userSchema.id, obrMainData.authorId))
+    .leftJoin(saaobEntries, eq(saaobEntries.id, obrMainData.saaobId))
     .where(filter)
     .orderBy(asc(obrMainData.obrNumber));
 
@@ -2785,7 +2818,8 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       date: dt.toISO()!,
       payee: r.payee,
       address: r.address,
-      requestSourceId: r.requestSourceId,
+      requestSourceId: r.requestSourceId ?? null,
+      saaob: r.saaobId ? { id: r.saaobId, name: r.saaobName ?? "" } : null,
       responsibilityCenter: {
         id: r.rcId,
         name: r.rcName,
@@ -3042,7 +3076,8 @@ export type ObrMainDataItem = {
   date: string;
   payee: string;
   address: string;
-  requestSourceId: string;
+  requestSourceId: string | null;
+  saaob: { id: string; name: string } | null;
   responsibilityCenter: {
     id: string;
     name: string;
@@ -3102,6 +3137,7 @@ type CreateObrMainDataPayload = {
   obrNumber: string;
   prNumber?: string;
   prAmount?: string;
+  saaobId?: string;
   aipReferences?: Array<{
     aipId: string;
     amount: string;
@@ -3112,6 +3148,7 @@ type UpdateObrMainDataPayload = {
   obrNumber?: string;
   prNumber?: string;
   prAmount?: string;
+  saaobId?: string | null;
   aipReferences?: Array<{
     aipId: string;
     amount: string;

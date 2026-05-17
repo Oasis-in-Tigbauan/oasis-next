@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
-import { aipReferences, supplemental } from "@/lib/db/schema";
+import { aipReferences, saaobEntries, supplemental } from "@/lib/db/schema";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import { validatorUtilities } from "@/lib/validators";
 
@@ -32,9 +32,10 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
       .select({
         id: supplemental.id,
         supplementalOrAugmentation: supplemental.supplementalOrAugmentation,
-        charges: supplemental.charges,
         amount: supplemental.amount,
         supplementalType: supplemental.supplementalType,
+        saaobId: saaobEntries.id,
+        saaobName: saaobEntries.name,
         aipCodeId: aipReferences.id,
         aipCodeValue: aipReferences.aipReferenceCode,
         aipCodeDescription: aipReferences.description,
@@ -42,6 +43,7 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
       })
       .from(supplemental)
       .leftJoin(aipReferences, eq(supplemental.aipRefCode, aipReferences.id))
+      .leftJoin(saaobEntries, eq(supplemental.saaobId, saaobEntries.id))
       .orderBy(asc(supplemental.createdAt), asc(supplemental.id));
 
     return new Success(rows.map(row => _mapRowToItem(row)));
@@ -78,14 +80,19 @@ export async function create(payload: CreateSupplementalItem, authorId: string):
       return aipValidation;
     }
 
+    const saaobValidation = await _validateSaaobReference(payload.saaobId, { payload, authorId });
+    if (saaobValidation instanceof Failure) {
+      return saaobValidation;
+    }
+
     const [inserted] = await db
       .insert(supplemental)
       .values({
         supplementalOrAugmentation: _toNullableText(payload.supplementalOrAugmentation),
-        charges: _toNullableText(payload.charges),
         amount: casts.castToDecimal(payload.amount),
         supplementalType: payload.supplementalType,
         aipRefCode: aipValidation,
+        saaobId: saaobValidation,
         author: authorId,
       })
       .returning({ id: supplemental.id });
@@ -139,9 +146,9 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
 
     const updateSet: Partial<{
       supplementalOrAugmentation: string | null;
-      charges: string | null;
       amount: string;
       supplementalType: SupplementalType;
+      saaobId: string | null;
       aipRefCode: string | null;
     }> = {};
 
@@ -154,11 +161,17 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
       updateSet.aipRefCode = aipValidation;
     }
 
+    if ("saaobId" in payload) {
+      const saaobValidation = await _validateSaaobReference(payload.saaobId, { supplementalId, payload });
+      if (saaobValidation instanceof Failure) {
+        return saaobValidation;
+      }
+
+      updateSet.saaobId = saaobValidation;
+    }
+
     if ("supplementalOrAugmentation" in payload) {
       updateSet.supplementalOrAugmentation = _toNullableText(payload.supplementalOrAugmentation);
-    }
-    if ("charges" in payload) {
-      updateSet.charges = _toNullableText(payload.charges);
     }
     if ("amount" in payload && payload.amount !== undefined) {
       updateSet.amount = casts.castToDecimal(payload.amount);
@@ -222,9 +235,10 @@ async function _getSupplementalById(id: string): Promise<SupplementalItem | null
     .select({
       id: supplemental.id,
       supplementalOrAugmentation: supplemental.supplementalOrAugmentation,
-      charges: supplemental.charges,
       amount: supplemental.amount,
       supplementalType: supplemental.supplementalType,
+      saaobId: saaobEntries.id,
+      saaobName: saaobEntries.name,
       aipCodeId: aipReferences.id,
       aipCodeValue: aipReferences.aipReferenceCode,
       aipCodeDescription: aipReferences.description,
@@ -232,6 +246,7 @@ async function _getSupplementalById(id: string): Promise<SupplementalItem | null
     })
     .from(supplemental)
     .leftJoin(aipReferences, eq(supplemental.aipRefCode, aipReferences.id))
+    .leftJoin(saaobEntries, eq(supplemental.saaobId, saaobEntries.id))
     .where(eq(supplemental.id, id))
     .limit(1);
 
@@ -243,9 +258,14 @@ function _mapRowToItem(row: SupplementalRow): SupplementalItem {
   return {
     id: row.id,
     supplementalOrAugmentation: row.supplementalOrAugmentation,
-    charges: row.charges,
     amount: row.amount,
     supplementalType: row.supplementalType,
+    saaob: row.saaobId && row.saaobName
+      ? {
+        id: row.saaobId,
+        name: row.saaobName,
+      }
+      : null,
     aipCode: row.aipCodeId && row.aipCodeValue && row.aipCodeDescription
       ? {
         id: row.aipCodeId,
@@ -285,6 +305,33 @@ async function _validateAipReference(
   return aipReference.id;
 }
 
+async function _validateSaaobReference(
+  saaobId: Optional<string>,
+  context: Record<string, unknown>,
+): Promise<string | null | Failure> {
+  if (!validatorUtilities.isNotEmpty(saaobId)) {
+    return null;
+  }
+
+  if (!validatorUtilities.isUuid(saaobId)) {
+    return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry ID.", context);
+  }
+
+  const saaobEntryId: string = saaobId!;
+
+  const [saaobEntry] = await db
+    .select({ id: saaobEntries.id })
+    .from(saaobEntries)
+    .where(eq(saaobEntries.id, saaobEntryId))
+    .limit(1);
+
+  if (!saaobEntry) {
+    return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", context);
+  }
+
+  return saaobEntry.id;
+}
+
 function _getQuarterLabelUtcPlus8(date: Date): string {
   const quarter = DateTime.fromJSDate(date, { zone: "utc" })
     .setZone("UTC+8")
@@ -302,9 +349,10 @@ type SupplementalType = "less" | "add";
 type SupplementalRow = {
   id: string;
   supplementalOrAugmentation: Optional<string>;
-  charges: Optional<string>;
   amount: string;
   supplementalType: SupplementalType;
+  saaobId: Optional<string>;
+  saaobName: Optional<string>;
   aipCodeId: Optional<string>;
   aipCodeValue: Optional<string>;
   aipCodeDescription: Optional<string>;
@@ -314,9 +362,12 @@ type SupplementalRow = {
 type SupplementalItem = {
   id: string;
   supplementalOrAugmentation: Optional<string>;
-  charges: Optional<string>;
   amount: string;
   supplementalType: SupplementalType;
+  saaob: Optional<{
+    id: string;
+    name: string;
+  }>;
   aipCode: Optional<{
     id: string;
     aipRefCode: string;
@@ -328,9 +379,9 @@ type SupplementalItem = {
 
 type CreateSupplementalItem = {
   supplementalOrAugmentation: Optional<string>;
-  charges: Optional<string>;
   amount: string;
   supplementalType: SupplementalType;
+  saaobId: Optional<string>;
   aipCode: Optional<string>;
 };
 

@@ -61,6 +61,15 @@ export async function POST(req: NextRequest) {
       },
       dvOrPayrollNumber: { type: "string", formatter: "non-empty-string" },
       checkNumber: { type: "string", formatter: "non-empty-string" },
+      saaobId: {
+        type: "string",
+        formatterFn: async v => {
+          if (!validatorUtilities.isUuid(v)) {
+            return { ok: false, error: "Invalid SAAOB entry ID." };
+          }
+          return { ok: true };
+        },
+      },
     },
     requiredProperties: ["payee", "natureOfPayment", "amount", "fundingSourceId"],
     allowUnvalidatedProperties: false,
@@ -86,6 +95,7 @@ type CreateEsreRequest = {
   remarks?: string;
   obrId?: string;
   expenseTypeId?: string;
+  saaobId?: string;
   dvOrPayrollNumber?: string;
   checkNumber?: string;
 };

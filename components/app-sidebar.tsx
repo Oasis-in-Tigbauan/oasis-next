@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  BriefcaseBusiness,
   ChevronRight,
   FileSpreadsheet,
   LampDesk,
   Mail,
   PhilippinePeso,
   Settings,
+  ShoppingBasket,
   ShieldUser,
   UserCheck,
 } from "lucide-react";
@@ -113,6 +115,19 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
               )
             }
             {
+              (
+                permissionMap.has(permissions.SAAOB_OFFICE_READ)
+                || permissionMap.has(permissions.SAAOB_DATA_READ)
+              ) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <FileSpreadsheet />
+                    <a href="/dashboard/saaob">SAAOB</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
+            {
               permissionMap.has(permissions.AIP_READ) && (
                 <SidebarMenuItem>
                   <SidebarMenuButton>
@@ -124,6 +139,23 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
             }
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Forms */}
+        {
+          permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Office Forms</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <ShoppingBasket />
+                    <a href="/dashboard/forms/purchasing">PR/PO Form</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        }
 
         {/* Data Types Management */}
         {
@@ -153,6 +185,12 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                   <SidebarMenuButton>
                     <PhilippinePeso />
                     <a href="/dashboard/settings/fund-types">Fund Types</a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>
+                    <BriefcaseBusiness />
+                    <a href="/dashboard/settings/procurement-types">Procurement Types</a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarGroupContent>

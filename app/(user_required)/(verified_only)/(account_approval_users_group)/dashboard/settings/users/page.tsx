@@ -135,6 +135,7 @@ export default function UsersPage() {
 }
 
 function UserDataTable({ columns, data, mutateUserFn }: UserDataTableProps) {
+  // eslint-disable-next-line
   const table = useReactTable({
     data,
     columns,
@@ -398,6 +399,7 @@ function ChangeRoleDialog({ user, mutateFn }: { user: User, mutateFn: (id: strin
 }
 
 declare module "@tanstack/react-table" {
+  // eslint-disable-next-line
   interface TableMeta<TData extends RowData> {
     mutateUserFn: (id: string, user: User) => void;
   }

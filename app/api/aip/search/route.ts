@@ -6,9 +6,13 @@ import { oneOf } from "@/lib/one-of";
 
 export async function GET(request: Request) {
   const session = await auth.verify(
-    [permission.AIP_READ, permission.OBR_MANAGEMENT_READ, permission.SUPPLEMENTAL_READ],
-    "or",
-  );
+    [
+      permission.AIP_READ,
+      permission.OBR_MANAGEMENT_READ,
+      permission.SUPPLEMENTAL_READ,
+      permission.PURCHASING_REQUEST_CREATE,
+      permission.PURCHASING_REQUEST_MANAGE,
+    ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }

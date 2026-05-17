@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import path from "node:path";
 
 import * as utils from "./utils.mjs";
@@ -5,6 +6,22 @@ import * as utils from "./utils.mjs";
 const __dirname = import.meta.dirname;
 
 async function main() {
+  const pnpmPath = process.platform === "win32"
+    ? execSync("where pnpm").toString().split("\n")[0].trim()
+    : execSync("which pnpm").toString().trim();
+  if (utils.str.isEmpty(pnpmPath)) {
+    console.error("No pnpm in PATH found.");
+    return;
+  }
+
+  const dockerPath = process.platform === "win32"
+    ? execSync("where docker").toString().split("\n")[0].trim()
+    : execSync("which docker").toString().trim();
+  if (utils.str.isEmpty(dockerPath)) {
+    console.error("No docker in PATH found.");
+    return;
+  }
+
   // Resend API Key
   const resend = await utils.env.ask("Your Resend API Key", "resend.api.key");
   if (!resend) {
@@ -76,7 +93,7 @@ async function main() {
   await utils.env.export(path.join(__dirname, "../.env"));
 
   // Run the docker-compose
-  await utils.process.spawnAsync("docker", ["compose", "up", "-d"], {
+  await utils.process.spawnAsync(dockerPath, ["compose", "up", "-d"], {
     cwd: path.join(__dirname, "../"),
   });
 
@@ -97,22 +114,25 @@ async function main() {
 
   try {
     // Start the schema migration
-    await utils.process.spawnAsync("pnpm", ["run", "db:migrate"], {
+    await utils.process.spawnAsync(pnpmPath, ["run", "db:migrate"], {
       cwd: path.join(__dirname, "../"),
+      shell: true,
     });
 
     await utils.timers.wait(5);
 
     // Seed
-    await utils.process.spawnAsync("pnpm", ["run", "db:seed", "--", "--critical-only"], {
+    await utils.process.spawnAsync(pnpmPath, ["run", "db:seed", "--", "--critical-only"], {
       cwd: path.join(__dirname, "../"),
+      shell: true,
     });
 
     await utils.timers.wait(5);
 
     // Finally, prepare for the setup
-    await utils.process.spawnAsync("pnpm", ["run", "setup:admin"], {
+    await utils.process.spawnAsync(pnpmPath, ["run", "setup:admin"], {
       cwd: path.join(__dirname, "../"),
+      shell: true,
     });
 
     console.log("");
@@ -126,7 +146,9 @@ async function main() {
     console.log("");
     console.log("Happy coding!");
     console.log("");
-  } catch {
+  } catch (e) {
+    console.error(e);
+
     console.warn("");
     console.warn("One or more commands failed to run to setup your database. You need to do this manually.");
     console.warn("");
