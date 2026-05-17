@@ -931,6 +931,107 @@ export const purchasingAip = pgTable("purchasing_aip", {
   amountCharged: decimal("amount_charged"),
 });
 
+export const ppmpMajorGroup = pgTable("ppmp_major_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const ppmpMinorGroup = pgTable("ppmp_minor_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  lbacId: text("lbac_id")
+    .references(() => lbacItems.id)
+    .notNull(),
+
+  parentId: text("parent_id")
+    .references(() => ppmpMajorGroup.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const ppmpProjectGroup = pgTable("ppmp_project_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  title: text("title").notNull(),
+
+  parentId: text("parent_id")
+    .references(() => ppmpMinorGroup.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const ppmpProjectType = pgEnum("ppmp_project_type", ["goods", "infra", "cons-serv"]);
+
+export const ppmp = pgTable("ppmp", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  generalDescription: text("general_description"),
+  typeOfProject: ppmpProjectType("type_of_project")
+    .notNull(),
+  quantityOrSize: text("quantity_or_size")
+    .notNull(),
+  recommendedModeOfProcurement: text("recommended_mode_of_procurement"),
+  eligibleForPreProcurementConference: boolean("eligible_for_conference")
+    .default(false)
+    .notNull(),
+  startOfProcurementActivity: timestamp("start_of_procurement_activity", { withTimezone: true, mode: "date" })
+    .notNull(),
+  endOfProcurementActivity: timestamp("end_of_procurement_activity", { withTimezone: true, mode: "date" })
+    .notNull(),
+  expectedDeliveryPeriod: timestamp("expected_delivery_period", { withTimezone: true, mode: "date" })
+    .notNull(),
+  saaobId: text("saaob_id")
+    .references(() => saaobEntries.id)
+    .notNull(),
+  estimatedBudget: decimal("estimated_budget")
+    .notNull(),
+  attachedSupportingDocuments: text("attached_supporting_documents"),
+  remarks: text("remarks"),
+
+  // Both are nullable.
+  // An item will have a value in ONE of these columns, but not both.
+  minorGroupId: text("minor_group_id")
+    .references(() => ppmpMinorGroup.id),
+  projectGroupId: text("project_group_id")
+    .references(() => ppmpProjectGroup.id),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
