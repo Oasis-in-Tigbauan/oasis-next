@@ -144,7 +144,8 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
         {
           (
             permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) ||
-            permissionMap.has(permissions.PPMP_READ)
+            permissionMap.has(permissions.PPMP_READ) ||
+            permissionMap.has(permissions.OBR_DISBURSEMENT_CREATE)
           ) && (
             <SidebarGroup>
               <SidebarGroupLabel>Office Forms</SidebarGroupLabel>
@@ -165,6 +166,16 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                       <SidebarMenuButton>
                         <FileSpreadsheet />
                         <a href="/dashboard/forms/ppmp">PPMP</a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
+                {
+                  permissionMap.has(permissions.OBR_DISBURSEMENT_CREATE) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton>
+                        <FileSpreadsheet />
+                        <a href="/dashboard/forms/elec">DV-Elec</a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )

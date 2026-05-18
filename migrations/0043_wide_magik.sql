@@ -1,0 +1,1 @@
+ALTER TABLE "obr_disbursement_electronic" ADD COLUMN "tax_type" "tax_types" NOT NULL;
