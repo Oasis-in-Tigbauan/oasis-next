@@ -148,7 +148,7 @@ export default function Page() {
             ref={tableScrollRef}
             className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="w-max min-w-full table-fixed text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+            <Table className="w-max min-w-full table-fixed text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead className="w-40 min-w-40">Date</TableHead>

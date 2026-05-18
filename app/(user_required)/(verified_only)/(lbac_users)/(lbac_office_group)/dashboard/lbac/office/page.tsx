@@ -143,23 +143,27 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-8rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(103vh-8rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
           >
-            <Table className="text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
-              <TableHeader className="sticky top-0 z-10 bg-background">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">AIP REF CODE</TableHead>
-                  <TableHead rowSpan={2} className="w-[640px] min-w-[640px] max-w-[640px] align-middle whitespace-normal">MFO/PPA</TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
+                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">MFO/PPA</TableHead>
                   <TableHead rowSpan={2} className="min-w-32 align-middle">Implementing Unit</TableHead>
                   <TableHead colSpan={3} className="text-center border-b">Appropriation</TableHead>
                   <TableHead colSpan={2} className="text-center border-b">Obligation</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">Prior Year Accomplishments</TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                    Prior Year Accomplishments
+                  </TableHead>
                   <TableHead colSpan={5} className="text-center border-b">Physical Targets 2026</TableHead>
                   <TableHead colSpan={5} className="text-center border-b">Actual Physical Performance</TableHead>
                   <TableHead rowSpan={2} className="min-w-24 align-middle">Variance as of</TableHead>
                   <TableHead rowSpan={2} className="min-w-24 align-middle">% of Accomplishment</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">Remarks</TableHead>
-                  <TableHead rowSpan={2} className="min-w-48 align-middle">Target for Budget Year</TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Remarks</TableHead>
+                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                    Target for Budget Year
+                  </TableHead>
                 </TableRow>
                 <TableRow>
                   {/* Appropriation */}
@@ -170,16 +174,16 @@ export default function Page() {
                   <TableHead className="min-w-28">Cut-off</TableHead>
                   <TableHead className="min-w-28">Balance</TableHead>
                   {/* Physical Targets */}
-                  <TableHead className="min-w-20">Q1</TableHead>
-                  <TableHead className="min-w-20">Q2</TableHead>
-                  <TableHead className="min-w-20">Q3</TableHead>
-                  <TableHead className="min-w-20">Q4</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                   {/* Actual Physical */}
-                  <TableHead className="min-w-20">Q1</TableHead>
-                  <TableHead className="min-w-20">Q2</TableHead>
-                  <TableHead className="min-w-20">Q3</TableHead>
-                  <TableHead className="min-w-20">Q4</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -201,7 +205,7 @@ export default function Page() {
                         className="bg-muted/50 hover:bg-muted/70"
                       >
                         <TableCell />
-                        <TableCell>
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
                           <button
                             type="button"
                             className="flex items-center gap-1 font-semibold text-left hover:text-primary w-full"
@@ -230,7 +234,7 @@ export default function Page() {
                       onClick={() => handleItemClick(item)}
                     >
                       <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
-                      <TableCell className="w-[640px] min-w-[640px] max-w-[640px] whitespace-normal break-words" style={{ paddingLeft: `${row.depth * 14 + 4}px` }}>{item.mfoPpa}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.mfoPpa}</TableCell>
                       <TableCell>{txt(item.implementingUnit?.name)}</TableCell>
                       {/* Appropriation */}
                       <TableCell className="text-right font-mono">{fmt(item.appropriation.contOrSupplementalAugmentation)}</TableCell>
@@ -240,24 +244,24 @@ export default function Page() {
                       <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.obligation)}</TableCell>
                       <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.balance)}</TableCell>
                       {/* Prior Year */}
-                      <TableCell>{txt(item.priorYearAccomplishments)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.priorYearAccomplishments)}</TableCell>
                       {/* Physical Targets */}
-                      <TableCell>{txt(item.physicalTargets.Q1)}</TableCell>
-                      <TableCell>{txt(item.physicalTargets.Q2)}</TableCell>
-                      <TableCell>{txt(item.physicalTargets.Q3)}</TableCell>
-                      <TableCell>{txt(item.physicalTargets.Q4)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q1)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q2)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q3)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q4)}</TableCell>
                       <TableCell>{txt(item.physicalTargets.total)}</TableCell>
                       {/* Actual Physical */}
-                      <TableCell>{txt(item.actualPhysicalPerformance.Q1)}</TableCell>
-                      <TableCell>{txt(item.actualPhysicalPerformance.Q2)}</TableCell>
-                      <TableCell>{txt(item.actualPhysicalPerformance.Q3)}</TableCell>
-                      <TableCell>{txt(item.actualPhysicalPerformance.Q4)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q1)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q2)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q3)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q4)}</TableCell>
                       <TableCell>{txt(item.actualPhysicalPerformance.total)}</TableCell>
                       {/* Remaining */}
                       <TableCell>{txt(item.variance)}</TableCell>
                       <TableCell>{txt(item.accomplishment)}</TableCell>
-                      <TableCell>{txt(item.remarks)}</TableCell>
-                      <TableCell>{txt(item.targetForBudgetYear)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.remarks)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.targetForBudgetYear)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -391,11 +395,12 @@ function QuarterlyEditDialog({
               {(["Q1", "Q2", "Q3", "Q4"] as const).map(q => (
                 <div key={q} className="flex flex-col gap-1">
                   <Label htmlFor={`${baseId}-ptq${q}`}>{q}</Label>
-                  <Input
+                  <Textarea
                     id={`${baseId}-ptq${q}`}
                     value={fields[`physicalTarget${q}`]}
                     onChange={e => set(`physicalTarget${q}`, e.target.value)}
                     disabled={submitting}
+                    rows={2}
                   />
                 </div>
               ))}
@@ -419,11 +424,12 @@ function QuarterlyEditDialog({
               {(["Q1", "Q2", "Q3", "Q4"] as const).map(q => (
                 <div key={q} className="flex flex-col gap-1">
                   <Label htmlFor={`${baseId}-appq${q}`}>{q}</Label>
-                  <Input
+                  <Textarea
                     id={`${baseId}-appq${q}`}
                     value={fields[`actualPhysicalPerformance${q}`]}
                     onChange={e => set(`actualPhysicalPerformance${q}`, e.target.value)}
                     disabled={submitting}
+                    rows={2}
                   />
                 </div>
               ))}
