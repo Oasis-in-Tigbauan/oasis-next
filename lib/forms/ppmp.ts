@@ -3,6 +3,7 @@ import { DateTime } from "luxon";
 
 import { db } from "@/lib/db";
 import {
+  aipReferences,
   lbacItems,
   ppmp,
   ppmpMajorGroup,
@@ -54,9 +55,11 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
           parentId: ppmpMinorGroup.parentId,
           lbacId: lbacItems.id,
           lbacName: lbacItems.mfoPpa,
+          lbacAipRefCode: aipReferences.aipReferenceCode,
         })
         .from(ppmpMinorGroup)
-        .innerJoin(lbacItems, eq(lbacItems.id, ppmpMinorGroup.lbacId)),
+        .innerJoin(lbacItems, eq(lbacItems.id, ppmpMinorGroup.lbacId))
+        .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode)),
 
       db
         .select({
@@ -185,7 +188,11 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
 
       const node: MinorGroupItem = {
         id: minor.id,
-        lbac: { id: minor.lbacId, name: minor.lbacName },
+        lbac: {
+          id: minor.lbacId,
+          name: minor.lbacName,
+          aipRefCode: minor.lbacAipRefCode ?? null,
+        },
         children: directItems,
       };
 
@@ -273,8 +280,13 @@ export async function createMinorGroup(parentId: string, lbacId: string): Promis
         .where(eq(ppmpMajorGroup.id, parentId))
         .limit(1),
       db
-        .select({ id: lbacItems.id, name: lbacItems.mfoPpa })
+        .select({
+          id: lbacItems.id,
+          name: lbacItems.mfoPpa,
+          aipRefCode: aipReferences.aipReferenceCode,
+        })
         .from(lbacItems)
+        .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
         .where(eq(lbacItems.id, lbacId))
         .limit(1),
     ]);
@@ -291,7 +303,14 @@ export async function createMinorGroup(parentId: string, lbacId: string): Promis
       .values({ parentId: parent.id, lbacId: lbac.id })
       .returning({ id: ppmpMinorGroup.id });
 
-    return new Success({ id: created.id, lbac: { id: lbac.id, name: lbac.name } });
+    return new Success({
+      id: created.id,
+      lbac: {
+        id: lbac.id,
+        name: lbac.name,
+        aipRefCode: lbac.aipRefCode ?? null,
+      },
+    });
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to create minor group.", { parentId, lbacId }, e);
   }
@@ -508,8 +527,13 @@ export async function updateMinorGroup(id: string, lbacId: string): Promise<Resu
         .where(eq(ppmpMinorGroup.id, id))
         .limit(1),
       db
-        .select({ id: lbacItems.id, name: lbacItems.mfoPpa })
+        .select({
+          id: lbacItems.id,
+          name: lbacItems.mfoPpa,
+          aipRefCode: aipReferences.aipReferenceCode,
+        })
         .from(lbacItems)
+        .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
         .where(eq(lbacItems.id, lbacId))
         .limit(1),
     ]);
@@ -526,7 +550,14 @@ export async function updateMinorGroup(id: string, lbacId: string): Promise<Resu
       .set({ lbacId: lbac.id })
       .where(eq(ppmpMinorGroup.id, id));
 
-    return new Success({ id, lbac: { id: lbac.id, name: lbac.name } });
+    return new Success({
+      id,
+      lbac: {
+        id: lbac.id,
+        name: lbac.name,
+        aipRefCode: lbac.aipRefCode ?? null,
+      },
+    });
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to update minor group.", { id, lbacId }, e);
   }
@@ -1208,18 +1239,18 @@ function _parseManilaDateToUtc(date: string): Date | null {
 }
 
 /**
- * Formats a UTC JS `Date` as the full month name in UTC+8.
+ * Formats a UTC JS `Date` as month and year in UTC+8.
  *
  * @description
  * Converts the provided UTC `Date` to the `Asia/Manila` timezone using Luxon
- * and returns the full month name (e.g. `"January"`).
+ * and returns month and year (e.g. `"January 2026"`).
  *
  * @function _formatDateToMonthName
  * @param {Date} date - UTC date to format.
- * @returns {string} Full month name in UTC+8.
+ * @returns {string} Month and year in UTC+8.
  */
 function _formatDateToMonthName(date: Date): string {
-  return DateTime.fromJSDate(date).setZone("Asia/Manila").toFormat("LLLL");
+  return DateTime.fromJSDate(date).setZone("Asia/Manila").toFormat("LLLL yyyy");
 }
 
 /**
@@ -1302,6 +1333,7 @@ export type BaseMinorGroupItem = {
   lbac: {
     id: string;
     name: string;
+    aipRefCode: string | null;
   };
 };
 
@@ -1325,11 +1357,11 @@ export type PlanItem = {
   quantityOrSize: string;
   recommendedModeOfProcurement: Optional<string>;
   eligibleForPreProcurementConference: boolean;
-  /** Full month name in UTC+8, e.g. "January". */
+  /** Month and year in UTC+8, e.g. "January 2026". */
   startOfProcurementActivity: string;
-  /** Full month name in UTC+8, e.g. "February". */
+  /** Month and year in UTC+8, e.g. "February 2026". */
   endOfProcurementActivity: string;
-  /** Full month name in UTC+8, e.g. "March". */
+  /** Month and year in UTC+8, e.g. "March 2026". */
   expectedDeliveryPeriod: string;
   saaob: {
     id: string;
