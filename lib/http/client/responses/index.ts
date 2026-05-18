@@ -43,6 +43,13 @@ import type {
 import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/responses/AipSearchResponse";
 import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
 import type { LbacDataResponse, LbacGroupResponse, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
+import type {
+  PpmpDataResponse,
+  PpmpMajorGroupResponse,
+  PpmpMinorGroupResponse,
+  PpmpProjectGroupResponse,
+  PpmpPlanItemResponse,
+} from "@/lib/http/client/responses/PpmpDataResponse";
 import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
 import type { LbacSearchResponse, LbacSearchGroupItem, LbacSearchResultItem } from "@/lib/http/client/responses/LbacSearchResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
@@ -132,6 +139,11 @@ export type {
   LbacItemResponse,
   LbacAipRef,
   LbacImplementingUnit,
+  PpmpDataResponse,
+  PpmpMajorGroupResponse,
+  PpmpMinorGroupResponse,
+  PpmpProjectGroupResponse,
+  PpmpPlanItemResponse,
   LbacOfficeQuarterlyResponse,
   LbacQuarterlyGroupResponse,
   LbacQuarterlyItemResponse,

@@ -142,16 +142,33 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
 
         {/* Forms */}
         {
-          permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) && (
+          (
+            permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) ||
+            permissionMap.has(permissions.PPMP_READ)
+          ) && (
             <SidebarGroup>
               <SidebarGroupLabel>Office Forms</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenuItem>
-                  <SidebarMenuButton>
-                    <ShoppingBasket />
-                    <a href="/dashboard/forms/purchasing">PR/PO Form</a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {
+                  permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton>
+                        <ShoppingBasket />
+                        <a href="/dashboard/forms/purchasing">PR/PO Form</a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
+                {
+                  permissionMap.has(permissions.PPMP_READ) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton>
+                        <FileSpreadsheet />
+                        <a href="/dashboard/forms/ppmp">PPMP</a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
               </SidebarGroupContent>
             </SidebarGroup>
           )
