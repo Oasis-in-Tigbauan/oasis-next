@@ -295,6 +295,20 @@
       "when": 1779020824147,
       "tag": "0041_stiff_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1779098840240,
+      "tag": "0042_thankful_fat_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1779099209426,
+      "tag": "0043_wide_magik",
+      "breakpoints": true
     }
   ]
 }

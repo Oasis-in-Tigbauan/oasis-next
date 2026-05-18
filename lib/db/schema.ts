@@ -501,6 +501,29 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
     .notNull(),
 });
 
+export const obrDisbursementElectronic = pgTable("obr_disbursement_electronic", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  voucherId: text("voucher_id")
+    .references(() => obrDisbursementVouchers.id)
+    .notNull(),
+  billingName: text("billing_name").notNull(),
+  meterSerial: text("meter_serial").notNull(),
+  account: text("account").notNull(),
+  gross: decimal("gross").notNull(),
+  vatableSales: decimal("vatable_sales").notNull(),
+  taxType: taxTypes("tax_type").notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const obrItems = pgTable("obr_items", {
   id: text("id")
     .primaryKey()
