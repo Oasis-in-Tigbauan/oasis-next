@@ -496,7 +496,7 @@ export default function Page() {
                       onDoubleClick={() => handleRowDoubleClick(row)}
                     >
                       <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words" style={{ paddingLeft: `${row.depth * 14 + 4}px` }}>{item.mfoPpa}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.mfoPpa}</TableCell>
                       <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.majorFinalOutput)}</TableCell>
                       <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.performanceOutputIndicator)}</TableCell>
                       <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.targetForBudgetYear)}</TableCell>
