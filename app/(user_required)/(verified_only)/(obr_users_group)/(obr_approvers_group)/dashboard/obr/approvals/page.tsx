@@ -105,7 +105,7 @@ export default function Page() {
     <div className="relative flex flex-col p-4">
       <Typography variant="h3" className="mb-4 grow">OBR Approvals</Typography>
 
-      <Table>
+      <Table className="text-sm">
         {requests.length === 0 && (
           <TableCaption>No requests pending your approval.</TableCaption>
         )}

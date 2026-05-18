@@ -116,7 +116,7 @@ export default function Page() {
     <div className="relative flex flex-col p-4">
       <Typography variant="h3" className="mb-4 grow">OBR Disbursement</Typography>
 
-      <Table>
+      <Table className="text-sm">
         {requests.length === 0 && (
           <TableCaption>No approved OBR requests available for disbursement.</TableCaption>
         )}

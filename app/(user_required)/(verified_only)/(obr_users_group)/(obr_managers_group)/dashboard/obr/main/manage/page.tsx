@@ -185,7 +185,7 @@ export default function Page() {
             ref={tableScrollRef}
             className="h-[calc(100vh-6.7rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+            <Table className="text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead className="min-w-32">OBR</TableHead>

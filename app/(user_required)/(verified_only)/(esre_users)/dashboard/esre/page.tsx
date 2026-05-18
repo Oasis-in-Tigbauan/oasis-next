@@ -84,7 +84,7 @@ export default function Page() {
       </div>
 
       <div className="border rounded-lg">
-        <Table>
+        <Table className="text-sm">
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>

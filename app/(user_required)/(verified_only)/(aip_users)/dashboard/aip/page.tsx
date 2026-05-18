@@ -458,10 +458,10 @@ export default function Page() {
             ref={tableScrollRef}
             className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="[&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
-              <TableHeader className="sticky top-0 z-10 bg-background">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
-                  <TableHead rowSpan={2} className="min-w-8"></TableHead>
+                  <TableHead rowSpan={2} className="min-w-8 border-l"></TableHead>
                   <TableHead rowSpan={2} className="min-w-64 text-center">AIP Reference Code</TableHead>
                   <TableHead rowSpan={2} className="min-w-80 text-center">Program/Project/Activity Description</TableHead>
                   <TableHead rowSpan={2} className="min-w-56 text-center">Implementing Office</TableHead>
