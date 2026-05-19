@@ -124,11 +124,16 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
  *
  * @async
  * @function getAllItems
+ * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
+ * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
  * @returns {Promise<Result<LbacGroupObject[]>>} A result containing the full LBAC group/item tree on success,
  *                                               or a failure result on error.
  */
-export async function getAllItems(): Promise<Result<LbacGroupObject[]>> {
+export async function getAllItems(year?: number, quarter?: number): Promise<Result<LbacGroupObject[]>> {
   try {
+    const resolvedYear = year ?? _getCurrentYearUtc8();
+    const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
+
     const [groups, items] = await Promise.all([_fetchGroups(null), _fetchItems(null)]);
 
     const reportIds = items.map((i) => i.quarterlyReportId);
@@ -148,7 +153,7 @@ export async function getAllItems(): Promise<Result<LbacGroupObject[]>> {
 
     const itemsByGroup = new Map<string, LbacObject[]>();
     for (const item of items) {
-      const obj = _buildLbacItemObject(item, reportMap.get(item.quarterlyReportId), supplementals, obrAmounts);
+      const obj = _buildLbacItemObject(item, reportMap.get(item.quarterlyReportId), supplementals, obrAmounts, resolvedYear, resolvedQuarter);
       const existing = itemsByGroup.get(item.parentId) ?? [];
       existing.push(obj);
       itemsByGroup.set(item.parentId, existing);
@@ -169,11 +174,16 @@ export async function getAllItems(): Promise<Result<LbacGroupObject[]>> {
  * @async
  * @function getAllQuarterlyReports
  * @param {User} user - The authenticated user whose officeId is used to filter the data.
+ * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
+ * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
  * @returns {Promise<Result<LbacQuarterlyGroupObject[]>>} A result containing the quarterly report tree on success,
  *                                                        or a failure result on error.
  */
-export async function getAllQuarterlyReports(user: User): Promise<Result<LbacQuarterlyGroupObject[]>> {
+export async function getAllQuarterlyReports(user: User, year?: number, quarter?: number): Promise<Result<LbacQuarterlyGroupObject[]>> {
   try {
+    const resolvedYear = year ?? _getCurrentYearUtc8();
+    const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
+
     const officeIds = [user.office.id];
 
     const [groups, items] = await Promise.all([
@@ -196,7 +206,7 @@ export async function getAllQuarterlyReports(user: User): Promise<Result<LbacQua
 
     const itemsByGroup = new Map<string, LbacQuarterlyObject[]>();
     for (const item of items) {
-      const obj = _buildLbacQuarterlyObject(item, reportMap.get(item.quarterlyReportId), supplementals, obrAmounts);
+      const obj = _buildLbacQuarterlyObject(item, reportMap.get(item.quarterlyReportId), supplementals, obrAmounts, resolvedYear, resolvedQuarter);
       const existing = itemsByGroup.get(item.parentId) ?? [];
       existing.push(obj);
       itemsByGroup.set(item.parentId, existing);
@@ -312,7 +322,7 @@ export async function createLbacItem(
       _fetchSupplementalByAipRef(aipRefIds),
       _fetchObrAipAmounts(aipRefIds),
     ]);
-    const obj = _buildLbacItemObject(item, reports[0], supplementals, obrAmounts);
+    const obj = _buildLbacItemObject(item, reports[0], supplementals, obrAmounts, _getCurrentYearUtc8(), _getCurrentQuarterUtc8());
 
     return new Success(obj);
   } catch (e) {
@@ -484,7 +494,7 @@ export async function updateLbacItem(
       _fetchObrAipAmounts(aipRefIds),
     ]);
 
-    const obj = _buildLbacItemObject(updatedItem, reports[0], supplementals, obrAmounts);
+    const obj = _buildLbacItemObject(updatedItem, reports[0], supplementals, obrAmounts, _getCurrentYearUtc8(), _getCurrentQuarterUtc8());
     return new Success(obj);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to update LBAC item.", { lbacId }, e);
@@ -550,7 +560,7 @@ export async function updateLbacQuarterlyReport(
       _fetchObrAipAmounts(aipRefIds),
     ]);
 
-    const obj = _buildLbacQuarterlyObject(fetchedItem, reports[0], supplementals, obrAmounts);
+    const obj = _buildLbacQuarterlyObject(fetchedItem, reports[0], supplementals, obrAmounts, _getCurrentYearUtc8(), _getCurrentQuarterUtc8());
     return new Success(obj);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to update LBAC quarterly report.", { lbacId }, e);
@@ -850,6 +860,24 @@ function _getCurrentMonthStartUtc8(): Date {
 }
 
 /**
+ * Returns the appropriate cut-off date boundary for OBR obligation sums when viewing a specific quarter.
+ *
+ * - For the current year/quarter: returns the start of the current month (partial-month cut-off).
+ * - For any other year/quarter: returns the exclusive end of the specified quarter (first day of
+ *   the following quarter), so all obligations within the historical quarter are included.
+ *
+ * @param {number} year - The year to view.
+ * @param {number} quarter - The quarter to view (1–4).
+ * @returns {Date} The cut-off boundary as a UTC Date.
+ */
+function _getMonthStartForQuarterView(year: number, quarter: number): Date {
+  if (year === _getCurrentYearUtc8() && quarter === _getCurrentQuarterUtc8()) {
+    return _getCurrentMonthStartUtc8();
+  }
+  return _getQuarterBoundsUtc8(year, quarter).end;
+}
+
+/**
  * Fetches all supplemental records whose aipRefCode matches any of the given IDs.
  * Returns entries annotated with their quarter, year, and sign-adjusted amount string.
  *
@@ -1122,6 +1150,8 @@ async function _fetchQuarterlyReports(reportIds: string[]): Promise<QuarterlyRep
  * @param {QuarterlyReportRow | undefined} report - The associated quarterly report.
  * @param {SupplementalEntry[]} supplementals - All relevant supplemental entries.
  * @param {ObrAipEntry[]} obrAmounts - All relevant OBR AIP amount entries.
+ * @param {number} year - The year to compute calculations for.
+ * @param {number} quarter - The quarter (1–4) to compute calculations for.
  * @returns {LbacObject} The fully computed LBAC item object.
  */
 function _buildLbacItemObject(
@@ -1129,10 +1159,12 @@ function _buildLbacItemObject(
   report: QuarterlyReportRow | undefined,
   supplementals: SupplementalEntry[],
   obrAmounts: ObrAipEntry[],
+  year: number,
+  quarter: number,
 ): LbacObject {
-  const currentYear = _getCurrentYearUtc8();
-  const currentQuarter = _getCurrentQuarterUtc8();
-  const monthStart = _getCurrentMonthStartUtc8();
+  const currentYear = year;
+  const currentQuarter = quarter;
+  const monthStart = _getMonthStartForQuarterView(year, quarter);
 
   // Proposed budget totals
   const ps = casts.castFromDecimal(item.proposedBudgetPS);
@@ -1323,6 +1355,8 @@ function _buildLbacItemObject(
  * @param {QuarterlyReportRow | undefined} report - The associated quarterly report.
  * @param {SupplementalEntry[]} supplementals - All relevant supplemental entries.
  * @param {ObrAipEntry[]} obrAmounts - All relevant OBR AIP amount entries.
+ * @param {number} year - The year to compute calculations for.
+ * @param {number} quarter - The quarter (1–4) to compute calculations for.
  * @returns {LbacQuarterlyObject} The LBAC quarterly object.
  */
 function _buildLbacQuarterlyObject(
@@ -1330,9 +1364,11 @@ function _buildLbacQuarterlyObject(
   report: QuarterlyReportRow | undefined,
   supplementals: SupplementalEntry[],
   obrAmounts: ObrAipEntry[],
+  year: number,
+  quarter: number,
 ): LbacQuarterlyObject {
-  const currentQuarter = _getCurrentQuarterUtc8();
-  const monthStart = _getCurrentMonthStartUtc8();
+  const currentQuarter = quarter;
+  const monthStart = _getMonthStartForQuarterView(year, quarter);
 
   const ps = casts.castFromDecimal(item.proposedBudgetPS);
   const mooe = casts.castFromDecimal(item.proposedBudgetMOOE);

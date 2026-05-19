@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -55,128 +55,15 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 
-// ─── Flat-row types ───────────────────────────────────────────────────────────
-
-type FlatRow =
-  | { kind: "group"; id: string; depth: number; data: LbacGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacItemResponse; groupId: string };
-
-// ─── Tree helpers ────────────────────────────────────────────────────────────
-
-/** Collect all groups in the tree into a flat list (for dropdowns). */
-function collectGroups(
-  nodes: (LbacGroupResponse | LbacItemResponse)[],
-  result: LbacGroupResponse[] = [],
-): LbacGroupResponse[] {
-  for (const node of nodes) {
-    if (node.type === 6767) {
-      const g = node as LbacGroupResponse;
-      result.push(g);
-      collectGroups(g.children, result);
-    }
-  }
-  return result;
-}
-
-/** Returns a set of group IDs that contain at least one matching descendant item. */
-function collectMatchingGroupIds(
-  nodes: (LbacGroupResponse | LbacItemResponse)[],
-  query: string,
-): Set<string> {
-  const matched = new Set<string>();
-  function walk(nodes2: (LbacGroupResponse | LbacItemResponse)[], ancestors: string[]): boolean {
-    let anyMatch = false;
-    for (const node of nodes2) {
-      if (node.type === 6767) {
-        const g = node as LbacGroupResponse;
-        const childMatch = walk(g.children, [...ancestors, g.id]);
-        if (childMatch) {
-          matched.add(g.id);
-          for (const a of ancestors) matched.add(a);
-          anyMatch = true;
-        }
-      } else {
-        const item = node as LbacItemResponse;
-        const q = query.toLowerCase();
-        const hits =
-          item.aipRefCode?.aipReferenceCode.toLowerCase().includes(q) ||
-          item.mfoPpa.toLowerCase().includes(q) ||
-          item.majorFinalOutput?.toLowerCase().includes(q) ||
-          item.performanceOutputIndicator?.toLowerCase().includes(q) ||
-          item.targetForBudgetYear?.toLowerCase().includes(q);
-        if (hits) {
-          for (const a of ancestors) matched.add(a);
-          anyMatch = true;
-        }
-      }
-    }
-    return anyMatch;
-  }
-  walk(nodes, []);
-  return matched;
-}
-
-function itemMatchesQuery(item: LbacItemResponse, query: string): boolean {
-  const q = query.toLowerCase();
-  return (
-    (item.aipRefCode?.aipReferenceCode.toLowerCase().includes(q) ?? false) ||
-    item.mfoPpa.toLowerCase().includes(q) ||
-    (item.majorFinalOutput?.toLowerCase().includes(q) ?? false) ||
-    (item.performanceOutputIndicator?.toLowerCase().includes(q) ?? false) ||
-    (item.targetForBudgetYear?.toLowerCase().includes(q) ?? false)
-  );
-}
-
-function flattenVisible(
-  nodes: (LbacGroupResponse | LbacItemResponse)[],
-  collapsed: Set<string>,
-  depth: number,
-  query: string,
-  matchingGroupIds: Set<string>,
-): FlatRow[] {
-  const rows: FlatRow[] = [];
-  const filtering = query.trim().length > 0;
-
-  for (const node of nodes) {
-    if (node.type === 6767) {
-      const group = node as LbacGroupResponse;
-      if (filtering && !matchingGroupIds.has(group.id)) continue;
-      rows.push({ kind: "group", id: group.id, depth, data: group });
-      // When filtering, ignore collapsed state so matches are always visible
-      const shouldExpand = filtering || !collapsed.has(group.id);
-      if (shouldExpand) {
-        rows.push(...flattenVisible(group.children, collapsed, depth + 1, query, matchingGroupIds));
-      }
-    } else {
-      const item = node as LbacItemResponse;
-      if (filtering && !itemMatchesQuery(item, query)) continue;
-      rows.push({ kind: "item", id: item.id, depth, data: item, groupId: "" });
-    }
-  }
-  return rows;
-}
-
-// ─── Formatters ─────────────────────────────────────────────────────────────
-
-function fmt(val: string | null | undefined): string {
-  if (!val) return "—";
-  const n = Number(val);
-  if (Number.isNaN(n)) return val;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function txt(val: string | null | undefined): string {
-  return val ?? "—";
-}
-
 const TOTAL_COLS = 58;
 
-// ─── Page ────────────────────────────────────────────────────────────────────
-
 export default function Page() {
+  const [currentYear] = useState(() => _getUtc8Year());
+  const [selectedQuarter, setSelectedQuarter] = useState(() => _getUtc8Quarter());
+
   const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<LbacDataResponse, ApiResponseException>
-  >("/api/lbac", $fetch);
+  >(`/api/lbac?year=${currentYear}&quarter=${selectedQuarter}`, $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -254,6 +141,11 @@ export default function Page() {
     mutate();
   }, [selectedRow, mutate]);
 
+  const handleQuarterChange = useCallback((q: number) => {
+    setSelectedQuarter(q);
+    setSelectedRow(null);
+  }, []);
+
   const closeDialog = useCallback(() => setDialogMode(null), []);
   const onSuccess = useCallback(() => { mutate(); closeDialog(); }, [mutate, closeDialog]);
 
@@ -329,6 +221,43 @@ export default function Page() {
             }
           </Badge>
         )}
+
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous quarter"
+            title="Previous quarter"
+            disabled={selectedQuarter === 1}
+            onClick={() => handleQuarterChange(selectedQuarter - 1)}
+          >
+            <ChevronLeft />
+          </Button>
+          <Select
+            value={String(selectedQuarter)}
+            onValueChange={(v) => handleQuarterChange(Number(v))}
+          >
+            <SelectTrigger className="h-7 w-20 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Q1</SelectItem>
+              <SelectItem value="2">Q2</SelectItem>
+              <SelectItem value="3">Q3</SelectItem>
+              <SelectItem value="4">Q4</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next quarter"
+            title="Next quarter"
+            disabled={selectedQuarter === 4}
+            onClick={() => handleQuarterChange(selectedQuarter + 1)}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -1303,3 +1232,120 @@ function SaaobSearchCombobox({
     </div>
   );
 }
+
+/** Collect all groups in the tree into a flat list (for dropdowns). */
+function collectGroups(
+  nodes: (LbacGroupResponse | LbacItemResponse)[],
+  result: LbacGroupResponse[] = [],
+): LbacGroupResponse[] {
+  for (const node of nodes) {
+    if (node.type === 6767) {
+      const g = node as LbacGroupResponse;
+      result.push(g);
+      collectGroups(g.children, result);
+    }
+  }
+  return result;
+}
+
+/** Returns a set of group IDs that contain at least one matching descendant item. */
+function collectMatchingGroupIds(
+  nodes: (LbacGroupResponse | LbacItemResponse)[],
+  query: string,
+): Set<string> {
+  const matched = new Set<string>();
+  function walk(nodes2: (LbacGroupResponse | LbacItemResponse)[], ancestors: string[]): boolean {
+    let anyMatch = false;
+    for (const node of nodes2) {
+      if (node.type === 6767) {
+        const g = node as LbacGroupResponse;
+        const childMatch = walk(g.children, [...ancestors, g.id]);
+        if (childMatch) {
+          matched.add(g.id);
+          for (const a of ancestors) matched.add(a);
+          anyMatch = true;
+        }
+      } else {
+        const item = node as LbacItemResponse;
+        const q = query.toLowerCase();
+        const hits =
+          item.aipRefCode?.aipReferenceCode.toLowerCase().includes(q) ||
+          item.mfoPpa.toLowerCase().includes(q) ||
+          item.majorFinalOutput?.toLowerCase().includes(q) ||
+          item.performanceOutputIndicator?.toLowerCase().includes(q) ||
+          item.targetForBudgetYear?.toLowerCase().includes(q);
+        if (hits) {
+          for (const a of ancestors) matched.add(a);
+          anyMatch = true;
+        }
+      }
+    }
+    return anyMatch;
+  }
+  walk(nodes, []);
+  return matched;
+}
+
+function itemMatchesQuery(item: LbacItemResponse, query: string): boolean {
+  const q = query.toLowerCase();
+  return (
+    (item.aipRefCode?.aipReferenceCode.toLowerCase().includes(q) ?? false) ||
+    item.mfoPpa.toLowerCase().includes(q) ||
+    (item.majorFinalOutput?.toLowerCase().includes(q) ?? false) ||
+    (item.performanceOutputIndicator?.toLowerCase().includes(q) ?? false) ||
+    (item.targetForBudgetYear?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+function flattenVisible(
+  nodes: (LbacGroupResponse | LbacItemResponse)[],
+  collapsed: Set<string>,
+  depth: number,
+  query: string,
+  matchingGroupIds: Set<string>,
+): FlatRow[] {
+  const rows: FlatRow[] = [];
+  const filtering = query.trim().length > 0;
+
+  for (const node of nodes) {
+    if (node.type === 6767) {
+      const group = node as LbacGroupResponse;
+      if (filtering && !matchingGroupIds.has(group.id)) continue;
+      rows.push({ kind: "group", id: group.id, depth, data: group });
+      // When filtering, ignore collapsed state so matches are always visible
+      const shouldExpand = filtering || !collapsed.has(group.id);
+      if (shouldExpand) {
+        rows.push(...flattenVisible(group.children, collapsed, depth + 1, query, matchingGroupIds));
+      }
+    } else {
+      const item = node as LbacItemResponse;
+      if (filtering && !itemMatchesQuery(item, query)) continue;
+      rows.push({ kind: "item", id: item.id, depth, data: item, groupId: "" });
+    }
+  }
+  return rows;
+}
+
+function fmt(val: string | null | undefined): string {
+  if (!val) return "—";
+  const n = Number(val);
+  if (Number.isNaN(n)) return val;
+  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function txt(val: string | null | undefined): string {
+  return val ?? "—";
+}
+
+function _getUtc8Year(): number {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear();
+}
+
+function _getUtc8Quarter(): number {
+  const month = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCMonth(); // 0-indexed
+  return Math.floor(month / 3) + 1;
+}
+
+type FlatRow =
+  | { kind: "group"; id: string; depth: number; data: LbacGroupResponse }
+  | { kind: "item"; id: string; depth: number; data: LbacItemResponse; groupId: string };
