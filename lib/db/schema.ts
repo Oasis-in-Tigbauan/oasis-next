@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer, serial, uniqueIndex } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -1046,6 +1046,48 @@ export const ppmp = pgTable("ppmp", {
   projectGroupId: text("project_group_id")
     .references(() => ppmpProjectGroup.id),
 
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const travelOrderStatusEnum = pgEnum("travel_order_status", ["co-hr", "filed", "missing", "cancelled"]);
+export const travelOrderCategoryEnum = pgEnum("travel_order_category", ["official", "personal"]);
+
+export const travelOrders = pgTable("travel_orders", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  refNumber: serial("ref_number").notNull().unique(),
+  travelOrderStatus: travelOrderStatusEnum("travel_order_status").notNull(),
+  category: travelOrderCategoryEnum("travel_order_category").notNull(),
+  startDate: timestamp("start_date", { withTimezone: true, mode: "date" })
+    .notNull(),
+
+  // Not nullable because some travel orders are just a single day.
+  endDate: timestamp("end_date", { withTimezone: true, mode: "date" }),
+  location: text("location").notNull(),
+  purpose: text("purpose").notNull(),
+  subjectToClaims: boolean("subject_to_claims").default(true).notNull(),
+  notes: text("notes"),
+
+  requestorId: text("requestor_id")
+    .references(() => user.id)
+    .notNull(),
+  requestorOfficeId: text("requestor_office_id")
+    .references(() => office.id)
+    .notNull(),
+  requestorPositionId: text("requestor_office_position")
+    .references(() => officePosition.id)
+    .notNull(),
+  approverId: text("approver_id")
+    .references(() => user.id),
+  approverPositionId: text("approver_office_position")
+    .references(() => officePosition.id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),

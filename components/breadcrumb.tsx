@@ -47,6 +47,7 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/forms/purchasing") return "Purchase Request/Purchase Order Manager";
     if (pathname === "/dashboard/forms/ppmp") return "Project Procurement Management Plan (PPMP)";
     if (pathname === "/dashboard/forms/elec") return "DV-Elec";
+    if (pathname === "/dashboard/forms/travel-order") return "Travel Orders";
     if (/^\/dashboard\/settings\/roles\/.+\/roles$/.test(pathname)) return "Office & Role Editor";
   }, [pathname]);
 
