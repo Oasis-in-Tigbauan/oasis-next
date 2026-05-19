@@ -37,6 +37,7 @@ export type ObrDisbursementVoucherItem = {
   } | null;
   status: string | null;
   prNumber: string | null;
+  hasElecData: boolean;
 };
 
 export type ObrDisbursementVoucherListResponse = GenericOkResponse<ObrDisbursementVoucherItem[]>;
