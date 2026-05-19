@@ -2,13 +2,16 @@
 
 import {
   BriefcaseBusiness,
+  Car,
   ChevronRight,
   FileSpreadsheet,
   LampDesk,
   Mail,
   PhilippinePeso,
+  PlugZap,
   Settings,
   ShoppingBasket,
+  ShoppingCart,
   ShieldUser,
   UserCheck,
 } from "lucide-react";
@@ -167,7 +170,7 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                   permissionMap.has(permissions.PPMP_READ) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton>
-                        <FileSpreadsheet />
+                        <ShoppingCart />
                         <a href="/dashboard/forms/ppmp">PPMP</a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -177,7 +180,7 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                   permissionMap.has(permissions.OBR_DISBURSEMENT_CREATE) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton>
-                        <FileSpreadsheet />
+                        <PlugZap />
                         <a href="/dashboard/forms/elec">DV-Elec</a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -191,7 +194,7 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                   ) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton>
-                        <FileSpreadsheet />
+                        <Car />
                         <a href="/dashboard/forms/travel-order">Travel Orders</a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
