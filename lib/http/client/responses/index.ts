@@ -77,6 +77,14 @@ import type {
   PurchasingValidSignatory,
 } from "@/lib/http/client/responses/PurchasingValidSignatoriesResponse";
 import type { ElecListResponse, ElecItem as ElecItemResponse } from "@/lib/http/client/responses/ElecListResponse";
+import type {
+  TravelOrderListResponse,
+  TravelOrderItem as TravelOrderItemResponse,
+  TravelOrderRequestor as TravelOrderRequestorResponse,
+  TravelOrderApprovedBy as TravelOrderApprovedByResponse,
+  TravelOrderUserListResponse,
+  TravelOrderUserItem as TravelOrderUserItemResponse,
+} from "@/lib/http/client/responses/TravelOrderListResponse";
 
 export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
 export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
@@ -171,6 +179,12 @@ export type {
   PurchasingValidSignatory,
   ElecListResponse,
   ElecItemResponse,
+  TravelOrderListResponse,
+  TravelOrderItemResponse,
+  TravelOrderRequestorResponse,
+  TravelOrderApprovedByResponse,
+  TravelOrderUserListResponse,
+  TravelOrderUserItemResponse,
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {

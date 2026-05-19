@@ -184,6 +184,21 @@ export const PPMP_READ: Permissions = "ppmp.read";
  */
 export const PPMP_MANAGE: Permissions = "ppmp.manage";
 
+/**
+ * People with this permission can create Travel Orders and Pass-slips.
+ */
+export const TRAVEL_READ: Permissions = "travel.read";
+
+/**
+ * People with this permission can manage Travel Orders and Pass-slips.
+ */
+export const TRAVEL_WRITE: Permissions = "travel.write";
+
+/**
+ * Approvers of the travel orders.
+ */
+export const TRAVEL_APPROVER: Permissions = "travel.approver";
+
 export type Permissions =
     | "approvals.account.write"
     | "approvals.account.read"
@@ -221,4 +236,7 @@ export type Permissions =
     | "purchasing.request.create"
     | "purchasing.request.manage"
     | "ppmp.read"
-    | "ppmp.manage";
+    | "ppmp.manage"
+    | "travel.read"
+    | "travel.write"
+    | "travel.approver";

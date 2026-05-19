@@ -145,7 +145,10 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
           (
             permissionMap.has(permissions.PURCHASING_REQUEST_MANAGE) ||
             permissionMap.has(permissions.PPMP_READ) ||
-            permissionMap.has(permissions.OBR_DISBURSEMENT_CREATE)
+            permissionMap.has(permissions.OBR_DISBURSEMENT_CREATE) ||
+            permissionMap.has(permissions.TRAVEL_READ) ||
+            permissionMap.has(permissions.TRAVEL_WRITE) ||
+            permissionMap.has(permissions.TRAVEL_APPROVER)
           ) && (
             <SidebarGroup>
               <SidebarGroupLabel>Office Forms</SidebarGroupLabel>
@@ -176,6 +179,20 @@ export default function AppSidebar({ user, ...props }: AppSideBarProps) {
                       <SidebarMenuButton>
                         <FileSpreadsheet />
                         <a href="/dashboard/forms/elec">DV-Elec</a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
+                {
+                  (
+                    permissionMap.has(permissions.TRAVEL_READ) ||
+                    permissionMap.has(permissions.TRAVEL_WRITE) ||
+                    permissionMap.has(permissions.TRAVEL_APPROVER)
+                  ) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton>
+                        <FileSpreadsheet />
+                        <a href="/dashboard/forms/travel-order">Travel Orders</a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )

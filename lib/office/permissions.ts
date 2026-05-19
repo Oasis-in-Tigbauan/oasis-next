@@ -150,6 +150,18 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
     permission: permissions.PPMP_MANAGE,
     description: "People with this permission can manage Project Procurement Management Plan (PPMP)",
   },
+  {
+    permission: permissions.TRAVEL_READ,
+    description: "People with this permission can read and print Travel Orders and Pass-slips.",
+  },
+  {
+    permission: permissions.TRAVEL_WRITE,
+    description: "People with this permission can write Travel Orders and Pass-slips.",
+  },
+  {
+    permission: permissions.TRAVEL_APPROVER,
+    description: "People with this permission can approve Travel Orders",
+  },
 ];
 
 export const allowedPermissions: Set<permissions.Permissions> = new Set(
@@ -191,6 +203,9 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.PURCHASING_REQUEST_MANAGE,
     permissions.PPMP_READ,
     permissions.PPMP_MANAGE,
+    permissions.TRAVEL_READ,
+    permissions.TRAVEL_WRITE,
+    permissions.TRAVEL_APPROVER,
   ],
 );
 
