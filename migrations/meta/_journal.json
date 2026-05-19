@@ -309,6 +309,13 @@
       "when": 1779099209426,
       "tag": "0043_wide_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1779174574743,
+      "tag": "0044_sturdy_iron_lad",
+      "breakpoints": true
     }
   ]
 }

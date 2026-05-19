@@ -70,6 +70,7 @@ export async function PATCH(
           return { ok: true };
         },
       },
+      obrItemId: { type: "string", formatter: "uuid" },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
@@ -92,4 +93,30 @@ type UpdatePayload = {
   taxType: Optional<"vat-g" | "vat-s" | "nvat-g" | "nvat-s">;
   fundTypeId: Optional<string>;
   status: Optional<"PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID">;
+  obrItemId: Optional<string>;
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: RouteContext<"/api/obr/disbursements/[id]">,
+) {
+  const session = await auth.verify([
+    permission.OBR_DISBURSEMENT_CREATE,
+  ]);
+  if (!session || session.code !== SessionCode.Ok) {
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
+  }
+
+  const { id } = await params;
+  if (!validatorUtilities.isUuid(id)) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status404NotFound, "No such item found.")
+      .build();
+  }
+
+  const deleted = await obr.deleteDisbursementVoucher(id, session.user!);
+  return oneOf(deleted).match(
+    () => ApiResponseBuilder.create(StatusCodes.Status204NoContent).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
+  );
 }
