@@ -52,7 +52,8 @@ export async function POST(
   const { id } = await params;
   if (!validatorUtilities.isUuid(id)) {
     return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid ID.");
+      .createError(StatusCodes.Status400BadRequest, "Invalid ID.")
+      .build();
   }
 
   const result = await accounts.resendInvitation(id);
