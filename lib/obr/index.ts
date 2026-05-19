@@ -10,6 +10,7 @@ import {
   esre,
   expenseClasses,
   fundTypes,
+  obrDisbursementElectronic,
   obrDisbursementVouchers,
   obrItems,
   obrMainAipReferences,
@@ -957,6 +958,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
           ? allFt.get(d.fundTypeId!)
           : null,
         prNumber: d.prNumber,
+        hasElecData: false,
       } satisfies ObrDisbursementVoucher)),
     );
   } catch (e) {
@@ -1084,6 +1086,12 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       fundType = fundTypeResult;
     }
 
+    const [elecData] = await db
+      .select({ id: obrDisbursementElectronic.id })
+      .from(obrDisbursementElectronic)
+      .where(eq(obrDisbursementElectronic.voucherId, ref.id))
+      .limit(1);
+
     const [result] = await db
       .update(obrDisbursementVouchers)
       .set({
@@ -1140,6 +1148,7 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
         : null,
       status: validatorUtilities.isNotEmpty(result.status) ? result.status : null,
       prNumber: validatorUtilities.isNotEmpty(result.prNumber) ? result.prNumber : null,
+      hasElecData: validatorUtilities.isExisty(elecData),
     } satisfies ObrDisbursementVoucher);
   } catch (e) {
     return new Failure(
@@ -1175,6 +1184,11 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
  */
 export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisbursementVoucher>>> {
   try {
+    const elecItems = await db
+      .select({ voucherId: obrDisbursementElectronic.voucherId })
+      .from(obrDisbursementElectronic);
+    const allElecItems = new Set(...elecItems.map(x => x.voucherId));
+
     const all = await db
       .select({
         id: obrDisbursementVouchers.id,
@@ -1274,6 +1288,7 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
         : null,
       status: validatorUtilities.isNotEmpty(ref.status) ? ref.status : null,
       prNumber: validatorUtilities.isNotEmpty(ref.prNumber) ? ref.prNumber : null,
+      hasElecData: allElecItems.has(ref.id),
     } satisfies ObrDisbursementVoucher)));
   } catch (e) {
     return new Failure(
@@ -2989,6 +3004,7 @@ type ObrDisbursementVoucher = {
   }>
   status: Optional<string>;
   prNumber: Optional<string>;
+  hasElecData: boolean;
 }
 
 export type ValidApproverPermissionType =
