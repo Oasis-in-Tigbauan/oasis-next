@@ -687,7 +687,7 @@ export async function searchItems(query: string): Promise<Result<SaaobSearchResu
   }
 }
 
-export async function getAllSummary(): Promise<Result<SaaobSummaryElements>> {
+export async function getAllSummary(year?: number, month?: number): Promise<Result<SaaobSummaryElements>> {
   try {
     const [summaryGroups, summaryItems, linkedGroupLinks] = await Promise.all([
       db.select({
@@ -726,7 +726,7 @@ export async function getAllSummary(): Promise<Result<SaaobSummaryElements>> {
     }
 
     const entryRows = allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
-    const computedEntries = await _fetchAndComputeEntries(entryRows);
+    const computedEntries = await _fetchAndComputeEntries(entryRows, year, month);
     const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
 
     const itemsByParentGroup = new Map<string, SaaobSummaryItem[]>();
