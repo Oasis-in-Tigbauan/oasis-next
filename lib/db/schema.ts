@@ -536,8 +536,7 @@ export const obrItems = pgTable("obr_items", {
     .references(() => user.id)
     .notNull(),
   disbursementRefId: text("disbursement_ref_id")
-    .references(() => obrDisbursementVouchers.id)
-    .notNull(),
+    .references(() => obrDisbursementVouchers.id),
   publishedBy: text("disbursed_by")
     .references(() => user.id)
     .notNull(),

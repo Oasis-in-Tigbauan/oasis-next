@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Pencil, X, Check } from "lucide-react";
+import { Pencil, X, Check, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -132,12 +132,16 @@ type DetailDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  onDeleted: () => void;
 };
 
-function DetailDialog({ voucher, open, onOpenChange, onSaved }: DetailDialogProps) {
+function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: DetailDialogProps) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [vatableAmount, setVatableAmount] = useState("");
   const [taxType, setTaxType] = useState<string>(NONE);
@@ -197,10 +201,34 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved }: DetailDialogProp
     }
   }, [voucher, vatableAmount, taxType, fundTypeId, status, onSaved]);
 
+  const handleDelete = useCallback(async () => {
+    if (!voucher) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/obr/disbursements/${voucher.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setDeleteError(json.error?.message ?? json.message ?? "Failed to delete.");
+        setConfirmingDelete(false);
+        return;
+      }
+      onDeleted();
+      onOpenChange(false);
+    } catch {
+      setDeleteError("An unexpected error occurred.");
+      setConfirmingDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  }, [voucher, onDeleted, onOpenChange]);
+
   const handleClose = useCallback((o: boolean) => {
     if (!o) {
       setEditing(false);
       setSaveError(null);
+      setConfirmingDelete(false);
+      setDeleteError(null);
     }
     onOpenChange(o);
   }, [onOpenChange]);
@@ -217,9 +245,19 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved }: DetailDialogProp
               <DialogDescription>{formatDate(voucher.createdAt)}</DialogDescription>
             </div>
             {!editing && (
-              <Button variant="outline" size="icon" onClick={startEditing}>
-                <Pencil className="size-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={startEditing}>
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => { setConfirmingDelete(true); setDeleteError(null); }}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
             )}
           </div>
         </DialogHeader>
@@ -424,7 +462,27 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved }: DetailDialogProp
           </>
         )}
 
-        {!editing && (
+        {!editing && confirmingDelete && (
+          <>
+            {deleteError && (
+              <p className="text-sm text-destructive">{deleteError}</p>
+            )}
+            <DialogFooter className="gap-2">
+              <p className="text-sm text-muted-foreground mr-auto self-center">
+                Delete this disbursement voucher? The linked OBR item will be unlinked.
+              </p>
+              <Button variant="outline" onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                <Trash2 className="size-4 mr-1" />
+                {deleting ? "Deleting..." : "Confirm Delete"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {!editing && !confirmingDelete && (
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
@@ -460,6 +518,10 @@ export default function Page() {
   }, []);
 
   const handleSaved = useCallback(() => {
+    mutateList();
+  }, [mutateList]);
+
+  const handleDeleted = useCallback(() => {
     mutateList();
   }, [mutateList]);
 
@@ -545,6 +607,7 @@ export default function Page() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onSaved={handleSaved}
+        onDeleted={handleDeleted}
       />
     </div>
   );

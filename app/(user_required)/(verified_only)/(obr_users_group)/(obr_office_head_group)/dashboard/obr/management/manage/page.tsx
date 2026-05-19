@@ -138,7 +138,7 @@ export default function Page() {
                 onClick={() => handleRowClick(item)}
               >
                 <TableCell className="font-medium">{item.obrRefNumber}</TableCell>
-                <TableCell className="font-medium">{item.dvRefNumber}</TableCell>
+                <TableCell className="font-medium">{item.dvRefNumber ?? "—"}</TableCell>
                 <TableCell>{formatDate(item.date)}</TableCell>
                 <TableCell>{item.payee}</TableCell>
                 <TableCell className="max-w-[24rem] truncate" title={item.particulars}>
@@ -192,7 +192,7 @@ function ObrItemDetailDialog({
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Disbursement Voucher Reference No.</Label>
-                <DetailText value={item.dvRefNumber} />
+                <DetailText value={item.dvRefNumber ?? "—"} />
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Date</Label>

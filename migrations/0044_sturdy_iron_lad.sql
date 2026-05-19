@@ -1,0 +1,1 @@
+ALTER TABLE "obr_items" ALTER COLUMN "disbursement_ref_id" DROP NOT NULL;

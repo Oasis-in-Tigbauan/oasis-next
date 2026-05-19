@@ -18,7 +18,7 @@ export type ObrItemOfficeData = {
 export type ObrItem = {
   id: string;
   obrRefNumber: string;
-  dvRefNumber: string;
+  dvRefNumber: string | null;
   date: string;
   payee: string;
   address: string;

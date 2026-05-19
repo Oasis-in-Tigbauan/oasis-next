@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
@@ -479,9 +479,10 @@ export async function listAllValidForDisbursement(user: User): Promise<Result<Ar
     }
 
     const all = await _getAllObrRequestAsSummaries(
-      sql`NOT EXISTS (
-          SELECT 1 FROM ${obrDisbursementVouchers}
-          WHERE ${obrDisbursementVouchers.requestId} = ${obrRequests.id}
+      sql`EXISTS (
+          SELECT 1 FROM ${obrItems}
+          WHERE ${obrItems.requestId} = ${obrRequests.id}
+          AND ${obrItems.disbursementRefId} IS NULL
         )`,
     );
 
@@ -506,12 +507,12 @@ export async function listAllValidForDisbursement(user: User): Promise<Result<Ar
 }
 
 /**
- * Retrieves all approved OBR request summaries available for creation of disbursement vouchers.
+ * Retrieves all approved OBR request summaries available for OBR item creation.
  *
  * @description
  * Validates that the user has OBR management permissions, then fetches OBR requests with their item counts and
- * approver states. The results are filtered to include only fully approved requests that already have disbursement
- * vouchers associated with them, and mapped into request summary objects.
+ * approver states. The results are filtered to include only fully approved requests that do not yet have any
+ * OBR items associated with them, and mapped into request summary objects.
  *
  * On success, wraps the approved request summaries in a {@link Success}. On access validation failure, returns a
  * {@link Failure} describing why requests cannot be listed. On unexpected failure, wraps the error in a fatal
@@ -519,14 +520,14 @@ export async function listAllValidForDisbursement(user: User): Promise<Result<Ar
  *
  * @async
  * @function listAllValidForObrCreate
- * @param {User} user - User attempting to list OBR requests for disbursement voucher creation.
+ * @param {User} user - User attempting to list OBR requests for OBR item creation.
  * @returns {Promise<Result<Array<ObrRequestSummaryType>>>} A result wrapper containing approved OBR request summaries
  *                                                          on success, or a failure result on error.
  *
  * @remarks
  * - Requires OBR management access from the user.
  * - Only requests whose computed approval status is approved are returned.
- * - Only requests that have existing disbursement vouchers are included.
+ * - Only requests that do not yet have any OBR items are included.
  * - Each summary includes request metadata, request item count, and computed approval status.
  */
 export async function listAllValidForObrCreate(user: User) {
@@ -542,16 +543,10 @@ export async function listAllValidForObrCreate(user: User) {
     }
 
     const all = await _getAllObrRequestAsSummaries(
-      and(
-        sql`EXISTS (
-            SELECT 1 FROM ${obrDisbursementVouchers}
-            WHERE ${obrDisbursementVouchers.requestId} = ${obrRequests.id}
-          )`,
-        sql`NOT EXISTS (
-            SELECT 1 FROM ${obrItems}
-            WHERE ${obrItems.requestId} = ${obrRequests.id}
-          )`,
-      )!,
+      sql`NOT EXISTS (
+          SELECT 1 FROM ${obrItems}
+          WHERE ${obrItems.requestId} = ${obrRequests.id}
+        )`,
     );
 
     const filtered: ObrRequestSummaryType[] = all
@@ -842,18 +837,28 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
       }
     }
 
-    // Check for existing disbursement vouchers on this request
-    const existingVouchers = await db
-      .select({ id: obrDisbursementVouchers.id })
-      .from(obrDisbursementVouchers)
-      .where(eq(obrDisbursementVouchers.requestId, obrRequestId))
-      .limit(1);
-    if (existingVouchers.length > 0) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "A disbursement voucher has already been created for this request.",
-        { obrRequestId, payload, actorId: actor.id },
+    // Look up obrItems by requestItemId — each must exist and have no disbursement linked yet
+    const targetItemIds = payload.map(p => p.targetItemId);
+    const existingObrItems = await db
+      .select({ id: obrItems.id, requestItemId: obrItems.requestItemId })
+      .from(obrItems)
+      .where(
+        and(
+          inArray(obrItems.requestItemId, targetItemIds),
+          isNull(obrItems.disbursementRefId),
+        ),
       );
+    const obrItemsByRequestItemId = new Map<string, string>(
+      existingObrItems.map(i => [i.requestItemId, i.id]),
+    );
+    for (const item of payload) {
+      if (!obrItemsByRequestItemId.has(item.targetItemId)) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "One or more request items do not have an existing OBR item or are already linked to a disbursement.",
+          { obrRequestId, payload, actorId: actor.id },
+        );
+      }
     }
 
     // Fund Types
@@ -908,6 +913,15 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
         .insert(obrDisbursementVouchers)
         .values(items)
         .returning();
+
+      // Link each obrItem to its newly created disbursement voucher
+      for (const v of inserted) {
+        const obrItemId = obrItemsByRequestItemId.get(v.requestItemId)!;
+        await tx
+          .update(obrItems)
+          .set({ disbursementRefId: v.id })
+          .where(eq(obrItems.id, obrItemId));
+      }
 
       return inserted;
     });
@@ -1014,6 +1028,7 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
     const [ref] = await db
       .select({
         id: obrDisbursementVouchers.id,
+        requestId: obrDisbursementVouchers.requestId,
 
         responsibilityCenterId: officeCodes.id,
         responsibilityCenterAA: officeCodes.aa,
@@ -1055,7 +1070,7 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       ...(validatorUtilities.isNotEmpty(payload.fundTypeId) ? { fundTypeId: payload.fundTypeId } : {}),
       ...(validatorUtilities.isNotEmpty(payload.status) ? { status: payload.status } : {}),
     };
-    if (Object.keys(updatePayload).length === 0) {
+    if (Object.keys(updatePayload).length === 0 && !validatorUtilities.isNotEmpty(payload.obrItemId)) {
       return new Failure(
         ErrorCodes.ValidationFailure,
         "No updatable payload found.",
@@ -1086,20 +1101,68 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       fundType = fundTypeResult;
     }
 
+    // Validate and prepare obrItem re-linking when obrItemId is provided
+    let newObrItemId: string | null = null;
+    if (validatorUtilities.isNotEmpty(payload.obrItemId)) {
+      const [newObrItem] = await db
+        .select({ id: obrItems.id, requestId: obrItems.requestId, disbursementRefId: obrItems.disbursementRefId })
+        .from(obrItems)
+        .where(eq(obrItems.id, payload.obrItemId!))
+        .limit(1);
+      if (!newObrItem) {
+        return new Failure(
+          ErrorCodes.ResourceNotFound,
+          "No such OBR item found.",
+          { actorId: actor.id, payload, id },
+        );
+      }
+      if (newObrItem.requestId !== ref.requestId) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "The specified OBR item does not belong to the same request as this disbursement voucher.",
+          { actorId: actor.id, payload, id },
+        );
+      }
+      if (validatorUtilities.isNotEmpty(newObrItem.disbursementRefId)) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "The specified OBR item is already linked to a disbursement voucher.",
+          { actorId: actor.id, payload, id },
+        );
+      }
+      newObrItemId = newObrItem.id;
+    }
+
     const [elecData] = await db
       .select({ id: obrDisbursementElectronic.id })
       .from(obrDisbursementElectronic)
       .where(eq(obrDisbursementElectronic.voucherId, ref.id))
       .limit(1);
 
-    const [result] = await db
-      .update(obrDisbursementVouchers)
-      .set({
-        ...updatePayload,
-        ...(validatorUtilities.isExisty(fundType) ? { fundTypeId: fundType!.id } : {}),
-      })
-      .where(eq(obrDisbursementVouchers.id, ref.id))
-      .returning();
+    const [result] = await db.transaction(async tx => {
+      if (newObrItemId !== null) {
+        // Unlink whichever obrItem currently points to this voucher
+        await tx
+          .update(obrItems)
+          .set({ disbursementRefId: null })
+          .where(eq(obrItems.disbursementRefId, ref.id));
+
+        // Link the new obrItem
+        await tx
+          .update(obrItems)
+          .set({ disbursementRefId: ref.id })
+          .where(eq(obrItems.id, newObrItemId));
+      }
+
+      return tx
+        .update(obrDisbursementVouchers)
+        .set({
+          ...updatePayload,
+          ...(validatorUtilities.isExisty(fundType) ? { fundTypeId: fundType!.id } : {}),
+        })
+        .where(eq(obrDisbursementVouchers.id, ref.id))
+        .returning();
+    });
 
     return new Success({
       id: result.id,
@@ -1155,6 +1218,54 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       ErrorCodes.Fatal,
       "Unable to update the disbursement voucher.",
       { id, payload, actorId: actor.id },
+      e,
+    );
+  }
+}
+
+export async function deleteDisbursementVoucher(id: string, actor: User): Promise<Result<void>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to delete the object you requested.",
+        { actorId: actor.id, id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const [ref] = await db
+      .select({ id: obrDisbursementVouchers.id })
+      .from(obrDisbursementVouchers)
+      .where(eq(obrDisbursementVouchers.id, id))
+      .limit(1);
+    if (!ref) {
+      return new Failure(
+        ErrorCodes.ResourceNotFound,
+        "No such disbursement voucher found.",
+        { id, userId: actor.id },
+      );
+    }
+
+    await db.transaction(async tx => {
+      // Unlink any obrItems pointing to this voucher before deleting
+      await tx
+        .update(obrItems)
+        .set({ disbursementRefId: null })
+        .where(eq(obrItems.disbursementRefId, id));
+
+      await tx
+        .delete(obrDisbursementVouchers)
+        .where(eq(obrDisbursementVouchers.id, id));
+    });
+
+    return new Success(undefined);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Unable to delete the disbursement voucher.",
+      { id, actorId: actor.id },
       e,
     );
   }
@@ -1357,22 +1468,6 @@ export async function createObrItem(requestId: string, user: User): Promise<Resu
       return new Failure(ErrorCodes.ValidationFailure, "Invalid request.", { requestId, stateSummary });
     }
 
-    // Validate if these are disbursed
-    const disbursedVouchers = await db
-      .select({
-        id: obrDisbursementVouchers.id,
-        disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
-        requestId: obrDisbursementVouchers.requestId,
-        requestItemId: obrDisbursementVouchers.requestItemId,
-      })
-      .from(obrDisbursementVouchers)
-      .where(
-        and(
-          eq(obrDisbursementVouchers.requestId, request.id),
-          inArray(obrDisbursementVouchers.requestItemId, [...request.requestItems.map(i => i.id)]),
-        ),
-      );
-
     const officeHead = await findOfficeHead(
       request.approvers
         .filter(i => i.signer?.id)
@@ -1384,13 +1479,6 @@ export async function createObrItem(requestId: string, user: User): Promise<Resu
         "No valid office head. This may be an error.",
         { reqId: request.id },
       );
-    }
-
-    const disbursed = new Map<string, { id: string; disbursementVoucherNumber: string; requestId: string }>(
-      disbursedVouchers.map(d => [d.requestItemId, d]),
-    );
-    if (disbursed.size !== request.requestItems.length) {
-      return new Failure(ErrorCodes.ValidationFailure, "These items are not yet disbursed!");
     }
 
     const rcMap = new Map<string, { id: string; name: string }>(
@@ -1411,7 +1499,6 @@ export async function createObrItem(requestId: string, user: User): Promise<Resu
             address: request.officeAddress,
             particulars: i.particulars,
             requestingOfficialId: officeHead.id,
-            disbursementRefId: disbursed.get(i.id)!.id,
             publishedBy: user.id,
             requestId: request.id,
             requestItemId: i.id,
@@ -1447,7 +1534,7 @@ export async function createObrItem(requestId: string, user: User): Promise<Resu
       return items.map(i => ({
         id: i.id,
         obrRefNumber: request.requestNumber,
-        dvRefNumber: disbursed.get(i.requestItemId)!.disbursementVoucherNumber,
+        dvRefNumber: null,
         date: i.createdAt,
         payee: i.payee,
         address: i.address,
@@ -1516,7 +1603,7 @@ export async function getObrItems(): Promise<Result<ObrItem[]>> {
       })
       .from(obrItems)
       .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
-      .innerJoin(
+      .leftJoin(
         obrDisbursementVouchers,
         eq(obrDisbursementVouchers.id, obrItems.disbursementRefId),
       );
@@ -2159,7 +2246,17 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
       return { error: ErrorCodes.InsufficientPermissions };
     }
 
-    const isOfficeLimited = permissionSet.has(permissions.OBR_REQUEST_READ);
+    // There's a conflict of the permission between OBR_APPROVERS_* where sometimes there are
+    // approvers that are also have ability to create OBR Requests.
+    //
+    // Here's how it should be limited to office:
+    // OBR_REQUEST_READ && OBR_APPROVER_BASIC_READ       => true
+    // OBR_REQUEST_READ && OBR_APPROVER_BASIC_HIGH_WRITE => false
+    // OBR_REQUEST_READ && OBR_APPROVER_ADVANCED_READ    => false
+    // OBR_REQUEST_READ                                  => true
+    const isOfficeLimited = permissionSet.has(permissions.OBR_REQUEST_READ)
+      && !permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)
+      && !permissionSet.has(permissions.OBR_APPROVER_ADVANCED_READ);
     return {
       officeLimited: isOfficeLimited,
       positionId: isOfficeLimited ? undefined : role.id,
@@ -3032,6 +3129,7 @@ type UpdateDisbursementVoucherPayload = {
   taxType: Optional<TaxType>;
   fundTypeId: Optional<string>;
   status: Optional<DisbursementStatus>;
+  obrItemId: Optional<string>;
 }
 
 type ObrItemOfficeData = {
@@ -3047,7 +3145,7 @@ type ObrItemOfficeData = {
 type ObrItem = {
   id: string;
   obrRefNumber: string;
-  dvRefNumber: string;
+  dvRefNumber: Optional<string>;
   date: Date;
   payee: string;
   address: string;
