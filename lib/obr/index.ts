@@ -1298,7 +1298,7 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
     const elecItems = await db
       .select({ voucherId: obrDisbursementElectronic.voucherId })
       .from(obrDisbursementElectronic);
-    const allElecItems = new Set(...elecItems.map(x => x.voucherId));
+    const allElecItems = new Set(elecItems.map(x => x.voucherId));
 
     const all = await db
       .select({
