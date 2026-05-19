@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -61,19 +61,28 @@ import Typography from "@/components/typography";
 
 const TOTAL_COLS = 23;
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April",
+  "May", "June", "July", "August",
+  "September", "October", "November", "December",
+];
+
 type DialogMode = "add-group" | "edit-group" | "add-entry" | "edit-entry" | "move-entry" | null;
 type ExpenseClassOption = ExpenseClassListResponse["data"][number];
 type OfficeOption = OfficesListResponse["data"][number];
 type SelectedEntryRow = Extract<SaaobFlatRow, { kind: "entry" }>;
 
 export default function Page() {
+  const [currentYear] = useState(() => _getUtc8Year());
+  const [selectedMonth, setSelectedMonth] = useState(() => _getUtc8Month());
+
   const {
     data,
     error,
     isLoading,
     mutate,
   } = useSWR<BetterFetchResponse<SaaobDataResponse, ApiResponseException>>(
-    "/api/saaob",
+    `/api/saaob?year=${currentYear}&month=${selectedMonth}`,
     $fetch,
   );
 
@@ -260,6 +269,42 @@ export default function Page() {
               : `Entry: ${selectedRow.data.name}`}
           </Badge>
         )}
+
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous month"
+            disabled={selectedMonth === 1}
+            onClick={() => setSelectedMonth(m => m - 1)}
+          >
+            <ChevronLeft />
+          </Button>
+
+          <Select
+            value={String(selectedMonth)}
+            onValueChange={v => setSelectedMonth(Number(v))}
+          >
+            <SelectTrigger className="h-7 w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTH_NAMES.map((name, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next month"
+            disabled={selectedMonth === 12}
+            onClick={() => setSelectedMonth(m => m + 1)}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-lg p-2">
@@ -932,4 +977,12 @@ function MoveEntryDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function _getUtc8Year(): number {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear();
+}
+
+function _getUtc8Month(): number {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCMonth() + 1;
 }

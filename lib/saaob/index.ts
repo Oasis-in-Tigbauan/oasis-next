@@ -37,10 +37,10 @@ import { type User } from "@/lib/accounts";
  * @function getAll
  * @returns {Promise<Result<SaaobElements>>} The full SAAOB tree.
  */
-export async function getAll(): Promise<Result<SaaobElements>> {
+export async function getAll(year?: number, month?: number): Promise<Result<SaaobElements>> {
   try {
     const [groups, entryRows] = await Promise.all([_fetchAllGroups(), _fetchAllEntries()]);
-    const computedEntries = await _fetchAndComputeEntries(entryRows);
+    const computedEntries = await _fetchAndComputeEntries(entryRows, year, month);
     const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
     return new Success(_buildTree(groups, entriesByGroup));
   } catch (e) {
@@ -1081,17 +1081,17 @@ function _computeEntryObject(
  * @param {SaaobEntryRow[]} entryRows - The raw entry rows to compute.
  * @returns {Promise<SaaobEntry[]>} Computed entries in the same order as `entryRows`.
  */
-async function _fetchAndComputeEntries(entryRows: SaaobEntryRow[]): Promise<SaaobEntry[]> {
+async function _fetchAndComputeEntries(entryRows: SaaobEntryRow[], year?: number, month?: number): Promise<SaaobEntry[]> {
   if (entryRows.length === 0) return [];
 
   const ids = entryRows.map(e => e.id);
-  const endOfMonth = _getEndOfCurrentMonthBoundaryUtc8();
+  const endOfMonth = _getEndOfCurrentMonthBoundaryUtc8(year, month);
 
   const [supplementals, obrRows, esreRows, lbacData] = await Promise.all([
     _fetchSupplementalBySaaobIds(ids, endOfMonth),
     _fetchObrDataBySaaobIds(ids, endOfMonth),
     _fetchEsreBySaaobIds(ids, endOfMonth),
-    _fetchLbacDataBySaaobIds(ids),
+    _fetchLbacDataBySaaobIds(ids, year, month),
   ]);
 
   const supplementalMap = new Map<string, SupplementalRow[]>();
@@ -1212,44 +1212,58 @@ function _buildEntriesByGroupMap(entryRows: SaaobEntryRow[], computedEntries: Sa
 
 /**
  * Returns the exclusive upper-boundary Date (start of next month, UTC) for
- * "records created before or during the current month in UTC+8" filters.
+ * "records created before or during the given month in UTC+8" filters.
+ * When `year` and `month` are omitted the current UTC+8 date is used.
  *
- * @returns {Date} Start of next month as a UTC Date object.
+ * @param {number} [year] - Full calendar year (e.g. 2026). Defaults to current UTC+8 year.
+ * @param {number} [month] - Month number 1–12. Defaults to current UTC+8 month.
+ * @returns {Date} Start of the following month as a UTC Date object.
  */
-function _getEndOfCurrentMonthBoundaryUtc8(): Date {
+function _getEndOfCurrentMonthBoundaryUtc8(year?: number, month?: number): Date {
   const now = DateTime.now().setZone("UTC+8");
+  const y = year ?? now.year;
+  const m = month ?? now.month;
   return DateTime.fromObject(
-    { year: now.month === 12 ? now.year + 1 : now.year, month: now.month === 12 ? 1 : now.month + 1, day: 1 },
+    { year: m === 12 ? y + 1 : y, month: m === 12 ? 1 : m + 1, day: 1 },
     { zone: "UTC+8" },
   ).toUTC().toJSDate();
 }
 
 /**
- * Returns the start of the current month in UTC+8 as a UTC Date object.
+ * Returns the start of the given month in UTC+8 as a UTC Date object.
+ * When `year` and `month` are omitted the current UTC+8 date is used.
  *
- * @returns {Date} Start of the current month (UTC).
+ * @param {number} [year] - Full calendar year (e.g. 2026). Defaults to current UTC+8 year.
+ * @param {number} [month] - Month number 1–12. Defaults to current UTC+8 month.
+ * @returns {Date} Start of the given month as a UTC Date object.
  */
-function _getCurrentMonthStartUtc8(): Date {
+function _getCurrentMonthStartUtc8(year?: number, month?: number): Date {
   const now = DateTime.now().setZone("UTC+8");
-  return DateTime.fromObject({ year: now.year, month: now.month, day: 1 }, { zone: "UTC+8" }).toUTC().toJSDate();
+  const y = year ?? now.year;
+  const m = month ?? now.month;
+  return DateTime.fromObject({ year: y, month: m, day: 1 }, { zone: "UTC+8" }).toUTC().toJSDate();
 }
 
 /**
- * Returns the current quarter (1–4) in UTC+8.
+ * Returns the quarter (1–4) for the given month number.
+ * When `month` is omitted the current UTC+8 month is used.
  *
- * @returns {number} Current quarter.
+ * @param {number} [month] - Month number 1–12. Defaults to current UTC+8 month.
+ * @returns {number} Quarter (1–4).
  */
-function _getCurrentQuarterUtc8(): number {
-  return DateTime.now().setZone("UTC+8").quarter;
+function _getCurrentQuarterUtc8(month?: number): number {
+  const m = month ?? DateTime.now().setZone("UTC+8").month;
+  return Math.ceil(m / 3);
 }
 
 /**
- * Returns the current year in UTC+8.
+ * Returns the given year, or the current UTC+8 year when omitted.
  *
- * @returns {number} Current year.
+ * @param {number} [year] - Full calendar year (e.g. 2026). Defaults to current UTC+8 year.
+ * @returns {number} Year.
  */
-function _getCurrentYearUtc8(): number {
-  return DateTime.now().setZone("UTC+8").year;
+function _getCurrentYearUtc8(year?: number): number {
+  return year ?? DateTime.now().setZone("UTC+8").year;
 }
 
 // ---------------------------------------------------------------------------
@@ -1395,12 +1409,14 @@ async function _fetchEsreBySaaobIds(ids: string[], endOfMonth: Date): Promise<Es
  */
 async function _fetchLbacDataBySaaobIds(
   ids: string[],
+  year?: number,
+  month?: number,
 ): Promise<Map<string, { appropriationTotal: Decimal; cutOffObligation: Decimal }>> {
   if (ids.length === 0) return new Map();
 
-  const currentQuarter = _getCurrentQuarterUtc8();
-  const currentYear = _getCurrentYearUtc8();
-  const monthStart = _getCurrentMonthStartUtc8();
+  const currentQuarter = _getCurrentQuarterUtc8(month);
+  const currentYear = _getCurrentYearUtc8(year);
+  const monthStart = _getCurrentMonthStartUtc8(year, month);
 
   const lbacRows = await db
     .select({
