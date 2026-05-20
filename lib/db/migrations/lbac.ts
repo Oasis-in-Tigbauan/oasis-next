@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import fsp from "fs/promises";
 import path from "path";
 import { v7 as uuidv7 } from "uuid";
@@ -10,12 +10,10 @@ import {
   lbacItems,
   lbacQuarterlyReport,
   officeCodes,
-  officePosition,
   saaobEntries,
-  user,
 } from "@/lib/db/schema";
 
-export const lbacMigration: MigratorFn = async (client): Promise<void> => {
+export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
   console.log("Migrating LBAC Data...");
 
   // Check if there are items. Skip if there are items.
@@ -25,24 +23,6 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
   if (Number(result.count) > 0) {
     console.log("-> Skipped due to LBAC items exists");
     return;
-  }
-
-  // Resolve system user (Heathcliff role)
-  const [heathcliffRole] = await client
-    .select({ id: officePosition.id })
-    .from(officePosition)
-    .where(eq(officePosition.name, "Heathcliff"));
-  if (!heathcliffRole) {
-    throw new Error("System Role cannot be found. This may be an error.");
-  }
-
-  const [systemUser] = await client
-    .select({ id: user.id, officeId: user.officeId })
-    .from(user)
-    .where(eq(user.officePositionId, heathcliffRole.id))
-    .limit(1);
-  if (!systemUser) {
-    throw new Error("System User cannot be found. This may be an error.");
   }
 
   // Fetch lookup tables
@@ -70,8 +50,8 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
     collectGroupsAndItems(
       officeGroup,
       null,
-      systemUser.officeId,
-      systemUser.id,
+      usr.oId,
+      usr.id,
       aipRefByCode,
       flatGroups,
       flatItems,
@@ -148,8 +128,8 @@ export const lbacMigration: MigratorFn = async (client): Promise<void> => {
           saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.id ?? null,
           quarterlyReportId: qrId,
           parentId: groupId,
-          authorId: systemUser.id,
-          officeId: systemUser.officeId,
+          authorId: usr.id,
+          officeId: usr.oId,
         };
       }),
     );
