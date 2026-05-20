@@ -10,6 +10,7 @@
 pnpm run dev           # Start dev server (http://localhost:3000)
 pnpm run build         # Production build
 pnpm run lint          # ESLint
+pnpm exec tsc --noEmit # Type-check without emitting output
 pnpm run db:generate   # Generate migration file from schema changes
 pnpm run db:migrate    # Run migrations (prod)
 pnpm run db:studio     # Open Drizzle Studio
@@ -17,7 +18,7 @@ pnpm run setup         # Interactive first-time setup (generates .env + starts D
 pnpm run setup:admin   # Generate setup token for first admin account
 ```
 
-> On Windows PowerShell, use `pnpm.cmd` instead of `pnpm` to avoid execution policy errors.
+> Use `pnpm` as the only package manager for this repository. On Windows PowerShell, use `pnpm.cmd` instead of `pnpm` to avoid execution policy errors.
 
 ---
 
@@ -59,6 +60,11 @@ Each layout performs its own auth check via `session.verify()` and redirects on 
 - Components: `PascalCase`
 - Functions/variables: `camelCase`
 - Permissions/constants: `UPPER_SNAKE_CASE`
+
+### Package Management
+- Use `pnpm` as the primary and only package manager for this repository
+- Do not use `npm`, `yarn`, or `bun` commands, lockfiles, or install flows
+- When documenting or suggesting commands, always prefer `pnpm` equivalents
 
 ### Database (Drizzle + PostgreSQL)
 - Schema lives in `lib/db/schema.ts`
@@ -108,6 +114,12 @@ Built-in formats: `non-empty-string`, `email`, `uuid`, `valid-number`, `strong-p
 
 Use the `decimal` formatter for API input validation when receiving financial values as strings.
 
+### JSDoc Style
+- Follow the service-layer JSDoc style already used in [lib/obr/index.ts](lib/obr/index.ts) and [lib/esre/index.ts](lib/esre/index.ts)
+- Prefer a full block for exported service functions: one-line summary, blank line, `@description`, success/failure behavior notes, `@async`, `@function`, `@param`, `@returns`, and `@remarks` when useful
+- Document result-wrapper behavior explicitly, especially when returning `Success<T> | Failure`
+- Keep descriptions concrete and behavior-focused; explain validation, side effects, batching, and mapping behavior instead of repeating type names
+
 ### Permissions
 - Permissions are checked via `permissionMap.has(permission)` in client components
 - In server components / API routes use `session.verify([PERMISSION], "and" | "or")`
@@ -134,6 +146,11 @@ Use the `decimal` formatter for API input validation when receiving financial va
 - Display timezone-sensitive date/time values in UTC+8 (Taipei Standard Time)
 - Keep raw API values unchanged; only transform for presentation at the UI boundary
 - Centralize formatting through shared frontend date/time utilities instead of ad-hoc conversions in components
+
+### Required Validation Commands
+- Always run `pnpm run lint` for linting
+- Always run `pnpm exec tsc --noEmit` for type checking
+- Prefer these commands as the default post-change validation unless a narrower task-specific check exists
 
 ---
 
