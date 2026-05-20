@@ -1698,69 +1698,63 @@ export async function getObrItems(): Promise<Result<ObrItem[]>> {
  * Creates OBR main data records from an approved OBR request.
  *
  * @description
- * Validates that the target OBR request exists and is fully approved, then creates one {@link obrMainData} record
- * per request item. The `alobs` code is computed from the expense class, current UTC+8 year/month, and the provided
- * OBR number. When AIP references are supplied, they are looked up and linked to every created OBR main data record.
- * The source request's `obrNumber` is updated, and `prNumber` is updated when provided.
+ * Creates a standalone OBR main data record directly from the supplied payload without requiring an OBR request.
+ * Validates the responsibility center, expense code, optional SAAOB entry, and any AIP references before inserting.
+ * The `alobs` code is computed from the expense class, current UTC+8 year/month, and the provided OBR number.
+ * When `requestId` is provided the record is linked to that request (existence check only, no approval required),
+ * and the request's `obrNumber` (and `prNumber` if provided) are propagated.
  *
- * On success, wraps the array of created {@link ObrMainDataItem} objects in a {@link Success}. On request lookup,
- * approval-state, or AIP reference validation failure, returns a descriptive {@link Failure}. On unexpected failure,
- * wraps the error in a fatal {@link Failure}.
+ * On success, wraps a single-element array of {@link ObrMainDataItem} in a {@link Success}. On validation failure,
+ * returns a descriptive {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
  *
  * @async
- * @function createObrMainDataFromApprovedRequest
- * @param {string} requestId - Identifier of the approved OBR request to generate main data from.
- * @param {CreateObrMainDataPayload} payload - Creation payload including required OBR number and optional PR/AIP data.
- * @param {User} author - User creating the OBR main data records (stored as author).
- * @returns {Promise<Result<ObrMainDataItem[]>>} A result wrapper containing the created OBR main data items on success,
+ * @function createObrMainData
+ * @param {CreateObrMainDataPayload} payload - Creation payload with all required fields and optional linkage/references.
+ * @param {User} author - User creating the OBR main data record (stored as author).
+ * @returns {Promise<Result<ObrMainDataItem[]>>} A result wrapper containing the created OBR main data item on success,
  *                                               or a failure result on error.
  *
  * @remarks
- * - The source request must be fully approved before main data can be created.
- * - One OBR main data record is created per request item.
  * - `alobs` is derived from: expenseClass-YY-MM-obrNumber (all joined with "-").
- * - AIP references, when provided, are associated with every created main data record.
- * - Duplicate creation for the same request is prevented by a pre-insert existence check.
+ * - AIP references, when provided, are validated and inserted linked to the created record.
+ * - If `requestId` is supplied, the linked request's OBR/PR numbers are updated to match.
  */
-export async function createObrMainDataFromApprovedRequest(
-  requestId: string,
+export async function createObrMainData(
   payload: CreateObrMainDataPayload,
   author: User,
 ): Promise<Result<ObrMainDataItem[]>> {
   try {
-    const request = await _getObrRequestById(requestId, [eq(obrRequests.id, requestId)]);
-    if (!request) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
-    }
-
-    const stateSummary = getSummaryOfStates(
-      request.approvers.map(a => ({ status: a.status as ApprovalState })),
-    );
-    if (stateSummary !== "approved") {
-      return new Failure(ErrorCodes.ValidationFailure, "Request is not approved.", { requestId, stateSummary });
-    }
-
-    // Prevent duplicate creation for the same request
-    const [existing] = await db
-      .select({ id: obrMainData.id })
-      .from(obrMainData)
-      .where(eq(obrMainData.requestSourceId, requestId))
+    // Validate responsibility center exists
+    const [rcRow] = await db
+      .select({ id: officeCodes.id })
+      .from(officeCodes)
+      .where(eq(officeCodes.id, payload.responsibilityCenterId))
       .limit(1);
-    if (existing) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "OBR main data has already been created for this request.",
-        { requestId },
-      );
+    if (!rcRow) {
+      return new Failure(ErrorCodes.ValidationFailure, "Invalid responsibility center.", { responsibilityCenterId: payload.responsibilityCenterId });
     }
 
-    // Resolve expense class codes for alobs construction
-    const expenseCodeIds = [...new Set(request.requestItems.map(i => i.expenseCode.id))];
-    const ecClassRows = await db
+    // Validate expense code exists and resolve its class for alobs
+    const [ecRow] = await db
       .select({ id: expenseClasses.id, class: expenseClasses.class })
       .from(expenseClasses)
-      .where(inArray(expenseClasses.id, expenseCodeIds));
-    const ecClassMap = new Map(ecClassRows.map(e => [e.id, e.class ?? ""]));
+      .where(eq(expenseClasses.id, payload.expenseCodeId))
+      .limit(1);
+    if (!ecRow) {
+      return new Failure(ErrorCodes.ValidationFailure, "Invalid expense code.", { expenseCodeId: payload.expenseCodeId });
+    }
+
+    // Validate saaobId if provided
+    if (validatorUtilities.isUuid(payload.saaobId)) {
+      const [saaobRow] = await db
+        .select({ id: saaobEntries.id })
+        .from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId!))
+        .limit(1);
+      if (!saaobRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { saaobId: payload.saaobId });
+      }
+    }
 
     // Validate and resolve AIP references if provided
     const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
@@ -1778,89 +1772,86 @@ export async function createObrMainDataFromApprovedRequest(
           return new Failure(
             ErrorCodes.ValidationFailure,
             "One or more AIP references are not valid.",
-            { requestId, aipId: aip.aipId },
+            { aipId: aip.aipId },
           );
         }
       }
     }
 
-    // Validate saaobId if provided
-    if (validatorUtilities.isUuid(payload.saaobId)) {
-      const [saaobRow] = await db
-        .select({ id: saaobEntries.id })
-        .from(saaobEntries)
-        .where(eq(saaobEntries.id, payload.saaobId!))
+    // Validate requestId if provided (existence check only)
+    if (validatorUtilities.isUuid(payload.requestId)) {
+      const [requestRow] = await db
+        .select({ id: obrRequests.id })
+        .from(obrRequests)
+        .where(eq(obrRequests.id, payload.requestId!))
         .limit(1);
-      if (!saaobRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { requestId, saaobId: payload.saaobId });
+      if (!requestRow) {
+        return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId: payload.requestId });
       }
     }
 
-    // Determine current UTC+8 date components for alobs
+    // Compute alobs from expense class + current UTC+8 date + obrNumber
     const now = DateTime.now().setZone("Asia/Manila");
     const yy = now.toFormat("yy");
     const mm = now.toFormat("MM");
+    const alobs = [ecRow.class ?? "", yy, mm, payload.obrNumber].join("-");
 
-    const createdIds = await db.transaction(async tx => {
-      // Update the originating request numbers
-      await tx
-        .update(obrRequests)
-        .set({
-          obrNumber: payload.obrNumber,
-          ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
-        })
-        .where(eq(obrRequests.id, requestId));
-
-      // Insert one obrMainData record per request item
-      const isMultiItem = request.requestItems.length > 1;
-      const mainDataValues = request.requestItems.map((item, idx) => ({
-        obrNumber: isMultiItem ? `${payload.obrNumber}-${idx + 1}` : payload.obrNumber,
-        alobs: [ecClassMap.get(item.expenseCode.id) ?? "", yy, mm, isMultiItem ? `${payload.obrNumber}-${idx + 1}` : payload.obrNumber].join("-"),
-        payee: request.payee,
-        address: request.officeAddress,
-        particulars: item.particulars,
-        obligated: casts.castToDecimal(item.amount),
-        responsibilityCenterId: item.responsibilityCenter.id,
-        expenseCodeId: item.expenseCode.id,
-        requestSourceId: requestId,
-        authorId: author.id,
-        ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
-        ...(validatorUtilities.isNumber(payload.prAmount)
-          ? { prAmount: casts.castToDecimal(payload.prAmount!) }
-          : {}),
-        ...(validatorUtilities.isUuid(payload.saaobId) ? { saaobId: payload.saaobId } : {}),
-      }));
-
-      const inserted = await tx
+    const [insertedId] = await db.transaction(async tx => {
+      const [inserted] = await tx
         .insert(obrMainData)
-        .values(mainDataValues)
+        .values({
+          obrNumber: payload.obrNumber,
+          alobs,
+          payee: payload.payee,
+          address: payload.address,
+          particulars: payload.particulars,
+          obligated: casts.castToDecimal(payload.amount),
+          responsibilityCenterId: payload.responsibilityCenterId,
+          expenseCodeId: payload.expenseCodeId,
+          authorId: author.id,
+          ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
+          ...(validatorUtilities.isNumber(payload.prAmount)
+            ? { prAmount: casts.castToDecimal(payload.prAmount!) }
+            : {}),
+          ...(validatorUtilities.isUuid(payload.saaobId) ? { saaobId: payload.saaobId } : {}),
+          ...(validatorUtilities.isUuid(payload.requestId) ? { requestSourceId: payload.requestId } : {}),
+        })
         .returning({ id: obrMainData.id });
 
-      // Link AIP references to every created main data record
       if (payload.aipReferences && payload.aipReferences.length > 0) {
-        const aipValues = inserted.flatMap(item =>
-          payload.aipReferences!.map((aip, idx) => ({
+        await tx.insert(obrMainAipReferences).values(
+          payload.aipReferences.map((aip, idx) => ({
             aipReferenceId: aip.aipId,
             aipReferenceCode: aipRefMap.get(aip.aipId)!.code,
             aipDescription: aipRefMap.get(aip.aipId)!.description,
             amount: casts.castToDecimal(aip.amount),
             index: idx,
-            obrId: item.id,
+            obrId: inserted.id,
           })),
         );
-        await tx.insert(obrMainAipReferences).values(aipValues);
       }
 
-      return inserted.map(i => i.id);
+      // If linked to a request, propagate OBR number (and PR number if provided)
+      if (validatorUtilities.isUuid(payload.requestId)) {
+        await tx
+          .update(obrRequests)
+          .set({
+            obrNumber: payload.obrNumber,
+            ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
+          })
+          .where(eq(obrRequests.id, payload.requestId!));
+      }
+
+      return [inserted.id];
     });
 
-    const mapped = await _fetchObrMainDataItems(inArray(obrMainData.id, createdIds));
+    const mapped = await _fetchObrMainDataItems(eq(obrMainData.id, insertedId));
     return new Success(mapped);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
       "Unable to create OBR main data.",
-      { requestId, payload, authorId: author.id },
+      { payload, authorId: author.id },
       e,
     );
   }
@@ -1922,7 +1913,12 @@ export async function updateObrMainData(
 ): Promise<Result<ObrMainDataItem>> {
   try {
     const [existing] = await db
-      .select({ id: obrMainData.id })
+      .select({
+        id: obrMainData.id,
+        obrNumber: obrMainData.obrNumber,
+        expenseCodeId: obrMainData.expenseCodeId,
+        createdAt: obrMainData.createdAt,
+      })
       .from(obrMainData)
       .where(eq(obrMainData.id, id))
       .limit(1);
@@ -1936,6 +1932,13 @@ export async function updateObrMainData(
       prNumber: string;
       prAmount: string;
       saaobId: string | null;
+      payee: string;
+      address: string;
+      responsibilityCenterId: string;
+      expenseCodeId: string;
+      particulars: string;
+      obligated: string;
+      alobs: string;
     }> = {};
 
     if (validatorUtilities.isNotEmpty(payload.obrNumber)) {
@@ -1949,6 +1952,62 @@ export async function updateObrMainData(
     }
     if ("saaobId" in payload) {
       updateFields.saaobId = payload.saaobId ?? null;
+    }
+    if (validatorUtilities.isNotEmpty(payload.payee)) {
+      updateFields.payee = payload.payee!;
+    }
+    if (validatorUtilities.isNotEmpty(payload.address)) {
+      updateFields.address = payload.address!;
+    }
+    if (validatorUtilities.isNotEmpty(payload.particulars)) {
+      updateFields.particulars = payload.particulars!;
+    }
+    if (validatorUtilities.isNumber(payload.amount)) {
+      updateFields.obligated = casts.castToDecimal(payload.amount!);
+    }
+
+    // Validate and apply responsibility center if provided
+    if (validatorUtilities.isUuid(payload.responsibilityCenterId)) {
+      const [rcRow] = await db
+        .select({ id: officeCodes.id })
+        .from(officeCodes)
+        .where(eq(officeCodes.id, payload.responsibilityCenterId!))
+        .limit(1);
+      if (!rcRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid responsibility center.", { id, responsibilityCenterId: payload.responsibilityCenterId });
+      }
+      updateFields.responsibilityCenterId = payload.responsibilityCenterId!;
+    }
+
+    // Validate and apply expense code if provided
+    if (validatorUtilities.isUuid(payload.expenseCodeId)) {
+      const [ecRow] = await db
+        .select({ id: expenseClasses.id, class: expenseClasses.class })
+        .from(expenseClasses)
+        .where(eq(expenseClasses.id, payload.expenseCodeId!))
+        .limit(1);
+      if (!ecRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid expense code.", { id, expenseCodeId: payload.expenseCodeId });
+      }
+      updateFields.expenseCodeId = payload.expenseCodeId!;
+    }
+
+    // Recompute alobs if obrNumber or expenseCodeId is changing
+    const isObrNumberChanging = validatorUtilities.isNotEmpty(payload.obrNumber);
+    const isExpenseCodeChanging = validatorUtilities.isUuid(payload.expenseCodeId);
+    if (isObrNumberChanging || isExpenseCodeChanging) {
+      const effectiveObrNumber = updateFields.obrNumber ?? existing.obrNumber;
+      const effectiveExpenseCodeId = updateFields.expenseCodeId ?? existing.expenseCodeId;
+
+      const [ecRow] = await db
+        .select({ class: expenseClasses.class })
+        .from(expenseClasses)
+        .where(eq(expenseClasses.id, effectiveExpenseCodeId))
+        .limit(1);
+      const expenseClass = ecRow?.class ?? "";
+
+      const createdAt = DateTime.fromJSDate(existing.createdAt).setZone("Asia/Manila");
+      updateFields.alobs = [expenseClass, createdAt.toFormat("yy"), createdAt.toFormat("MM"), effectiveObrNumber].join("-");
     }
 
     const hasScalarUpdates = Object.keys(updateFields).length > 0;
@@ -1969,9 +2028,7 @@ export async function updateObrMainData(
       const refs = await db
         .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
         .from(aipReferences)
-        .where(
-          inArray(aipReferences.id, aipIds),
-        );
+        .where(inArray(aipReferences.id, aipIds));
       for (const ref of refs) {
         aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
       }
@@ -2038,6 +2095,44 @@ export async function updateObrMainData(
       ErrorCodes.Fatal,
       "Unable to update OBR main data.",
       { id, payload, actorId: actor.id },
+      e,
+    );
+  }
+}
+
+export async function deleteObrMainData(
+  id: string,
+  actor: User,
+): Promise<Result<void>> {
+  try {
+    const [existing] = await db
+      .select({ id: obrMainData.id, requestSourceId: obrMainData.requestSourceId })
+      .from(obrMainData)
+      .where(eq(obrMainData.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such OBR main data record found.", { id });
+    }
+
+    await db.transaction(async tx => {
+      await tx
+        .delete(obrMainData)
+        .where(eq(obrMainData.id, id));
+
+      if (existing.requestSourceId) {
+        await tx
+          .update(obrRequests)
+          .set({ obrNumber: null, prNumber: null })
+          .where(eq(obrRequests.id, existing.requestSourceId));
+      }
+    });
+
+    return new Success(undefined);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Unable to delete OBR main data.",
+      { id, actorId: actor.id },
       e,
     );
   }
@@ -3256,6 +3351,13 @@ type CreateObrMainDataPayload = {
     aipId: string;
     amount: string;
   }>;
+  payee: string;
+  address: string;
+  responsibilityCenterId: string;
+  expenseCodeId: string;
+  particulars: string;
+  amount: string;
+  requestId?: string;
 };
 
 type UpdateObrMainDataPayload = {
@@ -3267,4 +3369,10 @@ type UpdateObrMainDataPayload = {
     aipId: string;
     amount: string;
   }>;
+  payee?: string;
+  address?: string;
+  responsibilityCenterId?: string;
+  expenseCodeId?: string;
+  particulars?: string;
+  amount?: string;
 };

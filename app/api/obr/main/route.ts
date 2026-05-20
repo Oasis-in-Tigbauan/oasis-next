@@ -36,8 +36,14 @@ export async function POST(req: NextRequest) {
 
   const validated = await validator.validate<CreateObrMainDataBody>(body, {
     properties: {
-      requestId: { type: "string", formatter: "uuid" },
       obrNumber: { type: "string", formatter: "non-empty-string" },
+      payee: { type: "string", formatter: "non-empty-string" },
+      address: { type: "string", formatter: "non-empty-string" },
+      responsibilityCenterId: { type: "string", formatter: "uuid" },
+      expenseCodeId: { type: "string", formatter: "uuid" },
+      particulars: { type: "string", formatter: "non-empty-string" },
+      amount: { type: "string", formatter: "decimal" },
+      requestId: { type: "string", formatter: "uuid" },
       prNumber: { type: "string", formatter: "non-empty-string" },
       prAmount: { type: "string", formatter: "decimal" },
       saaobId: { type: "string", formatter: "uuid" },
@@ -66,7 +72,7 @@ export async function POST(req: NextRequest) {
         },
       },
     },
-    requiredProperties: ["requestId", "obrNumber"],
+    requiredProperties: ["obrNumber", "payee", "address", "responsibilityCenterId", "expenseCodeId", "particulars", "amount"],
     allowUnvalidatedProperties: true,
   });
   if (!validated.ok) {
@@ -75,10 +81,16 @@ export async function POST(req: NextRequest) {
       .build();
   }
 
-  const result = await obr.createObrMainDataFromApprovedRequest(
-    body.requestId,
+  const result = await obr.createObrMainData(
     {
       obrNumber: body.obrNumber,
+      payee: body.payee,
+      address: body.address,
+      responsibilityCenterId: body.responsibilityCenterId,
+      expenseCodeId: body.expenseCodeId,
+      particulars: body.particulars,
+      amount: body.amount,
+      requestId: body.requestId,
       prNumber: body.prNumber,
       prAmount: body.prAmount,
       saaobId: body.saaobId,
@@ -94,8 +106,14 @@ export async function POST(req: NextRequest) {
 }
 
 type CreateObrMainDataBody = {
-  requestId: string;
   obrNumber: string;
+  payee: string;
+  address: string;
+  responsibilityCenterId: string;
+  expenseCodeId: string;
+  particulars: string;
+  amount: string;
+  requestId?: string;
   prNumber?: string;
   prAmount?: string;
   saaobId?: string;
