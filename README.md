@@ -1,5 +1,7 @@
 # oasis-next
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/circleci/E456Hd1RqfPHz9QYrccdkR/MAoz8ho7NLTVyzGdx9Ubg3/tree/master.svg?style=svg&circle-token=CCIPRJ_E9X7bHs4Qcgu5rgsujaPK7_506e7369727f005c8e18d96fb272973e37b4fa01)](https://dl.circleci.com/status-badge/redirect/circleci/E456Hd1RqfPHz9QYrccdkR/MAoz8ho7NLTVyzGdx9Ubg3/tree/master)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Difference with `oasis-app`
