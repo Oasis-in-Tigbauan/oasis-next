@@ -1,13 +1,13 @@
-import { count, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import { DateTime } from "luxon";
 
 import type { MigratorFn } from "@/lib/db/types";
-import { aipReferences, officePosition, supplemental, saaobEntries, user } from "@/lib/db/schema";
+import { aipReferences, supplemental, saaobEntries } from "@/lib/db/schema";
 import { castToDecimal } from "@/lib/types/casts";
 
-export const supplementalMigration: MigratorFn = async (client): Promise<void> => {
+export const supplementalMigration: MigratorFn = async (client, usr): Promise<void> => {
   console.log("Migrating Supplemental...");
 
   // Check if there are items. Skip if there are items.
@@ -17,29 +17,6 @@ export const supplementalMigration: MigratorFn = async (client): Promise<void> =
   if (Number(result.count) > 0) {
     console.log("-> Skipped due to items present in supplemental.");
     return;
-  }
-
-  // Get the heathcliff user
-  const [heathcliffRole] = await client
-    .select({
-      id: officePosition.id,
-    })
-    .from(officePosition)
-    .where(eq(officePosition.name, "Heathcliff"));
-  if (!heathcliffRole) {
-    throw new Error("System Role cannot be found. This may be an error.");
-  }
-
-  const [systemUser] = await client
-    .select({
-      id: user.id,
-      officeId: user.officeId,
-    })
-    .from(user)
-    .where(eq(user.officePositionId, heathcliffRole.id))
-    .limit(1);
-  if (!systemUser) {
-    throw new Error("System User cannot be found. This may be an error.");
   }
 
   const codes = await read();
@@ -98,7 +75,7 @@ export const supplementalMigration: MigratorFn = async (client): Promise<void> =
       supplementalType,
       aipRefCode,
       saaobId: saaobByRefCode.get((row["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
-      author: systemUser.id,
+      author: usr.id,
       createdAt,
       updatedAt: createdAt,
     });

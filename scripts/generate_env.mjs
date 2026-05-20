@@ -93,27 +93,29 @@ async function main() {
   await utils.env.export(path.join(__dirname, "../.env"));
 
   // Run the docker-compose
-  await utils.process.spawnAsync(dockerPath, ["compose", "up", "-d"], {
+  await utils.process.spawnAsync(dockerPath, ["compose", "up", "-d", "--wait"], {
     cwd: path.join(__dirname, "../"),
   });
 
-  // Wait 5s...
-  await utils.timers.wait(5);
-
-  // Create the database in preparation of pushing the schema to a database
-  await utils.db.setupDatabase({
-    username: dbUser,
-    password: dbPassword,
-    name: dbName,
-    host: dbHost,
-    port: dbPort,
-  });
-
-  // Wait 5s...
+  // Wait 10s...
   await utils.timers.wait(5);
 
   try {
+    // Create the database in preparation of pushing the schema to a database
+    console.log("Creating database...");
+    await utils.db.setupDatabase({
+      username: dbUser,
+      password: dbPassword,
+      name: dbName,
+      host: dbHost,
+      port: dbPort,
+    });
+
+    // Wait 5s...
+    await utils.timers.wait(5);
+
     // Start the schema migration
+    console.log("Running migrations...");
     await utils.process.spawnAsync(pnpmPath, ["run", "db:migrate"], {
       cwd: path.join(__dirname, "../"),
       shell: true,
@@ -122,15 +124,8 @@ async function main() {
     await utils.timers.wait(5);
 
     // Seed
-    await utils.process.spawnAsync(pnpmPath, ["run", "db:seed", "--", "--critical-only"], {
-      cwd: path.join(__dirname, "../"),
-      shell: true,
-    });
-
-    await utils.timers.wait(5);
-
-    // Finally, prepare for the setup
-    await utils.process.spawnAsync(pnpmPath, ["run", "setup:admin"], {
+    console.log("Running seed...");
+    await utils.process.spawnAsync(pnpmPath, ["run", "db:seed"], {
       cwd: path.join(__dirname, "../"),
       shell: true,
     });
@@ -139,26 +134,27 @@ async function main() {
     console.log("Your development environment has finished configuring.");
     console.log("");
     console.log("Before you can do anything, you need to do this first:");
-    console.log("  1. Run the server: pnpm run dev");
-    console.log("  2. Finish the registration process.");
-    console.log("  3. Enable your account via drizzle studio: users -> your account -> emailVerified to true");
-    console.log("  4. Seed the rest of the data: pnpm run db:seed");
+    console.log("  1. Run the server: pnpm dev");
+    console.log("  2. Create and login the enroller account: pnpm run enroller -- --enable");
+    console.log("     This will generate a account solely for setting up offices, roles, permissions and inviting users to the org.");
+    console.log("     After the setup, you can disable the account by running pnpm run enroller -- --disable");
+    console.log("     To re-enable the enroller account, run pnpm run enroller -- --enable");
+    console.log("  3. Then seed the rest of the data: pnpm run db:seed");
     console.log("");
     console.log("Happy coding!");
     console.log("");
   } catch (e) {
+    console.error("");
+    console.error("One or more commands failed to run to setup your database. Use the exception below for troubleshooting:");
+    console.error("");
+    console.error("============================================================");
     console.error(e);
-
-    console.warn("");
-    console.warn("One or more commands failed to run to setup your database. You need to do this manually.");
-    console.warn("");
-    console.warn("  1. pnpm run db:migrate");
-    console.warn("  2. pnpm run db:seed -- --critical-only");
-    console.warn("  3. pnpm run dev");
-    console.warn("  4. pnpm run setup:admin");
-    console.warn("");
-    console.warn("Happy coding!");
-    console.warn("");
+    console.error("============================================================");
+    console.error("");
+    console.error("To restart the env setup again, run:");
+    console.error("  1. docker compose down");
+    console.error("  2. pnpm run setup");
+    console.error("");
   }
 }
 

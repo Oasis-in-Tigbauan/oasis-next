@@ -37,6 +37,7 @@ Before you begin, you will need to have the following tools installed on your ma
 Additionally, you will need to have certain API Keys:
 
 - [A Sentry Authentication Key](https://docs.sentry.io/account/auth-tokens/).
+- [Resend API Key](https://resend.com/docs/api-reference/api-keys/create-api-key)
 
 ## Preparing your environment
 
@@ -44,47 +45,37 @@ Additionally, you will need to have certain API Keys:
    ```sh
    git clone https://github.com/Oasis-in-Tigbauan/oasis-next.git && cd oasis-next
    ```
-   
+
 2. Install required dependencies:
    ```sh
    pnpm i
    ```
-   
+
 3. Generate required environment configs:
    ```sh
    pnpm run setup
    ```
-   
-   It will ask you for a couple of things like Sentry API Key, Database credentials, etc.
 
-4. After generating the configs, you need to push the schema to db:
-   ```sh
-   pnpm run db:push
-   ```
-   
-5. To generate an administrator account, you need to run:
-   ```sh
-   pnpm run setup:admin
-   ```
-   
-   Follow the instructions after it generates the invitation link. You need to use the
-   email address it generated.
+   It will ask you for a couple of things like Sentry API Key, Resend API Key, Database credentials, etc.
 
-6. Run the server and complete the setup:
+4. After creating the .env config and the environment, you can seed the data:
+   ```sh
+   pnpm run db:seed
+   ```
+
+5. To create a enroller account, you need to run
+   ```sh
+   pnpm run enroller -- --enable
+   ```
+
+   To disable the enroller account, just run: `pnpm run enroller -- --disable`.
+
+6. Start the project!
    ```sh
    pnpm run dev
    ```
-   
+
    Then open your browser at http://localhost:3000 to open the app.
-
-7. To enable your administrator account, run:
-
-   ```sh
-   pnpm run db:studio
-   ```
-   
-   To open the Drizzle studio. Enable your account by setting `emailVerified` to `true`. We
-   don't perform email verification for this project because of how the invitation system works.
 
 ## Learn More
 

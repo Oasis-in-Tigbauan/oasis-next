@@ -1,12 +1,12 @@
-import { count, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import fs from "fs/promises";
 import { DateTime } from "luxon";
 import path from "path";
 
 import type { MigratorFn } from "@/lib/db/types";
-import { officePosition, user, obrMainData, obrMainAipReferences, officeCodes, expenseClasses, saaobEntries, aipReferences } from "@/lib/db/schema";
+import { obrMainData, obrMainAipReferences, officeCodes, expenseClasses, saaobEntries, aipReferences } from "@/lib/db/schema";
 
-export const obrEntriesMigration: MigratorFn = async (client): Promise<void> => {
+export const obrEntriesMigration: MigratorFn = async (client, usr): Promise<void> => {
   console.log("Migrating OBR entries...");
 
   // Check if there are items. Skip if there are items.
@@ -16,29 +16,6 @@ export const obrEntriesMigration: MigratorFn = async (client): Promise<void> => 
   if (Number(result.count) > 0) {
     console.log("-> Skipped due to obr entries exists");
     return;
-  }
-
-  // Get the heathcliff user
-  const [heathcliffRole] = await client
-    .select({
-      id: officePosition.id,
-    })
-    .from(officePosition)
-    .where(eq(officePosition.name, "Heathcliff"));
-  if (!heathcliffRole) {
-    throw new Error("System Role cannot be found. This may be an error.");
-  }
-
-  const [systemUser] = await client
-    .select({
-      id: user.id,
-      officeId: user.officeId,
-    })
-    .from(user)
-    .where(eq(user.officePositionId, heathcliffRole.id))
-    .limit(1);
-  if (!systemUser) {
-    throw new Error("System User cannot be found. This may be an error.");
   }
 
   const entries = await read();
@@ -128,7 +105,7 @@ export const obrEntriesMigration: MigratorFn = async (client): Promise<void> => 
       responsibilityCenterId,
       expenseCodeId,
       saaobId: saaobByRefCode.get((c["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
-      authorId: systemUser.id,
+      authorId: usr.id,
       createdAt: DateTime.fromFormat((c["DATE"] ?? "").trim(), "MM/dd/yyyy", { zone: "Asia/Manila" }).toUTC().toJSDate(),
     };
     obrValues.push(value);

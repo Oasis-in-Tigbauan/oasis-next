@@ -28,7 +28,7 @@ export const expenseCodesMigration: MigratorFn = async (client): Promise<void> =
       subClassification: c["sub_classification"],
       group: c["group"],
       accountCode: c["account_code"],
-      expenseClass: c["expense_class"],
+      class: c["expense_class"],
     })));
 };
 
