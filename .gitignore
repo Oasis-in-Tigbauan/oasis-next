@@ -44,6 +44,7 @@ next-env.d.ts
 # Ignore IDE files
 .idea/
 .vscode/
+.cursor/
 
 # Docker volume
 .data/
