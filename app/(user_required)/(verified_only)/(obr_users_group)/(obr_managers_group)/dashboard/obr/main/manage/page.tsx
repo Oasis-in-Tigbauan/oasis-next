@@ -164,16 +164,16 @@ export default function Page() {
 
   const items = searchQuery.trim()
     ? allItems.filter(item => {
-        const q = searchQuery.toLowerCase();
-        return (
-          item.obrNumber.toLowerCase().includes(q)
+      const q = searchQuery.toLowerCase();
+      return (
+        item.obrNumber.toLowerCase().includes(q)
           || item.alobs.toLowerCase().includes(q)
           || item.payee.toLowerCase().includes(q)
           || item.address.toLowerCase().includes(q)
           || item.particulars.toLowerCase().includes(q)
           || (item.prNumber && item.prNumber.toLowerCase().includes(q))
-        );
-      })
+      );
+    })
     : allItems;
 
   // eslint-disable-next-line
@@ -717,9 +717,9 @@ function ValidRequestCombobox({
 
   const filtered = query.trim()
     ? requests.filter(r =>
-        r.requestNumber.toLowerCase().includes(query.toLowerCase())
+      r.requestNumber.toLowerCase().includes(query.toLowerCase())
         || r.payee.toLowerCase().includes(query.toLowerCase()),
-      )
+    )
     : requests;
 
   const displayValue = value ? `${value.requestNumber} — ${value.payee}` : "";
