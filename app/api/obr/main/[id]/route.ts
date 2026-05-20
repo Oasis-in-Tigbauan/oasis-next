@@ -45,6 +45,12 @@ export async function PATCH(
       prNumber: { type: "string", formatter: "non-empty-string" },
       prAmount: { type: "string", formatter: "decimal" },
       saaobId: { type: "string", formatter: "uuid" },
+      payee: { type: "string", formatter: "non-empty-string" },
+      address: { type: "string", formatter: "non-empty-string" },
+      responsibilityCenterId: { type: "string", formatter: "uuid" },
+      expenseCodeId: { type: "string", formatter: "uuid" },
+      particulars: { type: "string", formatter: "non-empty-string" },
+      amount: { type: "string", formatter: "decimal" },
       aipReferences: {
         type: "object",
         formatterFn: async v => {
@@ -86,6 +92,12 @@ export async function PATCH(
       prNumber: body.prNumber,
       prAmount: body.prAmount,
       saaobId: body.saaobId,
+      payee: body.payee,
+      address: body.address,
+      responsibilityCenterId: body.responsibilityCenterId,
+      expenseCodeId: body.expenseCodeId,
+      particulars: body.particulars,
+      amount: body.amount,
       aipReferences: body.aipReferences,
     },
     session.user!,
@@ -97,10 +109,47 @@ export async function PATCH(
   );
 }
 
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.verify([permission.OBR_MANAGEMENT_WRITE]);
+  if (!session || session.code !== SessionCode.Ok) {
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
+  }
+
+  const { id } = await params;
+
+  const idValidation = await validator.validate<{ id: string }>({ id }, {
+    properties: {
+      id: { type: "string", formatter: "uuid" },
+    },
+    requiredProperties: ["id"],
+    allowUnvalidatedProperties: false,
+  });
+  if (!idValidation.ok) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, "Invalid record identifier.")
+      .build();
+  }
+
+  const result = await obr.deleteObrMainData(id, session.user!);
+  return oneOf(result).match(
+    () => ApiResponseBuilder.create(StatusCodes.Status200Ok).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
+  );
+}
+
 type UpdateObrMainDataBody = {
   obrNumber?: string;
   prNumber?: string;
   prAmount?: string;
   saaobId?: string | null;
+  payee?: string;
+  address?: string;
+  responsibilityCenterId?: string;
+  expenseCodeId?: string;
+  particulars?: string;
+  amount?: string;
   aipReferences?: Array<{ aipId: string; amount: string }>;
 };

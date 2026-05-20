@@ -161,10 +161,8 @@ const allMenuItems: Array<MenuItem> = [
   {
     title: "Main Data",
     description: "Open OBR administrative and worksheet management tools.",
-    href: "/dashboard/obr/main/create",
-    primaryLabel: "Create",
-    secondaryHref: "/dashboard/obr/main/manage",
-    secondaryLabel: "Manage",
+    href: "/dashboard/obr/main/manage",
+    primaryLabel: "Manage",
     icon: FolderCog,
     required: [
       permissions.OBR_MANAGEMENT_READ,
