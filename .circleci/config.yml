@@ -1,0 +1,56 @@
+version: 2.1
+orbs:
+  node: circleci/node@5
+
+commands:
+  setup_and_install_pnpm:
+    description: "Checkout code, install pnpm, and load cached dependencies"
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-{{ checksum "pnpm-lock.yaml" }}
+            - pnpm-packages-
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm install --global corepack@latest
+            corepack enable
+            corepack prepare pnpm@latest-11 --activate
+            pnpm config set store-dir .pnpm-store
+      - run:
+          name: Install Dependencies
+          command: pnpm install --frozen-lockfile
+      - save_cache:
+          name: Save pnpm Package Cache
+          key: pnpm-packages-{{ checksum "pnpm-lock.yaml" }}
+          paths:
+            - .pnpm-store
+
+jobs:
+  # Linting
+  lint-node:
+    executor: node/default
+    steps:
+      - setup_and_install_pnpm
+      - run:
+          name: Run Linter
+          command: pnpm run lint
+
+  # Build
+  build-node:
+    executor: node/default
+    resource_class: large
+    parallelism: 10
+    steps:
+      - setup_and_install_pnpm
+      - run:
+          name: Build project
+          command: pnpm run build
+
+workflows:
+  build_and_lint_workflow:
+    jobs:
+      - lint-node
+      - build-node
