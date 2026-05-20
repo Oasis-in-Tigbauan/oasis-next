@@ -15,7 +15,12 @@ commands:
       - run:
           name: Install pnpm package manager
           command: |
-            npm install --global corepack@latest
+            # Add env
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+
+            # Enable
+            npm install --prefix=$HOME/.local --global corepack@latest
             corepack enable
             corepack prepare pnpm@latest-11 --activate
             pnpm config set store-dir .pnpm-store
