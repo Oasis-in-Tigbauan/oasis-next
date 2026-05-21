@@ -13,7 +13,7 @@ export type ObrMainDataItem = {
   obrNumber: string;
   alobs: string;
   date: string;
-  payee: string;
+  payee: string | null;
   address: string;
   requestSourceId: string | null;
   saaob: { id: string; name: string } | null;

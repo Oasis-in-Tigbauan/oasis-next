@@ -358,7 +358,7 @@ export const obrRequests = pgTable("obr_requests", {
     .$defaultFn(() => uuidv7()),
 
   requestNumber: text("request_number").notNull(),
-  payee: text("payee").notNull(),
+  payee: text("payee"),
   officeAddress: text("office_address").notNull(),
   obrNumber: text("obr_number"),
   prNumber: text("pr_number"),
@@ -442,8 +442,7 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
 
   disbursementVoucherNumber: text("disbursement_voucher_number")
     .notNull(),
-  payee: text("payee")
-    .notNull(),
+  payee: text("payee"),
   address: text("address")
     .notNull(),
   particulars: text("particulars")
@@ -528,7 +527,7 @@ export const obrItems = pgTable("obr_items", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => uuidv7()),
-  payee: text("payee").notNull(),
+  payee: text("payee"),
   address: text("address").notNull(),
   particulars: text("particulars").notNull(),
 
@@ -766,7 +765,7 @@ export const obrMainData = pgTable("obr_main_data", {
 
   obrNumber: text("obr_number").notNull(),
   alobs: text("alobs").notNull(),
-  payee: text("payee").notNull(),
+  payee: text("payee"),
   address: text("address").notNull(),
   prNumber: text("pr_number"),
   particulars: text("particulars").notNull(),
@@ -839,7 +838,7 @@ export const esre = pgTable("esre", {
   dvOrPayrollNumber: text("dv_or_payroll_number"),
   obrItemId: text("obr_item_id")
     .references(() => obrMainData.id),
-  payee: text("payee").notNull(),
+  payee: text("payee"),
   natureOfPayment: text("nature_of_payment").notNull(),
   amount: decimal("amount").notNull(),
   checkStatus: checkStatusEnum("check_status"),

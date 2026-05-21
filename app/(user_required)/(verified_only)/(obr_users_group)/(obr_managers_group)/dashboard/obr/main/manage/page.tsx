@@ -168,7 +168,7 @@ export default function Page() {
       return (
         item.obrNumber.toLowerCase().includes(q)
           || item.alobs.toLowerCase().includes(q)
-          || item.payee.toLowerCase().includes(q)
+          || (item.payee?.toLowerCase().includes(q) ?? false)
           || item.address.toLowerCase().includes(q)
           || item.particulars.toLowerCase().includes(q)
           || (item.prNumber && item.prNumber.toLowerCase().includes(q))
@@ -329,7 +329,7 @@ export default function Page() {
                       <TableCell className="font-medium">{item.obrNumber}</TableCell>
                       <TableCell>{item.alobs}</TableCell>
                       <TableCell>{formatDate(item.date)}</TableCell>
-                      <TableCell className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words align-top">{item.payee}</TableCell>
+                      <TableCell className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words align-top">{item.payee ?? "-"}</TableCell>
                       <TableCell className="w-[220px] min-w-[220px] max-w-[220px] whitespace-normal break-words align-top">{item.address}</TableCell>
                       <TableCell>{item.responsibilityCenter.name}</TableCell>
                       <TableCell className="w-[240px] min-w-[240px] max-w-[240px] whitespace-normal break-words align-top">{item.expenseCode.expenseName}</TableCell>
@@ -856,7 +856,7 @@ function ObrMainDataCreateDialog({
     if (submitting || detailLoading) return;
 
     const amountStr = String(amount ?? "").trim();
-    if (!obrNumber.trim() || !payee.trim() || !address.trim() || !responsibilityCenterId || !expenseCodeId || !particulars.trim() || !amountStr) {
+    if (!obrNumber.trim() || !address.trim() || !responsibilityCenterId || !expenseCodeId || !particulars.trim() || !amountStr) {
       setActionError("Please fill in all required fields.");
       return;
     }
@@ -867,13 +867,13 @@ function ObrMainDataCreateDialog({
     try {
       const body: Record<string, unknown> = {
         obrNumber: obrNumber.trim(),
-        payee: payee.trim(),
         address: address.trim(),
         responsibilityCenterId,
         expenseCodeId,
         particulars: particulars.trim(),
         amount: amountStr,
       };
+      body.payee = payee.trim() ? payee.trim() : null;
       if (prNumber.trim()) body.prNumber = prNumber.trim();
       if (prAmount.trim()) body.prAmount = prAmount.trim();
       if (linkedRequest) body.requestId = linkedRequest.id;
@@ -985,9 +985,10 @@ function ObrMainDataCreateDialog({
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="flex flex-col gap-1">
-                <Label htmlFor={`${baseId}-payee`}>Payee <span className="text-destructive">*</span></Label>
+                <Label htmlFor={`${baseId}-payee`}>Payee</Label>
                 <Input
                   id={`${baseId}-payee`}
+                  placeholder="Optional"
                   value={payee}
                   onChange={e => setPayee(e.target.value)}
                   disabled={submitting}
@@ -1139,7 +1140,7 @@ function ObrMainDataEditDialog({
   const allExpenseClasses = expenseClassesData?.data?.data ?? [];
 
   const [obrNumber, setObrNumber] = useState(item.obrNumber);
-  const [payee, setPayee] = useState(item.payee);
+  const [payee, setPayee] = useState(item.payee ?? "");
   const [address, setAddress] = useState(item.address);
   const [responsibilityCenterId, setResponsibilityCenterId] = useState(item.responsibilityCenter.id);
   const [expenseCodeId, setExpenseCodeId] = useState(item.expenseCode.id);
@@ -1166,7 +1167,7 @@ function ObrMainDataEditDialog({
     try {
       const body: Record<string, unknown> = {};
       if (obrNumber.trim()) body.obrNumber = obrNumber.trim();
-      if (payee.trim()) body.payee = payee.trim();
+      body.payee = payee.trim() ? payee.trim() : null;
       if (address.trim()) body.address = address.trim();
       if (responsibilityCenterId) body.responsibilityCenterId = responsibilityCenterId;
       if (expenseCodeId) body.expenseCodeId = expenseCodeId;

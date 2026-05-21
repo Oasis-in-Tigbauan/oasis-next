@@ -1802,7 +1802,7 @@ export async function createObrMainData(
         .values({
           obrNumber: payload.obrNumber,
           alobs,
-          payee: payload.payee,
+          payee: payload.payee ?? null,
           address: payload.address,
           particulars: payload.particulars,
           obligated: casts.castToDecimal(payload.amount),
@@ -1932,7 +1932,7 @@ export async function updateObrMainData(
       prNumber: string;
       prAmount: string;
       saaobId: string | null;
-      payee: string;
+      payee: string | null;
       address: string;
       responsibilityCenterId: string;
       expenseCodeId: string;
@@ -1953,8 +1953,10 @@ export async function updateObrMainData(
     if ("saaobId" in payload) {
       updateFields.saaobId = payload.saaobId ?? null;
     }
-    if (validatorUtilities.isNotEmpty(payload.payee)) {
-      updateFields.payee = payload.payee!;
+    if ("payee" in payload) {
+      updateFields.payee = validatorUtilities.isNotEmpty(payload.payee)
+        ? payload.payee!
+        : null;
     }
     if (validatorUtilities.isNotEmpty(payload.address)) {
       updateFields.address = payload.address!;
@@ -3023,7 +3025,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       obrNumber: r.obrNumber,
       alobs: r.alobs,
       date: dt.toISO()!,
-      payee: r.payee,
+      payee: r.payee ?? null,
       address: r.address,
       requestSourceId: r.requestSourceId ?? null,
       saaob: r.saaobId ? { id: r.saaobId, name: r.saaobName ?? "" } : null,
@@ -3073,7 +3075,7 @@ type ApprovalStateResponseType = ApprovalState | "mixed";
 
 type CreateNewRequestType = {
   requestNumber: string;
-  payee: string;
+  payee: Optional<string>;
   officeAddress: string;
   obrNumber?: string;
   prNumber?: string;
@@ -3089,7 +3091,7 @@ type BaseObrRequestType = {
   id: string;
   type: string;
   requestNumber: string;
-  payee: string;
+  payee: Optional<string>;
   officeAddress: string;
   obrNumber: Optional<string>;
   prNumber: Optional<string>;
@@ -3156,7 +3158,7 @@ type ObrDisbursementVoucher = {
   id: string;
   disbursementVoucherNumber: string;
   createdAt: Date;
-  payee: string;
+  payee?: string | null;
   address: string;
   particulars: string;
   grossAmount: Optional<string>;
@@ -3369,7 +3371,7 @@ type UpdateObrMainDataPayload = {
     aipId: string;
     amount: string;
   }>;
-  payee?: string;
+  payee?: string | null;
   address?: string;
   responsibilityCenterId?: string;
   expenseCodeId?: string;
