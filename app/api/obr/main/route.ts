@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     properties: {
       obrNumber: { type: "string", formatter: "non-empty-string" },
       payee: {
-        type: "object",
+        type: "string",
         formatterFn: async v => {
           if (v === null || v === undefined) return { ok: true };
           if (typeof v === "string" && validatorUtilities.isNotEmpty(v)) return { ok: true };
