@@ -30,9 +30,6 @@ async function accountTool(args: Array<string>) {
     console.log("  create-account          Creates a new account.");
     console.log("  create-office           Creates a new office.");
     console.log("  create-role             Creates a new role.");
-    console.log("  update-account          Updates a specific account.");
-    console.log("  update-office           Updates a specific office.");
-    console.log("  update-role             Updates a specific role.");
     console.log("");
     console.log("For command specific help, use <command> --help.");
     console.log("");
