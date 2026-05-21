@@ -91,7 +91,7 @@ async function enroller(flags: Set<string>) {
   console.log("enroller [options]");
   console.log("");
   console.log("  --enable         Create or re-enable enroller account.");
-  console.log("  --disbable       Disable enroller account.");
+  console.log("  --disable        Disable enroller account.");
   console.log("  --help           This help.");
   console.log("");
 }
