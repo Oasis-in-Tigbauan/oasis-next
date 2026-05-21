@@ -45,7 +45,14 @@ export async function PATCH(
       prNumber: { type: "string", formatter: "non-empty-string" },
       prAmount: { type: "string", formatter: "decimal" },
       saaobId: { type: "string", formatter: "uuid" },
-      payee: { type: "string", formatter: "non-empty-string" },
+      payee: {
+        type: "object",
+        formatterFn: async v => {
+          if (v === null || v === undefined) return { ok: true };
+          if (typeof v === "string" && validatorUtilities.isNotEmpty(v)) return { ok: true };
+          return { ok: false, error: "Invalid payee." };
+        },
+      },
       address: { type: "string", formatter: "non-empty-string" },
       responsibilityCenterId: { type: "string", formatter: "uuid" },
       expenseCodeId: { type: "string", formatter: "uuid" },
@@ -145,7 +152,7 @@ type UpdateObrMainDataBody = {
   prNumber?: string;
   prAmount?: string;
   saaobId?: string | null;
-  payee?: string;
+  payee?: string | null;
   address?: string;
   responsibilityCenterId?: string;
   expenseCodeId?: string;

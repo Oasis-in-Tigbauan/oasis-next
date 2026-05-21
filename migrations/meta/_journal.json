@@ -323,6 +323,13 @@
       "when": 1779179487340,
       "tag": "0045_whole_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1779345423395,
+      "tag": "0046_wandering_terrax",
+      "breakpoints": true
     }
   ]
 }

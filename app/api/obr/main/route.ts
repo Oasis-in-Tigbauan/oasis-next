@@ -37,7 +37,14 @@ export async function POST(req: NextRequest) {
   const validated = await validator.validate<CreateObrMainDataBody>(body, {
     properties: {
       obrNumber: { type: "string", formatter: "non-empty-string" },
-      payee: { type: "string", formatter: "non-empty-string" },
+      payee: {
+        type: "object",
+        formatterFn: async v => {
+          if (v === null || v === undefined) return { ok: true };
+          if (typeof v === "string" && validatorUtilities.isNotEmpty(v)) return { ok: true };
+          return { ok: false, error: "Invalid payee." };
+        },
+      },
       address: { type: "string", formatter: "non-empty-string" },
       responsibilityCenterId: { type: "string", formatter: "uuid" },
       expenseCodeId: { type: "string", formatter: "uuid" },
@@ -72,7 +79,7 @@ export async function POST(req: NextRequest) {
         },
       },
     },
-    requiredProperties: ["obrNumber", "payee", "address", "responsibilityCenterId", "expenseCodeId", "particulars", "amount"],
+    requiredProperties: ["obrNumber", "address", "responsibilityCenterId", "expenseCodeId", "particulars", "amount"],
     allowUnvalidatedProperties: true,
   });
   if (!validated.ok) {
@@ -107,7 +114,7 @@ export async function POST(req: NextRequest) {
 
 type CreateObrMainDataBody = {
   obrNumber: string;
-  payee: string;
+  payee?: string | null;
   address: string;
   responsibilityCenterId: string;
   expenseCodeId: string;
