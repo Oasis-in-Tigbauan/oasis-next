@@ -3244,7 +3244,7 @@ type ObrItem = {
   obrRefNumber: string;
   dvRefNumber: Optional<string>;
   date: Date;
-  payee: string;
+  payee: Optional<string>;
   address: string;
   particulars: string;
   amounts: ObrItemOfficeData[];
@@ -3265,7 +3265,7 @@ export type ObrSearchResultItem = {
   id: string;
   obrRefNumber: string;
   dvRefNumber: string;
-  payee: string;
+  payee: Optional<string>;
   address: string;
   particulars: string;
   expenseClass: {
@@ -3285,7 +3285,7 @@ export type ObrMainDataItem = {
   obrNumber: string;
   alobs: string;
   date: string;
-  payee: string;
+  payee: Optional<string>;
   address: string;
   requestSourceId: string | null;
   saaob: { id: string; name: string } | null;
@@ -3331,7 +3331,7 @@ export type ObrMainDataSearchResultItem = {
   particulars: string;
   obrNumber: string;
   address: string;
-  payee: string;
+  payee: Optional<string>;
   expenseClass: {
     id: string;
     accountName: string;
@@ -3353,7 +3353,7 @@ type CreateObrMainDataPayload = {
     aipId: string;
     amount: string;
   }>;
-  payee: string;
+  payee?: string | null;
   address: string;
   responsibilityCenterId: string;
   expenseCodeId: string;
