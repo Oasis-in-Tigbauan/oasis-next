@@ -77,7 +77,7 @@ function ApprovalStatusBadge({ status }: { status: string }) {
 function formatAmount(amount: string) {
   const num = parseFloat(amount);
   if (isNaN(num)) return amount;
-  return `PHP ${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(dateStr: string | null | undefined) {

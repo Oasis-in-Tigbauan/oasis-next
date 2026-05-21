@@ -107,7 +107,7 @@ function formatCurrency(value: string | null): string {
   const roundedIsZero = cents === 0n;
   const sign = isNegative && !roundedIsZero ? "-" : "";
 
-  return `${sign}PHP ${intWithGrouping}.${fractionalPart}`;
+  return `${sign}${intWithGrouping}.${fractionalPart}`;
 }
 
 function DetailText({ value, className }: { value: string; className?: string }) {
@@ -577,7 +577,7 @@ function ObrRequestViewDialog({
                         <TableCell>{item.expenseCode.name}</TableCell>
                         <TableCell>{item.responsibilityCenter.name}</TableCell>
                         <TableCell className="text-right font-mono">
-                          {`PHP ${parseFloat(item.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
+                          {`${parseFloat(item.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
                         </TableCell>
                       </TableRow>
                     ))}

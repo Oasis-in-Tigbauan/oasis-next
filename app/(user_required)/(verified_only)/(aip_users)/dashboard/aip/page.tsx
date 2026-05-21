@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, File, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -22,6 +22,7 @@ import { AipFormDialog } from "@/app/(user_required)/(verified_only)/(aip_users)
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -59,13 +60,6 @@ const monthNames = [
   "December",
 ];
 
-const moneyFormatter = new Intl.NumberFormat("en-PH", {
-  style: "currency",
-  currency: "PHP",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 function toAmount(value: string | null): number {
   if (!value) return 0;
   const parsed = Number.parseFloat(value.replace(/,/g, ""));
@@ -73,7 +67,10 @@ function toAmount(value: string | null): number {
 }
 
 function formatMoney(value: number): string {
-  return moneyFormatter.format(value);
+  return value.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function formatMonth(value: number | null): string {
@@ -368,34 +365,36 @@ export default function Page() {
   if (error || data?.error) return <DeadHamster />;
 
   return (
-    <div className="flex flex-col gap-3 p-4 pt-0 w-full">
-      <div className="flex flex-wrap gap-2 p-2 border rounded-lg w-full items-center">
+    <div className="flex flex-col gap-2 p-4 pt-0 w-full">
+      <div className="flex items-center gap-1 p-2 border rounded-lg w-full">
         <Button
           variant="outline"
-          size="icon-sm"
-          aria-label="Add Group"
-          title="Add group"
+          size="sm"
+          className="h-7 text-xs"
           onClick={() => {
             setAddGroupKey(k => k + 1);
             setAddGroupOpen(true);
           }}
         >
-          <Plus />
+          <Plus className="size-3" />
+          Group
         </Button>
 
         <Button
           variant="outline"
-          size="icon-sm"
-          aria-label="Add Item"
-          title="Add item under selected group"
+          size="sm"
+          className="h-7 text-xs"
           disabled={!selectedGroup}
           onClick={() => {
             setAddItemKey(k => k + 1);
             setAddItemOpen(true);
           }}
         >
-          <File />
+          <Plus className="size-3" />
+          Item
         </Button>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
 
         <Button
           variant="outline"
@@ -414,6 +413,7 @@ export default function Page() {
           aria-label="Delete"
           title="Delete selected"
           disabled={!selectedNode || deleteBusy}
+          className="text-destructive hover:text-destructive"
           onClick={handleDelete}
         >
           <Trash2 />
@@ -421,7 +421,7 @@ export default function Page() {
 
         <div className="ml-auto flex items-center gap-2">
           <Select value={moveParentId || "__none__"} onValueChange={v => setMoveParentId(v === "__none__" ? "" : v)}>
-            <SelectTrigger className="w-72">
+            <SelectTrigger className="w-72 h-7 text-xs">
               <SelectValue placeholder="Select target group for move" />
             </SelectTrigger>
             <SelectContent>
@@ -436,10 +436,12 @@ export default function Page() {
 
           <Button
             variant="outline"
+            size="sm"
+            className="h-7 text-xs"
             disabled={checkedIds.size === 0 || !moveParentId || moveBusy}
             onClick={handleMove}
           >
-            {moveBusy ? "Moving..." : `Move Selected (${checkedIds.size})`}
+            {moveBusy ? "Moving..." : `Move (${checkedIds.size})`}
           </Button>
         </div>
       </div>
@@ -456,7 +458,7 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-10rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
@@ -568,21 +570,21 @@ export default function Page() {
                       <TableCell className="whitespace-normal wrap-break-word">{node.expectedOutputs ?? "-"}</TableCell>
                       <TableCell className="whitespace-normal wrap-break-word">{node.fundingSource ?? "-"}</TableCell>
 
-                      <TableCell className="text-right">{formatMoney(amountPS)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(amountMOOE)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(amountCO)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatMoney(amountTotal)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountPS)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountMOOE)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountCO)}</TableCell>
+                      <TableCell className="text-right font-mono font-medium">{formatMoney(amountTotal)}</TableCell>
 
-                      <TableCell className="text-right">{formatMoney(amountPS / 1000)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(amountMOOE / 1000)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(amountCO / 1000)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatMoney(amountTotal / 1000)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountPS / 1000)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountMOOE / 1000)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountCO / 1000)}</TableCell>
+                      <TableCell className="text-right font-mono font-medium">{formatMoney(amountTotal / 1000)}</TableCell>
 
-                      <TableCell className="text-right">{formatMoney(amountCCAdapt)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(amountCCMitigate)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountCCAdapt)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(amountCCMitigate)}</TableCell>
                       <TableCell>{node.ccTopologyCode ?? "-"}</TableCell>
                       <TableCell>{node.gadable ? "Yes" : "No"}</TableCell>
-                      <TableCell className="text-right">{formatMoney(gadAmount)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatMoney(gadAmount)}</TableCell>
                     </TableRow>
                   );
                 })}
