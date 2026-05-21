@@ -46,7 +46,7 @@ export async function PATCH(
       prAmount: { type: "string", formatter: "decimal" },
       saaobId: { type: "string", formatter: "uuid" },
       payee: {
-        type: "object",
+        type: "string",
         formatterFn: async v => {
           if (v === null || v === undefined) return { ok: true };
           if (typeof v === "string" && validatorUtilities.isNotEmpty(v)) return { ok: true };
