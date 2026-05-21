@@ -718,11 +718,11 @@ function ValidRequestCombobox({
   const filtered = query.trim()
     ? requests.filter(r =>
       r.requestNumber.toLowerCase().includes(query.toLowerCase())
-        || r.payee.toLowerCase().includes(query.toLowerCase()),
+        || (r.payee?.toLowerCase().includes(query.toLowerCase()) ?? false),
     )
     : requests;
 
-  const displayValue = value ? `${value.requestNumber} — ${value.payee}` : "";
+  const displayValue = value ? `${value.requestNumber} — ${value.payee ?? "-"}` : "";
 
   return (
     <div className="relative flex flex-1 flex-col gap-1">
@@ -756,7 +756,7 @@ function ValidRequestCombobox({
               }}
             >
               <span className="font-medium">{r.requestNumber}</span>
-              <span className="text-xs text-muted-foreground">{r.payee}</span>
+              <span className="text-xs text-muted-foreground">{r.payee ?? "-"}</span>
               {r.obrNumber && (
                 <span className="text-xs text-muted-foreground">OBR: {r.obrNumber}</span>
               )}
@@ -821,7 +821,7 @@ function ObrMainDataCreateDialog({
     if (!req) return;
 
     // Autofill top-level fields immediately from the summary
-    setPayee(req.payee);
+    setPayee(req.payee ?? "");
     setAddress(req.officeAddress);
     if (req.obrNumber) setObrNumber(req.obrNumber);
     if (req.prNumber) setPrNumber(req.prNumber);

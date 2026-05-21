@@ -569,7 +569,7 @@ type UpdateEsrePayload = {
 type EsreItem = {
   id: string;
   date: Date;
-  payee: string;
+  payee: Optional<string>;
   natureOfPayment: string;
   amount: string;
   checkStatus: Optional<string>;
