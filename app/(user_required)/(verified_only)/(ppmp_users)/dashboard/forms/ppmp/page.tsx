@@ -305,7 +305,7 @@ export default function Page() {
                   <TableHead className="min-w-36">End of Procurement Activity</TableHead>
                   <TableHead className="min-w-44">Expected Delivery/Implementation Period</TableHead>
                   <TableHead className="min-w-44">Source of Funds</TableHead>
-                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation (Php)</TableHead>
+                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation</TableHead>
                 </TableRow>
                 <TableRow>
                   {Array.from({ length: TOTAL_COLS }, (_, idx) => (
@@ -1157,7 +1157,7 @@ function PlanItemDialog({
               <SaaobSearchCombobox value={saaob} onChange={setSaaob} disabled={submitting} />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-budget`}>Estimated Budget (Php)</Label>
+              <Label htmlFor={`${baseId}-budget`}>Estimated Budget</Label>
               <Input
                 id={`${baseId}-budget`}
                 value={estimatedBudget}

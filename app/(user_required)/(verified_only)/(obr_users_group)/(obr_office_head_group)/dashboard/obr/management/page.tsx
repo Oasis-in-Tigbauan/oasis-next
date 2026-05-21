@@ -173,7 +173,7 @@ function ObrManagementDetailDialog({
     const num = parseFloat(amount);
     if (isNaN(num)) return amount;
 
-    return `PHP ${num.toLocaleString("en-PH", {
+    return `${num.toLocaleString("en-PH", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;

@@ -107,7 +107,7 @@ function formatCurrency(value: string | null): string {
   const roundedIsZero = cents === 0n;
   const sign = isNegative && !roundedIsZero ? "-" : "";
 
-  return `${sign}PHP ${intWithGrouping}.${fractionalPart}`;
+  return `${sign}${intWithGrouping}.${fractionalPart}`;
 }
 
 function StatusBadge({ status }: { status: string | null }) {
