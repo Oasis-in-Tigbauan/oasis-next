@@ -2,6 +2,8 @@ import { and, asc, eq, ilike, inArray, lt } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
+import * as templateBucket from "@/lib/buckets/templates";
+import type { TemplateBucketItem } from "@/lib/buckets/templates";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
@@ -20,6 +22,9 @@ import {
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
+
+export const SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER = "saaob.main-data";
+export const SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER = "saaob.office-data";
 
 /**
  * Returns all SAAOB entry groups and entries as a nested tree structure with
@@ -971,6 +976,182 @@ export async function deleteSummaryItem(id: string): Promise<Result<null>> {
 }
 
 /**
+ * Validates a SAAOB template type from an untrusted value.
+ *
+ * @description
+ * Accepts only `"header"` or `"footer"`. Used by API routes when parsing delete payloads.
+ *
+ * @function parseSaaobTemplateType
+ * @param {unknown} type - Raw template type from the client.
+ * @returns {Result<SaaobTemplateType>} Parsed type or a validation failure.
+ */
+export function parseSaaobTemplateType(type: unknown): Result<SaaobTemplateType> {
+  if (type !== "header" && type !== "footer") {
+    return new Failure(
+      ErrorCodes.ValidationFailure,
+      "Invalid template type. Must be 'header' or 'footer'.",
+    );
+  }
+  return new Success(type);
+}
+
+/**
+ * Returns header and footer templates for SAAOB main data export.
+ *
+ * @description
+ * Uses {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER}. Missing templates are returned as `null`
+ * rather than failing the request.
+ *
+ * @async
+ * @function getMainDataTemplates
+ * @returns {Promise<Result<SaaobTemplatesBundle>>} Combined header/footer metadata or a failure result.
+ */
+export async function getMainDataTemplates(): Promise<Result<SaaobTemplatesBundle>> {
+  return _fetchSaaobTemplatesBundle(SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for SAAOB main data export.
+ *
+ * @description
+ * Delegates to the template bucket using {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER}. Fails when a
+ * template for the same type already exists.
+ *
+ * @async
+ * @function uploadMainDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Public template metadata on success, or a failure result.
+ */
+export async function uploadMainDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for SAAOB main data export.
+ *
+ * @async
+ * @function modifyMainDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Updated template metadata on success, or a failure result.
+ */
+export async function modifyMainDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for SAAOB main data export.
+ *
+ * @async
+ * @function removeMainDataTemplate
+ * @param {SaaobTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or a failure result.
+ */
+export async function removeMainDataTemplate(type: SaaobTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
+ * Returns header and footer templates for SAAOB office-scoped export.
+ *
+ * @description
+ * Uses {@link SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER}. Missing templates are returned as `null`
+ * rather than failing the request.
+ *
+ * @async
+ * @function getOfficeDataTemplates
+ * @returns {Promise<Result<SaaobTemplatesBundle>>} Combined header/footer metadata or a failure result.
+ */
+export async function getOfficeDataTemplates(): Promise<Result<SaaobTemplatesBundle>> {
+  return _fetchSaaobTemplatesBundle(SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for SAAOB office-scoped export.
+ *
+ * @async
+ * @function uploadOfficeDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Public template metadata on success, or a failure result.
+ */
+export async function uploadOfficeDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for SAAOB office-scoped export.
+ *
+ * @async
+ * @function modifyOfficeDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Updated template metadata on success, or a failure result.
+ */
+export async function modifyOfficeDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for SAAOB office-scoped export.
+ *
+ * @async
+ * @function removeOfficeDataTemplate
+ * @param {SaaobTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or a failure result.
+ */
+export async function removeOfficeDataTemplate(type: SaaobTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
  * Computes all derived financial fields for a single SAAOB entry row.
  *
  * @param {SaaobEntryRow} row - Raw DB row for the entry.
@@ -1265,10 +1446,6 @@ function _getCurrentQuarterUtc8(month?: number): number {
 function _getCurrentYearUtc8(year?: number): number {
   return year ?? DateTime.now().setZone("UTC+8").year;
 }
-
-// ---------------------------------------------------------------------------
-// Private batch-fetch helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Fetches all SAAOB entry groups, optionally filtered by office ID.
@@ -1705,6 +1882,42 @@ async function _fetchAndBuildSummaryItem(
   return { id, name, linkedGroupIds, ...aggregate };
 }
 
+function _mapSaaobTemplate(item: TemplateBucketItem): SaaobTemplateInfo {
+  return {
+    id: item.id,
+    templateType: item.templateType,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+async function _getSaaobTemplateSlot(
+  identifier: string,
+  type: SaaobTemplateType,
+): Promise<Result<SaaobTemplateInfo | null>> {
+  const result = await templateBucket.get({ identifier, type });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  if (result.type === ErrorCodes.ResourceNotFound) {
+    return new Success(null);
+  }
+  return result;
+}
+
+async function _fetchSaaobTemplatesBundle(identifier: string): Promise<Result<SaaobTemplatesBundle>> {
+  const headerResult = await _getSaaobTemplateSlot(identifier, "header");
+  if (headerResult instanceof Failure) return headerResult;
+
+  const footerResult = await _getSaaobTemplateSlot(identifier, "footer");
+  if (footerResult instanceof Failure) return footerResult;
+
+  return new Success({
+    header: headerResult.value,
+    footer: footerResult.value,
+  });
+}
+
 export type SaaobCreateGroupPayload = {
   parentId?: string;
   officeId?: string | null;
@@ -1798,6 +2011,26 @@ type SupplementalRow = {
   saaobId: string;
   amount: string;
   supplementalType: "less" | "add";
+};
+
+export type SaaobTemplateType = templateBucket.TemplateType;
+
+export type SaaobTemplateInfo = {
+  id: string;
+  templateType: SaaobTemplateType;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaaobTemplatesBundle = {
+  header: SaaobTemplateInfo | null;
+  footer: SaaobTemplateInfo | null;
+};
+
+export type SaaobTemplateUploadInput = {
+  type: SaaobTemplateType;
+  file: Buffer;
+  filename: string;
 };
 
 type ObrMainRow = {

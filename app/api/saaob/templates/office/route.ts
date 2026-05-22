@@ -1,21 +1,17 @@
 import type { NextRequest } from "next/server";
 
 import { session as auth, SessionCode } from "@/lib/auth";
-import {
-  fetchTemplatesBundle,
-  parseTemplateTypeFromBody,
-  parseTemplateUploadFormData,
-  readFormData,
-  removeTemplate,
-  uploadOrModifyTemplate,
-} from "@/lib/buckets/template-api";
 import * as permission from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
+import * as saaob from "@/lib/saaob";
 import { Failure, oneOf } from "@/lib/one-of";
 
-/** Hardcoded bucket identifier — never exposed to clients. */
-const IDENTIFIER = "saaob.office-data";
+import {
+  parseTemplateTypeFromBody,
+  parseTemplateUploadFormData,
+  readFormData,
+} from "@/app/api/saaob/templates/utils";
 
 export async function GET() {
   const session = await auth.verify([permission.SAAOB_OFFICE_READ]);
@@ -23,7 +19,7 @@ export async function GET() {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
-  const result = await fetchTemplatesBundle(IDENTIFIER);
+  const result = await saaob.getOfficeDataTemplates();
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
@@ -46,7 +42,7 @@ export async function POST(req: NextRequest) {
     return ApiResponseBuilder.createFromFailure(parsed).build();
   }
 
-  const result = await uploadOrModifyTemplate(IDENTIFIER, parsed.value, "upload");
+  const result = await saaob.uploadOfficeDataTemplate(parsed.value);
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
@@ -69,7 +65,7 @@ export async function PATCH(req: NextRequest) {
     return ApiResponseBuilder.createFromFailure(parsed).build();
   }
 
-  const result = await uploadOrModifyTemplate(IDENTIFIER, parsed.value, "modify");
+  const result = await saaob.modifyOfficeDataTemplate(parsed.value);
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
@@ -94,7 +90,7 @@ export async function DELETE(req: NextRequest) {
     return ApiResponseBuilder.createFromFailure(typeResult).build();
   }
 
-  const result = await removeTemplate(IDENTIFIER, typeResult.value);
+  const result = await saaob.removeOfficeDataTemplate(typeResult.value);
   return oneOf(result).match(
     () => ApiResponseBuilder.create(StatusCodes.Status204NoContent).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
