@@ -1095,6 +1095,25 @@ export const travelOrders = pgTable("travel_orders", {
     .notNull(),
 });
 
+export const templateType = pgEnum("template_type", ["header", "footer"]);
+
+export const templateBucket = pgTable("template_bucket", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  identifier: text("identifier").notNull(),
+  templatePath: text("template_path").notNull(),
+  templateType: templateType("template_type").notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
