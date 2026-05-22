@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -58,6 +58,7 @@ import { Textarea } from "@/components/ui/textarea";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
+import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
 
 const TOTAL_COLS = 23;
 
@@ -98,6 +99,7 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRow, setSelectedRow] = useState<SaaobFlatRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
+  const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -271,6 +273,16 @@ export default function Page() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setManageTemplatesOpen(true)}
+          >
+            <FileSpreadsheet className="size-3" />
+            Manage Headers/Footers
+          </Button>
+
           <Button
             variant="outline"
             size="icon-sm"
@@ -498,6 +510,12 @@ export default function Page() {
           onClose={closeDialog}
         />
       )}
+
+      <ManageTemplatesDialog
+        open={manageTemplatesOpen}
+        onOpenChange={setManageTemplatesOpen}
+        apiPath="/api/saaob/templates/data"
+      />
     </div>
   );
 }

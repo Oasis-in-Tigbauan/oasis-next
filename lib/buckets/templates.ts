@@ -1,13 +1,14 @@
-import path from "node:path";
-import fs from "node:fs/promises";
 import { and, eq } from "drizzle-orm";
+import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
 import { v7 as uuidv7 } from "uuid";
 
 import { db } from "@/lib/db";
 import { templateBucket } from "@/lib/db/schema";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 
-const STORAGE_DIR = path.join(__dirname, ".data", "bucket");
+const STORAGE_DIR = path.join(os.homedir(), ".oasis-bucket", "bucket");
 
 /**
  * Uploads a new template file and records it in the template bucket.
