@@ -1724,59 +1724,7 @@ export async function createObrMainData(
   author: User,
 ): Promise<Result<ObrMainDataItem[]>> {
   try {
-    // Validate responsibility center exists
-    const [rcRow] = await db
-      .select({ id: officeCodes.id })
-      .from(officeCodes)
-      .where(eq(officeCodes.id, payload.responsibilityCenterId))
-      .limit(1);
-    if (!rcRow) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid responsibility center.", { responsibilityCenterId: payload.responsibilityCenterId });
-    }
-
-    // Validate expense code exists and resolve its class for alobs
-    const [ecRow] = await db
-      .select({ id: expenseClasses.id, class: expenseClasses.class })
-      .from(expenseClasses)
-      .where(eq(expenseClasses.id, payload.expenseCodeId))
-      .limit(1);
-    if (!ecRow) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid expense code.", { expenseCodeId: payload.expenseCodeId });
-    }
-
-    // Validate saaobId if provided
-    if (validatorUtilities.isUuid(payload.saaobId)) {
-      const [saaobRow] = await db
-        .select({ id: saaobEntries.id })
-        .from(saaobEntries)
-        .where(eq(saaobEntries.id, payload.saaobId!))
-        .limit(1);
-      if (!saaobRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { saaobId: payload.saaobId });
-      }
-    }
-
-    // Validate and resolve AIP references if provided
-    const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
-    if (payload.aipReferences && payload.aipReferences.length > 0) {
-      const aipIds = payload.aipReferences.map(r => r.aipId);
-      const refs = await db
-        .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
-        .from(aipReferences)
-        .where(inArray(aipReferences.id, aipIds));
-      for (const ref of refs) {
-        aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
-      }
-      for (const aip of payload.aipReferences) {
-        if (!aipRefMap.has(aip.aipId)) {
-          return new Failure(
-            ErrorCodes.ValidationFailure,
-            "One or more AIP references are not valid.",
-            { aipId: aip.aipId },
-          );
-        }
-      }
-    }
+    const isMulti = payload.items.length > 1;
 
     // Validate requestId if provided (existence check only)
     if (validatorUtilities.isUuid(payload.requestId)) {
@@ -1790,62 +1738,151 @@ export async function createObrMainData(
       }
     }
 
-    // Compute alobs from expense class + current UTC+8 date + obrNumber
+    // Bulk-validate responsibility centers and expense codes across all items
+    const uniqueRcIds = [...new Set(payload.items.map(i => i.responsibilityCenterId))];
+    const uniqueEcIds = [...new Set(payload.items.map(i => i.expenseCodeId))];
+
+    const rcRows = await db
+      .select({ id: officeCodes.id })
+      .from(officeCodes)
+      .where(inArray(officeCodes.id, uniqueRcIds));
+    const rcSet = new Set(rcRows.map(r => r.id));
+
+    const ecRows = await db
+      .select({ id: expenseClasses.id, class: expenseClasses.class })
+      .from(expenseClasses)
+      .where(inArray(expenseClasses.id, uniqueEcIds));
+    const ecClassMap = new Map(ecRows.map(r => [r.id, r.class ?? ""]));
+
+    for (let i = 0; i < payload.items.length; i++) {
+      const item = payload.items[i]!;
+      if (!rcSet.has(item.responsibilityCenterId)) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          `Invalid responsibility center in item ${i + 1}.`,
+          { responsibilityCenterId: item.responsibilityCenterId },
+        );
+      }
+      if (!ecClassMap.has(item.expenseCodeId)) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          `Invalid expense code in item ${i + 1}.`,
+          { expenseCodeId: item.expenseCodeId },
+        );
+      }
+    }
+
+    // Bulk-validate SAAOB entries
+    const uniqueSaaobIds = [
+      ...new Set(
+        payload.items
+          .filter(i => validatorUtilities.isUuid(i.saaobId))
+          .map(i => i.saaobId!),
+      ),
+    ];
+    if (uniqueSaaobIds.length > 0) {
+      const saaobRows = await db
+        .select({ id: saaobEntries.id })
+        .from(saaobEntries)
+        .where(inArray(saaobEntries.id, uniqueSaaobIds));
+      const saaobSet = new Set(saaobRows.map(r => r.id));
+      for (let i = 0; i < payload.items.length; i++) {
+        const item = payload.items[i]!;
+        if (validatorUtilities.isUuid(item.saaobId) && !saaobSet.has(item.saaobId!)) {
+          return new Failure(ErrorCodes.ValidationFailure, `Invalid SAAOB entry in item ${i + 1}.`, { saaobId: item.saaobId });
+        }
+      }
+    }
+
+    // Bulk-validate and resolve AIP references across all items
+    const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
+    const allAipIds = [
+      ...new Set(payload.items.flatMap(i => (i.aipReferences ?? []).map(a => a.aipId))),
+    ];
+    if (allAipIds.length > 0) {
+      const refs = await db
+        .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
+        .from(aipReferences)
+        .where(inArray(aipReferences.id, allAipIds));
+      for (const ref of refs) {
+        aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
+      }
+      for (let i = 0; i < payload.items.length; i++) {
+        for (const aip of (payload.items[i]?.aipReferences ?? [])) {
+          if (!aipRefMap.has(aip.aipId)) {
+            return new Failure(
+              ErrorCodes.ValidationFailure,
+              `Invalid AIP reference in item ${i + 1}.`,
+              { aipId: aip.aipId },
+            );
+          }
+        }
+      }
+    }
+
     const now = DateTime.now().setZone("Asia/Manila");
     const yy = now.toFormat("yy");
     const mm = now.toFormat("MM");
-    const alobs = [ecRow.class ?? "", yy, mm, payload.obrNumber].join("-");
 
-    const [insertedId] = await db.transaction(async tx => {
-      const [inserted] = await tx
-        .insert(obrMainData)
-        .values({
-          obrNumber: payload.obrNumber,
+    const createdIds = await db.transaction(async tx => {
+      const mainDataValues = payload.items.map((item, idx) => {
+        const obrNumber = isMulti ? `${payload.obrNumber}-${idx + 1}` : payload.obrNumber;
+        const expenseClass = ecClassMap.get(item.expenseCodeId) ?? "";
+        const alobs = [expenseClass, yy, mm, obrNumber].join("-");
+
+        return {
+          obrNumber,
           alobs,
-          payee: payload.payee ?? null,
-          address: payload.address,
-          particulars: payload.particulars,
-          obligated: casts.castToDecimal(payload.amount),
-          responsibilityCenterId: payload.responsibilityCenterId,
-          expenseCodeId: payload.expenseCodeId,
+          payee: item.payee,
+          address: item.address,
+          particulars: item.particulars,
+          obligated: casts.castToDecimal(item.amount),
+          responsibilityCenterId: item.responsibilityCenterId,
+          expenseCodeId: item.expenseCodeId,
           authorId: author.id,
-          ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
-          ...(validatorUtilities.isNumber(payload.prAmount)
-            ? { prAmount: casts.castToDecimal(payload.prAmount!) }
-            : {}),
-          ...(validatorUtilities.isUuid(payload.saaobId) ? { saaobId: payload.saaobId } : {}),
+          ...(validatorUtilities.isNotEmpty(item.prNumber) ? { prNumber: item.prNumber } : {}),
+          ...(validatorUtilities.isNumber(item.prAmount) ? { prAmount: casts.castToDecimal(item.prAmount!) } : {}),
+          ...(validatorUtilities.isUuid(item.saaobId) ? { saaobId: item.saaobId } : {}),
           ...(validatorUtilities.isUuid(payload.requestId) ? { requestSourceId: payload.requestId } : {}),
-        })
+        };
+      });
+
+      const inserted = await tx
+        .insert(obrMainData)
+        .values(mainDataValues)
         .returning({ id: obrMainData.id });
 
-      if (payload.aipReferences && payload.aipReferences.length > 0) {
-        await tx.insert(obrMainAipReferences).values(
-          payload.aipReferences.map((aip, idx) => ({
-            aipReferenceId: aip.aipId,
-            aipReferenceCode: aipRefMap.get(aip.aipId)!.code,
-            aipDescription: aipRefMap.get(aip.aipId)!.description,
-            amount: casts.castToDecimal(aip.amount),
-            index: idx,
-            obrId: inserted.id,
-          })),
-        );
+      // Insert AIP references for each item
+      const aipValues = inserted.flatMap((row, idx) =>
+        (payload.items[idx]?.aipReferences ?? []).map((aip, aipIdx) => ({
+          aipReferenceId: aip.aipId,
+          aipReferenceCode: aipRefMap.get(aip.aipId)!.code,
+          aipDescription: aipRefMap.get(aip.aipId)!.description,
+          amount: casts.castToDecimal(aip.amount),
+          index: aipIdx,
+          obrId: row.id,
+        })),
+      );
+      if (aipValues.length > 0) {
+        await tx.insert(obrMainAipReferences).values(aipValues);
       }
 
-      // If linked to a request, propagate OBR number (and PR number if provided)
+      // Propagate OBR number to the linked request (use base obrNumber, not suffixed)
       if (validatorUtilities.isUuid(payload.requestId)) {
+        const firstItem = payload.items[0];
         await tx
           .update(obrRequests)
           .set({
             obrNumber: payload.obrNumber,
-            ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber } : {}),
+            ...(validatorUtilities.isNotEmpty(firstItem?.prNumber) ? { prNumber: firstItem!.prNumber } : {}),
           })
           .where(eq(obrRequests.id, payload.requestId!));
       }
 
-      return [inserted.id];
+      return inserted.map(r => r.id);
     });
 
-    const mapped = await _fetchObrMainDataItems(eq(obrMainData.id, insertedId));
+    const mapped = await _fetchObrMainDataItems(inArray(obrMainData.id, createdIds));
     return new Success(mapped);
   } catch (e) {
     return new Failure(
@@ -3344,8 +3381,13 @@ export type ObrMainDataSearchResultItem = {
   } | null;
 };
 
-type CreateObrMainDataPayload = {
-  obrNumber: string;
+type CreateObrMainDataItemPayload = {
+  payee: string;
+  address: string;
+  responsibilityCenterId: string;
+  expenseCodeId: string;
+  particulars: string;
+  amount: string;
   prNumber?: string;
   prAmount?: string;
   saaobId?: string;
@@ -3353,13 +3395,12 @@ type CreateObrMainDataPayload = {
     aipId: string;
     amount: string;
   }>;
-  payee?: string | null;
-  address: string;
-  responsibilityCenterId: string;
-  expenseCodeId: string;
-  particulars: string;
-  amount: string;
+};
+
+type CreateObrMainDataPayload = {
+  obrNumber: string;
   requestId?: string;
+  items: Array<CreateObrMainDataItemPayload>;
 };
 
 type UpdateObrMainDataPayload = {
