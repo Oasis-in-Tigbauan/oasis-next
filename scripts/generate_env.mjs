@@ -47,6 +47,11 @@ async function main() {
     throw new Error("Organization Name is required.");
   }
 
+  const orgLogo = await utils.env.ask("Your Organization Logo Path", "next.public.project.org.seal");
+  if (!orgLogo) {
+    throw new Error("Organization Logo is required.");
+  }
+
   // Token generation for authentication
   const token = utils.token.generatePassword(32, "!#%&()*+,/:;<=>?@[]^`{|}");
   utils.env.write("better.auth.secret", token);

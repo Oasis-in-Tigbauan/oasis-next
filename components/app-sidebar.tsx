@@ -143,22 +143,19 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
     >
       <SidebarHeader className="bg-[#4E72AA] px-3 pt-4 pb-2 text-white group-data-[collapsible=icon]:px-2">
         <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-          <div className="overflow-hidden rounded-full border border-white/30 bg-white shadow-sm">
+          <div className="w-[48px]">
             <Image
-              src="/assets/tigbauan-seal.png"
-              alt="Municipality of Tigbauan seal"
+              src={process.env.NEXT_PUBLIC_PROJECT_ORG_SEAL as string}
+              alt="Organization logo"
               width={32}
               height={32}
-              className="size-8 object-cover"
+              className="size-8 object-cover bg-white border-white/30 rounded-full shadow-sm"
               priority
             />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
-              Municipality of
-            </p>
-            <p className="truncate text-[1.05rem] font-bold tracking-[0.04em] text-white">
-              TIGBAUAN
+            <p className="text-wrap text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              {process.env.NEXT_PUBLIC_PROJECT_ORG_NAME as string}
             </p>
           </div>
         </div>
@@ -307,7 +304,7 @@ function SidebarNavItem({
         tooltip={item.title}
         className={cn(
           "h-8.5 rounded-md px-2.5 text-[11.5px] font-medium text-white/88 hover:bg-white/6 hover:text-white",
-          active && !highlight && "bg-white/16 text-white",
+          active && !highlight && "bg-white text-[#335892] shadow-sm",
           highlight && active && "bg-white text-[#335892] shadow-sm",
           highlight && !active && "bg-transparent",
         )}
@@ -316,7 +313,7 @@ function SidebarNavItem({
           <Icon
             className={cn(
               "size-3.5 shrink-0 transition-colors group-hover/menu-button:text-white/92",
-              highlight && active ? "text-[#335892]" : "text-white/70",
+              active ? "text-[#335892]" : "text-white/70",
             )}
           />
           <span className="truncate">{item.title}</span>
