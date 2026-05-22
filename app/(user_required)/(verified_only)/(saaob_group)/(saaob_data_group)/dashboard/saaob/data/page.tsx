@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -59,6 +59,7 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
+import { ExportDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog";
 
 const TOTAL_COLS = 23;
 
@@ -100,6 +101,7 @@ export default function Page() {
   const [selectedRow, setSelectedRow] = useState<SaaobFlatRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -273,6 +275,16 @@ export default function Page() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setExportOpen(true)}
+          >
+            <Download className="size-3" />
+            Export
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -515,6 +527,14 @@ export default function Page() {
         open={manageTemplatesOpen}
         onOpenChange={setManageTemplatesOpen}
         apiPath="/api/saaob/templates/data"
+      />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        exportApiBase="/api/saaob/export/data"
+        exportParams={{ year: String(currentYear), month: String(selectedMonth) }}
+        tree={tree}
       />
     </div>
   );
