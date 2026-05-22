@@ -29,6 +29,7 @@ export function NavUser({
     user: {
         name: string
         email: string
+        subtitle?: string
     }
 }) {
   const { isMobile } = useSidebar();
@@ -55,18 +56,18 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="h-9 rounded-md px-2 text-white data-[state=open]:bg-white/10 data-[state=open]:text-white hover:bg-white/8"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarFallback className="rounded-lg">
+              <Avatar className="h-7 w-7 rounded-full border border-white/20">
+                <AvatarFallback className="rounded-full bg-[#FFCC4D] text-[#1A1A1A]">
                   {userAbbreviation}
                 </AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs">{user.email}</span>
+              <div className="grid flex-1 text-left leading-tight">
+                <span className="truncate text-[11.5px] font-medium">{user.name}</span>
+                <span className="truncate text-[10.5px] text-white/68">{user.subtitle ?? user.email}</span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
+              <ChevronsUpDown className="ml-auto size-3.5 text-white/74" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -77,8 +78,8 @@ export function NavUser({
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg">{userAbbreviation}</AvatarFallback>
+                <Avatar className="h-8 w-8 rounded-full">
+                  <AvatarFallback className="rounded-full">{userAbbreviation}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
