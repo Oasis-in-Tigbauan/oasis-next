@@ -27,6 +27,35 @@ import { type User } from "@/lib/accounts";
 export const SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER = "saaob.main-data";
 export const SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER = "saaob.office-data";
 
+/** ExcelTS numeric number format for monetary amounts. */
+const _NUM_FMT_AMOUNT = "#,##0.00";
+/** ExcelTS number format for percentages stored as 0-100. */
+const _NUM_FMT_PCT = "0.00";
+
+/** Thin border applied to all data cells. */
+const _THIN_BORDER = {
+  top: { style: "thin" as const },
+  left: { style: "thin" as const },
+  bottom: { style: "thin" as const },
+  right: { style: "thin" as const },
+};
+
+/** Blue accent color used for non-root group rows (ARGB). */
+const _BLUE_COLOR = { argb: "FF2F75B6" };
+
+/** Light-blue fill used for root group rows. */
+const _ROOT_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD9E1F2" } };
+/** Light-gray fill for column header row. */
+const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFE2EFDA" } };
+
+/**
+ * In ExcelJS/ExcelTS, cells that belong to a merged range but are NOT the
+ * top-left master cell have `cell.type === 8` (ValueType.Merge). Copying
+ * their value to the destination would duplicate the master's text in every
+ * column of the range. Skip them so only the master cell is written.
+ */
+const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS (enums.js: ValueType[ValueType["Merge"] = 1])
+
 /**
  * Returns all SAAOB entry groups and entries as a nested tree structure with
  * full computed financial fields for every entry.
@@ -1153,6 +1182,84 @@ export async function removeOfficeDataTemplate(type: SaaobTemplateType): Promise
 }
 
 /**
+ * Exports SAAOB main data for the given month to an XLSX buffer.
+ *
+ * @description
+ * Calls {@link getAll} for the provided year/month, then builds a formatted
+ * Excel workbook using `@cj-tech-master/excelts`. If header/footer templates
+ * are stored under {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER} they are
+ * prepended / appended row-by-row before the data.
+ *
+ * Formatting rules applied to the data sheet:
+ * - Depth-0 groups → merged across all columns, bold, centred.
+ * - Depth 1–2 groups → blue bold text, indent 0.
+ * - Depth 3–4 groups → blue italic text, indent 1.
+ * - Entries → regular text, indent 2, numeric values in selected columns.
+ *
+ * @async
+ * @function exportMainDataToBuffer
+ * @param {SaaobExportOptions} options - Year, month and selected columns.
+ * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
+ */
+export async function exportMainDataToBuffer(
+  options: SaaobExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAll(options.year, options.month);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const [headerResult, footerResult] = await Promise.all([
+      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
+      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+    ]);
+    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildSaaobExcelBuffer(dataResult.value, options.columns, headerPath, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB main data.", {}, e);
+  }
+}
+
+/**
+ * Exports SAAOB office-scoped data to an XLSX buffer.
+ *
+ * @description
+ * Calls {@link getAllByOffice} for the given office, then builds a formatted
+ * Excel workbook using `@cj-tech-master/excelts`. Header/footer templates
+ * stored under {@link SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER} are included
+ * when present.
+ *
+ * @async
+ * @function exportOfficeDataToBuffer
+ * @param {string} officeId - Office ID whose tree to export.
+ * @param {SaaobExportColumnKey[]} columns - Ordered list of data columns to include.
+ * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
+ */
+export async function exportOfficeDataToBuffer(
+  officeId: string,
+  columns: SaaobExportColumnKey[],
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllByOffice(officeId);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const [headerResult, footerResult] = await Promise.all([
+      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
+      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+    ]);
+    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildSaaobExcelBuffer(dataResult.value, columns, headerPath, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB office data.", {}, e);
+  }
+}
+
+/**
  * Computes all derived financial fields for a single SAAOB entry row.
  *
  * @param {SaaobEntryRow} row - Raw DB row for the entry.
@@ -1919,220 +2026,6 @@ async function _fetchSaaobTemplatesBundle(identifier: string): Promise<Result<Sa
   });
 }
 
-export type SaaobCreateGroupPayload = {
-  parentId?: string;
-  officeId?: string | null;
-  name: string;
-};
-
-export type SaaobCreateEntryPayload = {
-  name: string;
-  annualBudget: string;
-  remarks?: string;
-  /**
-   * Optional explicit expense-code override. When omitted the service
-   * auto-resolves the expense class by matching `expenseClasses.accountName`
-   * (case-insensitive) against the entry name.
-   */
-  expenseCodeId?: string;
-};
-
-export type SaaobUpdateEntryPayload = Partial<SaaobCreateEntryPayload>;
-
-export type SaaobEntry = {
-  id: string;
-  name: string;
-  accountCode?: string;
-  annualBudget: string;
-  supplementalOrContinuing: string;
-  appropriation: string;
-  allotment: string;
-  obligation: string;
-  unObligatedBalance: string;
-  percentage: string;
-  other: {
-    quarterlyAllotmentBalance: {
-      value: string;
-      percentage: string;
-    };
-    disbursed: {
-      value: string;
-      percentage: string;
-      variance: string;
-    };
-    lbacBudget: {
-      value: string;
-      variance: string;
-      obligated: string;
-      varianceObligated: string;
-    };
-    remarks?: string;
-    obligationWithPRs: {
-      value: string;
-      balance: string;
-      percentage: string;
-    };
-    pr: string;
-  };
-};
-
-export type BaseSaaobGroup = {
-  id: string;
-  name: string;
-  officeId?: string;
-};
-
-export type SaaobGroup = BaseSaaobGroup & {
-  children: Array<SaaobGroup | SaaobEntry>;
-};
-
-export type SaaobElements = Array<SaaobGroup>;
-
-/** Pruned recursive tree returned by {@link searchItems}. Same shape as {@link SaaobElements}. */
-export type SaaobSearchResult = SaaobElements;
-
-type SaaobGroupRow = {
-  id: string;
-  name: string;
-  parentId: string | null;
-  officeId: string | null;
-  createdAt: Date;
-};
-
-type SaaobEntryRow = {
-  id: string;
-  name: string;
-  accountCode: string | null;
-  annualBudget: string;
-  remarks: string | null;
-  parentId: string;
-};
-
-type SupplementalRow = {
-  saaobId: string;
-  amount: string;
-  supplementalType: "less" | "add";
-};
-
-export type SaaobTemplateType = templateBucket.TemplateType;
-
-export type SaaobTemplateInfo = {
-  id: string;
-  templateType: SaaobTemplateType;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type SaaobTemplatesBundle = {
-  header: SaaobTemplateInfo | null;
-  footer: SaaobTemplateInfo | null;
-};
-
-export type SaaobTemplateUploadInput = {
-  type: SaaobTemplateType;
-  file: Buffer;
-  filename: string;
-};
-
-// ============================================================
-// EXPORT
-// ============================================================
-
-export interface SaaobExportOptions {
-  /** Calendar year (e.g. 2026) used to scope financial calculations. */
-  year: number;
-  /** Month number 1–12 used to scope financial calculations. */
-  month: number;
-  /** Ordered list of data-column keys to include in the exported sheet. */
-  columns: SaaobExportColumnKey[];
-}
-
-/**
- * Exports SAAOB main data for the given month to an XLSX buffer.
- *
- * @description
- * Calls {@link getAll} for the provided year/month, then builds a formatted
- * Excel workbook using `@cj-tech-master/excelts`. If header/footer templates
- * are stored under {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER} they are
- * prepended / appended row-by-row before the data.
- *
- * Formatting rules applied to the data sheet:
- * - Depth-0 groups → merged across all columns, bold, centred.
- * - Depth 1–2 groups → blue bold text, indent 0.
- * - Depth 3–4 groups → blue italic text, indent 1.
- * - Entries → regular text, indent 2, numeric values in selected columns.
- *
- * @async
- * @function exportMainDataToBuffer
- * @param {SaaobExportOptions} options - Year, month and selected columns.
- * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
- */
-export async function exportMainDataToBuffer(
-  options: SaaobExportOptions,
-): Promise<Result<Buffer>> {
-  try {
-    const dataResult = await getAll(options.year, options.month);
-    if (dataResult instanceof Failure) return dataResult;
-
-    const [headerResult, footerResult] = await Promise.all([
-      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
-      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
-    ]);
-    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
-    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
-
-    const buffer = await _buildSaaobExcelBuffer(dataResult.value, options.columns, headerPath, footerPath);
-    return new Success(buffer);
-  } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB main data.", {}, e);
-  }
-}
-
-/**
- * Exports SAAOB office-scoped data to an XLSX buffer.
- *
- * @description
- * Calls {@link getAllByOffice} for the given office, then builds a formatted
- * Excel workbook using `@cj-tech-master/excelts`. Header/footer templates
- * stored under {@link SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER} are included
- * when present.
- *
- * @async
- * @function exportOfficeDataToBuffer
- * @param {string} officeId - Office ID whose tree to export.
- * @param {SaaobExportColumnKey[]} columns - Ordered list of data columns to include.
- * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
- */
-export async function exportOfficeDataToBuffer(
-  officeId: string,
-  columns: SaaobExportColumnKey[],
-): Promise<Result<Buffer>> {
-  try {
-    const dataResult = await getAllByOffice(officeId);
-    if (dataResult instanceof Failure) return dataResult;
-
-    const [headerResult, footerResult] = await Promise.all([
-      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
-      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
-    ]);
-    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
-    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
-
-    const buffer = await _buildSaaobExcelBuffer(dataResult.value, columns, headerPath, footerPath);
-    return new Success(buffer);
-  } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB office data.", {}, e);
-  }
-}
-
-// ------------------------------------------------------------------
-// Internal helpers — Excel generation
-// ------------------------------------------------------------------
-
-type _ExportFlatRow =
-  | { kind: "group"; depth: number; data: SaaobGroup }
-  | { kind: "entry"; depth: number; data: SaaobEntry };
-
 function _isSaaobGroupNode(node: SaaobGroup | SaaobEntry): node is SaaobGroup {
   return "children" in node;
 }
@@ -2182,39 +2075,10 @@ function _getEntryColumnValue(entry: SaaobEntry, col: SaaobExportColumnKey): num
   }
 }
 
-/** ExcelTS numeric number format for monetary amounts. */
-const _NUM_FMT_AMOUNT = "#,##0.00";
-/** ExcelTS number format for percentages stored as 0-100. */
-const _NUM_FMT_PCT = "0.00";
-
-/** Thin border applied to all data cells. */
-const _THIN_BORDER = {
-  top: { style: "thin" as const },
-  left: { style: "thin" as const },
-  bottom: { style: "thin" as const },
-  right: { style: "thin" as const },
-};
-
-/** Blue accent color used for non-root group rows (ARGB). */
-const _BLUE_COLOR = { argb: "FF2F75B6" };
-
-/** Light-blue fill used for root group rows. */
-const _ROOT_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD9E1F2" } };
-/** Light-gray fill for column header row. */
-const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFE2EFDA" } };
-
 function _isNumericColumn(key: SaaobExportColumnKey): boolean {
   const col = SAAOB_EXPORT_COLUMNS.find(c => c.key === key) as { numeric: boolean } | undefined;
   return col ? col.numeric : false;
 }
-
-/**
- * In ExcelJS/ExcelTS, cells that belong to a merged range but are NOT the
- * top-left master cell have `cell.type === 8` (ValueType.Merge). Copying
- * their value to the destination would duplicate the master's text in every
- * column of the range. Skip them so only the master cell is written.
- */
-const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS (enums.js: ValueType[ValueType["Merge"] = 1])
 
 /**
  * Converts a formula cell's value to its last-calculated result, avoiding
@@ -2425,6 +2289,134 @@ async function _buildSaaobExcelBuffer(
   // ExcelTS may return Uint8Array in some runtimes
   return Buffer.from(rawBuffer as unknown as Uint8Array);
 }
+
+export type SaaobCreateGroupPayload = {
+  parentId?: string;
+  officeId?: string | null;
+  name: string;
+};
+
+export type SaaobCreateEntryPayload = {
+  name: string;
+  annualBudget: string;
+  remarks?: string;
+  /**
+   * Optional explicit expense-code override. When omitted the service
+   * auto-resolves the expense class by matching `expenseClasses.accountName`
+   * (case-insensitive) against the entry name.
+   */
+  expenseCodeId?: string;
+};
+
+export type SaaobUpdateEntryPayload = Partial<SaaobCreateEntryPayload>;
+
+export type SaaobEntry = {
+  id: string;
+  name: string;
+  accountCode?: string;
+  annualBudget: string;
+  supplementalOrContinuing: string;
+  appropriation: string;
+  allotment: string;
+  obligation: string;
+  unObligatedBalance: string;
+  percentage: string;
+  other: {
+    quarterlyAllotmentBalance: {
+      value: string;
+      percentage: string;
+    };
+    disbursed: {
+      value: string;
+      percentage: string;
+      variance: string;
+    };
+    lbacBudget: {
+      value: string;
+      variance: string;
+      obligated: string;
+      varianceObligated: string;
+    };
+    remarks?: string;
+    obligationWithPRs: {
+      value: string;
+      balance: string;
+      percentage: string;
+    };
+    pr: string;
+  };
+};
+
+export type BaseSaaobGroup = {
+  id: string;
+  name: string;
+  officeId?: string;
+};
+
+export type SaaobGroup = BaseSaaobGroup & {
+  children: Array<SaaobGroup | SaaobEntry>;
+};
+
+export type SaaobElements = Array<SaaobGroup>;
+
+/** Pruned recursive tree returned by {@link searchItems}. Same shape as {@link SaaobElements}. */
+export type SaaobSearchResult = SaaobElements;
+
+type SaaobGroupRow = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  officeId: string | null;
+  createdAt: Date;
+};
+
+type SaaobEntryRow = {
+  id: string;
+  name: string;
+  accountCode: string | null;
+  annualBudget: string;
+  remarks: string | null;
+  parentId: string;
+};
+
+type SupplementalRow = {
+  saaobId: string;
+  amount: string;
+  supplementalType: "less" | "add";
+};
+
+export type SaaobTemplateType = templateBucket.TemplateType;
+
+export type SaaobTemplateInfo = {
+  id: string;
+  templateType: SaaobTemplateType;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaaobTemplatesBundle = {
+  header: SaaobTemplateInfo | null;
+  footer: SaaobTemplateInfo | null;
+};
+
+export type SaaobTemplateUploadInput = {
+  type: SaaobTemplateType;
+  file: Buffer;
+  filename: string;
+};
+
+export interface SaaobExportOptions {
+  /** Calendar year (e.g. 2026) used to scope financial calculations. */
+  year: number;
+  /** Month number 1–12 used to scope financial calculations. */
+  month: number;
+  /** Ordered list of data-column keys to include in the exported sheet. */
+  columns: SaaobExportColumnKey[];
+}
+
+type _ExportFlatRow =
+  | { kind: "group"; depth: number; data: SaaobGroup }
+  | { kind: "entry"; depth: number; data: SaaobEntry };
 
 type ObrMainRow = {
   saaobId: string;
