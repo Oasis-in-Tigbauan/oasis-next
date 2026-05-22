@@ -146,26 +146,28 @@ export async function getUnactivatedAccounts(): Promise<Result<Array<User>>> {
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
       .leftJoin(office, eq(office.id, user.officeId));
 
-    const mapped: Array<User> = accounts.map(a => ({
-      id: a.id,
-      fullName: a.fullName,
-      email: a.email,
-      activated: a.activated,
-      banned: a.banned,
-      registrationDate: DateTime
-        .fromJSDate(a.createdAt, { zone: "Asia/Manila" })
-        .toFormat("MM/dd/yyyy HH:mm"),
-      office: {
-        id: a.officeId!,
-        name: a.officeName!,
-        role: {
-          id: a.officePositionId!,
-          name: a.officePositionName!,
-          permissions: a.officePositionPermissions! as Permissions[],
+    const mapped: Array<User> = accounts
+      .filter(a => a.officeName?.toLowerCase() !== "cardinal administrators")
+      .map(a => ({
+        id: a.id,
+        fullName: a.fullName,
+        email: a.email,
+        activated: a.activated,
+        banned: a.banned,
+        registrationDate: DateTime
+          .fromJSDate(a.createdAt, { zone: "Asia/Manila" })
+          .toFormat("MM/dd/yyyy HH:mm"),
+        office: {
+          id: a.officeId!,
+          name: a.officeName!,
+          role: {
+            id: a.officePositionId!,
+            name: a.officePositionName!,
+            permissions: a.officePositionPermissions! as Permissions[],
+          },
         },
-      },
-      DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: a.shadowBanned,
-    }));
+        DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: a.shadowBanned,
+      }));
 
     return new Success(mapped);
   } catch (e) {
