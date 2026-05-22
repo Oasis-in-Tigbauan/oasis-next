@@ -64,6 +64,11 @@ import type {
   SaaobSummaryGroupResponse,
   SaaobSummaryItemResponse,
 } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+import type {
+  SaaobTemplateInfo,
+  SaaobTemplatesPayload,
+  SaaobTemplatesResponse,
+} from "@/lib/http/client/responses/SaaobTemplatesResponse";
 import type { ProcurementTypesListResponse  } from "@/lib/http/client/responses/ProcurementTypesListResponse";
 import type { ProcurementTypeResponse } from "@/lib/http/client/responses/ProcurementTypeResponse";
 import type {
@@ -169,6 +174,9 @@ export type {
   SaaobSummaryDataResponse,
   SaaobSummaryGroupResponse,
   SaaobSummaryItemResponse,
+  SaaobTemplateInfo,
+  SaaobTemplatesPayload,
+  SaaobTemplatesResponse,
   ProcurementTypesListResponse,
   ProcurementTypeResponse,
   PurchasingItemAip,

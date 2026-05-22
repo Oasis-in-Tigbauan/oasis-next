@@ -37,49 +37,61 @@ export async function POST(req: NextRequest) {
   const validated = await validator.validate<CreateObrMainDataBody>(body, {
     properties: {
       obrNumber: { type: "string", formatter: "non-empty-string" },
-      payee: {
-        type: "string",
-        formatterFn: async v => {
-          if (v === null || v === undefined) return { ok: true };
-          if (typeof v === "string" && validatorUtilities.isNotEmpty(v)) return { ok: true };
-          return { ok: false, error: "Invalid payee." };
-        },
-      },
-      address: { type: "string", formatter: "non-empty-string" },
-      responsibilityCenterId: { type: "string", formatter: "uuid" },
-      expenseCodeId: { type: "string", formatter: "uuid" },
-      particulars: { type: "string", formatter: "non-empty-string" },
-      amount: { type: "string", formatter: "decimal" },
       requestId: { type: "string", formatter: "uuid" },
-      prNumber: { type: "string", formatter: "non-empty-string" },
-      prAmount: { type: "string", formatter: "decimal" },
-      saaobId: { type: "string", formatter: "uuid" },
-      aipReferences: {
+      items: {
         type: "object",
         formatterFn: async v => {
-          if (!Array.isArray(v)) {
-            return { ok: false, error: "Invalid array." };
+          if (!Array.isArray(v) || v.length === 0) {
+            return { ok: false, error: "items must be a non-empty array." };
           }
-
           for (let i = 0; i < v.length; i++) {
-            if (typeof v[i] !== "object" || !validatorUtilities.isExisty(v[i])) {
-              return { ok: false, error: "Invalid object in position " + i };
+            const item = v[i];
+            if (typeof item !== "object" || !validatorUtilities.isExisty(item)) {
+              return { ok: false, error: `Invalid object at items[${i}].` };
             }
-
-            if (!validatorUtilities.isUuid(v[i].aipId)) {
-              return { ok: false, error: "Invalid aipId in position " + i };
+            if (!validatorUtilities.isNotEmpty(item.payee)) {
+              return { ok: false, error: `Missing payee in items[${i}].` };
             }
-
-            if (!validatorUtilities.isNumber(v[i].amount, false, false)) {
-              return { ok: false, error: "Invalid amount in position " + i };
+            if (!validatorUtilities.isNotEmpty(item.address)) {
+              return { ok: false, error: `Missing address in items[${i}].` };
+            }
+            if (!validatorUtilities.isUuid(item.responsibilityCenterId)) {
+              return { ok: false, error: `Invalid responsibilityCenterId in items[${i}].` };
+            }
+            if (!validatorUtilities.isUuid(item.expenseCodeId)) {
+              return { ok: false, error: `Invalid expenseCodeId in items[${i}].` };
+            }
+            if (!validatorUtilities.isNotEmpty(item.particulars)) {
+              return { ok: false, error: `Missing particulars in items[${i}].` };
+            }
+            if (!validatorUtilities.isNumber(item.amount, false, false)) {
+              return { ok: false, error: `Invalid amount in items[${i}].` };
+            }
+            if (item.prAmount !== undefined && !validatorUtilities.isNumber(item.prAmount, false, false)) {
+              return { ok: false, error: `Invalid prAmount in items[${i}].` };
+            }
+            if (item.saaobId !== undefined && !validatorUtilities.isUuid(item.saaobId)) {
+              return { ok: false, error: `Invalid saaobId in items[${i}].` };
+            }
+            if (item.aipReferences !== undefined) {
+              if (!Array.isArray(item.aipReferences)) {
+                return { ok: false, error: `Invalid aipReferences in items[${i}].` };
+              }
+              for (let j = 0; j < item.aipReferences.length; j++) {
+                if (!validatorUtilities.isUuid(item.aipReferences[j]?.aipId)) {
+                  return { ok: false, error: `Invalid aipId in items[${i}].aipReferences[${j}].` };
+                }
+                if (!validatorUtilities.isNumber(item.aipReferences[j]?.amount, false, false)) {
+                  return { ok: false, error: `Invalid amount in items[${i}].aipReferences[${j}].` };
+                }
+              }
             }
           }
-
           return { ok: true };
         },
       },
     },
-    requiredProperties: ["obrNumber", "address", "responsibilityCenterId", "expenseCodeId", "particulars", "amount"],
+    requiredProperties: ["obrNumber", "items"],
     allowUnvalidatedProperties: true,
   });
   if (!validated.ok) {
@@ -91,17 +103,8 @@ export async function POST(req: NextRequest) {
   const result = await obr.createObrMainData(
     {
       obrNumber: body.obrNumber,
-      payee: body.payee,
-      address: body.address,
-      responsibilityCenterId: body.responsibilityCenterId,
-      expenseCodeId: body.expenseCodeId,
-      particulars: body.particulars,
-      amount: body.amount,
       requestId: body.requestId,
-      prNumber: body.prNumber,
-      prAmount: body.prAmount,
-      saaobId: body.saaobId,
-      aipReferences: body.aipReferences,
+      items: body.items,
     },
     session.user!,
   );
@@ -112,17 +115,21 @@ export async function POST(req: NextRequest) {
   );
 }
 
-type CreateObrMainDataBody = {
-  obrNumber: string;
-  payee?: string | null;
+type CreateObrMainDataItemBody = {
+  payee: string;
   address: string;
   responsibilityCenterId: string;
   expenseCodeId: string;
   particulars: string;
   amount: string;
-  requestId?: string;
   prNumber?: string;
   prAmount?: string;
   saaobId?: string;
   aipReferences?: Array<{ aipId: string; amount: string }>;
+};
+
+type CreateObrMainDataBody = {
+  obrNumber: string;
+  requestId?: string;
+  items: Array<CreateObrMainDataItemBody>;
 };

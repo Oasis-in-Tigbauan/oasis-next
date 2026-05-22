@@ -330,6 +330,13 @@
       "when": 1779345423395,
       "tag": "0046_wandering_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1779438814367,
+      "tag": "0047_flippant_salo",
+      "breakpoints": true
     }
   ]
 }
