@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Search } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -19,6 +19,9 @@ import {
   txt,
 } from "@/lib/saaob/client";
 
+import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
+import { ExportDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -40,6 +43,8 @@ export default function Page() {
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -92,7 +97,42 @@ export default function Page() {
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
+
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setExportOpen(true)}
+          >
+            <Download className="size-3" />
+            Export
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setManageTemplatesOpen(true)}
+          >
+            <FileSpreadsheet className="size-3" />
+            Manage Headers/Footers
+          </Button>
+        </div>
       </div>
+
+      <ManageTemplatesDialog
+        open={manageTemplatesOpen}
+        onOpenChange={setManageTemplatesOpen}
+        apiPath="/api/saaob/templates/office"
+      />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        exportApiBase="/api/saaob/export/office"
+        tree={tree}
+      />
 
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (

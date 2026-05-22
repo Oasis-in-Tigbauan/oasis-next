@@ -3,6 +3,106 @@ import type {
   SaaobGroupResponse,
 } from "@/lib/http/client/responses/SaaobDataResponse";
 import { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
+
+// ============================================================
+// EXPORT — Column definitions (shared by server and client)
+// ============================================================
+
+/**
+ * Flat canonical list of all exportable SAAOB columns.
+ * This is the source of truth for type derivation and lookup.
+ */
+export const SAAOB_EXPORT_COLUMNS = [
+  { key: "accountCode",              label: "Account Code",              numeric: false },
+  { key: "annualBudget",             label: "Annual Budget",             numeric: true  },
+  { key: "supplementalOrContinuing", label: "Supplemental/Continuing",   numeric: true  },
+  { key: "appropriation",            label: "Appropriation",             numeric: true  },
+  { key: "allotment",                label: "Allotment (Quarterly)",     numeric: true  },
+  { key: "obligation",               label: "Obligation",                numeric: true  },
+  { key: "unobligatedBalance",       label: "Unobligated Balance",       numeric: true  },
+  { key: "percentage",               label: "Percentage (%)",            numeric: true  },
+  { key: "remarks",                  label: "Remarks",                   numeric: false },
+  { key: "quarterlyAllotmentBalance",    label: "Quarterly Allotment Balance",    numeric: true },
+  { key: "quarterlyAllotmentBalancePct", label: "Quarterly Allotment Balance (%)", numeric: true },
+  { key: "disbursed",                label: "Disbursed",                 numeric: true  },
+  { key: "disbursedPct",             label: "Disbursed (%)",             numeric: true  },
+  { key: "disbursedVariance",        label: "Variance (Disbursed)",      numeric: true  },
+  { key: "lbacBudget",               label: "LBAC Budget",               numeric: true  },
+  { key: "lbacBudgetVariance",       label: "LBAC Budget Variance",      numeric: true  },
+  { key: "lbacObligated",            label: "LBAC Obligated",            numeric: true  },
+  { key: "lbacObligatedVariance",    label: "LBAC Obligated Variance",   numeric: true  },
+  { key: "obligationWithPRs",        label: "Obligation with PRs",       numeric: true  },
+  { key: "obligationWithPRsBalance", label: "Unobligated Balance (OBR)", numeric: true  },
+  { key: "obligationWithPRsPct",     label: "Percentage (OBR)",          numeric: true  },
+  { key: "pr",                       label: "PRs",                       numeric: true  },
+] as const;
+
+export type SaaobExportColumnKey = (typeof SAAOB_EXPORT_COLUMNS)[number]["key"];
+export type SaaobExportColDef = (typeof SAAOB_EXPORT_COLUMNS)[number];
+
+/** Column groups used for UI rendering. Typed against the flat list to ensure key correctness. */
+export const SAAOB_EXPORT_COLUMN_GROUPS: ReadonlyArray<{
+  group: string;
+  columns: ReadonlyArray<SaaobExportColDef>;
+}> = [
+  {
+    group: "Main",
+    columns: [
+      SAAOB_EXPORT_COLUMNS[0],  // accountCode
+      SAAOB_EXPORT_COLUMNS[1],  // annualBudget
+      SAAOB_EXPORT_COLUMNS[2],  // supplementalOrContinuing
+      SAAOB_EXPORT_COLUMNS[3],  // appropriation
+      SAAOB_EXPORT_COLUMNS[4],  // allotment
+      SAAOB_EXPORT_COLUMNS[5],  // obligation
+      SAAOB_EXPORT_COLUMNS[6],  // unobligatedBalance
+      SAAOB_EXPORT_COLUMNS[7],  // percentage
+      SAAOB_EXPORT_COLUMNS[8],  // remarks
+    ],
+  },
+  {
+    group: "Quarterly Balance",
+    columns: [
+      SAAOB_EXPORT_COLUMNS[9],  // quarterlyAllotmentBalance
+      SAAOB_EXPORT_COLUMNS[10], // quarterlyAllotmentBalancePct
+    ],
+  },
+  {
+    group: "Disbursement",
+    columns: [
+      SAAOB_EXPORT_COLUMNS[11], // disbursed
+      SAAOB_EXPORT_COLUMNS[12], // disbursedPct
+      SAAOB_EXPORT_COLUMNS[13], // disbursedVariance
+    ],
+  },
+  {
+    group: "LBAC",
+    columns: [
+      SAAOB_EXPORT_COLUMNS[14], // lbacBudget
+      SAAOB_EXPORT_COLUMNS[15], // lbacBudgetVariance
+      SAAOB_EXPORT_COLUMNS[16], // lbacObligated
+      SAAOB_EXPORT_COLUMNS[17], // lbacObligatedVariance
+    ],
+  },
+  {
+    group: "OBR / PRs",
+    columns: [
+      SAAOB_EXPORT_COLUMNS[18], // obligationWithPRs
+      SAAOB_EXPORT_COLUMNS[19], // obligationWithPRsBalance
+      SAAOB_EXPORT_COLUMNS[20], // obligationWithPRsPct
+      SAAOB_EXPORT_COLUMNS[21], // pr
+    ],
+  },
+];
+
+const _VALID_COLUMN_KEYS = new Set<string>(SAAOB_EXPORT_COLUMNS.map(c => c.key));
+
+export function parseSaaobExportColumns(raw: string): SaaobExportColumnKey[] | null {
+  if (!raw.trim()) return null;
+  const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  if (!parts.every(p => _VALID_COLUMN_KEYS.has(p))) return null;
+  return parts as SaaobExportColumnKey[];
+}
 import type {
   SaaobSummaryGroupResponse,
   SaaobSummaryItemResponse,

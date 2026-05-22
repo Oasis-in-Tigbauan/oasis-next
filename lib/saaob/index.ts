@@ -2,6 +2,9 @@ import { and, asc, eq, ilike, inArray, lt } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
+import * as templateBucket from "@/lib/buckets/templates";
+import type { TemplateBucketItem } from "@/lib/buckets/templates";
+import { SAAOB_EXPORT_COLUMNS, type SaaobExportColumnKey } from "@/lib/saaob/client";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
@@ -20,6 +23,38 @@ import {
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
+
+export const SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER = "saaob.main-data";
+export const SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER = "saaob.office-data";
+
+/** ExcelTS numeric number format for monetary amounts. */
+const _NUM_FMT_AMOUNT = "#,##0.00";
+/** ExcelTS number format for percentages stored as 0-100. */
+const _NUM_FMT_PCT = "0.00";
+
+/** Thin border applied to all data cells. */
+const _THIN_BORDER = {
+  top: { style: "thin" as const },
+  left: { style: "thin" as const },
+  bottom: { style: "thin" as const },
+  right: { style: "thin" as const },
+};
+
+/** Blue accent color used for non-root group rows (ARGB). */
+const _BLUE_COLOR = { argb: "FF2F75B6" };
+
+/** Light-blue fill used for root group rows. */
+const _ROOT_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD9E1F2" } };
+/** Light-gray fill for column header row. */
+const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFE2EFDA" } };
+
+/**
+ * In ExcelJS/ExcelTS, cells that belong to a merged range but are NOT the
+ * top-left master cell have `cell.type === 8` (ValueType.Merge). Copying
+ * their value to the destination would duplicate the master's text in every
+ * column of the range. Skip them so only the master cell is written.
+ */
+const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS (enums.js: ValueType[ValueType["Merge"] = 1])
 
 /**
  * Returns all SAAOB entry groups and entries as a nested tree structure with
@@ -971,6 +1006,260 @@ export async function deleteSummaryItem(id: string): Promise<Result<null>> {
 }
 
 /**
+ * Validates a SAAOB template type from an untrusted value.
+ *
+ * @description
+ * Accepts only `"header"` or `"footer"`. Used by API routes when parsing delete payloads.
+ *
+ * @function parseSaaobTemplateType
+ * @param {unknown} type - Raw template type from the client.
+ * @returns {Result<SaaobTemplateType>} Parsed type or a validation failure.
+ */
+export function parseSaaobTemplateType(type: unknown): Result<SaaobTemplateType> {
+  if (type !== "header" && type !== "footer") {
+    return new Failure(
+      ErrorCodes.ValidationFailure,
+      "Invalid template type. Must be 'header' or 'footer'.",
+    );
+  }
+  return new Success(type);
+}
+
+/**
+ * Returns header and footer templates for SAAOB main data export.
+ *
+ * @description
+ * Uses {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER}. Missing templates are returned as `null`
+ * rather than failing the request.
+ *
+ * @async
+ * @function getMainDataTemplates
+ * @returns {Promise<Result<SaaobTemplatesBundle>>} Combined header/footer metadata or a failure result.
+ */
+export async function getMainDataTemplates(): Promise<Result<SaaobTemplatesBundle>> {
+  return _fetchSaaobTemplatesBundle(SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for SAAOB main data export.
+ *
+ * @description
+ * Delegates to the template bucket using {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER}. Fails when a
+ * template for the same type already exists.
+ *
+ * @async
+ * @function uploadMainDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Public template metadata on success, or a failure result.
+ */
+export async function uploadMainDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for SAAOB main data export.
+ *
+ * @async
+ * @function modifyMainDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Updated template metadata on success, or a failure result.
+ */
+export async function modifyMainDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for SAAOB main data export.
+ *
+ * @async
+ * @function removeMainDataTemplate
+ * @param {SaaobTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or a failure result.
+ */
+export async function removeMainDataTemplate(type: SaaobTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
+ * Returns header and footer templates for SAAOB office-scoped export.
+ *
+ * @description
+ * Uses {@link SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER}. Missing templates are returned as `null`
+ * rather than failing the request.
+ *
+ * @async
+ * @function getOfficeDataTemplates
+ * @returns {Promise<Result<SaaobTemplatesBundle>>} Combined header/footer metadata or a failure result.
+ */
+export async function getOfficeDataTemplates(): Promise<Result<SaaobTemplatesBundle>> {
+  return _fetchSaaobTemplatesBundle(SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for SAAOB office-scoped export.
+ *
+ * @async
+ * @function uploadOfficeDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Public template metadata on success, or a failure result.
+ */
+export async function uploadOfficeDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for SAAOB office-scoped export.
+ *
+ * @async
+ * @function modifyOfficeDataTemplate
+ * @param {SaaobTemplateUploadInput} input - Template type, file buffer, and original filename.
+ * @returns {Promise<Result<SaaobTemplateInfo>>} Updated template metadata on success, or a failure result.
+ */
+export async function modifyOfficeDataTemplate(
+  input: SaaobTemplateUploadInput,
+): Promise<Result<SaaobTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for SAAOB office-scoped export.
+ *
+ * @async
+ * @function removeOfficeDataTemplate
+ * @param {SaaobTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or a failure result.
+ */
+export async function removeOfficeDataTemplate(type: SaaobTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
+ * Exports SAAOB main data for the given month to an XLSX buffer.
+ *
+ * @description
+ * Calls {@link getAll} for the provided year/month, then builds a formatted
+ * Excel workbook using `@cj-tech-master/excelts`. If header/footer templates
+ * are stored under {@link SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER} they are
+ * prepended / appended row-by-row before the data.
+ *
+ * Formatting rules applied to the data sheet:
+ * - Depth-0 groups → merged across all columns, bold, centred.
+ * - Depth 1–2 groups → blue bold text, indent 0.
+ * - Depth 3–4 groups → blue italic text, indent 1.
+ * - Entries → regular text, indent 2, numeric values in selected columns.
+ *
+ * @async
+ * @function exportMainDataToBuffer
+ * @param {SaaobExportOptions} options - Year, month and selected columns.
+ * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
+ */
+export async function exportMainDataToBuffer(
+  options: SaaobExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAll(options.year, options.month);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const [headerResult, footerResult] = await Promise.all([
+      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
+      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+    ]);
+    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildSaaobExcelBuffer(dataResult.value, options.columns, headerPath, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB main data.", {}, e);
+  }
+}
+
+/**
+ * Exports SAAOB office-scoped data to an XLSX buffer.
+ *
+ * @description
+ * Calls {@link getAllByOffice} for the given office, then builds a formatted
+ * Excel workbook using `@cj-tech-master/excelts`. Header/footer templates
+ * stored under {@link SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER} are included
+ * when present.
+ *
+ * @async
+ * @function exportOfficeDataToBuffer
+ * @param {string} officeId - Office ID whose tree to export.
+ * @param {SaaobExportColumnKey[]} columns - Ordered list of data columns to include.
+ * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
+ */
+export async function exportOfficeDataToBuffer(
+  officeId: string,
+  columns: SaaobExportColumnKey[],
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllByOffice(officeId);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const [headerResult, footerResult] = await Promise.all([
+      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
+      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+    ]);
+    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildSaaobExcelBuffer(dataResult.value, columns, headerPath, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB office data.", {}, e);
+  }
+}
+
+/**
  * Computes all derived financial fields for a single SAAOB entry row.
  *
  * @param {SaaobEntryRow} row - Raw DB row for the entry.
@@ -1265,10 +1554,6 @@ function _getCurrentQuarterUtc8(month?: number): number {
 function _getCurrentYearUtc8(year?: number): number {
   return year ?? DateTime.now().setZone("UTC+8").year;
 }
-
-// ---------------------------------------------------------------------------
-// Private batch-fetch helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Fetches all SAAOB entry groups, optionally filtered by office ID.
@@ -1705,6 +1990,306 @@ async function _fetchAndBuildSummaryItem(
   return { id, name, linkedGroupIds, ...aggregate };
 }
 
+function _mapSaaobTemplate(item: TemplateBucketItem): SaaobTemplateInfo {
+  return {
+    id: item.id,
+    templateType: item.templateType,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+async function _getSaaobTemplateSlot(
+  identifier: string,
+  type: SaaobTemplateType,
+): Promise<Result<SaaobTemplateInfo | null>> {
+  const result = await templateBucket.get({ identifier, type });
+  if (result instanceof Success) {
+    return new Success(_mapSaaobTemplate(result.value));
+  }
+  if (result.type === ErrorCodes.ResourceNotFound) {
+    return new Success(null);
+  }
+  return result;
+}
+
+async function _fetchSaaobTemplatesBundle(identifier: string): Promise<Result<SaaobTemplatesBundle>> {
+  const headerResult = await _getSaaobTemplateSlot(identifier, "header");
+  if (headerResult instanceof Failure) return headerResult;
+
+  const footerResult = await _getSaaobTemplateSlot(identifier, "footer");
+  if (footerResult instanceof Failure) return footerResult;
+
+  return new Success({
+    header: headerResult.value,
+    footer: footerResult.value,
+  });
+}
+
+function _isSaaobGroupNode(node: SaaobGroup | SaaobEntry): node is SaaobGroup {
+  return "children" in node;
+}
+
+function _flattenForExport(
+  nodes: Array<SaaobGroup | SaaobEntry>,
+  depth: number,
+): _ExportFlatRow[] {
+  const rows: _ExportFlatRow[] = [];
+  for (const node of nodes) {
+    if (_isSaaobGroupNode(node)) {
+      rows.push({ kind: "group", depth, data: node });
+      rows.push(..._flattenForExport(node.children, depth + 1));
+    } else {
+      rows.push({ kind: "entry", depth, data: node });
+    }
+  }
+  return rows;
+}
+
+function _getEntryColumnValue(entry: SaaobEntry, col: SaaobExportColumnKey): number | string {
+  switch (col) {
+  case "accountCode":                return entry.accountCode ?? "";
+  case "annualBudget":               return parseFloat(entry.annualBudget) || 0;
+  case "supplementalOrContinuing":   return parseFloat(entry.supplementalOrContinuing) || 0;
+  case "appropriation":              return parseFloat(entry.appropriation) || 0;
+  case "allotment":                  return parseFloat(entry.allotment) || 0;
+  case "obligation":                 return parseFloat(entry.obligation) || 0;
+  case "unobligatedBalance":         return parseFloat(entry.unObligatedBalance) || 0;
+  case "percentage":                 return parseFloat(entry.percentage) || 0;
+  case "remarks":                    return entry.other.remarks ?? "";
+  case "quarterlyAllotmentBalance":      return parseFloat(entry.other.quarterlyAllotmentBalance.value) || 0;
+  case "quarterlyAllotmentBalancePct":   return parseFloat(entry.other.quarterlyAllotmentBalance.percentage) || 0;
+  case "disbursed":                  return parseFloat(entry.other.disbursed.value) || 0;
+  case "disbursedPct":               return parseFloat(entry.other.disbursed.percentage) || 0;
+  case "disbursedVariance":          return parseFloat(entry.other.disbursed.variance) || 0;
+  case "lbacBudget":                 return parseFloat(entry.other.lbacBudget.value) || 0;
+  case "lbacBudgetVariance":         return parseFloat(entry.other.lbacBudget.variance) || 0;
+  case "lbacObligated":              return parseFloat(entry.other.lbacBudget.obligated) || 0;
+  case "lbacObligatedVariance":      return parseFloat(entry.other.lbacBudget.varianceObligated) || 0;
+  case "obligationWithPRs":          return parseFloat(entry.other.obligationWithPRs.value) || 0;
+  case "obligationWithPRsBalance":   return parseFloat(entry.other.obligationWithPRs.balance) || 0;
+  case "obligationWithPRsPct":       return parseFloat(entry.other.obligationWithPRs.percentage) || 0;
+  case "pr":                         return parseFloat(entry.other.pr) || 0;
+  default:
+    return "";
+  }
+}
+
+function _isNumericColumn(key: SaaobExportColumnKey): boolean {
+  const col = SAAOB_EXPORT_COLUMNS.find(c => c.key === key) as { numeric: boolean } | undefined;
+  return col ? col.numeric : false;
+}
+
+/**
+ * Converts a formula cell's value to its last-calculated result, avoiding
+ * broken formula references when pasting into a different sheet context.
+ * Returns `null` for cells whose cached result is an Excel error (e.g. #VALUE!).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function _resolveTemplateValue(cellValue: any): unknown {
+  if (
+    cellValue !== null
+    && cellValue !== undefined
+    && typeof cellValue === "object"
+    && ("formula" in cellValue || "sharedFormula" in cellValue)
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = (cellValue as any).result;
+    if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+      return null;
+    }
+    return result ?? null;
+  }
+  return cellValue;
+}
+
+/**
+ * Offsets a merged-cell range string (e.g. `"A1:Z3"`) by `rowOffset` rows.
+ * Returns `null` if the string cannot be parsed.
+ */
+function _offsetMergeRange(range: string, rowOffset: number): string | null {
+  const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(range);
+  if (!m) return null;
+  return `${m[1]}${parseInt(m[2]) + rowOffset}:${m[3]}${parseInt(m[4]) + rowOffset}`;
+}
+
+async function _copyTemplateRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWorkbook: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  destWorksheet: any,
+  startRow: number,
+): Promise<number> {
+  const srcWs = srcWorkbook.getWorksheet(1);
+  if (!srcWs) return startRow;
+
+  const rowOffset = startRow - 1;
+  let currentRow = startRow;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWs.eachRow({ includeEmpty: true }, (row: any) => {
+    const destRow = destWorksheet.getRow(currentRow);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell({ includeEmpty: true }, (cell: any, colNum: number) => {
+      // Skip slave cells of merged ranges — only the master cell carries the value
+      if (cell.type === _MERGE_CELL_TYPE) return;
+
+      const destCell = destRow.getCell(colNum);
+      destCell.value = _resolveTemplateValue(cell.value);
+      if (cell.font)      destCell.font      = cell.font;
+      if (cell.fill)      destCell.fill      = cell.fill;
+      if (cell.border)    destCell.border    = cell.border;
+      if (cell.alignment) destCell.alignment = cell.alignment;
+      if (cell.numFmt)    destCell.numFmt    = cell.numFmt;
+    });
+    if (row.height) destRow.height = row.height;
+    destRow.commit();
+    currentRow++;
+  });
+
+  // Re-apply merged cell ranges from the source sheet, offset to destination rows
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const merges: string[] = (srcWs.model as any)?.mergeCells ?? [];
+  for (const range of merges) {
+    const adjusted = _offsetMergeRange(range, rowOffset);
+    if (!adjusted) continue;
+    try {
+      destWorksheet.mergeCells(adjusted);
+    } catch {
+      // Ignore overlapping or invalid ranges
+    }
+  }
+
+  return currentRow;
+}
+
+async function _buildSaaobExcelBuffer(
+  tree: SaaobElements,
+  columns: SaaobExportColumnKey[],
+  headerTemplatePath: string | null,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("SAAOB");
+
+  const totalCols = 1 + columns.length;
+
+  // Set column widths
+  ws.getColumn(1).width = 52;
+  columns.forEach((col, idx) => {
+    const colDef = SAAOB_EXPORT_COLUMNS.find(c => c.key === col) as { numeric: boolean } | undefined;
+    ws.getColumn(idx + 2).width = (col === "remarks" || col === "accountCode") ? 26 : 18;
+    if (colDef?.numeric) ws.getColumn(idx + 2).numFmt = _NUM_FMT_AMOUNT;
+  });
+
+  let row = 1;
+
+  // ---- Header template ----
+  if (headerTemplatePath) {
+    const headerWb = new Workbook();
+    await headerWb.xlsx.readFile(headerTemplatePath);
+    row = await _copyTemplateRows(headerWb, ws, row);
+  }
+
+  // ---- Column header row ----
+  const hRow = ws.getRow(row);
+  hRow.getCell(1).value = "Functions/Program/Project/Activity";
+  columns.forEach((col, idx) => {
+    const label = SAAOB_EXPORT_COLUMNS.find(c => c.key === col)?.label ?? col;
+    hRow.getCell(idx + 2).value = label;
+  });
+  for (let c = 1; c <= totalCols; c++) {
+    const cell = hRow.getCell(c);
+    cell.font = { bold: true, size: 10 };
+    cell.fill = _HEADER_FILL;
+    cell.border = _THIN_BORDER;
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  }
+  hRow.height = 32;
+  hRow.commit();
+  row++;
+
+  // ---- Data rows ----
+  const flatRows = _flattenForExport(tree, 0);
+  for (const flatRow of flatRows) {
+    const wsRow = ws.getRow(row);
+
+    if (flatRow.kind === "group") {
+      const { depth, data } = flatRow;
+
+      if (depth === 0) {
+        // Root group — merge all columns, bold, centred
+        ws.mergeCells(row, 1, row, totalCols);
+        const cell = wsRow.getCell(1);
+        cell.value = data.name.toUpperCase();
+        cell.font = { bold: true, size: 11, underline: true };
+        cell.fill = _ROOT_FILL;
+        cell.border = _THIN_BORDER;
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        wsRow.height = 20;
+      } else if (depth <= 2) {
+        // 2nd / 3rd level — blue bold, indent 0
+        const cell = wsRow.getCell(1);
+        cell.value = data.name;
+        cell.font = { bold: true, color: _BLUE_COLOR, size: 10 };
+        cell.border = _THIN_BORDER;
+        cell.alignment = { vertical: "middle", indent: 0, wrapText: true };
+        for (let c = 2; c <= totalCols; c++) {
+          wsRow.getCell(c).border = _THIN_BORDER;
+        }
+      } else {
+        // 4th / 5th level — blue italic, indent 1
+        const cell = wsRow.getCell(1);
+        cell.value = data.name;
+        cell.font = { italic: true, color: _BLUE_COLOR, size: 10 };
+        cell.border = _THIN_BORDER;
+        cell.alignment = { vertical: "middle", indent: 1, wrapText: true };
+        for (let c = 2; c <= totalCols; c++) {
+          wsRow.getCell(c).border = _THIN_BORDER;
+        }
+      }
+    } else {
+      // Entry / item — indent 2, data in subsequent columns
+      const { data } = flatRow;
+      const nameCell = wsRow.getCell(1);
+      nameCell.value = data.name;
+      nameCell.font = { size: 10 };
+      nameCell.border = _THIN_BORDER;
+      nameCell.alignment = { vertical: "middle", indent: 2, wrapText: true };
+
+      columns.forEach((col, idx) => {
+        const dataCell = wsRow.getCell(idx + 2);
+        dataCell.value = _getEntryColumnValue(data, col);
+        dataCell.border = _THIN_BORDER;
+        dataCell.alignment = { vertical: "middle", horizontal: _isNumericColumn(col) ? "right" : "left" };
+        if (_isNumericColumn(col)) {
+          dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+        }
+      });
+    }
+
+    wsRow.commit();
+    row++;
+  }
+
+  // ---- Footer template ----
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  // Freeze the column header row
+  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  // ExcelTS may return Uint8Array in some runtimes
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
 export type SaaobCreateGroupPayload = {
   parentId?: string;
   officeId?: string | null;
@@ -1799,6 +2384,39 @@ type SupplementalRow = {
   amount: string;
   supplementalType: "less" | "add";
 };
+
+export type SaaobTemplateType = templateBucket.TemplateType;
+
+export type SaaobTemplateInfo = {
+  id: string;
+  templateType: SaaobTemplateType;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaaobTemplatesBundle = {
+  header: SaaobTemplateInfo | null;
+  footer: SaaobTemplateInfo | null;
+};
+
+export type SaaobTemplateUploadInput = {
+  type: SaaobTemplateType;
+  file: Buffer;
+  filename: string;
+};
+
+export interface SaaobExportOptions {
+  /** Calendar year (e.g. 2026) used to scope financial calculations. */
+  year: number;
+  /** Month number 1–12 used to scope financial calculations. */
+  month: number;
+  /** Ordered list of data-column keys to include in the exported sheet. */
+  columns: SaaobExportColumnKey[];
+}
+
+type _ExportFlatRow =
+  | { kind: "group"; depth: number; data: SaaobGroup }
+  | { kind: "entry"; depth: number; data: SaaobEntry };
 
 type ObrMainRow = {
   saaobId: string;

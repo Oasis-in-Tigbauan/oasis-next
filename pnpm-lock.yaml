@@ -14,6 +14,9 @@ importers:
       '@better-fetch/fetch':
         specifier: ^1.1.21
         version: 1.1.21
+      '@cj-tech-master/excelts':
+        specifier: ^9.5.7
+        version: 9.5.7
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.76.0(react@19.2.6))
@@ -404,6 +407,10 @@ packages:
 
   '@better-fetch/fetch@1.1.21':
     resolution: {integrity: sha512-/ImESw0sskqlVR94jB+5+Pxjf+xBwDZF/N5+y2/q4EqD7IARUTSpPfIo8uf39SYpCxyOCtbyYpUrZ3F/k0zT4A==}
+
+  '@cj-tech-master/excelts@9.5.7':
+    resolution: {integrity: sha512-ZHyLh5COYI064kTT6L1+BFbOa1eAehOBRdCrqVfwCgaeTnV3FyUoTbHF13ugZuVBwZHeonRQ9NmzRnIiENdP3Q==}
+    engines: {node: '>=22.0.0'}
 
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
@@ -6104,6 +6111,8 @@ snapshots:
       '@noble/hashes': 2.2.0
 
   '@better-fetch/fetch@1.1.21': {}
+
+  '@cj-tech-master/excelts@9.5.7': {}
 
   '@date-fns/tz@1.4.1': {}
 
