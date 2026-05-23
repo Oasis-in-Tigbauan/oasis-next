@@ -50,7 +50,6 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
     collectGroupsAndItems(
       officeGroup,
       null,
-      usr.oId,
       usr.id,
       aipRefByCode,
       flatGroups,
@@ -67,7 +66,6 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
         parentId: g.parentId,
         aipRefCode: g.aipRefId,
         implementingUnitId: null,
-        officeId: g.officeId,
         authorId: g.authorId,
       })),
     );
@@ -129,7 +127,6 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: usr.id,
-          officeId: usr.oId,
         };
       }),
     );
@@ -158,7 +155,6 @@ function isLbacGroup(item: LbacGroup | LbacItem): item is LbacGroup {
 function collectGroupsAndItems(
   group: LbacGroup,
   parentId: string | null,
-  officeId: string,
   authorId: string,
   aipRefByCode: Map<string, string>,
   flatGroups: FlatGroup[],
@@ -169,11 +165,11 @@ function collectGroupsAndItems(
   const aipRefId = aipRefCodeRaw ? (aipRefByCode.get(aipRefCodeRaw.toLowerCase()) ?? null) : null;
 
   // Push this group before its children so parentId references are always valid
-  flatGroups.push({ id, name: group["MFO/PPA"], parentId, aipRefId, officeId, authorId });
+  flatGroups.push({ id, name: group["MFO/PPA"], parentId, aipRefId, authorId });
 
   for (const child of group.items) {
     if (isLbacGroup(child)) {
-      collectGroupsAndItems(child, id, officeId, authorId, aipRefByCode, flatGroups, flatItems);
+      collectGroupsAndItems(child, id, authorId, aipRefByCode, flatGroups, flatItems);
     } else {
       flatItems.push({ groupId: id, item: child });
     }
@@ -592,7 +588,6 @@ type FlatGroup = {
   name: string;
   parentId: string | null;
   aipRefId: string | null;
-  officeId: string;
   authorId: string;
 };
 

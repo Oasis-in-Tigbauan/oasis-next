@@ -28,10 +28,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.verify(
-    [permission.LBAC_OFFICE_READ, permission.LBAC_OFFICE_WRITE],
-    "and",
-  );
+  const session = await auth.verify([
+    permission.LBAC_QUARTERLY_READ,
+    permission.LBAC_QUARTERLY_WRITE,
+  ], "and");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }

@@ -58,7 +58,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
 
     if (rows.length === 0) return new Success([]);
 
-    const allGroups = await _fetchGroups(null);
+    const allGroups = await _fetchGroups();
     const groupMap = new Map(allGroups.map((g) => [g.id, g]));
 
     // Collect every ancestor group ID for each matching item
@@ -134,7 +134,7 @@ export async function getAllItems(year?: number, quarter?: number): Promise<Resu
     const resolvedYear = year ?? _getCurrentYearUtc8();
     const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
 
-    const [groups, items] = await Promise.all([_fetchGroups(null), _fetchItems(null)]);
+    const [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
 
     const reportIds = items.map((i) => i.quarterlyReportId);
     const aipRefIds = [
@@ -167,28 +167,24 @@ export async function getAllItems(year?: number, quarter?: number): Promise<Resu
 }
 
 /**
- * Returns the office-specific LBAC quarterly report data for the given user's office.
- * Shows partial item information (mfoPpa, appropriation, asCutOffMonth) and full quarterly report.
- * Only items and groups belonging to the user's office are returned.
+ * Returns all LBAC quarterly report data in a nested tree structure.
+ * Shows partial item information (mfoPpa, appropriation, asCutOffMonth) and full quarterly report fields.
  *
  * @async
  * @function getAllQuarterlyReports
- * @param {User} user - The authenticated user whose officeId is used to filter the data.
  * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
  * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
  * @returns {Promise<Result<LbacQuarterlyGroupObject[]>>} A result containing the quarterly report tree on success,
  *                                                        or a failure result on error.
  */
-export async function getAllQuarterlyReports(user: User, year?: number, quarter?: number): Promise<Result<LbacQuarterlyGroupObject[]>> {
+export async function getAllQuarterlyReports(year?: number, quarter?: number): Promise<Result<LbacQuarterlyGroupObject[]>> {
   try {
     const resolvedYear = year ?? _getCurrentYearUtc8();
     const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
 
-    const officeIds = [user.office.id];
-
     const [groups, items] = await Promise.all([
-      _fetchGroups(officeIds),
-      _fetchItems(officeIds),
+      _fetchGroups(),
+      _fetchItems(),
     ]);
 
     const reportIds = items.map((i) => i.quarterlyReportId);
@@ -215,7 +211,59 @@ export async function getAllQuarterlyReports(user: User, year?: number, quarter?
     const tree = _buildQuarterlyGroupTree(groups, itemsByGroup);
     return new Success(tree);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC quarterly reports.", { userId: user.id }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC quarterly reports.", {}, e);
+  }
+}
+
+/**
+ * Returns all LBAC items in a nested tree for office viewer access (read-only subset of fields).
+ *
+ * @async
+ * @function getAllViewerItems
+ * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
+ * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
+ * @returns {Promise<Result<LbacViewerGroupObject[]>>} A result containing the viewer group/item tree on success,
+ *                                                    or a failure result on error.
+ */
+export async function getAllViewerItems(year?: number, quarter?: number): Promise<Result<LbacViewerGroupObject[]>> {
+  try {
+    const resolvedYear = year ?? _getCurrentYearUtc8();
+    const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
+
+    const [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
+
+    const reportIds = items.map((i) => i.quarterlyReportId);
+    const aipRefIds = [
+      ...new Set(items.filter((i) => i.aipRefId).map((i) => i.aipRefId!)),
+    ];
+
+    const [reports, supplementals, obrAmounts] = await Promise.all([
+      _fetchQuarterlyReports(reportIds),
+      _fetchSupplementalByAipRef(aipRefIds),
+      _fetchObrAipAmounts(aipRefIds),
+    ]);
+
+    const reportMap = new Map(reports.map((r) => [r.id, r]));
+
+    const itemsByGroup = new Map<string, LbacViewerObject[]>();
+    for (const item of items) {
+      const obj = _buildLbacViewerObject(
+        item,
+        reportMap.get(item.quarterlyReportId),
+        supplementals,
+        obrAmounts,
+        resolvedYear,
+        resolvedQuarter,
+      );
+      const existing = itemsByGroup.get(item.parentId) ?? [];
+      existing.push(obj);
+      itemsByGroup.set(item.parentId, existing);
+    }
+
+    const tree = _buildViewerGroupTree(groups, itemsByGroup);
+    return new Success(tree);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC viewer items.", {}, e);
   }
 }
 
@@ -241,7 +289,7 @@ export async function createLbacItem(
 ): Promise<Result<LbacObject>> {
   try {
     // Validate parent group exists
-    const [groupRow] = await db.select({ id: lbacGroups.id, officeId: lbacGroups.officeId })
+    const [groupRow] = await db.select({ id: lbacGroups.id })
       .from(lbacGroups).where(eq(lbacGroups.id, groupId)).limit(1);
     if (!groupRow) {
       return new Failure(ErrorCodes.ValidationFailure, "The specified group does not exist.", { groupId });
@@ -304,13 +352,12 @@ export async function createLbacItem(
         quarterlyReportId: qr.id,
         parentId: groupId,
         authorId: user.id,
-        officeId: groupRow.officeId,
       }).returning({ id: lbacItems.id });
 
       return newItem.id;
     });
 
-    const fetchedItems = await _fetchItems(null).then((all) => all.filter((i) => i.id === newItemId));
+    const fetchedItems = await _fetchItems().then((all) => all.filter((i) => i.id === newItemId));
     const item = fetchedItems[0];
     if (!item) {
       return new Failure(ErrorCodes.Fatal, "Unable to retrieve created LBAC item.", { newItemId });
@@ -351,15 +398,12 @@ export async function createLbacGroup(
   groupId?: string,
 ): Promise<Result<BaseLbacGroupObject>> {
   try {
-    let officeId = user.office.id;
-
     if (groupId) {
-      const [parentGroup] = await db.select({ id: lbacGroups.id, officeId: lbacGroups.officeId })
+      const [parentGroup] = await db.select({ id: lbacGroups.id })
         .from(lbacGroups).where(eq(lbacGroups.id, groupId)).limit(1);
       if (!parentGroup) {
         return new Failure(ErrorCodes.ValidationFailure, "The specified parent group does not exist.", { groupId });
       }
-      officeId = parentGroup.officeId;
     }
 
     if (payload.aipRefCode) {
@@ -383,11 +427,10 @@ export async function createLbacGroup(
       aipRefCode: payload.aipRefCode ?? null,
       implementingUnitId: payload.implementingUnitId ?? null,
       parentId: groupId ?? null,
-      officeId,
       authorId: user.id,
     }).returning({ id: lbacGroups.id });
 
-    const fetchedGroups = await _fetchGroups(null).then((all) =>
+    const fetchedGroups = await _fetchGroups().then((all) =>
       all.filter((g) => g.id === newGroup.id),
     );
     const fetchedGroup = fetchedGroups[0];
@@ -481,7 +524,7 @@ export async function updateLbacItem(
       await db.update(lbacItems).set(updateValues).where(eq(lbacItems.id, lbacId));
     }
 
-    const updatedItems = await _fetchItems(null).then((all) => all.filter((i) => i.id === lbacId));
+    const updatedItems = await _fetchItems().then((all) => all.filter((i) => i.id === lbacId));
     const updatedItem = updatedItems[0];
     if (!updatedItem) {
       return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC item.", { lbacId });
@@ -547,7 +590,7 @@ export async function updateLbacQuarterlyReport(
         .where(eq(lbacQuarterlyReport.id, item.quarterlyReportId));
     }
 
-    const fetchedItems = await _fetchItems(null).then((all) => all.filter((i) => i.id === lbacId));
+    const fetchedItems = await _fetchItems().then((all) => all.filter((i) => i.id === lbacId));
     const fetchedItem = fetchedItems[0];
     if (!fetchedItem) {
       return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC item after quarterly report update.", { lbacId });
@@ -616,7 +659,7 @@ export async function updateLbacGroup(
       await db.update(lbacGroups).set(updateValues).where(eq(lbacGroups.id, lbacGroupId));
     }
 
-    const fetchedGroups = await _fetchGroups(null).then((all) => all.filter((g) => g.id === lbacGroupId));
+    const fetchedGroups = await _fetchGroups().then((all) => all.filter((g) => g.id === lbacGroupId));
     const fetchedGroup = fetchedGroups[0];
     if (!fetchedGroup) {
       return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC group.", { lbacGroupId });
@@ -648,7 +691,7 @@ export async function moveLbacGroup(
   targetLbacGroup: string | null,
 ): Promise<Result<string>> {
   try {
-    const allGroups = await _fetchGroups(null);
+    const allGroups = await _fetchGroups();
 
     const existing = allGroups.find((g) => g.id === lbacGroupId);
     if (!existing) {
@@ -767,7 +810,7 @@ export async function deleteLbacItem(lbacItemId: string): Promise<Result<null>> 
  */
 export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>> {
   try {
-    const allGroups = await _fetchGroups(null);
+    const allGroups = await _fetchGroups();
 
     const existing = allGroups.find((g) => g.id === lbacGroupId);
     if (!existing) {
@@ -1029,16 +1072,14 @@ function _obrSumBefore(obrAmounts: ObrAipEntry[], aipRefId: string, before: Date
  * Fetches all lbac_groups rows with left-joined aipReferences and officeCodes.
  *
  * @async
- * @param {string[] | null} officeIds - If provided, filter groups to these office IDs.
  * @returns {Promise<LbacGroupRow[]>} Flat list of group rows.
  */
-async function _fetchGroups(officeIds: string[] | null): Promise<LbacGroupRow[]> {
-  const query = db
+async function _fetchGroups(): Promise<LbacGroupRow[]> {
+  return db
     .select({
       id: lbacGroups.id,
       name: lbacGroups.name,
       parentId: lbacGroups.parentId,
-      officeId: lbacGroups.officeId,
       aipRefId: aipReferences.id,
       aipReferenceCode: aipReferences.aipReferenceCode,
       aipDescription: aipReferences.description,
@@ -1049,22 +1090,16 @@ async function _fetchGroups(officeIds: string[] | null): Promise<LbacGroupRow[]>
     .leftJoin(aipReferences, eq(aipReferences.id, lbacGroups.aipRefCode))
     .leftJoin(officeCodes, eq(officeCodes.id, lbacGroups.implementingUnitId))
     .orderBy(asc(lbacGroups.createdAt));
-
-  if (officeIds !== null) {
-    return query.where(inArray(lbacGroups.officeId, officeIds));
-  }
-  return query;
 }
 
 /**
  * Fetches all lbac_items rows with left-joined aipReferences, officeCodes, and expenseClasses.
  *
  * @async
- * @param {string[] | null} officeIds - If provided, filter items to these office IDs.
  * @returns {Promise<LbacItemRow[]>} Flat list of item rows.
  */
-async function _fetchItems(officeIds: string[] | null): Promise<LbacItemRow[]> {
-  const query = db
+async function _fetchItems(): Promise<LbacItemRow[]> {
+  return db
     .select({
       id: lbacItems.id,
       mfoPpa: lbacItems.mfoPpa,
@@ -1095,7 +1130,6 @@ async function _fetchItems(officeIds: string[] | null): Promise<LbacItemRow[]> {
       saaobAccountCode: saaobEntries.accountCode,
       quarterlyReportId: lbacItems.quarterlyReportId,
       parentId: lbacItems.parentId,
-      officeId: lbacItems.officeId,
     })
     .from(lbacItems)
     .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
@@ -1103,11 +1137,6 @@ async function _fetchItems(officeIds: string[] | null): Promise<LbacItemRow[]> {
     .leftJoin(expenseClasses, eq(expenseClasses.id, lbacItems.expenseCodeId))
     .leftJoin(saaobEntries, eq(saaobEntries.id, lbacItems.saaobId))
     .orderBy(asc(lbacItems.createdAt));
-
-  if (officeIds !== null) {
-    return query.where(inArray(lbacItems.officeId, officeIds));
-  }
-  return query;
 }
 
 /**
@@ -1348,6 +1377,40 @@ function _buildLbacItemObject(
 }
 
 /**
+ * Maps a single lbac_items row into a LbacViewerObject with the office-viewer field subset.
+ *
+ * @param {LbacItemRow} item - The LBAC item row.
+ * @param {QuarterlyReportRow | undefined} report - The associated quarterly report.
+ * @param {SupplementalEntry[]} supplementals - All relevant supplemental entries.
+ * @param {ObrAipEntry[]} obrAmounts - All relevant OBR AIP amount entries.
+ * @param {number} year - The year to compute calculations for.
+ * @param {number} quarter - The quarter (1–4) to compute calculations for.
+ * @returns {LbacViewerObject} The LBAC viewer item object.
+ */
+function _buildLbacViewerObject(
+  item: LbacItemRow,
+  report: QuarterlyReportRow | undefined,
+  supplementals: SupplementalEntry[],
+  obrAmounts: ObrAipEntry[],
+  year: number,
+  quarter: number,
+): LbacViewerObject {
+  const full = _buildLbacItemObject(item, report, supplementals, obrAmounts, year, quarter);
+  return {
+    id: full.id,
+    type: full.type,
+    aipRefCode: full.aipRefCode,
+    mfoPpa: full.mfoPpa,
+    implementingUnit: full.implementingUnit,
+    proposedBudgetTotal: full.proposedBudgetTotal,
+    asCutOffMonth: full.asCutOffMonth,
+    other: {
+      expenseCode: full.other.expenseCode,
+    },
+  } satisfies LbacViewerObject;
+}
+
+/**
  * Maps a single lbac_items row into a LbacQuarterlyObject with partial financial fields,
  * suitable for office-level quarterly report access.
  *
@@ -1449,6 +1512,206 @@ function _buildBaseLbacGroupObject(group: LbacGroupRow): BaseLbacGroupObject {
   } satisfies BaseLbacGroupObject;
 }
 
+function _zeroLbacGroupTotals(): LbacGroupTotals {
+  const z = "0";
+  return {
+    proposedBudgetPS: z, proposedBudgetMOOE: z, proposedBudgetFE: z, proposedBudgetCO: z, proposedBudgetTotal: z,
+    appropriation: { contOrSupplementalAugmentation: z, current: z, total: z },
+    allotmentReleased: { previousQuarters: z, thisQuarter: z, total: z },
+    balanceOfAppropriation: z,
+    obligations: { previousQuarters: z, thisQuarter: z, total: z },
+    unobligatedAmount: z,
+    asCutOffMonth: { obligation: z, balance: z, percentage: z },
+    other: { amountAttributed: z },
+    financialAllocation: { Q1: z, Q2: z, Q3: z, Q4: z, total: z },
+    actualFinancialPerformance: { Q1: z, Q2: z, Q3: z, Q4: z, total: z },
+    variance: z,
+  };
+}
+
+function _zeroLbacQuarterlyGroupTotals(): LbacQuarterlyGroupTotals {
+  const z = "0";
+  return {
+    appropriation: { contOrSupplementalAugmentation: z, current: z, total: z },
+    asCutOffMonth: { obligation: z, balance: z },
+  };
+}
+
+function _zeroLbacViewerGroupTotals(): LbacViewerGroupTotals {
+  const z = "0";
+  return {
+    proposedBudgetTotal: z,
+    asCutOffMonth: { obligation: z, balance: z, percentage: z },
+  };
+}
+
+function _collectAllItems(group: LbacGroupObject): LbacObject[] {
+  const items: LbacObject[] = [];
+  for (const child of group.children) {
+    if (child.type === LbacObjectType.Item) {
+      items.push(child);
+    } else {
+      items.push(..._collectAllItems(child as LbacGroupObject));
+    }
+  }
+  return items;
+}
+
+function _collectAllQuarterlyItems(group: LbacQuarterlyGroupObject): LbacQuarterlyObject[] {
+  const items: LbacQuarterlyObject[] = [];
+  for (const child of group.children) {
+    if (child.type === LbacObjectType.Item) {
+      items.push(child);
+    } else {
+      items.push(..._collectAllQuarterlyItems(child as LbacQuarterlyGroupObject));
+    }
+  }
+  return items;
+}
+
+function _collectAllViewerItems(group: LbacViewerGroupObject): LbacViewerObject[] {
+  const items: LbacViewerObject[] = [];
+  for (const child of group.children) {
+    if (child.type === LbacObjectType.Item) {
+      items.push(child);
+    } else {
+      items.push(..._collectAllViewerItems(child as LbacViewerGroupObject));
+    }
+  }
+  return items;
+}
+
+function _computeLbacGroupTotals(items: LbacObject[]): LbacGroupTotals {
+  let ps = new Decimal(0), mooe = new Decimal(0), fe = new Decimal(0), co = new Decimal(0), propTotal = new Decimal(0);
+  let appCsa = new Decimal(0), appCurrent = new Decimal(0), appTotal = new Decimal(0);
+  let allPrev = new Decimal(0), allThis = new Decimal(0), allTotal = new Decimal(0);
+  let balApp = new Decimal(0);
+  let obPrev = new Decimal(0), obThis = new Decimal(0), obTotal = new Decimal(0);
+  let unob = new Decimal(0);
+  let cutObligation = new Decimal(0), cutBalance = new Decimal(0), cutPct = new Decimal(0);
+  let amtAttributed = new Decimal(0);
+  let fa1 = new Decimal(0), fa2 = new Decimal(0), fa3 = new Decimal(0), fa4 = new Decimal(0), faTotal = new Decimal(0);
+  let afp1 = new Decimal(0), afp2 = new Decimal(0), afp3 = new Decimal(0), afp4 = new Decimal(0), afpTotal = new Decimal(0);
+  let variance = new Decimal(0);
+
+  for (const item of items) {
+    ps = ps.plus(casts.castFromDecimal(item.proposedBudgetPS));
+    mooe = mooe.plus(casts.castFromDecimal(item.proposedBudgetMOOE));
+    fe = fe.plus(casts.castFromDecimal(item.proposedBudgetFE));
+    co = co.plus(casts.castFromDecimal(item.proposedBudgetCO));
+    propTotal = propTotal.plus(casts.castFromDecimal(item.proposedBudgetTotal));
+    appCsa = appCsa.plus(casts.castFromDecimal(item.appropriation.contOrSupplementalAugmentation));
+    appCurrent = appCurrent.plus(casts.castFromDecimal(item.appropriation.current));
+    appTotal = appTotal.plus(casts.castFromDecimal(item.appropriation.total));
+    allPrev = allPrev.plus(casts.castFromDecimal(item.allotmentReleased.previousQuarters));
+    allThis = allThis.plus(casts.castFromDecimal(item.allotmentReleased.thisQuarter));
+    allTotal = allTotal.plus(casts.castFromDecimal(item.allotmentReleased.total));
+    balApp = balApp.plus(casts.castFromDecimal(item.balanceOfAppropriation));
+    obPrev = obPrev.plus(casts.castFromDecimal(item.obligations.previousQuarters));
+    obThis = obThis.plus(casts.castFromDecimal(item.obligations.thisQuarter));
+    obTotal = obTotal.plus(casts.castFromDecimal(item.obligations.total));
+    unob = unob.plus(casts.castFromDecimal(item.unobligatedAmount));
+    cutObligation = cutObligation.plus(casts.castFromDecimal(item.asCutOffMonth.obligation));
+    cutBalance = cutBalance.plus(casts.castFromDecimal(item.asCutOffMonth.balance));
+    cutPct = cutPct.plus(casts.castFromDecimal(item.asCutOffMonth.percentage));
+    if (item.other.amountAttributed) {
+      amtAttributed = amtAttributed.plus(casts.castFromDecimal(item.other.amountAttributed));
+    }
+    fa1 = fa1.plus(casts.castFromDecimal(item.financialAllocation.Q1));
+    fa2 = fa2.plus(casts.castFromDecimal(item.financialAllocation.Q2));
+    fa3 = fa3.plus(casts.castFromDecimal(item.financialAllocation.Q3));
+    fa4 = fa4.plus(casts.castFromDecimal(item.financialAllocation.Q4));
+    faTotal = faTotal.plus(casts.castFromDecimal(item.financialAllocation.total));
+    afp1 = afp1.plus(casts.castFromDecimal(item.actualFinancialPerformance.Q1));
+    afp2 = afp2.plus(casts.castFromDecimal(item.actualFinancialPerformance.Q2));
+    afp3 = afp3.plus(casts.castFromDecimal(item.actualFinancialPerformance.Q3));
+    afp4 = afp4.plus(casts.castFromDecimal(item.actualFinancialPerformance.Q4));
+    afpTotal = afpTotal.plus(casts.castFromDecimal(item.actualFinancialPerformance.total));
+    variance = variance.plus(casts.castFromDecimal(item.variance));
+  }
+
+  return {
+    proposedBudgetPS: ps.toString(),
+    proposedBudgetMOOE: mooe.toString(),
+    proposedBudgetFE: fe.toString(),
+    proposedBudgetCO: co.toString(),
+    proposedBudgetTotal: propTotal.toString(),
+    appropriation: { contOrSupplementalAugmentation: appCsa.toString(), current: appCurrent.toString(), total: appTotal.toString() },
+    allotmentReleased: { previousQuarters: allPrev.toString(), thisQuarter: allThis.toString(), total: allTotal.toString() },
+    balanceOfAppropriation: balApp.toString(),
+    obligations: { previousQuarters: obPrev.toString(), thisQuarter: obThis.toString(), total: obTotal.toString() },
+    unobligatedAmount: unob.toString(),
+    asCutOffMonth: { obligation: cutObligation.toString(), balance: cutBalance.toString(), percentage: cutPct.toString() },
+    other: { amountAttributed: amtAttributed.toString() },
+    financialAllocation: { Q1: fa1.toString(), Q2: fa2.toString(), Q3: fa3.toString(), Q4: fa4.toString(), total: faTotal.toString() },
+    actualFinancialPerformance: { Q1: afp1.toString(), Q2: afp2.toString(), Q3: afp3.toString(), Q4: afp4.toString(), total: afpTotal.toString() },
+    variance: variance.toString(),
+  };
+}
+
+function _computeLbacQuarterlyGroupTotals(items: LbacQuarterlyObject[]): LbacQuarterlyGroupTotals {
+  let appCsa = new Decimal(0), appCurrent = new Decimal(0), appTotal = new Decimal(0);
+  let cutObligation = new Decimal(0), cutBalance = new Decimal(0);
+
+  for (const item of items) {
+    appCsa = appCsa.plus(casts.castFromDecimal(item.appropriation.contOrSupplementalAugmentation));
+    appCurrent = appCurrent.plus(casts.castFromDecimal(item.appropriation.current));
+    appTotal = appTotal.plus(casts.castFromDecimal(item.appropriation.total));
+    cutObligation = cutObligation.plus(casts.castFromDecimal(item.asCutOffMonth.obligation));
+    cutBalance = cutBalance.plus(casts.castFromDecimal(item.asCutOffMonth.balance));
+  }
+
+  return {
+    appropriation: { contOrSupplementalAugmentation: appCsa.toString(), current: appCurrent.toString(), total: appTotal.toString() },
+    asCutOffMonth: { obligation: cutObligation.toString(), balance: cutBalance.toString() },
+  };
+}
+
+function _computeLbacViewerGroupTotals(items: LbacViewerObject[]): LbacViewerGroupTotals {
+  let propTotal = new Decimal(0);
+  let cutObligation = new Decimal(0), cutBalance = new Decimal(0), cutPct = new Decimal(0);
+
+  for (const item of items) {
+    propTotal = propTotal.plus(casts.castFromDecimal(item.proposedBudgetTotal));
+    cutObligation = cutObligation.plus(casts.castFromDecimal(item.asCutOffMonth.obligation));
+    cutBalance = cutBalance.plus(casts.castFromDecimal(item.asCutOffMonth.balance));
+    cutPct = cutPct.plus(casts.castFromDecimal(item.asCutOffMonth.percentage));
+  }
+
+  return {
+    proposedBudgetTotal: propTotal.toString(),
+    asCutOffMonth: {
+      obligation: cutObligation.toString(),
+      balance: cutBalance.toString(),
+      percentage: cutPct.toString(),
+    },
+  };
+}
+
+function _attachGroupTotals(groups: LbacGroupObject[]): void {
+  for (const group of groups) {
+    const childGroups = group.children.filter((c) => c.type === LbacObjectType.Group) as LbacGroupObject[];
+    _attachGroupTotals(childGroups);
+    group.totals = _computeLbacGroupTotals(_collectAllItems(group));
+  }
+}
+
+function _attachQuarterlyGroupTotals(groups: LbacQuarterlyGroupObject[]): void {
+  for (const group of groups) {
+    const childGroups = group.children.filter((c) => c.type === LbacObjectType.Group) as LbacQuarterlyGroupObject[];
+    _attachQuarterlyGroupTotals(childGroups);
+    group.totals = _computeLbacQuarterlyGroupTotals(_collectAllQuarterlyItems(group));
+  }
+}
+
+function _attachViewerGroupTotals(groups: LbacViewerGroupObject[]): void {
+  for (const group of groups) {
+    const childGroups = group.children.filter((c) => c.type === LbacObjectType.Group) as LbacViewerGroupObject[];
+    _attachViewerGroupTotals(childGroups);
+    group.totals = _computeLbacViewerGroupTotals(_collectAllViewerItems(group));
+  }
+}
+
 /**
  * Assembles a nested LbacGroupObject tree from flat lists of groups and items.
  * Root groups are those with parentId = null.
@@ -1467,6 +1730,7 @@ function _buildGroupTree(
     groupMap.set(g.id, {
       ..._buildBaseLbacGroupObject(g),
       children: [],
+      totals: _zeroLbacGroupTotals(),
     });
   }
 
@@ -1486,6 +1750,8 @@ function _buildGroupTree(
       }
     }
   }
+
+  _attachGroupTotals(roots);
 
   return roots;
 }
@@ -1507,6 +1773,7 @@ function _buildQuarterlyGroupTree(
     groupMap.set(g.id, {
       ..._buildBaseLbacGroupObject(g),
       children: [],
+      totals: _zeroLbacQuarterlyGroupTotals(),
     });
   }
 
@@ -1526,6 +1793,51 @@ function _buildQuarterlyGroupTree(
       }
     }
   }
+
+  _attachQuarterlyGroupTotals(roots);
+
+  return roots;
+}
+
+/**
+ * Assembles a nested LbacViewerGroupObject tree from flat lists of groups and viewer items.
+ *
+ * @param {LbacGroupRow[]} allGroups - All group rows.
+ * @param {Map<string, LbacViewerObject[]>} itemsByGroup - Viewer items keyed by parentId (group id).
+ * @returns {LbacViewerGroupObject[]} The root-level group tree.
+ */
+function _buildViewerGroupTree(
+  allGroups: LbacGroupRow[],
+  itemsByGroup: Map<string, LbacViewerObject[]>,
+): LbacViewerGroupObject[] {
+  const groupMap = new Map<string, LbacViewerGroupObject>();
+
+  for (const g of allGroups) {
+    groupMap.set(g.id, {
+      ..._buildBaseLbacGroupObject(g),
+      children: [],
+      totals: _zeroLbacViewerGroupTotals(),
+    });
+  }
+
+  const roots: LbacViewerGroupObject[] = [];
+
+  for (const g of allGroups) {
+    const node = groupMap.get(g.id)!;
+    const groupItems = itemsByGroup.get(g.id) ?? [];
+    node.children.push(...groupItems);
+
+    if (g.parentId === null) {
+      roots.push(node);
+    } else {
+      const parent = groupMap.get(g.parentId);
+      if (parent) {
+        parent.children.push(node);
+      }
+    }
+  }
+
+  _attachViewerGroupTotals(roots);
 
   return roots;
 }
@@ -1671,6 +1983,49 @@ export type LbacObject = {
 
 export type LbacGroupObject = {
   children: Array<LbacGroupObject | LbacObject>;
+  totals: LbacGroupTotals;
+} & BaseLbacGroupObject;
+
+export type LbacViewerObject = {
+  id: string;
+  type: LbacObjectType.Item;
+  aipRefCode: {
+    id: string;
+    aipReferenceCode: string;
+    description: string;
+  } | null;
+  mfoPpa: string;
+  implementingUnit: {
+    id: string;
+    name: string;
+  } | null;
+  proposedBudgetTotal: string;
+  asCutOffMonth: {
+    obligation: string;
+    balance: string;
+    percentage: string;
+  };
+  other: {
+    expenseCode: {
+      id: string;
+      accountName: string;
+      accountCode: string | null;
+    } | null;
+  };
+};
+
+export type LbacViewerGroupTotals = {
+  proposedBudgetTotal: string;
+  asCutOffMonth: {
+    obligation: string;
+    balance: string;
+    percentage: string;
+  };
+};
+
+export type LbacViewerGroupObject = {
+  children: Array<LbacViewerGroupObject | LbacViewerObject>;
+  totals: LbacViewerGroupTotals;
 } & BaseLbacGroupObject;
 
 export type LbacQuarterlyObject = {
@@ -1718,6 +2073,7 @@ export type LbacQuarterlyObject = {
 
 export type LbacQuarterlyGroupObject = {
   children: Array<LbacQuarterlyGroupObject | LbacQuarterlyObject>;
+  totals: LbacQuarterlyGroupTotals;
 } & BaseLbacGroupObject;
 
 export type CreateLbacGroupPayload = {
@@ -1774,7 +2130,6 @@ type LbacGroupRow = {
   id: string;
   name: string;
   parentId: string | null;
-  officeId: string;
   aipRefId: string | null;
   aipReferenceCode: string | null;
   aipDescription: string | null;
@@ -1812,7 +2167,6 @@ type LbacItemRow = {
   saaobAccountCode: string | null;
   quarterlyReportId: string;
   parentId: string;
-  officeId: string;
 };
 
 type QuarterlyReportRow = {
@@ -1850,7 +2204,65 @@ type ObrAipEntry = {
   createdAt: Date;
 };
 
-// ─── Search types ─────────────────────────────────────────────────────────────
+export type LbacGroupTotals = {
+  proposedBudgetPS: string;
+  proposedBudgetMOOE: string;
+  proposedBudgetFE: string;
+  proposedBudgetCO: string;
+  proposedBudgetTotal: string;
+  appropriation: {
+    contOrSupplementalAugmentation: string;
+    current: string;
+    total: string;
+  };
+  allotmentReleased: {
+    previousQuarters: string;
+    thisQuarter: string;
+    total: string;
+  };
+  balanceOfAppropriation: string;
+  obligations: {
+    previousQuarters: string;
+    thisQuarter: string;
+    total: string;
+  };
+  unobligatedAmount: string;
+  asCutOffMonth: {
+    obligation: string;
+    balance: string;
+    percentage: string;
+  };
+  other: {
+    amountAttributed: string;
+  };
+  financialAllocation: {
+    Q1: string;
+    Q2: string;
+    Q3: string;
+    Q4: string;
+    total: string;
+  };
+  actualFinancialPerformance: {
+    Q1: string;
+    Q2: string;
+    Q3: string;
+    Q4: string;
+    total: string;
+  };
+  variance: string;
+};
+
+export type LbacQuarterlyGroupTotals = {
+  appropriation: {
+    contOrSupplementalAugmentation: string;
+    current: string;
+    total: string;
+  };
+  asCutOffMonth: {
+    obligation: string;
+    balance: string;
+  };
+};
 
 export type LbacSearchResultItem = {
   id: string;

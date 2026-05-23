@@ -8,6 +8,7 @@ export default async function LbacUsersGroupLayout({ children }: { children: Rea
   const session = await auth.verify([
     permissions.LBAC_DATA_READ,
     permissions.LBAC_OFFICE_READ,
+    permissions.LBAC_QUARTERLY_READ,
   ], "or");
 
   // Redirect back to the dashboard if not verified.

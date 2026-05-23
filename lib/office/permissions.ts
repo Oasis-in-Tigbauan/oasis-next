@@ -108,11 +108,15 @@ export const permissionDescriptors: Array<PermissionDescriptor> = [
   },
   {
     permission: permissions.LBAC_OFFICE_READ,
-    description: "People with this permission can read the Office specific LBAC Data.",
+    description: "People with this permission can read LBAC Data with limited columns. (For Offices)",
   },
   {
-    permission: permissions.LBAC_OFFICE_WRITE,
-    description: "People with this permission can write to Office specific LBAC Data.",
+    permission: permissions.LBAC_QUARTERLY_READ,
+    description: "People with this permission can read LBAC Quarterly reports",
+  },
+  {
+    permission: permissions.LBAC_QUARTERLY_WRITE,
+    description: "People with this permission can write LBAC Quarterly reports",
   },
   {
     permission: permissions.AIP_READ,
@@ -193,7 +197,8 @@ export const allowedPermissions: Set<permissions.Permissions> = new Set(
     permissions.LBAC_DATA_READ,
     permissions.LBAC_DATA_WRITE,
     permissions.LBAC_OFFICE_READ,
-    permissions.LBAC_OFFICE_WRITE,
+    permissions.LBAC_QUARTERLY_READ,
+    permissions.LBAC_QUARTERLY_WRITE,
     permissions.AIP_READ,
     permissions.AIP_WRITE,
     permissions.SAAOB_DATA_READ,
