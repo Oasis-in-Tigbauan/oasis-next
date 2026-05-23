@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+echo "Type-checking project..."
+pnpm exec tsc --noEmit
+
+echo "Linting staged files..."
+pnpm exec lint-staged
