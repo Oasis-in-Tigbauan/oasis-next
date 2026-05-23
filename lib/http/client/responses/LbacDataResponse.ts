@@ -103,6 +103,54 @@ export type LbacItemResponse = {
   };
 };
 
+export type LbacGroupTotals = {
+  proposedBudgetPS: string;
+  proposedBudgetMOOE: string;
+  proposedBudgetFE: string;
+  proposedBudgetCO: string;
+  proposedBudgetTotal: string;
+  appropriation: {
+    contOrSupplementalAugmentation: string;
+    current: string;
+    total: string;
+  };
+  allotmentReleased: {
+    previousQuarters: string;
+    thisQuarter: string;
+    total: string;
+  };
+  balanceOfAppropriation: string;
+  obligations: {
+    previousQuarters: string;
+    thisQuarter: string;
+    total: string;
+  };
+  unobligatedAmount: string;
+  asCutOffMonth: {
+    obligation: string;
+    balance: string;
+    percentage: string;
+  };
+  other: {
+    amountAttributed: string;
+  };
+  financialAllocation: {
+    Q1: string;
+    Q2: string;
+    Q3: string;
+    Q4: string;
+    total: string;
+  };
+  actualFinancialPerformance: {
+    Q1: string;
+    Q2: string;
+    Q3: string;
+    Q4: string;
+    total: string;
+  };
+  variance: string;
+};
+
 export type LbacGroupResponse = {
   id: string;
   /** LbacObjectType.Group = 6767 */
@@ -111,6 +159,7 @@ export type LbacGroupResponse = {
   aipRefCode: LbacAipRef | null;
   implementingUnit: LbacImplementingUnit | null;
   children: (LbacGroupResponse | LbacItemResponse)[];
+  totals: LbacGroupTotals;
 };
 
 export type LbacDataResponse = GenericOkResponse<LbacGroupResponse[]>;

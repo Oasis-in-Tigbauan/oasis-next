@@ -130,14 +130,19 @@ export const LBAC_DATA_READ: Permissions = "lbac.data.read";
 export const LBAC_DATA_WRITE: Permissions = "lbac.data.write";
 
 /**
- * People with this permission can read the Office-specific LBAC Data.
+ * People with this permission can read LBAC Data with limited columns. (For Offices)
  */
 export const LBAC_OFFICE_READ: Permissions = "lbac.office.read";
 
 /**
- * People with this permission can write the Office-specific LBAC Data.
+ * People with this permission can read LBAC Quarterly reports
  */
-export const LBAC_OFFICE_WRITE: Permissions = "lbac.office.write";
+export const LBAC_QUARTERLY_READ: Permissions = "lbac.quarterly.read";
+
+/**
+ * People with this permission can write LBAC Quarterly reports
+ */
+export const LBAC_QUARTERLY_WRITE: Permissions = "lbac.quarterly.write";
 
 /**
  * People with this permission can read the AIP worksheets.
@@ -225,7 +230,8 @@ export type Permissions =
     | "supplemental.read"
     | "supplemental.write"
     | "lbac.office.read"
-    | "lbac.office.write"
+    | "lbac.quarterly.read"
+    | "lbac.quarterly.write"
     | "lbac.data.read"
     | "lbac.data.write"
     | "aip.read"

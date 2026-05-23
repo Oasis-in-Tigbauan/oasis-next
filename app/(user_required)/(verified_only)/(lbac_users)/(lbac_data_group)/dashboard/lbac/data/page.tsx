@@ -12,6 +12,7 @@ import type {
   BetterFetchResponse,
   LbacDataResponse,
   LbacGroupResponse,
+  LbacGroupTotals,
   LbacItemResponse,
   OfficeCodeListResponse,
   SaaobSearchResponse,
@@ -272,7 +273,7 @@ export default function Page() {
             className="h-[calc(100vh-10rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
-              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+              <TableHeader className="sticky top-0 z-20 bg-[#FFF2CC] [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
                 <TableRow>
                   {/* ── Single-col headers (rowSpan=2) ── */}
                   <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
@@ -389,7 +390,8 @@ export default function Page() {
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className={`bg-muted/50 cursor-pointer select-none ${isSelected ? "outline outline-2 outline-primary" : ""}`}
+                        className={`cursor-pointer select-none text-white ${isSelected ? "outline outline-2 outline-primary" : ""}`}
+                        style={{ backgroundColor: row.depth === 0 ? "#0B5394" : "#26a69a" }}
                         onClick={() => handleRowClick(row)}
                         onDoubleClick={() => handleRowDoubleClick(row)}
                       >
@@ -397,8 +399,7 @@ export default function Page() {
                         <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
                           <button
                             type="button"
-                            className="flex items-center gap-1 font-semibold text-left hover:text-primary w-full"
-                            style={{ paddingLeft: `${row.depth * 14}px` }}
+                            className="flex items-center gap-1 font-semibold text-white text-left hover:opacity-80 w-full"
                             onClick={e => { e.stopPropagation(); toggleCollapse(row.id); }}
                           >
                             {isCollapsed
@@ -408,6 +409,82 @@ export default function Page() {
                           </button>
                         </TableCell>
                         <TableCell colSpan={TOTAL_COLS - 2} />
+                      </TableRow>
+                    );
+                  }
+
+                  if (row.kind === "group-total") {
+                    const t = row.data;
+                    const label = row.isRoot ? "Grand Total" : "Total";
+                    return (
+                      <TableRow
+                        ref={rowVirtualizer.measureElement}
+                        key={row.id}
+                        data-index={vr.index}
+                        className="font-bold"
+                        style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
+                      >
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
+                        {/* Proposed Budget */}
+                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetPS)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetMOOE)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetFE)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetCO)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetTotal)}</TableCell>
+                        {/* Implementing Unit */}
+                        <TableCell />
+                        {/* Appropriation */}
+                        <TableCell className="text-right font-mono">{fmt(t.appropriation.contOrSupplementalAugmentation)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.appropriation.current)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.appropriation.total)}</TableCell>
+                        {/* Allotment Released */}
+                        <TableCell className="text-right font-mono">{fmt(t.allotmentReleased.previousQuarters)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.allotmentReleased.thisQuarter)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.allotmentReleased.total)}</TableCell>
+                        {/* Balance of Appropriation */}
+                        <TableCell className="text-right font-mono">{fmt(t.balanceOfAppropriation)}</TableCell>
+                        {/* Obligations */}
+                        <TableCell className="text-right font-mono">{fmt(t.obligations.previousQuarters)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.obligations.thisQuarter)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.obligations.total)}</TableCell>
+                        {/* Unobligated / Remarks */}
+                        <TableCell className="text-right font-mono">{fmt(t.unobligatedAmount)}</TableCell>
+                        <TableCell />
+                        {/* asCutOffMonth */}
+                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.obligation)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.balance)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.percentage)}</TableCell>
+                        {/* Gadable / Tagging */}
+                        <TableCell />
+                        <TableCell />
+                        {/* Amount Attributed */}
+                        <TableCell className="text-right font-mono">{fmt(t.other.amountAttributed)}</TableCell>
+                        {/* Expense Class / Account Code / text fields */}
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
+                        {/* Financial Allocation */}
+                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q1)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q2)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q3)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q4)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.total)}</TableCell>
+                        {/* Actual Financial Performance */}
+                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q1)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q2)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q3)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q4)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.total)}</TableCell>
+                        {/* Variance */}
+                        <TableCell className="text-right font-mono">{fmt(t.variance)}</TableCell>
+                        {/* QR text columns (13 empty) */}
+                        <TableCell colSpan={13} />
                       </TableRow>
                     );
                   }
@@ -1316,6 +1393,7 @@ function flattenVisible(
       const shouldExpand = filtering || !collapsed.has(group.id);
       if (shouldExpand) {
         rows.push(...flattenVisible(group.children, collapsed, depth + 1, query, matchingGroupIds));
+        rows.push({ kind: "group-total", id: `total-${group.id}`, depth, groupId: group.id, data: group.totals, isRoot: depth === 0 });
       }
     } else {
       const item = node as LbacItemResponse;
@@ -1348,4 +1426,5 @@ function _getUtc8Quarter(): number {
 
 type FlatRow =
   | { kind: "group"; id: string; depth: number; data: LbacGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacItemResponse; groupId: string };
+  | { kind: "item"; id: string; depth: number; data: LbacItemResponse; groupId: string }
+  | { kind: "group-total"; id: string; depth: number; groupId: string; data: LbacGroupTotals; isRoot: boolean };

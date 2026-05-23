@@ -11,6 +11,7 @@ import type {
   BetterFetchResponse,
   LbacOfficeQuarterlyResponse,
   LbacQuarterlyGroupResponse,
+  LbacQuarterlyGroupTotals,
   LbacQuarterlyItemResponse,
 } from "@/lib/http/client/responses";
 
@@ -45,7 +46,8 @@ import Typography from "@/components/typography";
 
 type FlatRow =
   | { kind: "group"; id: string; depth: number; data: LbacQuarterlyGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacQuarterlyItemResponse };
+  | { kind: "item"; id: string; depth: number; data: LbacQuarterlyItemResponse }
+  | { kind: "group-total"; id: string; depth: number; groupId: string; data: LbacQuarterlyGroupTotals; isRoot: boolean };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,7 @@ function flattenVisible(
       rows.push({ kind: "group", id: group.id, depth, data: group });
       if (!collapsed.has(group.id)) {
         rows.push(...flattenVisible(group.children, collapsed, depth + 1));
+        rows.push({ kind: "group-total", id: `total-${group.id}`, depth, groupId: group.id, data: group.totals, isRoot: depth === 0 });
       }
     } else {
       rows.push({ kind: "item", id: node.id, depth, data: node as LbacQuarterlyItemResponse });
@@ -87,7 +90,7 @@ const TOTAL_COLS = 23;
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<LbacOfficeQuarterlyResponse, ApiResponseException>
-  >("/api/lbac/office-quarterly", $fetch);
+  >("/api/lbac/quarterly", $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<LbacQuarterlyItemResponse | null>(null);
@@ -223,7 +226,39 @@ export default function Page() {
                     );
                   }
 
-                  const item = row.data;
+                  if (row.kind === "group-total") {
+                    const t = row.data;
+                    const label = row.isRoot ? "Grand Total" : "Total";
+                    return (
+                      <TableRow
+                        ref={rowVirtualizer.measureElement}
+                        key={row.id}
+                        data-index={vr.index}
+                        className="font-bold"
+                        style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
+                      >
+                        {/* AIP REF CODE */}
+                        <TableCell />
+                        {/* MFO/PPA */}
+                        <TableCell />
+                        {/* Implementing Unit */}
+                        <TableCell />
+                        {/* Appropriation */}
+                        <TableCell className="text-right font-mono">{fmt(t.appropriation.contOrSupplementalAugmentation)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.appropriation.current)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.appropriation.total)}</TableCell>
+                        {/* Obligation */}
+                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.obligation)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.balance)}</TableCell>
+                        {/* Text columns (prior year, physical targets x5, actual physical x5, variance, %, remarks) */}
+                        <TableCell colSpan={14} />
+                        {/* Target for Budget Year — label */}
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  const item = row.data as LbacQuarterlyItemResponse;
                   return (
                     <TableRow
                       ref={rowVirtualizer.measureElement}

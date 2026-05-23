@@ -6,8 +6,8 @@ import * as permissions from "@/lib/db/permissions";
 
 export default async function LbacOfficeGroupLayout({ children }: { children: ReactNode }) {
   const session = await auth.verify([
-    permissions.LBAC_OFFICE_READ,
-    permissions.LBAC_OFFICE_WRITE,
+    permissions.LBAC_QUARTERLY_READ,
+    permissions.LBAC_QUARTERLY_WRITE,
   ]);
 
   // Redirect back to the dashboard if not verified.

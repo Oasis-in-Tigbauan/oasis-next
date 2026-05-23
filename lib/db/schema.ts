@@ -648,11 +648,6 @@ export const lbacGroups = pgTable("lbac_groups", {
   implementingUnitId: text("implementing_unit_id")
     .references(() => officeCodes.id),
 
-  // Other metadata fields
-  officeId: text("office_id")
-    .references(() => office.id)
-    .notNull(),
-
   // Groupings
   parentId: text("parent_id"),
 
@@ -751,9 +746,6 @@ export const lbacItems = pgTable("lbac_items", {
   // Table metadata
   authorId: text("author_id")
     .references(() => user.id)
-    .notNull(),
-  officeId: text("office_id")
-    .references(() => office.id)
     .notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()

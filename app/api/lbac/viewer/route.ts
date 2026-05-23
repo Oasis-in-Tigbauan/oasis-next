@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     quarter = parsedQuarter;
   }
 
-  const result = await lbac.getAllQuarterlyReports(session.user!, year, quarter);
+  const result = await lbac.getAllViewerItems(year, quarter);
   return oneOf(result).match(
     (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     (e) => ApiResponseBuilder.createFromFailure(e).build(),

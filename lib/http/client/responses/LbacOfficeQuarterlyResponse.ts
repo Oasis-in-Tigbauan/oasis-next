@@ -38,6 +38,18 @@ export type LbacQuarterlyItemResponse = {
   targetForBudgetYear: string | null;
 };
 
+export type LbacQuarterlyGroupTotals = {
+  appropriation: {
+    contOrSupplementalAugmentation: string;
+    current: string;
+    total: string;
+  };
+  asCutOffMonth: {
+    obligation: string;
+    balance: string;
+  };
+};
+
 export type LbacQuarterlyGroupResponse = {
   id: string;
   /** LbacObjectType.Group = 6767 */
@@ -46,6 +58,7 @@ export type LbacQuarterlyGroupResponse = {
   aipRefCode: LbacAipRef | null;
   implementingUnit: LbacImplementingUnit | null;
   children: (LbacQuarterlyGroupResponse | LbacQuarterlyItemResponse)[];
+  totals: LbacQuarterlyGroupTotals;
 };
 
 export type LbacOfficeQuarterlyResponse = GenericOkResponse<LbacQuarterlyGroupResponse[]>;

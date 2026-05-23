@@ -106,13 +106,22 @@ export default function Page() {
 
 const allMenuItems: Array<MenuItem> = [
   {
-    title: "Office",
-    description: "Manage LBAC for your office.",
-    href: "/dashboard/lbac/office",
+    title: "Viewer",
+    description: "View LBAC items for this quarter",
+    href: "/dashboard/lbac/viewer",
     icon: FolderCog,
     required: [
       permissions.LBAC_OFFICE_READ,
-      permissions.LBAC_OFFICE_WRITE,
+    ],
+  },
+  {
+    title: "Quarterly Reports",
+    description: "Manage LBAC quarterly reports.",
+    href: "/dashboard/lbac/quarterly",
+    icon: FolderCog,
+    required: [
+      permissions.LBAC_QUARTERLY_READ,
+      permissions.LBAC_QUARTERLY_WRITE,
     ],
   },
   {

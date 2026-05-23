@@ -42,7 +42,7 @@ import type {
 } from "@/lib/http/client/responses/AipListResponse";
 import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/responses/AipSearchResponse";
 import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
-import type { LbacDataResponse, LbacGroupResponse, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
+import type { LbacDataResponse, LbacGroupResponse, LbacGroupTotals, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
 import type {
   PpmpDataResponse,
   PpmpMajorGroupResponse,
@@ -50,7 +50,8 @@ import type {
   PpmpProjectGroupResponse,
   PpmpPlanItemResponse,
 } from "@/lib/http/client/responses/PpmpDataResponse";
-import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
+import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyGroupTotals, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
+import type { LbacViewerResponse, LbacViewerGroupResponse, LbacViewerGroupTotals, LbacViewerItemResponse } from "@/lib/http/client/responses/LbacViewerResponse";
 import type { LbacSearchResponse, LbacSearchGroupItem, LbacSearchResultItem } from "@/lib/http/client/responses/LbacSearchResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
 import type {
@@ -151,6 +152,7 @@ export type {
   ObrMainDataAipReference,
   LbacDataResponse,
   LbacGroupResponse,
+  LbacGroupTotals,
   LbacItemResponse,
   LbacAipRef,
   LbacImplementingUnit,
@@ -161,7 +163,12 @@ export type {
   PpmpPlanItemResponse,
   LbacOfficeQuarterlyResponse,
   LbacQuarterlyGroupResponse,
+  LbacQuarterlyGroupTotals,
   LbacQuarterlyItemResponse,
+  LbacViewerResponse,
+  LbacViewerGroupResponse,
+  LbacViewerGroupTotals,
+  LbacViewerItemResponse,
   LbacSearchResponse,
   LbacSearchGroupItem,
   LbacSearchResultItem,
