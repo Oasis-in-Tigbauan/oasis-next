@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -29,6 +29,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -41,6 +48,9 @@ import {
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
+
+import { ExportQuarterlyDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-quarterly-dialog";
+import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -88,16 +98,25 @@ const TOTAL_COLS = 23;
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Page() {
+  const [currentYear] = useState(() => _getUtc8Year());
+  const [selectedQuarter, setSelectedQuarter] = useState(() => _getUtc8Quarter());
+
   const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<LbacOfficeQuarterlyResponse, ApiResponseException>
-  >("/api/lbac/quarterly", $fetch);
+  >(`/api/lbac/quarterly?year=${currentYear}&quarter=${selectedQuarter}`, $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<LbacQuarterlyItemResponse | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   const tree = data?.data?.data ?? [];
+
+  const handleQuarterChange = useCallback((quarter: number) => {
+    setSelectedQuarter(Math.min(4, Math.max(1, quarter)));
+  }, []);
   const flatRows = flattenVisible(tree, collapsed, 0);
 
   // eslint-disable-next-line
@@ -138,6 +157,66 @@ export default function Page() {
 
   return (
     <div className="flex flex-col gap-3 p-4 pt-0 w-full">
+      <div className="flex items-center gap-1 p-2 border rounded-lg w-full">
+        <Typography variant="small" className="text-muted-foreground mr-2">
+          {currentYear}
+        </Typography>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setExportOpen(true)}
+        >
+          <Download className="size-3" />
+          Export
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setManageTemplatesOpen(true)}
+        >
+          <FileSpreadsheet className="size-3" />
+          Templates
+        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous quarter"
+            title="Previous quarter"
+            disabled={selectedQuarter === 1}
+            onClick={() => handleQuarterChange(selectedQuarter - 1)}
+          >
+            <ChevronLeft />
+          </Button>
+          <Select
+            value={String(selectedQuarter)}
+            onValueChange={(v) => handleQuarterChange(Number(v))}
+          >
+            <SelectTrigger className="h-7 w-20 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Q1</SelectItem>
+              <SelectItem value="2">Q2</SelectItem>
+              <SelectItem value="3">Q3</SelectItem>
+              <SelectItem value="4">Q4</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next quarter"
+            title="Next quarter"
+            disabled={selectedQuarter === 4}
+            onClick={() => handleQuarterChange(selectedQuarter + 1)}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
+      </div>
+
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
@@ -314,8 +393,32 @@ export default function Page() {
           onSuccess={() => mutate()}
         />
       )}
+
+      <ManageTemplatesDialog
+        open={manageTemplatesOpen}
+        onOpenChange={setManageTemplatesOpen}
+        apiPath="/api/lbac/templates/quarterly"
+        description="Upload or replace Excel templates used for LBAC quarterly report headers and footers."
+      />
+
+      <ExportQuarterlyDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        exportApiBase="/api/lbac/export/quarterly"
+        exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+        tree={tree}
+      />
     </div>
   );
+}
+
+function _getUtc8Year(): number {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear();
+}
+
+function _getUtc8Quarter(): number {
+  const month = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCMonth();
+  return Math.floor(month / 3) + 1;
 }
 
 // ─── Quarterly Edit Dialog ───────────────────────────────────────────────────

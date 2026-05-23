@@ -53,6 +53,11 @@ import type {
 import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyGroupTotals, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
 import type { LbacViewerResponse, LbacViewerGroupResponse, LbacViewerGroupTotals, LbacViewerItemResponse } from "@/lib/http/client/responses/LbacViewerResponse";
 import type { LbacSearchResponse, LbacSearchGroupItem, LbacSearchResultItem } from "@/lib/http/client/responses/LbacSearchResponse";
+import type {
+  LbacTemplateInfo,
+  LbacTemplatesPayload,
+  LbacTemplatesResponse,
+} from "@/lib/http/client/responses/LbacTemplatesResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
 import type {
   SaaobDataResponse,
@@ -172,6 +177,9 @@ export type {
   LbacSearchResponse,
   LbacSearchGroupItem,
   LbacSearchResultItem,
+  LbacTemplateInfo,
+  LbacTemplatesPayload,
+  LbacTemplatesResponse,
   SaaobDataResponse,
   SaaobOfficeResponse,
   SaaobEntryResponse,
