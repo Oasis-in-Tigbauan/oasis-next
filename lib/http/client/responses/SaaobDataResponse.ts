@@ -5,6 +5,7 @@ export type SaaobEntryResponse = {
   name: string;
   accountCode?: string | null;
   annualBudget: string;
+  allotmentShouldCopyFromAppropriation: boolean;
   supplementalOrContinuing: string;
   appropriation: string;
   allotment: string;

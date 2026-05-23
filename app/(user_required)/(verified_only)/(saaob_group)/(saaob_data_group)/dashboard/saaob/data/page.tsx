@@ -27,6 +27,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -704,6 +705,9 @@ function EntryFormDialog({
   const [parentId, setParentId] = useState(defaultGroupId ?? "");
   const [name, setName] = useState(editEntry?.name ?? "");
   const [annualBudget, setAnnualBudget] = useState(editEntry?.annualBudget ?? "");
+  const [allotmentShouldCopyFromAppropriation, setAllotmentShouldCopyFromAppropriation] = useState(
+    editEntry?.allotmentShouldCopyFromAppropriation ?? false,
+  );
   const [remarks, setRemarks] = useState(editEntry?.other.remarks ?? "");
   const [linkedExpenseClass, setLinkedExpenseClass] = useState<ExpenseClassOption | null>(null);
 
@@ -749,6 +753,7 @@ function EntryFormDialog({
 
       if (remarks.trim()) body.remarks = remarks.trim();
       if (linkedExpenseClass?.id) body.expenseCodeId = linkedExpenseClass.id;
+      body.allotmentShouldCopyFromAppropriation = allotmentShouldCopyFromAppropriation;
 
       if (mode === "add") {
         body.parentId = parentId;
@@ -889,6 +894,17 @@ function EntryFormDialog({
                   disabled={submitting}
                   placeholder="0.00"
                 />
+                <label className="flex items-center gap-2 mt-1 cursor-pointer select-none">
+                  <Checkbox
+                    id={`${baseId}-allotment-copy`}
+                    checked={allotmentShouldCopyFromAppropriation}
+                    onCheckedChange={v => setAllotmentShouldCopyFromAppropriation(v === true)}
+                    disabled={submitting}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Copy allotment from appropriation (instead of quarterly formula)
+                  </span>
+                </label>
               </div>
             </div>
 

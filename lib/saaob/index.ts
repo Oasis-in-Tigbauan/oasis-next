@@ -216,6 +216,7 @@ export async function createEntry(
         expenseCodeId: resolvedExpenseCodeId,
         accountCode: resolvedAccountCode,
         authorId: user.id,
+        allotmentShouldCopyFromAppropriation: payload.allotmentShouldCopyFromAppropriation ?? false,
       })
       .returning({ id: saaobEntries.id });
 
@@ -418,6 +419,7 @@ export async function updateEntry(id: string, payload: SaaobUpdateEntryPayload):
     if (payload.name !== undefined) updateValues.name = payload.name;
     if (payload.annualBudget !== undefined) updateValues.annualBudget = casts.castToDecimal(payload.annualBudget);
     if (payload.remarks !== undefined) updateValues.remarks = payload.remarks;
+    if (payload.allotmentShouldCopyFromAppropriation !== undefined) updateValues.allotmentShouldCopyFromAppropriation = payload.allotmentShouldCopyFromAppropriation;
 
     const nameForLookup = payload.name ?? existing.name;
 
@@ -1284,7 +1286,9 @@ function _computeEntryObject(
   }, new Decimal(0));
 
   const appropriation = annualBudget.plus(supplementalOrContinuing);
-  const allotment = appropriation;
+  const allotment = row.allotmentShouldCopyFromAppropriation
+    ? appropriation
+    : (annualBudget.isZero() ? new Decimal(0) : (annualBudget.div(4)).mul(1).plus(supplementalOrContinuing));
 
   const obligation = obrRows.reduce(
     (acc, o) => acc.plus(casts.castFromDecimal(o.obligated)),
@@ -1329,6 +1333,7 @@ function _computeEntryObject(
     name: row.name,
     accountCode: row.accountCode ?? undefined,
     annualBudget: row.annualBudget,
+    allotmentShouldCopyFromAppropriation: row.allotmentShouldCopyFromAppropriation,
     supplementalOrContinuing: supplementalOrContinuing.toString(),
     appropriation: appropriation.toString(),
     allotment: allotment.toString(),
@@ -1598,6 +1603,7 @@ async function _fetchAllEntries(parentGroupIds?: string[]): Promise<SaaobEntryRo
       annualBudget: saaobEntries.annualBudget,
       remarks: saaobEntries.remarks,
       parentId: saaobEntries.parentId,
+      allotmentShouldCopyFromAppropriation: saaobEntries.allotmentShouldCopyFromAppropriation,
     })
     .from(saaobEntries);
 
@@ -2306,6 +2312,8 @@ export type SaaobCreateEntryPayload = {
    * (case-insensitive) against the entry name.
    */
   expenseCodeId?: string;
+  /** When `true`, allotment copies the appropriation value instead of using the quarterly formula. */
+  allotmentShouldCopyFromAppropriation?: boolean;
 };
 
 export type SaaobUpdateEntryPayload = Partial<SaaobCreateEntryPayload>;
@@ -2315,6 +2323,7 @@ export type SaaobEntry = {
   name: string;
   accountCode?: string;
   annualBudget: string;
+  allotmentShouldCopyFromAppropriation: boolean;
   supplementalOrContinuing: string;
   appropriation: string;
   allotment: string;
@@ -2377,6 +2386,7 @@ type SaaobEntryRow = {
   annualBudget: string;
   remarks: string | null;
   parentId: string;
+  allotmentShouldCopyFromAppropriation: boolean;
 };
 
 type SupplementalRow = {

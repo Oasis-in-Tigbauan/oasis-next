@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       annualBudget: { type: "string", formatter: "decimal" },
       remarks: { type: "string", formatter: "non-empty-string" },
       expenseCodeId: { type: "string", formatter: "uuid" },
+      allotmentShouldCopyFromAppropriation: { type: "boolean" },
     },
     requiredProperties: ["parentId", "name", "annualBudget"],
     allowUnvalidatedProperties: false,
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     annualBudget: body.annualBudget,
     remarks: body.remarks,
     expenseCodeId: body.expenseCodeId,
+    allotmentShouldCopyFromAppropriation: body.allotmentShouldCopyFromAppropriation,
   });
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status201Created).withBody(s).build(),

@@ -51,6 +51,7 @@ export const saaobEntriesMigration: MigratorFn = async (client, usr): Promise<vo
         annualBudget: budgetCasted,
         refCode: node.refCode || null,
         parentId: parentGroupId,
+        allotmentShouldCopyFromAppropriation: node.appropriation === node.allotment,
         expenseCodeId,
         authorId: usr.id,
       });

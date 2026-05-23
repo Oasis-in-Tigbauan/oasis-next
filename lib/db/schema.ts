@@ -284,6 +284,11 @@ export const saaobEntries = pgTable("saaob_entries", {
   refCode: text("ref_code"),
   remarks: text("remarks"),
 
+  // Formula options
+  allotmentShouldCopyFromAppropriation: boolean("allotment_should_copy_from_appropriation")
+    .default(false)
+    .notNull(),
+
   parentId: text("parent_id")
     .references(() => saaobEntryGroup.id)
     .notNull(),
