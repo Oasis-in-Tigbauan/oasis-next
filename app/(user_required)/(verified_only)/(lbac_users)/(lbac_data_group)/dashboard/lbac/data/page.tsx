@@ -425,10 +425,10 @@ export default function Page() {
                         style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
                       >
                         <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
                         <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
                         {/* Proposed Budget */}
                         <TableCell className="text-right font-mono">{fmt(t.proposedBudgetPS)}</TableCell>
                         <TableCell className="text-right font-mono">{fmt(t.proposedBudgetMOOE)}</TableCell>
