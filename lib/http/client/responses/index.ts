@@ -57,6 +57,7 @@ import type {
   SaaobDataResponse,
   SaaobEntryResponse,
   SaaobGroupResponse,
+  SaaobGroupTotalResponse,
   SaaobOfficeResponse,
 } from "@/lib/http/client/responses/SaaobDataResponse";
 import type {
@@ -168,6 +169,7 @@ export type {
   SaaobOfficeResponse,
   SaaobEntryResponse,
   SaaobGroupResponse,
+  SaaobGroupTotalResponse,
   SaaobSearchResponse,
   SaaobSearchGroup,
   SaaobSearchEntry,

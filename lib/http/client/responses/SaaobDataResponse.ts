@@ -1,5 +1,22 @@
 import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
 
+export type SaaobGroupTotalResponse = {
+  annualBudget: string;
+  supplementalOrContinuing: string;
+  appropriation: string;
+  allotment: string;
+  obligation: string;
+  unObligatedBalance: string;
+  percentage: string;
+  other: {
+    quarterlyAllotmentBalance: { value: string; percentage: string };
+    disbursed: { value: string; percentage: string; variance: string };
+    lbacBudget: { value: string; variance: string; obligated: string; varianceObligated: string };
+    obligationWithPRs: { value: string; balance: string; percentage: string };
+    pr: string;
+  };
+};
+
 export type SaaobEntryResponse = {
   id: string;
   name: string;
@@ -42,6 +59,7 @@ export type SaaobGroupResponse = {
   id: string;
   name: string;
   officeId?: string | null;
+  total: SaaobGroupTotalResponse;
   children: Array<SaaobGroupResponse | SaaobEntryResponse>;
 };
 

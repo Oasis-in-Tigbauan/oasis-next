@@ -152,6 +152,8 @@ function PreviewTable({
                 );
               }
 
+              if (row.kind === "total") return null;
+
               const { data } = row;
               return (
                 <tr key={row.id} className="hover:bg-muted/30">

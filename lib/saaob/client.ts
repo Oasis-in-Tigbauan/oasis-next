@@ -1,6 +1,7 @@
 import type {
   SaaobEntryResponse,
   SaaobGroupResponse,
+  SaaobGroupTotalResponse,
 } from "@/lib/http/client/responses/SaaobDataResponse";
 import { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
 
@@ -119,6 +120,14 @@ export type SaaobFlatRow =
     depth: number;
     data: SaaobEntryResponse;
     groupId: string;
+  }
+  | {
+    kind: "total";
+    id: string;
+    depth: number;
+    data: SaaobGroupTotalResponse;
+    groupId: string;
+    groupName: string;
   };
 
 export function collectSaaobGroups(
@@ -208,6 +217,14 @@ export function flattenSaaobVisible(
         rows.push(
           ...flattenSaaobVisible(node.children, collapsed, depth + 1, ignoreCollapsed, node.id),
         );
+        rows.push({
+          kind: "total",
+          id: `${node.id}:total`,
+          depth: depth + 1,
+          data: node.total,
+          groupId: node.id,
+          groupName: node.name,
+        });
       }
       continue;
     }
