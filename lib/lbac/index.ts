@@ -1,7 +1,29 @@
-import { asc, eq, ilike, inArray, or } from "drizzle-orm";
+﻿import { asc, eq, ilike, inArray, or } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
+import * as templateBucket from "@/lib/buckets/templates";
+import type { TemplateBucketItem } from "@/lib/buckets/templates";
+import {
+  buildMainDataHeaderLayout,
+  buildQuarterlyHeaderLayout,
+  flattenLbacMainForExport,
+  flattenLbacQuarterlyForExport,
+  getMainDataCellValue,
+  getQuarterlyCellValue,
+  LBAC_GROUP_DEPTH_CHILD_COLOR,
+  LBAC_GROUP_DEPTH_ROOT_COLOR,
+  LBAC_TOTAL_CHILD_COLOR,
+  LBAC_TOTAL_ROOT_COLOR,
+  resolveMainExportColumns,
+  resolveQuarterlyExportColumns,
+  type LbacMainExportColDef,
+  type LbacMainExportColumnKey,
+  type LbacMainExportFlatRow,
+  type LbacQuarterlyExportColDef,
+  type LbacQuarterlyExportColumnKey,
+  type LbacQuarterlyExportFlatRow,
+} from "@/lib/lbac/export-layout";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
@@ -18,6 +40,24 @@ import {
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
+
+export const LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER = "lbac.main-data";
+export const LBAC_QUARTERLY_TEMPLATE_IDENTIFIER = "lbac.quarterly";
+
+/** ExcelTS numeric number format for monetary amounts. */
+const _NUM_FMT_AMOUNT = "#,##0.00";
+/** ExcelTS number format for percentages stored as 0-100. */
+const _NUM_FMT_PCT = "0.00";
+
+const _THIN_BORDER = {
+  top: { style: "thin" as const },
+  left: { style: "thin" as const },
+  bottom: { style: "thin" as const },
+  right: { style: "thin" as const },
+};
+
+const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFFFF2CC" } };
+const _MERGE_CELL_TYPE = 1;
 
 /**
  * Searches LBAC items by mfoPpa or AIP reference code and returns a trimmed group tree
@@ -125,7 +165,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
  * @async
  * @function getAllItems
  * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
- * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
+ * @param {number} [quarter] - The quarter (1窶・) to compute calculations for. Defaults to the current UTC+8 quarter.
  * @returns {Promise<Result<LbacGroupObject[]>>} A result containing the full LBAC group/item tree on success,
  *                                               or a failure result on error.
  */
@@ -173,7 +213,7 @@ export async function getAllItems(year?: number, quarter?: number): Promise<Resu
  * @async
  * @function getAllQuarterlyReports
  * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
- * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
+ * @param {number} [quarter] - The quarter (1窶・) to compute calculations for. Defaults to the current UTC+8 quarter.
  * @returns {Promise<Result<LbacQuarterlyGroupObject[]>>} A result containing the quarterly report tree on success,
  *                                                        or a failure result on error.
  */
@@ -221,7 +261,7 @@ export async function getAllQuarterlyReports(year?: number, quarter?: number): P
  * @async
  * @function getAllViewerItems
  * @param {number} [year] - The year to compute calculations for. Defaults to the current UTC+8 year.
- * @param {number} [quarter] - The quarter (1–4) to compute calculations for. Defaults to the current UTC+8 quarter.
+ * @param {number} [quarter] - The quarter (1窶・) to compute calculations for. Defaults to the current UTC+8 quarter.
  * @returns {Promise<Result<LbacViewerGroupObject[]>>} A result containing the viewer group/item tree on success,
  *                                                    or a failure result on error.
  */
@@ -795,7 +835,7 @@ export async function deleteLbacItem(lbacItemId: string): Promise<Result<null>> 
 }
 
 /**
- * Deletes a specific LBAC group. The group must be completely empty — no lbacItems may exist
+ * Deletes a specific LBAC group. The group must be completely empty 窶・no lbacItems may exist
  * in the group or any of its descendant groups.
  *
  * @async
@@ -861,6 +901,246 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
 }
 
 /**
+ * Validates a LBAC template type from client input.
+ *
+ * @param {unknown} type - Raw template type.
+ * @returns {Result<LbacTemplateType>} Parsed type or validation failure.
+ */
+export function parseLbacTemplateType(type: unknown): Result<LbacTemplateType> {
+  if (type !== "header" && type !== "footer") {
+    return new Failure(
+      ErrorCodes.ValidationFailure,
+      "Invalid template type. Must be 'header' or 'footer'.",
+    );
+  }
+  return new Success(type);
+}
+
+/**
+ * Returns header and footer templates for LBAC main data export.
+ *
+ * @async
+ * @function getMainDataTemplates
+ * @returns {Promise<Result<LbacTemplatesBundle>>} Combined header/footer metadata or failure.
+ */
+export async function getMainDataTemplates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for LBAC main data export.
+ *
+ * @async
+ * @function uploadMainDataTemplate
+ * @param {LbacTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<LbacTemplateInfo>>} Template metadata on success.
+ */
+export async function uploadMainDataTemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for LBAC main data export.
+ *
+ * @async
+ * @function modifyMainDataTemplate
+ * @param {LbacTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<LbacTemplateInfo>>} Updated template metadata on success.
+ */
+export async function modifyMainDataTemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for LBAC main data export.
+ *
+ * @async
+ * @function removeMainDataTemplate
+ * @param {LbacTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or failure.
+ */
+export async function removeMainDataTemplate(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
+ * Returns header and footer templates for LBAC quarterly export.
+ *
+ * @async
+ * @function getQuarterlyTemplates
+ * @returns {Promise<Result<LbacTemplatesBundle>>} Combined header/footer metadata or failure.
+ */
+export async function getQuarterlyTemplates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_QUARTERLY_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for LBAC quarterly export.
+ *
+ * @async
+ * @function uploadQuarterlyTemplate
+ * @param {LbacTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<LbacTemplateInfo>>} Template metadata on success.
+ */
+export async function uploadQuarterlyTemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for LBAC quarterly export.
+ *
+ * @async
+ * @function modifyQuarterlyTemplate
+ * @param {LbacTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<LbacTemplateInfo>>} Updated template metadata on success.
+ */
+export async function modifyQuarterlyTemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for LBAC quarterly export.
+ *
+ * @async
+ * @function removeQuarterlyTemplate
+ * @param {LbacTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or failure.
+ */
+export async function removeQuarterlyTemplate(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
+ * Exports LBAC main data for the given year/quarter to an XLSX buffer.
+ *
+ * @description
+ * Calls {@link getAllItems} with year/quarter, then builds a formatted Excel workbook.
+ * Header/footer templates under {@link LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER} are included when present.
+ *
+ * @async
+ * @function exportMainDataToBuffer
+ * @param {LbacMainExportOptions} options - Year, quarter, and selected columns.
+ * @returns {Promise<Result<Buffer>>} XLSX buffer on success, or failure.
+ */
+export async function exportMainDataToBuffer(
+  options: LbacMainExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllItems(options.year, options.quarter);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const [headerResult, footerResult] = await Promise.all([
+      templateBucket.get({ identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
+      templateBucket.get({ identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+    ]);
+    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildLbacExcelBuffer(
+      dataResult.value,
+      options.year,
+      options.quarter,
+      options.columns,
+      headerPath,
+      footerPath,
+    );
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC main data.", {}, e);
+  }
+}
+
+/**
+ * Exports LBAC quarterly report data for the given year/quarter to an XLSX buffer.
+ *
+ * @description
+ * Calls {@link getAllQuarterlyReports} with year/quarter, then builds a formatted Excel workbook.
+ * Header/footer templates under {@link LBAC_QUARTERLY_TEMPLATE_IDENTIFIER} are included when present.
+ *
+ * @async
+ * @function exportQuarterlyToBuffer
+ * @param {LbacQuarterlyExportOptions} options - Year, quarter, and selected columns.
+ * @returns {Promise<Result<Buffer>>} XLSX buffer on success, or failure.
+ */
+export async function exportQuarterlyToBuffer(
+  options: LbacQuarterlyExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllQuarterlyReports(options.year, options.quarter);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const [headerResult, footerResult] = await Promise.all([
+      templateBucket.get({ identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER, type: "header" }),
+      templateBucket.get({ identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER, type: "footer" }),
+    ]);
+    const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildLbacQuarterlyExcelBuffer(
+      dataResult.value,
+      options.year,
+      options.quarter,
+      options.columns,
+      headerPath,
+      footerPath,
+    );
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC quarterly data.", {}, e);
+  }
+}
+
+/**
  * Returns the current year in UTC+8.
  */
 function _getCurrentYearUtc8(): number {
@@ -868,7 +1148,7 @@ function _getCurrentYearUtc8(): number {
 }
 
 /**
- * Returns the current quarter (1–4) in UTC+8.
+ * Returns the current quarter (1窶・) in UTC+8.
  */
 function _getCurrentQuarterUtc8(): number {
   return DateTime.now().setZone("UTC+8").quarter;
@@ -879,7 +1159,7 @@ function _getCurrentQuarterUtc8(): number {
  * expressed as UTC Date objects suitable for database timestamp comparisons.
  *
  * @param {number} year - The calendar year.
- * @param {number} quarter - Quarter number (1–4).
+ * @param {number} quarter - Quarter number (1窶・).
  * @returns {{ start: Date; end: Date }} The start (inclusive) and end (exclusive) boundaries.
  */
 function _getQuarterBoundsUtc8(year: number, quarter: number): { start: Date; end: Date } {
@@ -910,7 +1190,7 @@ function _getCurrentMonthStartUtc8(): Date {
  *   the following quarter), so all obligations within the historical quarter are included.
  *
  * @param {number} year - The year to view.
- * @param {number} quarter - The quarter to view (1–4).
+ * @param {number} quarter - The quarter to view (1窶・).
  * @returns {Date} The cut-off boundary as a UTC Date.
  */
 function _getMonthStartForQuarterView(year: number, quarter: number): Date {
@@ -1040,7 +1320,7 @@ function _computeSupplementalAmount(
  * @param {ObrAipEntry[]} obrAmounts - All OBR AIP entries.
  * @param {string} aipRefId - The aipReferences ID to aggregate.
  * @param {number} year - The year to filter by (UTC+8).
- * @param {number} quarter - The quarter to filter by (1–4).
+ * @param {number} quarter - The quarter to filter by (1窶・).
  * @returns {string} The sum as a decimal string.
  */
 function _obrSumForQuarter(obrAmounts: ObrAipEntry[], aipRefId: string, year: number, quarter: number): string {
@@ -1180,7 +1460,7 @@ async function _fetchQuarterlyReports(reportIds: string[]): Promise<QuarterlyRep
  * @param {SupplementalEntry[]} supplementals - All relevant supplemental entries.
  * @param {ObrAipEntry[]} obrAmounts - All relevant OBR AIP amount entries.
  * @param {number} year - The year to compute calculations for.
- * @param {number} quarter - The quarter (1–4) to compute calculations for.
+ * @param {number} quarter - The quarter (1窶・) to compute calculations for.
  * @returns {LbacObject} The fully computed LBAC item object.
  */
 function _buildLbacItemObject(
@@ -1384,7 +1664,7 @@ function _buildLbacItemObject(
  * @param {SupplementalEntry[]} supplementals - All relevant supplemental entries.
  * @param {ObrAipEntry[]} obrAmounts - All relevant OBR AIP amount entries.
  * @param {number} year - The year to compute calculations for.
- * @param {number} quarter - The quarter (1–4) to compute calculations for.
+ * @param {number} quarter - The quarter (1窶・) to compute calculations for.
  * @returns {LbacViewerObject} The LBAC viewer item object.
  */
 function _buildLbacViewerObject(
@@ -1419,7 +1699,7 @@ function _buildLbacViewerObject(
  * @param {SupplementalEntry[]} supplementals - All relevant supplemental entries.
  * @param {ObrAipEntry[]} obrAmounts - All relevant OBR AIP amount entries.
  * @param {number} year - The year to compute calculations for.
- * @param {number} quarter - The quarter (1–4) to compute calculations for.
+ * @param {number} quarter - The quarter (1窶・) to compute calculations for.
  * @returns {LbacQuarterlyObject} The LBAC quarterly object.
  */
 function _buildLbacQuarterlyObject(
@@ -1863,6 +2143,418 @@ function _collectDescendantGroupIds(groupId: string, allGroups: LbacGroupRow[]):
   return result;
 }
 
+function _mapLbacTemplate(item: TemplateBucketItem): LbacTemplateInfo {
+  return {
+    id: item.id,
+    templateType: item.templateType,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+async function _getLbacTemplateSlot(
+  identifier: string,
+  type: LbacTemplateType,
+): Promise<Result<LbacTemplateInfo | null>> {
+  const result = await templateBucket.get({ identifier, type });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  if (result.type === ErrorCodes.ResourceNotFound) {
+    return new Success(null);
+  }
+  return result;
+}
+
+async function _fetchLbacTemplatesBundle(identifier: string): Promise<Result<LbacTemplatesBundle>> {
+  const headerResult = await _getLbacTemplateSlot(identifier, "header");
+  if (headerResult instanceof Failure) return headerResult;
+
+  const footerResult = await _getLbacTemplateSlot(identifier, "footer");
+  if (footerResult instanceof Failure) return footerResult;
+
+  return new Success({
+    header: headerResult.value,
+    footer: footerResult.value,
+  });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function _resolveTemplateValue(cellValue: any): unknown {
+  if (cellValue === null || cellValue === undefined) return cellValue;
+
+  if (typeof cellValue === "object") {
+    if ("error" in cellValue) return null;
+    if ("formula" in cellValue || "sharedFormula" in cellValue) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = (cellValue as any).result;
+      if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+        return null;
+      }
+      return result ?? null;
+    }
+  }
+
+  return cellValue;
+}
+
+function _offsetMergeRange(range: string, rowOffset: number): string | null {
+  const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(range);
+  if (!m) return null;
+  return `${m[1]}${parseInt(m[2]) + rowOffset}:${m[3]}${parseInt(m[4]) + rowOffset}`;
+}
+
+async function _copyTemplateRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWorkbook: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  destWorksheet: any,
+  startRow: number,
+): Promise<number> {
+  const srcWs = srcWorkbook.getWorksheet(1);
+  if (!srcWs) return startRow;
+
+  const rowOffset = startRow - 1;
+  let currentRow = startRow;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWs.eachRow({ includeEmpty: true }, (row: any) => {
+    const destRow = destWorksheet.getRow(currentRow);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell({ includeEmpty: true }, (cell: any, colNum: number) => {
+      if (cell.type === _MERGE_CELL_TYPE) return;
+
+      const destCell = destRow.getCell(colNum);
+      destCell.value = _resolveTemplateValue(cell.value);
+      if (cell.font) destCell.font = cell.font;
+      if (cell.fill) destCell.fill = cell.fill;
+      if (cell.border) destCell.border = cell.border;
+      if (cell.alignment) destCell.alignment = cell.alignment;
+      if (cell.numFmt) destCell.numFmt = cell.numFmt;
+    });
+    if (row.height) destRow.height = row.height;
+    destRow.commit();
+    currentRow++;
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const merges: string[] = (srcWs.model as any)?.mergeCells ?? [];
+  for (const range of merges) {
+    const adjusted = _offsetMergeRange(range, rowOffset);
+    if (!adjusted) continue;
+    try {
+      destWorksheet.mergeCells(adjusted);
+    } catch {
+      // Ignore overlapping or invalid ranges
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const destWorkbook = destWorksheet.workbook as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const srcImages: any[] = srcWs.getImages();
+  for (const img of srcImages) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imgModel = img.model as any;
+    if (imgModel.type !== "image") continue;
+
+    const srcImageData = srcWorkbook.getImage(imgModel.imageId);
+    if (!srcImageData) continue;
+
+    const newImageId = destWorkbook.addImage(srcImageData);
+
+    const srcRange = imgModel.range;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adjustedRange: any = {
+      tl: {
+        nativeCol: srcRange.tl.nativeCol,
+        nativeColOff: srcRange.tl.nativeColOff,
+        nativeRow: srcRange.tl.nativeRow + rowOffset,
+        nativeRowOff: srcRange.tl.nativeRowOff,
+      },
+      editAs: srcRange.editAs,
+    };
+    if (srcRange.br) {
+      adjustedRange.br = {
+        nativeCol: srcRange.br.nativeCol,
+        nativeColOff: srcRange.br.nativeColOff,
+        nativeRow: srcRange.br.nativeRow + rowOffset,
+        nativeRowOff: srcRange.br.nativeRowOff,
+      };
+    }
+    if (srcRange.ext) adjustedRange.ext = srcRange.ext;
+    if (srcRange.hyperlinks) adjustedRange.hyperlinks = srcRange.hyperlinks;
+
+    destWorksheet.addImage(newImageId, adjustedRange);
+  }
+
+  return currentRow;
+}
+
+
+function _argbHex(color: string): string {
+  const hex = color.replace("#", "");
+  return `FF${hex.toUpperCase()}`;
+}
+
+function _fillArgb(hexColor: string) {
+  return { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: _argbHex(hexColor) } };
+}
+
+function _applyHeaderMerges(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  headerStartRow: number,
+  merges: import("@/lib/lbac/export-layout").HeaderMergeRange[],
+) {
+  for (const m of merges) {
+    const row = headerStartRow + (m.row - 1);
+    if (m.startCol === m.endCol) continue;
+    try {
+      ws.mergeCells(row, m.startCol, row, m.endCol);
+    } catch {
+      // ignore invalid merges when columns are filtered
+    }
+  }
+}
+
+function _writeLbacHeaderRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  layout: { row1: string[]; row2: string[]; merges: import("@/lib/lbac/export-layout").HeaderMergeRange[] },
+) {
+  const r1 = ws.getRow(row);
+  layout.row1.forEach((label, idx) => {
+    const cell = r1.getCell(idx + 1);
+    cell.value = label;
+    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.fill = _HEADER_FILL;
+    cell.border = _THIN_BORDER;
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  });
+  r1.height = 22;
+  r1.commit();
+
+  const r2 = ws.getRow(row + 1);
+  layout.row2.forEach((label, idx) => {
+    const cell = r2.getCell(idx + 1);
+    cell.value = label;
+    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.fill = _HEADER_FILL;
+    cell.border = _THIN_BORDER;
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  });
+  r2.height = 22;
+  r2.commit();
+
+  _applyHeaderMerges(ws, row, layout.merges);
+}
+
+function _writeLbacDataRow(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  columns: readonly LbacMainExportColDef[] | readonly LbacQuarterlyExportColDef[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  values: any[],
+  style: {
+    fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
+    font?: object;
+    bold?: boolean;
+  },
+) {
+  const wsRow = ws.getRow(row);
+  const mfoIdx = columns.findIndex(c => c.key === "mfoPpa");
+
+  values.forEach((value, idx) => {
+    const colDef = columns[idx];
+    const cell = wsRow.getCell(idx + 1);
+    cell.value = value === "" ? null : value;
+    cell.border = _THIN_BORDER;
+    cell.font = {
+      size: 10,
+      name: "Arial Narrow",
+      bold: style.bold ?? false,
+      color: style.font && "color" in style.font ? style.font.color : undefined,
+    };
+    if (style.fill) cell.fill = style.fill;
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: colDef?.numeric ? "right" : "left",
+      wrapText: colDef?.key === "mfoPpa" || !colDef?.numeric,
+    };
+    if (colDef?.numeric) {
+      cell.numFmt = colDef.key === "cutOffPercentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+    }
+  });
+
+  if (style.fill && mfoIdx >= 0) {
+    for (let c = 0; c < columns.length; c++) {
+      if (c !== mfoIdx) {
+        wsRow.getCell(c + 1).fill = style.fill;
+      }
+    }
+  }
+
+  wsRow.commit();
+}
+
+function _mainRowValues(
+  flatRow: LbacMainExportFlatRow,
+  columns: readonly LbacMainExportColDef[],
+): (string | number)[] {
+  return columns.map(col => getMainDataCellValue(flatRow, col.key));
+}
+
+function _quarterlyRowValues(
+  flatRow: LbacQuarterlyExportFlatRow,
+  columns: readonly LbacQuarterlyExportColDef[],
+): (string | number)[] {
+  return columns.map(col => getQuarterlyCellValue(flatRow, col.key));
+}
+
+async function _buildLbacExcelBuffer(
+  tree: LbacGroupObject[],
+  year: number,
+  _quarter: number,
+  columnKeys: LbacMainExportColumnKey[],
+  headerTemplatePath: string | null,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const columns = resolveMainExportColumns(columnKeys);
+  const headerLayout = buildMainDataHeaderLayout(year, columns);
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBAC");
+
+  columns.forEach((col, idx) => {
+    const width = col.key === "mfoPpa" || col.key.includes("majorFinal") || col.key.includes("performance")
+      || col.key === "remarks" || col.key === "otherRemarks" || col.key === "priorYearAccomplishments"
+      || col.key === "physicalTargets" || col.key.startsWith("qr")
+      ? 28
+      : 14;
+    ws.getColumn(idx + 1).width = width;
+  });
+
+  let row = 1;
+
+  if (headerTemplatePath) {
+    const headerWb = new Workbook();
+    await headerWb.xlsx.readFile(headerTemplatePath);
+    row = await _copyTemplateRows(headerWb, ws, row);
+  }
+
+  const headerRow = row;
+  _writeLbacHeaderRows(ws, row, headerLayout);
+  row += 2;
+
+  const flatRows = flattenLbacMainForExport(tree as unknown as import("@/lib/http/client/responses").LbacGroupResponse[]);
+  for (const flatRow of flatRows) {
+    if (flatRow.kind === "group") {
+      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      const values = _mainRowValues(flatRow, columns);
+      _writeLbacDataRow(ws, row, columns, values, {
+        fill,
+        bold: true,
+        font: { color: { argb: "FFFFFFFF" } },
+      });
+    } else if (flatRow.kind === "group-total") {
+      const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
+      const values = _mainRowValues(flatRow, columns);
+      _writeLbacDataRow(ws, row, columns, values, { fill, bold: true });
+    } else {
+      const values = _mainRowValues(flatRow, columns);
+      _writeLbacDataRow(ws, row, columns, values, {});
+    }
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: headerRow + 1, xSplit: 0 }];
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+async function _buildLbacQuarterlyExcelBuffer(
+  tree: LbacQuarterlyGroupObject[],
+  year: number,
+  _quarter: number,
+  columnKeys: LbacQuarterlyExportColumnKey[],
+  headerTemplatePath: string | null,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const columns = resolveQuarterlyExportColumns(columnKeys);
+  const headerLayout = buildQuarterlyHeaderLayout(year, columns);
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBAC Quarterly");
+
+  columns.forEach((col, idx) => {
+    const width = col.key === "mfoPpa" || col.key === "priorYearAccomplishments" || col.key === "remarks"
+      || col.key === "targetForBudgetYear" || col.key.startsWith("phys") || col.key.startsWith("actual")
+      ? 28
+      : 14;
+    ws.getColumn(idx + 1).width = width;
+  });
+
+  let row = 1;
+
+  if (headerTemplatePath) {
+    const headerWb = new Workbook();
+    await headerWb.xlsx.readFile(headerTemplatePath);
+    row = await _copyTemplateRows(headerWb, ws, row);
+  }
+
+  const headerRow = row;
+  _writeLbacHeaderRows(ws, row, headerLayout);
+  row += 2;
+
+  const flatRows = flattenLbacQuarterlyForExport(
+    tree as unknown as import("@/lib/http/client/responses").LbacQuarterlyGroupResponse[],
+  );
+  for (const flatRow of flatRows) {
+    if (flatRow.kind === "group") {
+      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      const values = _quarterlyRowValues(flatRow, columns);
+      _writeLbacDataRow(ws, row, columns, values, {
+        fill,
+        bold: true,
+        font: { color: { argb: "FFFFFFFF" } },
+      });
+    } else if (flatRow.kind === "group-total") {
+      const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
+      const values = _quarterlyRowValues(flatRow, columns);
+      _writeLbacDataRow(ws, row, columns, values, { fill, bold: true });
+    } else {
+      const values = _quarterlyRowValues(flatRow, columns);
+      _writeLbacDataRow(ws, row, columns, values, {});
+    }
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: headerRow + 1, xSplit: 0 }];
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
 export enum LbacObjectType {
   Group = 6767,
   Item = 6768,
@@ -2288,3 +2980,41 @@ export type LbacSearchGroupItem = {
 };
 
 export type LbacSearchResult = LbacSearchGroupItem[];
+
+// ============================================================
+// EXPORT 窶・Template identifiers and management
+// ============================================================
+
+
+
+export type LbacTemplateType = templateBucket.TemplateType;
+
+export type LbacTemplateInfo = {
+  id: string;
+  templateType: LbacTemplateType;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LbacTemplatesBundle = {
+  header: LbacTemplateInfo | null;
+  footer: LbacTemplateInfo | null;
+};
+
+export type LbacTemplateUploadInput = {
+  type: LbacTemplateType;
+  file: Buffer;
+  filename: string;
+};
+
+export interface LbacMainExportOptions {
+  year: number;
+  quarter: number;
+  columns: LbacMainExportColumnKey[];
+}
+
+export interface LbacQuarterlyExportOptions {
+  year: number;
+  quarter: number;
+  columns: LbacQuarterlyExportColumnKey[];
+}

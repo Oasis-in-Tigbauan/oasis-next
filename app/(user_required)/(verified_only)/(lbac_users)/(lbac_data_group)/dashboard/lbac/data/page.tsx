@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -56,6 +56,9 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 
+import { ExportDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-dialog";
+import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
+
 const TOTAL_COLS = 58;
 
 export default function Page() {
@@ -73,6 +76,8 @@ export default function Page() {
   // Dialog states
   type DialogMode = "add-group" | "edit-group" | "add-item" | "edit-item" | null;
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
+  const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -224,6 +229,25 @@ export default function Page() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setExportOpen(true)}
+          >
+            <Download className="size-3" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setManageTemplatesOpen(true)}
+          >
+            <FileSpreadsheet className="size-3" />
+            Templates
+          </Button>
+          <Separator orientation="vertical" className="h-6 mx-1" />
           <Button
             variant="outline"
             size="icon-sm"
@@ -625,6 +649,21 @@ export default function Page() {
           onClose={closeDialog}
         />
       )}
+
+      <ManageTemplatesDialog
+        open={manageTemplatesOpen}
+        onOpenChange={setManageTemplatesOpen}
+        apiPath="/api/lbac/templates/data"
+        description="Upload or replace Excel templates used for LBAC main data report headers and footers."
+      />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        exportApiBase="/api/lbac/export/data"
+        exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+        tree={tree}
+      />
     </div>
   );
 }
