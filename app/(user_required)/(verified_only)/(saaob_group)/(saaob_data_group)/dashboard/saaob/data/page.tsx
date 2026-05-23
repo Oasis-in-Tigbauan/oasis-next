@@ -70,10 +70,11 @@ const MONTH_NAMES = [
   "September", "October", "November", "December",
 ];
 
-type DialogMode = "add-group" | "edit-group" | "add-entry" | "edit-entry" | "move-entry" | null;
+type DialogMode = "add-group" | "edit-group" | "add-entry" | "edit-entry" | "move-entry" | "move-group" | null;
 type ExpenseClassOption = ExpenseClassListResponse["data"][number];
 type OfficeOption = OfficesListResponse["data"][number];
 type SelectedEntryRow = Extract<SaaobFlatRow, { kind: "entry" }>;
+type SelectedGroupRow = Extract<SaaobFlatRow, { kind: "group" }>;
 
 export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
@@ -137,6 +138,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const selectedEntryRow = selectedRow?.kind === "entry" ? selectedRow : null;
+  const selectedGroupRow = selectedRow?.kind === "group" ? selectedRow : null;
   const selectedGroup = selectedRow?.kind === "group" ? selectedRow.data : null;
 
   const toggleCollapse = useCallback((id: string) => {
@@ -149,16 +151,20 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: SaaobFlatRow) => {
+    if (row.kind === "total") return;
     setSelectedRow(prev => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: SaaobFlatRow) => {
+    if (row.kind === "total") return;
     setSelectedRow(row);
     setDialogMode(row.kind === "group" ? "edit-group" : "edit-entry");
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!selectedRow) return;
+
+    if (selectedRow.kind === "total") return;
 
     const label = selectedRow.kind === "group"
       ? `group \"${selectedRow.data.name}\"`
@@ -257,6 +263,20 @@ export default function Page() {
 
         <Button
           variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          disabled={!selectedGroupRow}
+          onClick={() => {
+            if (!selectedGroupRow) return;
+            setDialogMode("move-group");
+          }}
+        >
+          <MoveRight className="size-3" />
+          Move Group
+        </Button>
+
+        <Button
+          variant="outline"
           size="icon-sm"
           aria-label="Delete"
           title="Delete selected"
@@ -267,7 +287,7 @@ export default function Page() {
           <Trash2 />
         </Button>
 
-        {selectedRow && (
+        {selectedRow && selectedRow.kind !== "total" && (
           <Badge variant="secondary" className="ml-2 text-xs">
             {selectedRow.kind === "group"
               ? `Group: ${selectedRow.data.name}`
@@ -415,7 +435,48 @@ export default function Page() {
                     );
                   }
 
-                  const item = row.data;
+                  if (row.kind === "total") {
+                    const total = row.data;
+                    return (
+                      <TableRow
+                        ref={rowVirtualizer.measureElement}
+                        key={row.id}
+                        data-index={virtualRow.index}
+                        style={{ backgroundColor: "#FFF2CC" }}
+                      >
+                        <TableCell
+                          className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words font-bold"
+                          style={{ paddingLeft: `${row.depth * 14 + 4}px` }}
+                        >
+                          Total: {row.groupName}
+                        </TableCell>
+                        <TableCell />
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.annualBudget)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.supplementalOrContinuing)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.appropriation)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.allotment)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.obligation)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.unObligatedBalance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.percentage)}</TableCell>
+                        <TableCell />
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.quarterlyAllotmentBalance.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.quarterlyAllotmentBalance.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.disbursed.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.disbursed.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.disbursed.variance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.variance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.obligated)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.varianceObligated)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.obligationWithPRs.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.obligationWithPRs.balance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.obligationWithPRs.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.pr)}</TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  const entryItem = row.data;
                   const isSelected = selectedRow?.id === row.id;
 
                   return (
@@ -432,30 +493,30 @@ export default function Page() {
                         className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words"
                         style={{ paddingLeft: `${row.depth * 14 + 4}px` }}
                       >
-                        {item.name}
+                        {entryItem.name}
                       </TableCell>
-                      <TableCell>{txt(item.accountCode)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.annualBudget)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.supplementalOrContinuing)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.appropriation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.allotment)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.obligation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.unObligatedBalance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(item.percentage)}</TableCell>
-                      <TableCell>{txt(item.other.remarks)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.quarterlyAllotmentBalance.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(item.other.quarterlyAllotmentBalance.percentage)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.disbursed.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(item.other.disbursed.percentage)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.disbursed.variance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.lbacBudget.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.lbacBudget.variance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.lbacBudget.obligated)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.lbacBudget.varianceObligated)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.obligationWithPRs.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.obligationWithPRs.balance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(item.other.obligationWithPRs.percentage)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(item.other.pr)}</TableCell>
+                      <TableCell>{txt(entryItem.accountCode)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.annualBudget)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.supplementalOrContinuing)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.appropriation)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.allotment)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.obligation)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.unObligatedBalance)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.percentage)}</TableCell>
+                      <TableCell>{txt(entryItem.other.remarks)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.quarterlyAllotmentBalance.value)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.other.quarterlyAllotmentBalance.percentage)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.disbursed.value)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.other.disbursed.percentage)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.disbursed.variance)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.value)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.variance)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.obligated)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.varianceObligated)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.obligationWithPRs.value)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.obligationWithPRs.balance)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.other.obligationWithPRs.percentage)}</TableCell>
+                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.pr)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -518,6 +579,15 @@ export default function Page() {
       {dialogMode === "move-entry" && selectedEntryRow && (
         <MoveEntryDialog
           entryRow={selectedEntryRow}
+          allGroups={allGroups}
+          onSuccess={onSuccess}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialogMode === "move-group" && selectedGroupRow && (
+        <MoveGroupDialog
+          groupRow={selectedGroupRow}
           allGroups={allGroups}
           onSuccess={onSuccess}
           onClose={closeDialog}
@@ -1026,6 +1096,112 @@ function MoveEntryDialog({
           <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={submitting}>
             {submitting ? "Moving..." : "Move Entry"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MoveGroupDialog({
+  groupRow,
+  allGroups,
+  onSuccess,
+  onClose,
+}: {
+  groupRow: SelectedGroupRow;
+  allGroups: SaaobGroupResponse[];
+  onSuccess: () => void;
+  onClose: () => void;
+}) {
+  const baseId = useId();
+  const [targetGroupId, setTargetGroupId] = useState<string>("__root__");
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Groups that cannot be a target: the group itself and all its descendants
+  const excludedIds = useMemo(() => {
+    const ids = new Set<string>([groupRow.id]);
+    const collectDescendants = (id: string) => {
+      for (const g of allGroups) {
+        if ((g as SaaobGroupResponse & { parentId?: string }).parentId === id) {
+          ids.add(g.id);
+          collectDescendants(g.id);
+        }
+      }
+    };
+    collectDescendants(groupRow.id);
+    return ids;
+  }, [groupRow.id, allGroups]);
+
+  const eligibleGroups = allGroups.filter(g => !excludedIds.has(g.id));
+
+  const handleSave = async () => {
+    if (submitting) return;
+
+    const resolvedTarget = targetGroupId === "__root__" ? null : targetGroupId;
+
+    setSubmitting(true);
+    setActionError(null);
+
+    try {
+      const response = await fetch(`/api/saaob/groups/${groupRow.id}/move`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetGroupId: resolvedTarget }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setActionError(payload?.message ?? "Failed to move group. Please try again.");
+        return;
+      }
+
+      onSuccess();
+    } catch {
+      setActionError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move Group</DialogTitle>
+          <DialogDescription>
+            Move &ldquo;{groupRow.data.name}&rdquo; to a different parent group, or to the root level.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${baseId}-target-group`}>Target Parent</Label>
+          <Select
+            value={targetGroupId}
+            onValueChange={setTargetGroupId}
+            disabled={submitting}
+          >
+            <SelectTrigger id={`${baseId}-target-group`}>
+              <SelectValue placeholder="Select target..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__root__">Root (no parent)</SelectItem>
+              {eligibleGroups.map(group => (
+                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {actionError && (
+          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={submitting}>
+            {submitting ? "Moving..." : "Move Group"}
           </Button>
         </DialogFooter>
       </DialogContent>

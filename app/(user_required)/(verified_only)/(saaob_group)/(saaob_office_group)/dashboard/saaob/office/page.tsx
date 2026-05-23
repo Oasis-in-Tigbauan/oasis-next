@@ -210,6 +210,47 @@ export default function Page() {
                     );
                   }
 
+                  if (row.kind === "total") {
+                    const total = row.data;
+                    return (
+                      <TableRow
+                        ref={rowVirtualizer.measureElement}
+                        key={row.id}
+                        data-index={virtualRow.index}
+                        style={{ backgroundColor: "#FFF2CC" }}
+                      >
+                        <TableCell
+                          className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words font-bold"
+                          style={{ paddingLeft: `${row.depth * 14 + 4}px` }}
+                        >
+                          Total: {row.groupName}
+                        </TableCell>
+                        <TableCell />
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.annualBudget)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.supplementalOrContinuing)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.appropriation)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.allotment)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.obligation)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.unObligatedBalance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.percentage)}</TableCell>
+                        <TableCell />
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.quarterlyAllotmentBalance.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.quarterlyAllotmentBalance.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.disbursed.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.disbursed.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.disbursed.variance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.variance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.obligated)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.varianceObligated)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.obligationWithPRs.value)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.obligationWithPRs.balance)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.obligationWithPRs.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.pr)}</TableCell>
+                      </TableRow>
+                    );
+                  }
+
                   const item = row.data;
                   return (
                     <TableRow

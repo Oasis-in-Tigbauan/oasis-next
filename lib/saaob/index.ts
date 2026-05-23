@@ -138,6 +138,7 @@ export async function createGroup(
       id: created.id,
       name: created.name,
       officeId: created.officeId ?? undefined,
+      total: _computeSummaryItemAggregate([]),
       children: [],
     });
   } catch (e) {
@@ -686,31 +687,30 @@ export async function searchItems(query: string): Promise<Result<SaaobSearchResu
       const directChildGroups = childGroupsByParent.get(group.id) ?? [];
       const directChildEntries = allEntries.filter(e => e.parentId === group.id);
 
-      if (expandedGroupIds.has(group.id)) {
-        return {
-          id: group.id,
-          name: group.name,
-          officeId: group.officeId ?? undefined,
-          children: [
-            ...directChildGroups.map(cg => buildPrunedGroup(cg)),
-            ...directChildEntries.map(e => computedEntryMap.get(e.id)).filter((e): e is SaaobEntry => e !== undefined),
-          ],
-        };
-      }
+      let builtChildren: Array<SaaobGroup | SaaobEntry>;
 
-      const relevantChildGroups = directChildGroups.filter(
-        cg => pathGroupIds.has(cg.id) || expandedGroupIds.has(cg.id),
-      );
-      const relevantEntries = directChildEntries
-        .filter(e => matchedEntryIds.has(e.id))
-        .map(e => computedEntryMap.get(e.id))
-        .filter((e): e is SaaobEntry => e !== undefined);
+      if (expandedGroupIds.has(group.id)) {
+        builtChildren = [
+          ...directChildGroups.map(cg => buildPrunedGroup(cg)),
+          ...directChildEntries.map(e => computedEntryMap.get(e.id)).filter((e): e is SaaobEntry => e !== undefined),
+        ];
+      } else {
+        const relevantChildGroups = directChildGroups.filter(
+          cg => pathGroupIds.has(cg.id) || expandedGroupIds.has(cg.id),
+        );
+        const relevantEntries = directChildEntries
+          .filter(e => matchedEntryIds.has(e.id))
+          .map(e => computedEntryMap.get(e.id))
+          .filter((e): e is SaaobEntry => e !== undefined);
+        builtChildren = [...relevantChildGroups.map(cg => buildPrunedGroup(cg)), ...relevantEntries];
+      }
 
       return {
         id: group.id,
         name: group.name,
         officeId: group.officeId ?? undefined,
-        children: [...relevantChildGroups.map(cg => buildPrunedGroup(cg)), ...relevantEntries],
+        total: _computeSummaryItemAggregate(_collectEntriesFromSaaobChildren(builtChildren)),
+        children: builtChildren,
       };
     };
 
@@ -1465,6 +1465,14 @@ function _buildTree(
     }
   }
 
+  const collectAllEntriesForGroup = (groupId: string): SaaobEntry[] => {
+    const result: SaaobEntry[] = [...(entriesByGroup.get(groupId) ?? [])];
+    for (const childGroup of (childGroupsByParent.get(groupId) ?? [])) {
+      result.push(...collectAllEntriesForGroup(childGroup.id));
+    }
+    return result;
+  };
+
   const buildGroup = (group: SaaobGroupRow): SaaobGroup => {
     const childGroups = childGroupsByParent.get(group.id) ?? [];
     const childEntries = entriesByGroup.get(group.id) ?? [];
@@ -1472,6 +1480,7 @@ function _buildTree(
       id: group.id,
       name: group.name,
       officeId: group.officeId ?? undefined,
+      total: _computeSummaryItemAggregate(collectAllEntriesForGroup(group.id)),
       children: [...childGroups.map(cg => buildGroup(cg)), ...childEntries],
     };
   };
@@ -2036,6 +2045,18 @@ function _isSaaobGroupNode(node: SaaobGroup | SaaobEntry): node is SaaobGroup {
   return "children" in node;
 }
 
+function _collectEntriesFromSaaobChildren(children: Array<SaaobGroup | SaaobEntry>): SaaobEntry[] {
+  const result: SaaobEntry[] = [];
+  for (const child of children) {
+    if (_isSaaobGroupNode(child)) {
+      result.push(..._collectEntriesFromSaaobChildren(child.children));
+    } else {
+      result.push(child);
+    }
+  }
+  return result;
+}
+
 function _flattenForExport(
   nodes: Array<SaaobGroup | SaaobEntry>,
   depth: number,
@@ -2363,6 +2384,7 @@ export type BaseSaaobGroup = {
 };
 
 export type SaaobGroup = BaseSaaobGroup & {
+  total: SaaobSummaryItemAggregate;
   children: Array<SaaobGroup | SaaobEntry>;
 };
 
