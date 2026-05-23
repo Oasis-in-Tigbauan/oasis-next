@@ -60,19 +60,22 @@ Additionally, you will need to have certain API Keys:
 
    It will ask you for a couple of things like Sentry API Key, Resend API Key, Database credentials, etc.
 
-4. After creating the .env config and the environment, you can seed the data:
-   ```sh
-   pnpm run db:seed
-   ```
-
-5. To create a enroller account, you need to run
+4. To create a enroller account, you need to run
    ```sh
    pnpm run enroller -- --enable
    ```
 
-   To disable the enroller account, just run: `pnpm run enroller -- --disable`.
+   > [!IMPORTANT]
+   > You need to disable the enroller account via `pnpm run enroller -- --disable` after inviting people
+   > to join the organization on production environments. You won't like that someone have access to the
+   > enroller account and have malicious actors come in!
 
-6. Start the project!
+   > [!NOTE]
+   > You don't need to create an enroller account for testing. You may need this to test enrollment flows.
+   > However, it is faster to use the `account-tool` (Accessible via `pnpm run account-tool`) to create
+   > accounts, offices and positions.
+
+5. Start the project!
    ```sh
    pnpm run dev
    ```
