@@ -12,7 +12,11 @@ import {
   fmtAmount,
   fmtPercent,
 } from "@/lib/saaob/client";
-import type { SaaobGroupResponse, SaaobEntryResponse } from "@/lib/http/client/responses";
+import type {
+  SaaobGroupResponse,
+  SaaobEntryResponse,
+  SaaobGroupTotalResponse,
+} from "@/lib/http/client/responses";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -62,6 +66,37 @@ function getEntryPreviewValue(
   case "obligationWithPRsPct":       return fmtPercent(entry.other.obligationWithPRs.percentage);
   case "pr":                         return fmtAmount(entry.other.pr);
   default:                           return "—";
+  }
+}
+
+function getGroupTotalPreviewValue(
+  total: SaaobGroupTotalResponse,
+  col: SaaobExportColumnKey,
+): string {
+  switch (col) {
+  case "accountCode":                return "";
+  case "annualBudget":               return fmtAmount(total.annualBudget);
+  case "supplementalOrContinuing":   return fmtAmount(total.supplementalOrContinuing);
+  case "appropriation":              return fmtAmount(total.appropriation);
+  case "allotment":                  return fmtAmount(total.allotment);
+  case "obligation":                 return fmtAmount(total.obligation);
+  case "unobligatedBalance":         return fmtAmount(total.unObligatedBalance);
+  case "percentage":                 return fmtPercent(total.percentage);
+  case "remarks":                    return "";
+  case "quarterlyAllotmentBalance":      return fmtAmount(total.other.quarterlyAllotmentBalance.value);
+  case "quarterlyAllotmentBalancePct":   return fmtPercent(total.other.quarterlyAllotmentBalance.percentage);
+  case "disbursed":                  return fmtAmount(total.other.disbursed.value);
+  case "disbursedPct":               return fmtPercent(total.other.disbursed.percentage);
+  case "disbursedVariance":          return fmtAmount(total.other.disbursed.variance);
+  case "lbacBudget":                 return fmtAmount(total.other.lbacBudget.value);
+  case "lbacBudgetVariance":         return fmtAmount(total.other.lbacBudget.variance);
+  case "lbacObligated":              return fmtAmount(total.other.lbacBudget.obligated);
+  case "lbacObligatedVariance":      return fmtAmount(total.other.lbacBudget.varianceObligated);
+  case "obligationWithPRs":          return fmtAmount(total.other.obligationWithPRs.value);
+  case "obligationWithPRsBalance":   return fmtAmount(total.other.obligationWithPRs.balance);
+  case "obligationWithPRsPct":       return fmtPercent(total.other.obligationWithPRs.percentage);
+  case "pr":                         return fmtAmount(total.other.pr);
+  default:                           return "";
   }
 }
 
@@ -152,7 +187,25 @@ function PreviewTable({
                 );
               }
 
-              if (row.kind === "total") return null;
+              if (row.kind === "total") {
+                // row.depth is groupDepth + 1; root groups are at groupDepth === 0
+                const isRoot = row.depth - 1 === 0;
+                const label = isRoot
+                  ? `TOTAL ${row.groupName.toUpperCase()}`
+                  : `Total ${row.groupName}`;
+                return (
+                  <tr key={row.id} className="bg-muted/20">
+                    <td className="border border-border px-2 py-1 font-bold">
+                      {label}
+                    </td>
+                    {colDefs.map((c: SaaobExportColDef) => (
+                      <td key={c.key} className="border border-border px-2 py-1 text-right font-bold font-mono whitespace-nowrap">
+                        {getGroupTotalPreviewValue(row.data, c.key)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              }
 
               const { data } = row;
               return (

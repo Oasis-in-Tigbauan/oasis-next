@@ -2066,6 +2066,7 @@ function _flattenForExport(
     if (_isSaaobGroupNode(node)) {
       rows.push({ kind: "group", depth, data: node });
       rows.push(..._flattenForExport(node.children, depth + 1));
+      rows.push({ kind: "total", depth, data: node });
     } else {
       rows.push({ kind: "entry", depth, data: node });
     }
@@ -2102,31 +2103,69 @@ function _getEntryColumnValue(entry: SaaobEntry, col: SaaobExportColumnKey): num
   }
 }
 
+function _getGroupTotalColumnValue(
+  total: SaaobSummaryItemAggregate,
+  col: SaaobExportColumnKey,
+): number | string {
+  switch (col) {
+  case "accountCode":                return "";
+  case "annualBudget":               return parseFloat(total.annualBudget) || 0;
+  case "supplementalOrContinuing":   return parseFloat(total.supplementalOrContinuing) || 0;
+  case "appropriation":              return parseFloat(total.appropriation) || 0;
+  case "allotment":                  return parseFloat(total.allotment) || 0;
+  case "obligation":                 return parseFloat(total.obligation) || 0;
+  case "unobligatedBalance":         return parseFloat(total.unObligatedBalance) || 0;
+  case "percentage":                 return parseFloat(total.percentage) || 0;
+  case "remarks":                    return "";
+  case "quarterlyAllotmentBalance":      return parseFloat(total.other.quarterlyAllotmentBalance.value) || 0;
+  case "quarterlyAllotmentBalancePct":   return parseFloat(total.other.quarterlyAllotmentBalance.percentage) || 0;
+  case "disbursed":                  return parseFloat(total.other.disbursed.value) || 0;
+  case "disbursedPct":               return parseFloat(total.other.disbursed.percentage) || 0;
+  case "disbursedVariance":          return parseFloat(total.other.disbursed.variance) || 0;
+  case "lbacBudget":                 return parseFloat(total.other.lbacBudget.value) || 0;
+  case "lbacBudgetVariance":         return parseFloat(total.other.lbacBudget.variance) || 0;
+  case "lbacObligated":              return parseFloat(total.other.lbacBudget.obligated) || 0;
+  case "lbacObligatedVariance":      return parseFloat(total.other.lbacBudget.varianceObligated) || 0;
+  case "obligationWithPRs":          return parseFloat(total.other.obligationWithPRs.value) || 0;
+  case "obligationWithPRsBalance":   return parseFloat(total.other.obligationWithPRs.balance) || 0;
+  case "obligationWithPRsPct":       return parseFloat(total.other.obligationWithPRs.percentage) || 0;
+  case "pr":                         return parseFloat(total.other.pr) || 0;
+  default:
+    return "";
+  }
+}
+
 function _isNumericColumn(key: SaaobExportColumnKey): boolean {
   const col = SAAOB_EXPORT_COLUMNS.find(c => c.key === key) as { numeric: boolean } | undefined;
   return col ? col.numeric : false;
 }
 
 /**
- * Converts a formula cell's value to its last-calculated result, avoiding
- * broken formula references when pasting into a different sheet context.
- * Returns `null` for cells whose cached result is an Excel error (e.g. #VALUE!).
+ * Converts a template cell's value to a plain, safe value for copying into a
+ * new worksheet context:
+ * - Direct error cells (ValueType.Error = 10, value = `{ error: "..." }`) → `null`
+ * - Formula cells → cached `.result`, or `null` when the result is itself an error
+ * - All other values pass through unchanged
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function _resolveTemplateValue(cellValue: any): unknown {
-  if (
-    cellValue !== null
-    && cellValue !== undefined
-    && typeof cellValue === "object"
-    && ("formula" in cellValue || "sharedFormula" in cellValue)
-  ) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = (cellValue as any).result;
-    if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
-      return null;
+  if (cellValue === null || cellValue === undefined) return cellValue;
+
+  if (typeof cellValue === "object") {
+    // Direct error cell: value is { error: "#VALUE!" } etc.
+    if ("error" in cellValue) return null;
+
+    // Formula cell: extract cached result, suppress error results
+    if ("formula" in cellValue || "sharedFormula" in cellValue) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = (cellValue as any).result;
+      if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+        return null;
+      }
+      return result ?? null;
     }
-    return result ?? null;
   }
+
   return cellValue;
 }
 
@@ -2187,6 +2226,48 @@ async function _copyTemplateRows(
     }
   }
 
+  // Copy floating images (e.g. signature graphics) from the source sheet.
+  // Each image is re-registered in the destination workbook and re-anchored
+  // at the same column positions but shifted down by rowOffset rows.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const destWorkbook = destWorksheet.workbook as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const srcImages: any[] = srcWs.getImages();
+  for (const img of srcImages) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imgModel = img.model as any;
+    if (imgModel.type !== "image") continue;
+
+    const srcImageData = srcWorkbook.getImage(imgModel.imageId);
+    if (!srcImageData) continue;
+
+    const newImageId = destWorkbook.addImage(srcImageData);
+
+    const srcRange = imgModel.range;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adjustedRange: any = {
+      tl: {
+        nativeCol: srcRange.tl.nativeCol,
+        nativeColOff: srcRange.tl.nativeColOff,
+        nativeRow: srcRange.tl.nativeRow + rowOffset,
+        nativeRowOff: srcRange.tl.nativeRowOff,
+      },
+      editAs: srcRange.editAs,
+    };
+    if (srcRange.br) {
+      adjustedRange.br = {
+        nativeCol: srcRange.br.nativeCol,
+        nativeColOff: srcRange.br.nativeColOff,
+        nativeRow: srcRange.br.nativeRow + rowOffset,
+        nativeRowOff: srcRange.br.nativeRowOff,
+      };
+    }
+    if (srcRange.ext) adjustedRange.ext = srcRange.ext;
+    if (srcRange.hyperlinks) adjustedRange.hyperlinks = srcRange.hyperlinks;
+
+    destWorksheet.addImage(newImageId, adjustedRange);
+  }
+
   return currentRow;
 }
 
@@ -2229,7 +2310,7 @@ async function _buildSaaobExcelBuffer(
   });
   for (let c = 1; c <= totalCols; c++) {
     const cell = hRow.getCell(c);
-    cell.font = { bold: true, size: 10 };
+    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
     cell.fill = _HEADER_FILL;
     cell.border = _THIN_BORDER;
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
@@ -2251,7 +2332,7 @@ async function _buildSaaobExcelBuffer(
         ws.mergeCells(row, 1, row, totalCols);
         const cell = wsRow.getCell(1);
         cell.value = data.name.toUpperCase();
-        cell.font = { bold: true, size: 11, underline: true };
+        cell.font = { bold: true, size: 11, underline: true, name: "Arial Narrow" };
         cell.fill = _ROOT_FILL;
         cell.border = _THIN_BORDER;
         cell.alignment = { horizontal: "center", vertical: "middle" };
@@ -2260,7 +2341,7 @@ async function _buildSaaobExcelBuffer(
         // 2nd / 3rd level — blue bold, indent 0
         const cell = wsRow.getCell(1);
         cell.value = data.name;
-        cell.font = { bold: true, color: _BLUE_COLOR, size: 10 };
+        cell.font = { bold: true, color: _BLUE_COLOR, size: 10, name: "Arial Narrow" };
         cell.border = _THIN_BORDER;
         cell.alignment = { vertical: "middle", indent: 0, wrapText: true };
         for (let c = 2; c <= totalCols; c++) {
@@ -2270,25 +2351,52 @@ async function _buildSaaobExcelBuffer(
         // 4th / 5th level — blue italic, indent 1
         const cell = wsRow.getCell(1);
         cell.value = data.name;
-        cell.font = { italic: true, color: _BLUE_COLOR, size: 10 };
+        cell.font = { italic: true, color: _BLUE_COLOR, size: 10, name: "Arial Narrow" };
         cell.border = _THIN_BORDER;
         cell.alignment = { vertical: "middle", indent: 1, wrapText: true };
         for (let c = 2; c <= totalCols; c++) {
           wsRow.getCell(c).border = _THIN_BORDER;
         }
       }
+    } else if (flatRow.kind === "total") {
+      // Total row — placed after all children of a group
+      const { depth, data } = flatRow;
+      const label = depth === 0
+        ? `TOTAL ${data.name.toUpperCase()}`
+        : `Total ${data.name}`;
+
+      const nameCell = wsRow.getCell(1);
+      nameCell.value = label;
+      nameCell.font = { bold: true, size: 10, name: "Arial Narrow" };
+      nameCell.border = _THIN_BORDER;
+      nameCell.alignment = { vertical: "middle", wrapText: true };
+
+      columns.forEach((col, idx) => {
+        const dataCell = wsRow.getCell(idx + 2);
+        dataCell.value = _getGroupTotalColumnValue(data.total, col);
+        dataCell.font = { bold: true, size: 10, name: "Arial Narrow" };
+        dataCell.border = _THIN_BORDER;
+        dataCell.alignment = {
+          vertical: "middle",
+          horizontal: _isNumericColumn(col) ? "right" : "left",
+        };
+        if (_isNumericColumn(col)) {
+          dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+        }
+      });
     } else {
       // Entry / item — indent 2, data in subsequent columns
       const { data } = flatRow;
       const nameCell = wsRow.getCell(1);
       nameCell.value = data.name;
-      nameCell.font = { size: 10 };
+      nameCell.font = { size: 10, name: "Arial Narrow" };
       nameCell.border = _THIN_BORDER;
       nameCell.alignment = { vertical: "middle", indent: 2, wrapText: true };
 
       columns.forEach((col, idx) => {
         const dataCell = wsRow.getCell(idx + 2);
         dataCell.value = _getEntryColumnValue(data, col);
+        dataCell.font = { size: 10, name: "Arial Narrow" };
         dataCell.border = _THIN_BORDER;
         dataCell.alignment = { vertical: "middle", horizontal: _isNumericColumn(col) ? "right" : "left" };
         if (_isNumericColumn(col)) {
@@ -2448,7 +2556,8 @@ export interface SaaobExportOptions {
 
 type _ExportFlatRow =
   | { kind: "group"; depth: number; data: SaaobGroup }
-  | { kind: "entry"; depth: number; data: SaaobEntry };
+  | { kind: "entry"; depth: number; data: SaaobEntry }
+  | { kind: "total"; depth: number; data: SaaobGroup };
 
 type ObrMainRow = {
   saaobId: string;
