@@ -205,14 +205,14 @@ export default function Page() {
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className="bg-muted/50 hover:bg-muted/70"
+                        className="select-none text-white"
+                        style={{ backgroundColor: row.depth === 0 ? "#0B5394" : "#26a69a" }}
                       >
                         <TableCell />
                         <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
                           <button
                             type="button"
-                            className="flex items-center gap-1 font-semibold text-left hover:text-primary w-full"
-                            style={{ paddingLeft: `${row.depth * 14}px` }}
+                            className="flex items-center gap-1 font-semibold text-white text-left hover:opacity-80 w-full"
                             onClick={() => toggleCollapse(row.id)}
                           >
                             {isCollapsed
@@ -237,11 +237,8 @@ export default function Page() {
                         className="font-bold"
                         style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
                       >
-                        {/* AIP REF CODE */}
                         <TableCell />
-                        {/* MFO/PPA */}
-                        <TableCell />
-                        {/* Implementing Unit */}
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
                         <TableCell />
                         {/* Appropriation */}
                         <TableCell className="text-right font-mono">{fmt(t.appropriation.contOrSupplementalAugmentation)}</TableCell>
@@ -250,10 +247,8 @@ export default function Page() {
                         {/* Obligation */}
                         <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.obligation)}</TableCell>
                         <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.balance)}</TableCell>
-                        {/* Text columns (prior year, physical targets x5, actual physical x5, variance, %, remarks) */}
                         <TableCell colSpan={14} />
-                        {/* Target for Budget Year — label */}
-                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]" />
                       </TableRow>
                     );
                   }
