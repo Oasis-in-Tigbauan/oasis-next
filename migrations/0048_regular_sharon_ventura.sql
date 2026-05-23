@@ -1,0 +1,1 @@
+ALTER TABLE "saaob_entries" ADD COLUMN "allotment_should_copy_from_appropriation" boolean DEFAULT false NOT NULL;

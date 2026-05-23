@@ -337,6 +337,13 @@
       "when": 1779438814367,
       "tag": "0047_flippant_salo",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1779526791856,
+      "tag": "0048_regular_sharon_ventura",
+      "breakpoints": true
     }
   ]
 }

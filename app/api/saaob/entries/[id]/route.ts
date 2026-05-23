@@ -33,6 +33,7 @@ export async function PATCH(
       annualBudget: { type: "string", formatter: "decimal" },
       remarks: { type: "string", formatter: "non-empty-string" },
       expenseCodeId: { type: "string", formatter: "uuid" },
+      allotmentShouldCopyFromAppropriation: { type: "boolean" },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
