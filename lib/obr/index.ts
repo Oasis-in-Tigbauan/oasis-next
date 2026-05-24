@@ -4,6 +4,7 @@ import { Decimal } from "decimal.js";
 
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
+import { publishEvent } from "@/lib/events";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import {
   aipReferences,
@@ -224,7 +225,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
     });
 
     // Mapping
-    return new Success({
+    const createdRequest = {
       id: transaction.id,
       type: transaction.type,
       requestNumber: transaction.requestNumber,
@@ -253,7 +254,24 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         signer: null,
         signedAt: null,
       })),
-    } satisfies ObrRequestType);
+    } satisfies ObrRequestType;
+
+    await publishEvent({
+      type: "obr.request.submitted",
+      payload: {
+        requestId: createdRequest.id,
+        requestNumber: createdRequest.requestNumber,
+        officeId: user.office.id,
+        actorName: user.fullName,
+        approverPositionIds: [
+          headPosition.id,
+          budgetOfficerPosition.id,
+          ...higherUpSigners.map((position) => position.id),
+        ],
+      },
+    });
+
+    return new Success(createdRequest);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to create a request", { req, userId: user.id }, e);
   }
@@ -359,6 +377,41 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       .returning();
     if (!result) {
       return new Failure(ErrorCodes.Fatal, "Unable to set approver state", { entryId, userId: user.id, status });
+    }
+
+    const [requestSummary] = await db
+      .select({
+        requestNumber: obrRequests.requestNumber,
+        officeId: obrRequests.originatingOfficeId,
+        approvers: sql<({ status: ApprovalState })[]>`COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'status', ${obrRequestApprovers.status}
+              )
+            )
+            FROM ${obrRequestApprovers}
+            WHERE ${obrRequestApprovers.requestId} = ${entryId}
+          ),
+          '[]'::json
+        )`,
+      })
+      .from(obrRequests)
+      .where(eq(obrRequests.id, entryId))
+      .limit(1);
+
+    if (requestSummary) {
+      await publishEvent({
+        type: "obr.request.approval-moved",
+        payload: {
+          requestId: entryId,
+          requestNumber: requestSummary.requestNumber,
+          officeId: requestSummary.officeId,
+          actorName: user.fullName,
+          status,
+          overallStatus: getSummaryOfStates(requestSummary.approvers),
+        },
+      });
     }
 
     return new Success({
@@ -744,6 +797,7 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
       .select({
         id: obrRequests.id,
         requestNumber: obrRequests.requestNumber,
+        originatingOfficeId: obrRequests.originatingOfficeId,
         payee: obrRequests.payee,
         officeAddress: obrRequests.officeAddress,
         prNumber: obrRequests.prNumber,
@@ -926,55 +980,65 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
       return inserted;
     });
 
-    return new Success(
-      data.map(d => ({
-        id: d.id,
-        disbursementVoucherNumber: d.disbursementVoucherNumber,
-        createdAt: d.createdAt,
-        payee: d.payee,
-        address: d.address,
-        particulars: d.particulars,
-        grossAmount: validatorUtilities.isNotEmpty(d.grossAmount) ? d.grossAmount! : null,
-        vatableAmount: validatorUtilities.isNotEmpty(d.vatableAmount) ? d.vatableAmount! : null,
-        taxType: d.taxType ?? null,
-        status: d.status ?? null,
-        responsibilityCenter: {
-          id: responsibilityCenters.get(d.responsibilityCenterId)!.id,
-          aa: responsibilityCenters.get(d.responsibilityCenterId)!.aa,
+    const vouchers = data.map(d => ({
+      id: d.id,
+      disbursementVoucherNumber: d.disbursementVoucherNumber,
+      createdAt: d.createdAt,
+      payee: d.payee,
+      address: d.address,
+      particulars: d.particulars,
+      grossAmount: validatorUtilities.isNotEmpty(d.grossAmount) ? d.grossAmount! : null,
+      vatableAmount: validatorUtilities.isNotEmpty(d.vatableAmount) ? d.vatableAmount! : null,
+      taxType: d.taxType ?? null,
+      status: d.status ?? null,
+      responsibilityCenter: {
+        id: responsibilityCenters.get(d.responsibilityCenterId)!.id,
+        aa: responsibilityCenters.get(d.responsibilityCenterId)!.aa,
+      },
+      signers: {
+        accountant: {
+          id: d.accountantId,
+          name: d.accountantName,
+          position: d.accountantPositionName,
         },
-        signers: {
-          accountant: {
-            id: d.accountantId,
-            name: d.accountantName,
-            position: d.accountantPositionName,
-          },
-          treasurer: {
-            id: d.treasurerId,
-            name: d.treasurerName,
-            position: d.treasurerPositionName,
-          },
-          mayor: {
-            id: d.mayorId,
-            name: d.mayorName,
-            position: d.mayorPositionName,
-          },
-          headOfOffice: {
-            id: d.headUserId,
-            name: d.headUserName,
-            position: d.headUserPositionName,
-          },
+        treasurer: {
+          id: d.treasurerId,
+          name: d.treasurerName,
+          position: d.treasurerPositionName,
         },
-        taxBreakdown: createTaxBreakdown(
-          validatorUtilities.isNotEmpty(d.vatableAmount) ? d.vatableAmount! : null,
-          d.taxType ?? null,
-        ),
-        fundType: validatorUtilities.isNotEmpty(d.fundTypeId)
-          ? allFt.get(d.fundTypeId!)
-          : null,
-        prNumber: d.prNumber,
-        hasElecData: false,
-      } satisfies ObrDisbursementVoucher)),
-    );
+        mayor: {
+          id: d.mayorId,
+          name: d.mayorName,
+          position: d.mayorPositionName,
+        },
+        headOfOffice: {
+          id: d.headUserId,
+          name: d.headUserName,
+          position: d.headUserPositionName,
+        },
+      },
+      taxBreakdown: createTaxBreakdown(
+        validatorUtilities.isNotEmpty(d.vatableAmount) ? d.vatableAmount! : null,
+        d.taxType ?? null,
+      ),
+      fundType: validatorUtilities.isNotEmpty(d.fundTypeId)
+        ? allFt.get(d.fundTypeId!)
+        : null,
+      prNumber: d.prNumber,
+      hasElecData: false,
+    } satisfies ObrDisbursementVoucher));
+
+    await publishEvent({
+      type: "obr.request.disbursement-created",
+      payload: {
+        requestId: obrRequestId,
+        requestNumber: result.requestNumber,
+        officeId: result.originatingOfficeId,
+        actorName: actor.fullName,
+      },
+    });
+
+    return new Success(vouchers);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
@@ -1556,6 +1620,16 @@ export async function createObrItem(requestId: string, user: User): Promise<Resu
       } satisfies ObrItem));
     });
 
+    await publishEvent({
+      type: "obr.request.items-created",
+      payload: {
+        requestId: request.id,
+        requestNumber: request.requestNumber,
+        officeId: request.office.id,
+        actorName: user.fullName,
+      },
+    });
+
     return new Success(transaction);
   } catch (e) {
     return new Failure(
@@ -1883,6 +1957,31 @@ export async function createObrMainData(
     });
 
     const mapped = await _fetchObrMainDataItems(inArray(obrMainData.id, createdIds));
+
+    if (validatorUtilities.isUuid(payload.requestId)) {
+      const [requestInfo] = await db
+        .select({
+          id: obrRequests.id,
+          requestNumber: obrRequests.requestNumber,
+          officeId: obrRequests.originatingOfficeId,
+        })
+        .from(obrRequests)
+        .where(eq(obrRequests.id, payload.requestId!))
+        .limit(1);
+
+      if (requestInfo) {
+        await publishEvent({
+          type: "obr.request.main-data-created",
+          payload: {
+            requestId: requestInfo.id,
+            requestNumber: requestInfo.requestNumber,
+            officeId: requestInfo.officeId,
+            actorName: author.fullName,
+          },
+        });
+      }
+    }
+
     return new Success(mapped);
   } catch (e) {
     return new Failure(
