@@ -58,7 +58,16 @@ type SidebarItem = {
 type SidebarSubItem = {
   title: string;
   href: string;
+  exact?: boolean;
 };
+
+type SidebarCollapsibleItem = {
+  title: string;
+  icon: LucideIcon;
+  items: SidebarSubItem[];
+};
+
+type SidebarSectionItem = SidebarItem | SidebarCollapsibleItem;
 
 const sidebarStyle = {
   "--sidebar-width": "12.75rem",
@@ -78,20 +87,63 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
     { title: "Home", href: "/dashboard", icon: Home, exact: true },
   ];
 
-  const worksheetItems: SidebarItem[] = [
-    hasPermission(permissions.ESRE_READ) ? { title: "ESRE", href: "/dashboard/esre", icon: FileSpreadsheet } : null,
+  const obrItems: SidebarSubItem[] = [
+    { title: "Overview", href: "/dashboard/obr", exact: true },
+    hasAnyPermission(permissions.OBR_REQUEST_READ, permissions.OBR_REQUEST_CREATE)
+      ? { title: "Requests", href: "/dashboard/obr/requests" }
+      : null,
     hasAnyPermission(
-      permissions.OBR_MANAGEMENT_READ,
       permissions.OBR_APPROVER_BASIC_READ,
       permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
       permissions.OBR_APPROVER_ADVANCED_READ,
-      permissions.OBR_REQUEST_READ,
-    ) ? { title: "OBR", href: "/dashboard/obr", icon: BriefcaseBusiness } : null,
-    hasAnyPermission(permissions.SAAOB_OFFICE_READ, permissions.SAAOB_DATA_READ) ? { title: "SAAOB", href: "/dashboard/saaob", icon: FileSpreadsheet } : null,
-    hasAnyPermission(permissions.LBAC_DATA_READ, permissions.LBAC_OFFICE_READ) ? { title: "LBAC", href: "/dashboard/lbac", icon: FileSpreadsheet } : null,
+      permissions.OBR_APPROVER_BASIC_WRITE,
+      permissions.OBR_APPROVER_ADVANCED_WRITE,
+    ) ? { title: "Approvals", href: "/dashboard/obr/approvals" } : null,
+    hasPermission(permissions.OBR_DISBURSEMENT_CREATE)
+      ? { title: "Disbursements", href: "/dashboard/obr/disbursement/manage" }
+      : null,
+    hasPermission(permissions.OBR_APPROVER_BASIC_READ)
+      ? { title: "OBR Items", href: "/dashboard/obr/management/manage" }
+      : null,
+    hasAllPermissions(permissions.OBR_MANAGEMENT_READ, permissions.OBR_MANAGEMENT_WRITE)
+      ? { title: "OBR Data", href: "/dashboard/obr/main/manage" }
+      : null,
+  ].filter((item): item is SidebarSubItem => item !== null);
+
+  const saaobItems: SidebarSubItem[] = [
+    { title: "Overview", href: "/dashboard/saaob", exact: true },
+    hasPermission(permissions.SAAOB_OFFICE_READ)
+      ? { title: "Office View", href: "/dashboard/saaob/office" }
+      : null,
+    hasAllPermissions(permissions.SAAOB_DATA_READ, permissions.SAAOB_DATA_WRITE)
+      ? { title: "Main Data", href: "/dashboard/saaob/data" }
+      : null,
+    hasAllPermissions(permissions.SAAOB_DATA_READ, permissions.SAAOB_DATA_WRITE)
+      ? { title: "Summary of Accounts", href: "/dashboard/saaob/accounts-summary" }
+      : null,
+  ].filter((item): item is SidebarSubItem => item !== null);
+
+  const lbacItems: SidebarSubItem[] = [
+    { title: "Overview", href: "/dashboard/lbac", exact: true },
+    hasPermission(permissions.LBAC_OFFICE_READ)
+      ? { title: "Viewer", href: "/dashboard/lbac/viewer" }
+      : null,
+    hasAllPermissions(permissions.LBAC_QUARTERLY_READ, permissions.LBAC_QUARTERLY_WRITE)
+      ? { title: "Quarterly Reports", href: "/dashboard/lbac/quarterly" }
+      : null,
+    hasAllPermissions(permissions.LBAC_DATA_READ, permissions.LBAC_DATA_WRITE)
+      ? { title: "Data", href: "/dashboard/lbac/data" }
+      : null,
+  ].filter((item): item is SidebarSubItem => item !== null);
+
+  const worksheetItems: SidebarSectionItem[] = [
+    hasPermission(permissions.ESRE_READ) ? { title: "ESRE", href: "/dashboard/esre", icon: FileSpreadsheet } : null,
+    obrItems.length > 0 ? { title: "OBR", icon: BriefcaseBusiness, items: obrItems } : null,
+    saaobItems.length > 0 ? { title: "SAAOB", icon: FileSpreadsheet, items: saaobItems } : null,
+    lbacItems.length > 0 ? { title: "LBAC", icon: FileSpreadsheet, items: lbacItems } : null,
     hasPermission(permissions.SUPPLEMENTAL_READ) ? { title: "Supplemental", href: "/dashboard/supplemental", icon: FileSpreadsheet } : null,
     hasPermission(permissions.AIP_READ) ? { title: "AIP", href: "/dashboard/aip", icon: FileSpreadsheet } : null,
-  ].filter((item): item is SidebarItem => item !== null);
+  ].filter((item): item is SidebarSectionItem => item !== null);
 
   const officeFormItems: SidebarItem[] = [
     hasPermission(permissions.PURCHASING_REQUEST_MANAGE) ? { title: "PR/PO Form", href: "/dashboard/forms/purchasing", icon: ShoppingBasket } : null,
@@ -241,7 +293,7 @@ function SidebarSection({
   pathname,
 }: {
   label: string;
-  items: SidebarItem[];
+  items: SidebarSectionItem[];
   pathname: string;
 }) {
   if (items.length === 0) return null;
@@ -254,7 +306,9 @@ function SidebarSection({
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
           {items.map((item) => (
-            <SidebarNavItem key={item.href} item={item} pathname={pathname} />
+            "items" in item
+              ? <SidebarCollapsibleNavItem key={item.title} item={item} pathname={pathname} />
+              : <SidebarNavItem key={item.href} item={item} pathname={pathname} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -320,6 +374,52 @@ function SidebarNavItem({
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
+  );
+}
+
+function SidebarCollapsibleNavItem({
+  item,
+  pathname,
+}: {
+  item: SidebarCollapsibleItem;
+  pathname: string;
+}) {
+  const active = item.items.some((subItem) => isPathActive(pathname, subItem.href, subItem.exact));
+  const Icon = item.icon;
+
+  return (
+    <Collapsible asChild defaultOpen={active} className="group/collapsible">
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            isActive={active}
+            tooltip={item.title}
+            className="h-8.5 rounded-md px-2.5 text-[11.5px] font-medium text-white/88 data-[active=true]:bg-white/16 data-[active=true]:text-white hover:bg-white/6 hover:text-white"
+          >
+            <Icon className="size-3.5 shrink-0 text-white/70 transition-colors group-hover/menu-button:text-white/92" />
+            <span className="truncate">{item.title}</span>
+            <ChevronRight className="ml-auto size-3.5 text-white/50 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub className="mx-2 mt-1 gap-0.5 border-white/14 pl-2.5">
+            {item.items.map((subItem) => (
+              <SidebarMenuSubItem key={subItem.href}>
+                <SidebarMenuSubButton
+                  asChild
+                  isActive={isPathActive(pathname, subItem.href, subItem.exact)}
+                  className="rounded-md px-2 text-[11px] text-white/78 data-[active=true]:bg-white/14 data-[active=true]:text-white hover:bg-white/6 hover:text-white"
+                >
+                  <Link href={subItem.href}>
+                    <span>{subItem.title}</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
   );
 }
 

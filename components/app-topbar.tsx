@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { usePathname } from "next/navigation";
 
 import {
@@ -17,48 +17,49 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 type RouteMeta = {
   section: string;
   title: string;
-  breadcrumbLabel?: string;
+  breadcrumbs?: string[];
 };
 
 const routeMetaList: Array<{
   matcher: string | RegExp;
   meta: RouteMeta;
 }> = [
-  { matcher: "/dashboard", meta: { section: "Overview", title: "Dashboard", breadcrumbLabel: "Dashboard" } },
-  { matcher: "/dashboard/esre", meta: { section: "Worksheets", title: "ESRE", breadcrumbLabel: "ESRE" } },
-  { matcher: "/dashboard/supplemental", meta: { section: "Worksheets", title: "Supplemental", breadcrumbLabel: "Supplemental" } },
-  { matcher: "/dashboard/aip", meta: { section: "Worksheets", title: "Annual Investment Program", breadcrumbLabel: "AIP" } },
-  { matcher: "/dashboard/lbac", meta: { section: "Worksheets", title: "LBAC Dashboard", breadcrumbLabel: "LBAC" } },
-  { matcher: "/dashboard/lbac/office", meta: { section: "Worksheets", title: "LBAC Quarterly Reports", breadcrumbLabel: "LBAC Office" } },
-  { matcher: "/dashboard/lbac/data", meta: { section: "Worksheets", title: "LBAC Data", breadcrumbLabel: "LBAC Data" } },
-  { matcher: "/dashboard/saaob", meta: { section: "Worksheets", title: "SAAOB Dashboard", breadcrumbLabel: "SAAOB" } },
-  { matcher: "/dashboard/saaob/office", meta: { section: "Worksheets", title: "SAAOB Office View", breadcrumbLabel: "SAAOB Office" } },
-  { matcher: "/dashboard/saaob/data", meta: { section: "Worksheets", title: "SAAOB Management", breadcrumbLabel: "SAAOB Management" } },
-  { matcher: "/dashboard/saaob/accounts-summary", meta: { section: "Worksheets", title: "SAAOB Summary Editor", breadcrumbLabel: "SAAOB Summary" } },
-  { matcher: "/dashboard/obr", meta: { section: "Worksheets", title: "OBR Dashboard", breadcrumbLabel: "OBR" } },
-  { matcher: "/dashboard/obr/requests", meta: { section: "Worksheets", title: "OBR Requests", breadcrumbLabel: "Requests" } },
-  { matcher: "/dashboard/obr/approvals", meta: { section: "Worksheets", title: "OBR Approvals", breadcrumbLabel: "Approvals" } },
-  { matcher: "/dashboard/obr/disbursement", meta: { section: "Worksheets", title: "OBR Disbursement", breadcrumbLabel: "Disbursement" } },
-  { matcher: "/dashboard/obr/disbursement/manage", meta: { section: "Worksheets", title: "Manage Disbursements", breadcrumbLabel: "Manage Disbursements" } },
-  { matcher: "/dashboard/obr/management", meta: { section: "Worksheets", title: "Create OBR Items", breadcrumbLabel: "Create Items" } },
-  { matcher: "/dashboard/obr/management/manage", meta: { section: "Worksheets", title: "Manage OBR Items", breadcrumbLabel: "Manage Items" } },
-  { matcher: "/dashboard/obr/main/create", meta: { section: "Worksheets", title: "Create OBR From Requests", breadcrumbLabel: "Create OBR" } },
-  { matcher: "/dashboard/obr/main/manage", meta: { section: "Worksheets", title: "Manage OBR Main Data", breadcrumbLabel: "OBR Main Data" } },
-  { matcher: "/dashboard/forms/purchasing", meta: { section: "Office Forms", title: "Purchase Request and Purchase Order", breadcrumbLabel: "PR / PO" } },
-  { matcher: "/dashboard/forms/ppmp", meta: { section: "Office Forms", title: "Project Procurement Management Plan", breadcrumbLabel: "PPMP" } },
-  { matcher: "/dashboard/forms/elec", meta: { section: "Office Forms", title: "DV-Elec", breadcrumbLabel: "DV-Elec" } },
-  { matcher: "/dashboard/forms/travel-order", meta: { section: "Office Forms", title: "Travel Orders", breadcrumbLabel: "Travel Orders" } },
-  { matcher: "/dashboard/settings/approvals", meta: { section: "Administration", title: "Account Approvals", breadcrumbLabel: "Approvals" } },
-  { matcher: "/dashboard/settings/invitations", meta: { section: "Administration", title: "Invitations", breadcrumbLabel: "Invitations" } },
-  { matcher: "/dashboard/settings/users", meta: { section: "Administration", title: "User Management", breadcrumbLabel: "Users" } },
-  { matcher: "/dashboard/settings/roles", meta: { section: "Administration", title: "Office and Role Management", breadcrumbLabel: "Roles" } },
-  { matcher: /^\/dashboard\/settings\/roles\/.+\/roles$/, meta: { section: "Administration", title: "Office and Role Editor", breadcrumbLabel: "Role Editor" } },
-  { matcher: "/dashboard/settings/expense-types", meta: { section: "Data Management", title: "Expense Types", breadcrumbLabel: "Expense Types" } },
-  { matcher: "/dashboard/settings/expense-codes", meta: { section: "Data Management", title: "Expense Codes", breadcrumbLabel: "Expense Codes" } },
-  { matcher: "/dashboard/settings/office-codes", meta: { section: "Data Management", title: "Office Codes", breadcrumbLabel: "Office Codes" } },
-  { matcher: "/dashboard/settings/fund-types", meta: { section: "Data Management", title: "Fund Types", breadcrumbLabel: "Fund Types" } },
-  { matcher: "/dashboard/settings/procurement-types", meta: { section: "Data Management", title: "Procurement Types", breadcrumbLabel: "Procurement Types" } },
-  { matcher: "/dashboard/settings", meta: { section: "Administration", title: "Settings", breadcrumbLabel: "Settings" } },
+  { matcher: "/dashboard", meta: { section: "Overview", title: "Dashboard", breadcrumbs: [] } },
+  { matcher: "/dashboard/esre", meta: { section: "Worksheets", title: "ESRE", breadcrumbs: ["ESRE"] } },
+  { matcher: "/dashboard/supplemental", meta: { section: "Worksheets", title: "Supplemental", breadcrumbs: ["Supplemental"] } },
+  { matcher: "/dashboard/aip", meta: { section: "Worksheets", title: "Annual Investment Program", breadcrumbs: ["AIP"] } },
+  { matcher: "/dashboard/lbac", meta: { section: "Worksheets", title: "LBAC Overview", breadcrumbs: ["LBAC"] } },
+  { matcher: "/dashboard/lbac/viewer", meta: { section: "Worksheets", title: "LBAC Viewer", breadcrumbs: ["LBAC", "Viewer"] } },
+  { matcher: "/dashboard/lbac/quarterly", meta: { section: "Worksheets", title: "LBAC Quarterly Reports", breadcrumbs: ["LBAC", "Quarterly Reports"] } },
+  { matcher: "/dashboard/lbac/data", meta: { section: "Worksheets", title: "LBAC Data", breadcrumbs: ["LBAC", "Data"] } },
+  { matcher: "/dashboard/saaob", meta: { section: "Worksheets", title: "SAAOB Overview", breadcrumbs: ["SAAOB"] } },
+  { matcher: "/dashboard/saaob/office", meta: { section: "Worksheets", title: "SAAOB Office View", breadcrumbs: ["SAAOB", "Office View"] } },
+  { matcher: "/dashboard/saaob/data", meta: { section: "Worksheets", title: "SAAOB Main Data", breadcrumbs: ["SAAOB", "Main Data"] } },
+  { matcher: "/dashboard/saaob/accounts-summary", meta: { section: "Worksheets", title: "SAAOB Summary Editor", breadcrumbs: ["SAAOB", "Summary of Accounts"] } },
+  { matcher: "/dashboard/obr", meta: { section: "Worksheets", title: "OBR Overview", breadcrumbs: ["OBR"] } },
+  { matcher: "/dashboard/obr/requests", meta: { section: "Worksheets", title: "OBR Requests", breadcrumbs: ["OBR", "Requests"] } },
+  { matcher: "/dashboard/obr/approvals", meta: { section: "Worksheets", title: "OBR Approvals", breadcrumbs: ["OBR", "Approvals"] } },
+  { matcher: "/dashboard/obr/disbursement", meta: { section: "Worksheets", title: "Create Disbursement", breadcrumbs: ["OBR", "Disbursements", "Create"] } },
+  { matcher: "/dashboard/obr/disbursement/manage", meta: { section: "Worksheets", title: "Disbursements", breadcrumbs: ["OBR", "Disbursements"] } },
+  { matcher: "/dashboard/obr/management", meta: { section: "Worksheets", title: "Create OBR Items", breadcrumbs: ["OBR", "OBR Items", "Create"] } },
+  { matcher: "/dashboard/obr/management/manage", meta: { section: "Worksheets", title: "OBR Items", breadcrumbs: ["OBR", "OBR Items"] } },
+  { matcher: "/dashboard/obr/main/create", meta: { section: "Worksheets", title: "Create OBR Data", breadcrumbs: ["OBR", "OBR Data", "Create"] } },
+  { matcher: "/dashboard/obr/main/manage", meta: { section: "Worksheets", title: "OBR Data", breadcrumbs: ["OBR", "OBR Data"] } },
+  { matcher: "/dashboard/forms/purchasing", meta: { section: "Office Forms", title: "Purchase Request and Purchase Order", breadcrumbs: ["PR / PO"] } },
+  { matcher: "/dashboard/forms/ppmp", meta: { section: "Office Forms", title: "Project Procurement Management Plan", breadcrumbs: ["PPMP"] } },
+  { matcher: "/dashboard/forms/elec", meta: { section: "Office Forms", title: "DV-Elec", breadcrumbs: ["DV-Elec"] } },
+  { matcher: "/dashboard/forms/travel-order", meta: { section: "Office Forms", title: "Travel Orders", breadcrumbs: ["Travel Orders"] } },
+  { matcher: "/dashboard/settings/approvals", meta: { section: "Administration", title: "Account Approvals", breadcrumbs: ["Approvals"] } },
+  { matcher: "/dashboard/settings/invitations", meta: { section: "Administration", title: "Invitations", breadcrumbs: ["Invitations"] } },
+  { matcher: "/dashboard/settings/users", meta: { section: "Administration", title: "User Management", breadcrumbs: ["Users"] } },
+  { matcher: "/dashboard/settings/roles", meta: { section: "Administration", title: "Office and Role Management", breadcrumbs: ["Roles"] } },
+  { matcher: /^\/dashboard\/settings\/roles\/.+\/roles$/, meta: { section: "Administration", title: "Office and Role Editor", breadcrumbs: ["Roles", "Role Editor"] } },
+  { matcher: "/dashboard/settings/expense-types", meta: { section: "Data Management", title: "Expense Types", breadcrumbs: ["Expense Types"] } },
+  { matcher: "/dashboard/settings/expense-codes", meta: { section: "Data Management", title: "Expense Codes", breadcrumbs: ["Expense Codes"] } },
+  { matcher: "/dashboard/settings/office-codes", meta: { section: "Data Management", title: "Office Codes", breadcrumbs: ["Office Codes"] } },
+  { matcher: "/dashboard/settings/fund-types", meta: { section: "Data Management", title: "Fund Types", breadcrumbs: ["Fund Types"] } },
+  { matcher: "/dashboard/settings/procurement-types", meta: { section: "Data Management", title: "Procurement Types", breadcrumbs: ["Procurement Types"] } },
+  { matcher: "/dashboard/settings", meta: { section: "Administration", title: "Settings", breadcrumbs: ["Settings"] } },
 ];
 
 export default function AppTopbar() {
@@ -72,7 +73,7 @@ export default function AppTopbar() {
     return matchedRoute?.meta ?? {
       section: "Workspace",
       title: "Dashboard",
-      breadcrumbLabel: "Dashboard",
+      breadcrumbs: [],
     };
   }, [pathname]);
 
@@ -97,16 +98,16 @@ export default function AppTopbar() {
                     <Link href="/dashboard">Dashboard</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
-                {meta.breadcrumbLabel && meta.breadcrumbLabel !== "Dashboard" && (
-                  <>
+                {meta.breadcrumbs?.map((crumb, index) => (
+                  <Fragment key={`${crumb}-${index}`}>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem className="min-w-0">
                       <BreadcrumbPage className="truncate text-[#52657A]">
-                        {meta.breadcrumbLabel}
+                        {crumb}
                       </BreadcrumbPage>
                     </BreadcrumbItem>
-                  </>
-                )}
+                  </Fragment>
+                ))}
               </BreadcrumbList>
             </Breadcrumb>
           </div>
