@@ -134,6 +134,28 @@ export const twoFactor = pgTable(
   ],
 );
 
+export const appNotifications = pgTable("app_notifications", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  userId: text("user_id")
+    .references(() => user.id, { onDelete: "cascade" })
+    .notNull(),
+  scope: text("scope").notNull(),
+  entityId: text("entity_id"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  href: text("href"),
+  readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+}, (table) => [
+  index("app_notifications_user_idx").on(table.userId),
+  index("app_notifications_scope_idx").on(table.scope),
+  index("app_notifications_created_idx").on(table.createdAt),
+]);
+
 export const invitations = pgTable("invitations", {
   id: text("id")
     .primaryKey()
