@@ -178,8 +178,6 @@ export default function Page() {
 
   return (
     <div className="relative flex flex-col gap-4 p-6">
-      <Typography variant="h3" className="mb-4 grow">OBR Requests</Typography>
-
       <Table className="text-sm">
         {requests.length === 0 && (
           <TableCaption>No OBR requests found.</TableCaption>
