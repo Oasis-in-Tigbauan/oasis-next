@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { appNotifications, officePosition, user } from "@/lib/db/schema";
 import * as permissions from "@/lib/db/permissions";
 import { ErrorCodes, Failure, type Result, Success } from "@/lib/one-of";
+import { publishNotificationUpdate } from "@/lib/realtime/notifications";
 
 export type AppNotification = {
   id: string;
@@ -92,6 +93,8 @@ export async function markNotificationAsRead(userId: string, notificationId: str
         isNull(appNotifications.readAt),
       ));
 
+    await publishNotificationUpdate(userId);
+
     return new Success(null);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to mark notification as read.", { userId, notificationId }, e);
@@ -107,6 +110,8 @@ export async function markAllNotificationsAsRead(userId: string): Promise<Result
         eq(appNotifications.userId, userId),
         isNull(appNotifications.readAt),
       ));
+
+    await publishNotificationUpdate(userId);
 
     return new Success(null);
   } catch (e) {
@@ -239,7 +244,12 @@ async function createNotifications(notifications: NotificationInsert[]): Promise
       return new Success(null);
     }
 
-    await db.insert(appNotifications).values([...deduped.values()]);
+    const payload = [...deduped.values()];
+    await db.insert(appNotifications).values(payload);
+    await Promise.all(
+      [...new Set(payload.map((notification) => notification.userId))]
+        .map((userId) => publishNotificationUpdate(userId)),
+    );
     return new Success(null);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to create notifications.", { count: notifications.length }, e);
