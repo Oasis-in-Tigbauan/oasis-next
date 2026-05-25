@@ -96,6 +96,7 @@ import type {
   PurchasingValidSignatory,
 } from "@/lib/http/client/responses/PurchasingValidSignatoriesResponse";
 import type { ElecListResponse, ElecItem as ElecItemResponse } from "@/lib/http/client/responses/ElecListResponse";
+import type { NotificationItemResponse, NotificationListResponse } from "@/lib/http/client/responses/NotificationListResponse";
 import type {
   TravelOrderListResponse,
   TravelOrderItem as TravelOrderItemResponse,
@@ -216,6 +217,8 @@ export type {
   PurchasingValidSignatory,
   ElecListResponse,
   ElecItemResponse,
+  NotificationItemResponse,
+  NotificationListResponse,
   TravelOrderListResponse,
   TravelOrderItemResponse,
   TravelOrderRequestorResponse,

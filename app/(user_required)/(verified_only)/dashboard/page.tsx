@@ -20,6 +20,7 @@ import {
 } from "@/lib/http/client/responses";
 
 import DashboardHomeCard, { type DashboardHomeIconTone } from "@/components/dashboard-home-card";
+import DashboardNotifications from "@/components/dashboard-notifications";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
@@ -54,13 +55,17 @@ export default function Page() {
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[url('/assets/bg-gray-waves.png')] bg-cover bg-center bg-no-repeat"
       />
-      <div className="relative z-10 flex flex-1 flex-col gap-8 p-4 pt-0 md:p-6">
-        <header className="mx-auto max-w-3xl space-y-3 text-center pt-12">
-          <Typography variant="h2" className="text-[#022551]">Welcome {roleName}!</Typography>
-          <Typography variant="p" className="text-muted-foreground">
-            Your central hub for high-priority administrative tasks, policy oversight, and community leadership. Every decision made here shapes the future of our great city.
-          </Typography>
-        </header>
+      <div className="relative z-10 flex flex-1 flex-col gap-6 p-4 pt-4 md:p-6">
+        <section className="mx-auto w-full max-w-5xl space-y-3">
+          <div className="flex flex-col gap-1">
+            <Typography variant="h2" className="text-[#022551]">Notification Center</Typography>
+            <Typography variant="p" className="text-muted-foreground">
+              Priority request movement for {roleName}. Review actions that need attention before moving into worksheet work.
+            </Typography>
+          </div>
+
+          <DashboardNotifications />
+        </section>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {homeCards.map((card) => (

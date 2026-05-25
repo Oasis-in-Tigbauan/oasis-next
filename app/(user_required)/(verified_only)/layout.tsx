@@ -5,6 +5,7 @@ import { session as auth, SessionCode } from "@/lib/auth";
 
 import AppSidebar from "@/components/app-sidebar";
 import AppTopbar from "@/components/app-topbar";
+import NotificationStreamBridge from "@/components/notification-stream-bridge";
 import {
   SidebarInset,
   SidebarProvider,
@@ -24,6 +25,7 @@ export default async function VerifiedLayout({ children }: { children: ReactNode
 
   return (
     <SidebarProvider>
+      <NotificationStreamBridge />
       <AppSidebar user={session.user!} />
       <SidebarInset className="min-w-0 overflow-x-hidden">
         <AppTopbar />
