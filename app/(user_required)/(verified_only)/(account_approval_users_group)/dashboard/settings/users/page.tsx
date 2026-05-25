@@ -128,7 +128,6 @@ export default function UsersPage() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <Typography variant="h3" className="mb-4">Users</Typography>
       <UserDataTable columns={columns} data={data?.data?.data || []} mutateUserFn={handleMutateFn} />
     </div>
   );

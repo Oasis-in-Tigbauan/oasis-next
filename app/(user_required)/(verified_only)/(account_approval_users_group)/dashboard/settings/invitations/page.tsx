@@ -46,7 +46,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Spinner } from "@/components/ui/spinner";
-import Typography from "@/components/typography";
 
 export default function Invitations() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<InvitationListResponse, ApiResponseException>>(
@@ -78,8 +77,6 @@ export default function Invitations() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <Typography variant="h3" className="mb-4">Invitations</Typography>
-
       <InvitationForm handleInvite={handleInvite} />
 
       <Table>
