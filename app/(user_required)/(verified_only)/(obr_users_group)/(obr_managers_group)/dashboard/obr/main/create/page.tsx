@@ -126,8 +126,6 @@ export default function Page() {
 
   return (
     <div className="relative flex w-full flex-col overflow-x-hidden p-4">
-      <Typography variant="h3" className="mb-4 grow">OBR Main Data — Create</Typography>
-
       <div className="w-full overflow-x-auto">
         <Table className="text-sm min-w-max">
           {requests.length === 0 && (
@@ -144,10 +142,10 @@ export default function Page() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {requests.map(req => (
+            {requests.map((req, index) => (
               <TableRow
                 key={req.id}
-                className="cursor-pointer"
+                className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                 onClick={() => handleRowClick(req)}
               >
                 <TableCell className="font-medium">{req.requestNumber}</TableCell>

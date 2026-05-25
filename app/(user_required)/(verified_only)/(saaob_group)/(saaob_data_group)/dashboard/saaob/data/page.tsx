@@ -360,9 +360,9 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+            <Table className="text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal">Functions/Program/Project/Activity</TableHead>
@@ -484,7 +484,7 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={virtualRow.index}
-                      className={`cursor-pointer select-none ${isSelected ? "bg-accent" : ""}`}
+                      className={`cursor-pointer select-none ${_qabRowClass(entryItem.other.quarterlyAllotmentBalance.percentage, isSelected)}`}
                       title="Double-click to edit"
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
@@ -1207,6 +1207,15 @@ function MoveGroupDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function _qabRowClass(qabPercentage: string | undefined, isSelected: boolean): string {
+  if (isSelected) return "bg-accent";
+  const pct = Number(qabPercentage);
+  if (Number.isNaN(pct)) return "";
+  if (pct < 0) return "bg-red-50 hover:bg-red-100/80";
+  if (Math.abs(pct - 100) < 0.01) return "bg-green-50 hover:bg-green-100/80";
+  return "";
 }
 
 function _getUtc8Year(): number {
