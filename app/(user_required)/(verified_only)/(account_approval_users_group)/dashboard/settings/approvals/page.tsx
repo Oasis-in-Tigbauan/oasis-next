@@ -21,7 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import Typography from "@/components/typography";
 
 export default function ApprovalsPage() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<UnactivatedListResponse, ApiResponseException>>(
@@ -43,7 +42,6 @@ export default function ApprovalsPage() {
   
   return (
     <div className="p-4 pt-0 w-full">
-      <Typography variant="h3" className="mb-4">Approvals</Typography>
 
       <Table>
         <TableCaption>

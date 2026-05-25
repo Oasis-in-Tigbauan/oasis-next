@@ -103,8 +103,6 @@ export default function Page() {
 
   return (
     <div className="relative flex flex-col p-4">
-      <Typography variant="h3" className="mb-4 grow">OBR Approvals</Typography>
-
       <Table className="text-sm">
         {requests.length === 0 && (
           <TableCaption>No requests pending your approval.</TableCaption>
@@ -120,10 +118,10 @@ export default function Page() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {requests.map(req => (
+          {requests.map((req, index) => (
             <TableRow
               key={req.id}
-              className="cursor-pointer"
+              className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
               onClick={() => handleRowClick(req.id)}
             >
               <TableCell className="font-medium">{req.requestNumber}</TableCell>

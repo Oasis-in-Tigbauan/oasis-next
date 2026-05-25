@@ -39,7 +39,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import Typography from "@/components/typography";
 import { validatorUtilities } from "@/lib/validators";
 
 type ExpenseClassItem = ExpenseClassListResponse["data"][number];
@@ -104,7 +103,6 @@ export default function Page() {
   return (
     <div className="p-4 pt-0 w-full">
       <div className="w-full flex gap-4">
-        <Typography variant="h3" className="mb-4 grow">Expense Codes</Typography>
         <CreateExpenseClassDialog mutate={handleCreateMutate} officeCodes={officeCodes} />
       </div>
       <Table>

@@ -218,7 +218,7 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
             <Table className="w-max min-w-full table-fixed text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
@@ -284,7 +284,13 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={item.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${selected ? "bg-accent" : ""}`}
+                      className={`cursor-pointer select-none ${
+                        selected
+                          ? "bg-accent"
+                          : vr.index % 2 === 1
+                            ? "bg-muted hover:bg-muted/50"
+                            : ""
+                      }`}
                       title="Double-click to edit"
                       onClick={() => setSelectedItem(prev => (prev?.id === item.id ? null : item))}
                       onDoubleClick={() => {
