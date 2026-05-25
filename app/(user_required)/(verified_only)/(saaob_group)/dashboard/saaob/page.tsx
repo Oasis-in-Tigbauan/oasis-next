@@ -46,10 +46,6 @@ export default function Page() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <div className="w-full flex gap-4">
-        <Typography variant="h3" className="mb-4 grow">SAAOB Dashboard</Typography>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {
           menuItems.map(item => {
