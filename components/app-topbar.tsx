@@ -12,6 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import NotificationBell from "@/components/notification-bell";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 type RouteMeta = {
@@ -116,6 +117,8 @@ export default function AppTopbar() {
             {meta.title}
           </p>
         </div>
+
+        <NotificationBell />
       </div>
     </header>
   );
