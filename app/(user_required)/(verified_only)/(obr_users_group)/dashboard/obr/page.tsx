@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
-import Typography from "@/components/typography";
 
 export default function Page() {
   const { data, error, isLoading } = useSWR<BetterFetchResponse<UserResponse, ApiResponseException>>(
@@ -47,10 +46,6 @@ export default function Page() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <div className="w-full flex gap-4">
-        <Typography variant="h3" className="mb-4 grow">OBR Dashboard</Typography>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {
           menuItems.map(item => {

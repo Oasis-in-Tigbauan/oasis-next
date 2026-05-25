@@ -305,7 +305,7 @@ export default function Page() {
                   <TableHead className="min-w-36">End of Procurement Activity</TableHead>
                   <TableHead className="min-w-44">Expected Delivery/Implementation Period</TableHead>
                   <TableHead className="min-w-44">Source of Funds</TableHead>
-                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation</TableHead>
+                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation (Php)</TableHead>
                 </TableRow>
                 <TableRow>
                   {Array.from({ length: TOTAL_COLS }, (_, idx) => (

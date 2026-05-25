@@ -530,8 +530,6 @@ export default function Page() {
 
   return (
     <div className="relative flex flex-col p-4">
-      <Typography variant="h3" className="mb-4 grow">OBR Disbursements</Typography>
-
       <div className="w-full overflow-x-auto">
         <Table className="text-sm min-w-max">
           {vouchers.length === 0 && (

@@ -112,8 +112,6 @@ export default function Page() {
 
   return (
     <div className="relative flex w-full flex-col overflow-x-hidden p-4">
-      <Typography variant="h3" className="mb-4 grow">OBR Management</Typography>
-
       <div className="w-full overflow-x-auto">
         <Table className="text-sm min-w-max">
           {items.length === 0 && (
