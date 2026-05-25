@@ -57,7 +57,16 @@ import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 
 import { ExportDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-dialog";
+import { ExportFormsDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-forms-dialog";
+import { ExportLbeFOneDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-lbe-f1-dialog";
 import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const TOTAL_COLS = 58;
 
@@ -78,6 +87,7 @@ export default function Page() {
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportFormType, setExportFormType] = useState<"lbe-f1" | "form-3" | "form-5" | "form-5a" | null>(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -229,15 +239,27 @@ export default function Page() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => setExportOpen(true)}
-          >
-            <Download className="size-3" />
-            Export
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+              >
+                <Download className="size-3" />
+                Export
+                <ChevronDown className="size-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setExportOpen(true)}>Main Data</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setExportFormType("lbe-f1")}>LBE Form 1</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType("form-3")}>LBAC Form 3</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType("form-5")}>LBAC Form 5</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType("form-5a")}>LBAC Form 5A</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"
@@ -670,6 +692,27 @@ export default function Page() {
         exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
         tree={tree}
       />
+
+      <ExportLbeFOneDialog
+        open={exportFormType === "lbe-f1"}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setExportFormType(null);
+        }}
+        tree={tree}
+        exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+      />
+
+      {(exportFormType === "form-3" || exportFormType === "form-5" || exportFormType === "form-5a") && (
+        <ExportFormsDialog
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setExportFormType(null);
+          }}
+          formType={exportFormType}
+          tree={tree}
+          exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+        />
+      )}
     </div>
   );
 }

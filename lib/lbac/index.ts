@@ -37,6 +37,12 @@ import {
   type CollPerfExportColumnKey,
   type CollPerfExportFlatRow,
 } from "@/lib/lbac/coll-perf-export-layout";
+import {
+  LBAC_FORM3_EXPORT_COLUMNS,
+  LBAC_FORM5_EXPORT_COLUMNS,
+  LBAC_FORM5A_EXPORT_COLUMNS,
+  type LbeF1BudgetType,
+} from "@/lib/lbac/forms-export-layout";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
@@ -60,6 +66,10 @@ import { type User } from "@/lib/accounts";
 export const LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER = "lbac.main-data";
 export const LBAC_QUARTERLY_TEMPLATE_IDENTIFIER = "lbac.quarterly";
 export const LBAC_COLL_PERF_TEMPLATE_IDENTIFIER = "lbac.coll-perf";
+export const LBAC_LBE_F1_TEMPLATE_IDENTIFIER = "lbac.lbe-f1";
+export const LBAC_FORM3_TEMPLATE_IDENTIFIER = "lbac.form-3";
+export const LBAC_FORM5_TEMPLATE_IDENTIFIER = "lbac.form-5";
+export const LBAC_FORM5A_TEMPLATE_IDENTIFIER = "lbac.form-5a";
 
 /** ExcelTS numeric number format for monetary amounts. */
 const _NUM_FMT_AMOUNT = "#,##0.00";
@@ -1624,6 +1634,170 @@ export async function removeCollPerfTemplate(type: LbacTemplateType): Promise<Re
   });
 }
 
+export async function getLbeF1Templates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_LBE_F1_TEMPLATE_IDENTIFIER);
+}
+
+export async function uploadLbeF1Template(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_LBE_F1_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function modifyLbeF1Template(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_LBE_F1_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function removeLbeF1Template(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_LBE_F1_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+export async function getForm3Templates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_FORM3_TEMPLATE_IDENTIFIER);
+}
+
+export async function uploadForm3Template(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_FORM3_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function modifyForm3Template(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_FORM3_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function removeForm3Template(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_FORM3_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+export async function getForm5Templates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_FORM5_TEMPLATE_IDENTIFIER);
+}
+
+export async function uploadForm5Template(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_FORM5_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function modifyForm5Template(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_FORM5_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function removeForm5Template(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_FORM5_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+export async function getForm5ATemplates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_FORM5A_TEMPLATE_IDENTIFIER);
+}
+
+export async function uploadForm5ATemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_FORM5A_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function modifyForm5ATemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_FORM5A_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+export async function removeForm5ATemplate(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_FORM5A_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
 /**
  * Exports LBAC main data for the given year/quarter to an XLSX buffer.
  *
@@ -1740,6 +1914,115 @@ export async function exportCollPerfToBuffer(
     return new Success(buffer);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Failed to export collection performance data.", {}, e);
+  }
+}
+
+export async function exportLbeFOneToBuffer(
+  options: LbeFOneExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllItems(options.year, options.quarter);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const flatItems = _flattenItemsForLbeFOne(filteredTree);
+    const itemMap = new Map(flatItems.map(item => [item.id, item]));
+
+    const selectedItems: LbacObject[] = [];
+    const overrides = new Map<string, { forLaterRelease: string; previouslyReleased: string }>();
+    for (const selected of options.items) {
+      const found = itemMap.get(selected.id);
+      if (!found) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "One or more selected items were not found for the selected office.",
+        );
+      }
+      selectedItems.push(found);
+      overrides.set(selected.id, {
+        forLaterRelease: selected.forLaterRelease,
+        previouslyReleased: selected.previouslyReleased,
+      });
+    }
+
+    const footerResult = await templateBucket.get({
+      identifier: LBAC_LBE_F1_TEMPLATE_IDENTIFIER,
+      type: "footer",
+    });
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildLbeFOneExcelBuffer(
+      selectedItems,
+      options.budgetType,
+      overrides,
+      footerPath,
+    );
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBE Form 1.", {}, e);
+  }
+}
+
+export async function exportForm3ToBuffer(
+  options: Form3ExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllItems(options.year, options.quarter);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const footerResult = await templateBucket.get({
+      identifier: LBAC_FORM3_TEMPLATE_IDENTIFIER,
+      type: "footer",
+    });
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildForm3ExcelBuffer(filteredTree, options.year, options.quarter, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 3.", {}, e);
+  }
+}
+
+export async function exportForm5ToBuffer(
+  options: Form5ExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllItems(options.year, options.quarter);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const footerResult = await templateBucket.get({
+      identifier: LBAC_FORM5_TEMPLATE_IDENTIFIER,
+      type: "footer",
+    });
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildForm5ExcelBuffer(filteredTree, options.year, options.quarter, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 5.", {}, e);
+  }
+}
+
+export async function exportForm5AToBuffer(
+  options: Form5AExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await getAllItems(options.year, options.quarter);
+    if (dataResult instanceof Failure) return dataResult;
+
+    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const footerResult = await templateBucket.get({
+      identifier: LBAC_FORM5A_TEMPLATE_IDENTIFIER,
+      type: "footer",
+    });
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildForm5AExcelBuffer(filteredTree, options.year, options.quarter, footerPath);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 5A.", {}, e);
   }
 }
 
@@ -3158,6 +3441,453 @@ async function _buildLbacQuarterlyExcelBuffer(
   return Buffer.from(rawBuffer as unknown as Uint8Array);
 }
 
+function _decimalToNumber(value: string | null | undefined): number {
+  if (!value) return 0;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function _filterTreeByImplementingUnit(
+  tree: LbacGroupObject[],
+  implementingUnitId: string,
+): LbacGroupObject[] {
+  const walkGroup = (group: LbacGroupObject): LbacGroupObject | null => {
+    const filteredChildren: Array<LbacGroupObject | LbacObject> = [];
+
+    for (const child of group.children) {
+      if (child.type === LbacObjectType.Group) {
+        const keptGroup = walkGroup(child as LbacGroupObject);
+        if (keptGroup) {
+          filteredChildren.push(keptGroup);
+        }
+      } else {
+        const item = child as LbacObject;
+        if (item.implementingUnit?.id === implementingUnitId) {
+          filteredChildren.push(item);
+        }
+      }
+    }
+
+    if (filteredChildren.length === 0) return null;
+
+    return {
+      ...group,
+      children: filteredChildren,
+    };
+  };
+
+  return tree
+    .map(walkGroup)
+    .filter((group): group is LbacGroupObject => group !== null);
+}
+
+function _flattenItemsForLbeFOne(tree: LbacGroupObject[]): LbacObject[] {
+  const items: LbacObject[] = [];
+
+  const walk = (nodes: Array<LbacGroupObject | LbacObject>) => {
+    for (const node of nodes) {
+      if (node.type === LbacObjectType.Group) {
+        walk((node as LbacGroupObject).children);
+      } else {
+        items.push(node as LbacObject);
+      }
+    }
+  };
+
+  walk(tree);
+  return items;
+}
+
+type _LbacSimpleFlatRow =
+  | { kind: "group"; depth: number; data: LbacGroupObject }
+  | { kind: "item"; depth: number; data: LbacObject }
+  | { kind: "group-total"; depth: number; data: LbacGroupTotals; isRoot: boolean };
+
+function _flattenLbacTree(tree: LbacGroupObject[]): _LbacSimpleFlatRow[] {
+  const rows: _LbacSimpleFlatRow[] = [];
+
+  const walk = (nodes: Array<LbacGroupObject | LbacObject>, depth: number) => {
+    for (const node of nodes) {
+      if (node.type === LbacObjectType.Group) {
+        const group = node as LbacGroupObject;
+        rows.push({ kind: "group", depth, data: group });
+        walk(group.children, depth + 1);
+        rows.push({ kind: "group-total", depth, data: group.totals, isRoot: depth === 0 });
+      } else {
+        rows.push({ kind: "item", depth, data: node as LbacObject });
+      }
+    }
+  };
+
+  walk(tree, 0);
+  return rows;
+}
+
+function _writeSimpleHeaderRow(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  columns: ReadonlyArray<{ label: string }>,
+) {
+  const wsRow = ws.getRow(row);
+  columns.forEach((col, idx) => {
+    const cell = wsRow.getCell(idx + 1);
+    cell.value = col.label;
+    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.fill = _HEADER_FILL;
+    cell.border = _THIN_BORDER;
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  });
+  wsRow.height = 20;
+  wsRow.commit();
+}
+
+function _writeSimpleDataRow(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  values: Array<string | number | { formula: string }>,
+  numericIndices: Set<number>,
+  style?: {
+    fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
+    fontColor?: string;
+    bold?: boolean;
+    indentIndex?: number;
+    indentDepth?: number;
+  },
+) {
+  const wsRow = ws.getRow(row);
+  values.forEach((value, idx) => {
+    const cell = wsRow.getCell(idx + 1);
+    cell.value = value;
+    cell.border = _THIN_BORDER;
+    cell.font = {
+      size: 10,
+      name: "Arial Narrow",
+      bold: style?.bold ?? false,
+      color: style?.fontColor ? { argb: style.fontColor } : undefined,
+    };
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: numericIndices.has(idx + 1) ? "right" : "left",
+      wrapText: !numericIndices.has(idx + 1),
+      indent: style?.indentIndex === idx + 1 ? style.indentDepth : undefined,
+    };
+    if (numericIndices.has(idx + 1)) {
+      cell.numFmt = _NUM_FMT_AMOUNT;
+    }
+    if (style?.fill) {
+      cell.fill = style.fill;
+    }
+  });
+  wsRow.commit();
+}
+
+async function _buildLbeFOneExcelBuffer(
+  items: LbacObject[],
+  budgetType: LbeF1BudgetType,
+  overrides: Map<string, { forLaterRelease: string; previouslyReleased: string }>,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBE F1");
+
+  const columns = [
+    { label: "PPA CODE", width: 18 },
+    { label: "PPA DESCRIPTION", width: 40 },
+    { label: "OBJECT CLASS/ACCOUNT CODE", width: 24 },
+    { label: "AUTHORIZED APPROPRIATION", width: 20 },
+    { label: "FOR LATER RELEASE", width: 18 },
+    { label: "PREVIOUSLY RELEASED AMOUNT", width: 22 },
+    { label: "THIS RELEASE", width: 18 },
+  ] as const;
+
+  columns.forEach((col, idx) => {
+    ws.getColumn(idx + 1).width = col.width;
+  });
+
+  _writeSimpleHeaderRow(ws, 1, columns);
+
+  const numericIndices = new Set([4, 5, 6, 7]);
+  let row = 2;
+  for (const item of items) {
+    const override = overrides.get(item.id);
+    const authorizedAppropriation = budgetType === "PS"
+      ? item.proposedBudgetPS
+      : budgetType === "MOOE"
+        ? item.proposedBudgetMOOE
+        : budgetType === "FE"
+          ? item.proposedBudgetFE
+          : item.proposedBudgetCO;
+    const values: Array<string | number | { formula: string }> = [
+      item.aipRefCode?.aipReferenceCode ?? "",
+      item.mfoPpa,
+      item.other.expenseCode?.accountCode ?? "",
+      _decimalToNumber(authorizedAppropriation),
+      _decimalToNumber(override?.forLaterRelease),
+      _decimalToNumber(override?.previouslyReleased),
+      { formula: `D${row}-E${row}-F${row}` },
+    ];
+    _writeSimpleDataRow(ws, row, values, numericIndices);
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+async function _buildForm3ExcelBuffer(
+  tree: LbacGroupObject[],
+  _year: number,
+  _quarter: number,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBAC Form 3");
+
+  LBAC_FORM3_EXPORT_COLUMNS.forEach((col, idx) => {
+    ws.getColumn(idx + 1).width = col.key === "majorFinalOutput" || col.key === "remarks" ? 30 : 18;
+  });
+  _writeSimpleHeaderRow(ws, 1, LBAC_FORM3_EXPORT_COLUMNS);
+
+  const rows = _flattenLbacTree(tree);
+  const numericIndices = new Set<number>();
+  let row = 2;
+
+  for (const flatRow of rows) {
+    const values: Array<string | number | { formula: string }> = [];
+    for (const col of LBAC_FORM3_EXPORT_COLUMNS) {
+      if (flatRow.kind === "group") {
+        values.push(col.key === "majorFinalOutput" ? flatRow.data.name : "");
+      } else if (flatRow.kind === "group-total") {
+        values.push(col.key === "majorFinalOutput" ? (flatRow.isRoot ? "Grand Total" : "Total") : "");
+      } else {
+        const item = flatRow.data;
+        switch (col.key) {
+        case "aipRefCode": values.push(item.aipRefCode?.aipReferenceCode ?? ""); break;
+        case "majorFinalOutput": values.push(item.majorFinalOutput ?? ""); break;
+        case "performanceOutputIndicator": values.push(item.performanceOutputIndicator ?? ""); break;
+        case "targetQ1": values.push(item.quarterlyReport.physicalTargets.Q1 ?? ""); break;
+        case "targetQ2": values.push(item.quarterlyReport.physicalTargets.Q2 ?? ""); break;
+        case "targetQ3": values.push(item.quarterlyReport.physicalTargets.Q3 ?? ""); break;
+        case "targetQ4": values.push(item.quarterlyReport.physicalTargets.Q4 ?? ""); break;
+        case "targetTotal": values.push(item.quarterlyReport.physicalTargets.total ?? ""); break;
+        case "actualQ1": values.push(item.quarterlyReport.actualPhysicalPerformance.Q1 ?? ""); break;
+        case "actualQ2": values.push(item.quarterlyReport.actualPhysicalPerformance.Q2 ?? ""); break;
+        case "actualQ3": values.push(item.quarterlyReport.actualPhysicalPerformance.Q3 ?? ""); break;
+        case "actualQ4": values.push(item.quarterlyReport.actualPhysicalPerformance.Q4 ?? ""); break;
+        case "actualTotal": values.push(item.quarterlyReport.actualPhysicalPerformance.total ?? ""); break;
+        case "variance": values.push(item.quarterlyReport.variance ?? ""); break;
+        case "remarks": values.push(item.quarterlyReport.remarks ?? ""); break;
+        }
+      }
+    }
+
+    if (flatRow.kind === "group") {
+      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        fontColor: "FFFFFFFF",
+        bold: true,
+        indentIndex: 2,
+        indentDepth: flatRow.depth,
+      });
+    } else if (flatRow.kind === "group-total") {
+      const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 2, indentDepth: flatRow.depth });
+    } else {
+      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 2, indentDepth: flatRow.depth });
+    }
+
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+async function _buildForm5ExcelBuffer(
+  tree: LbacGroupObject[],
+  _year: number,
+  _quarter: number,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBAC Form 5");
+
+  LBAC_FORM5_EXPORT_COLUMNS.forEach((col, idx) => {
+    ws.getColumn(idx + 1).width = col.key === "programProjectActivity" ? 36 : 20;
+  });
+  _writeSimpleHeaderRow(ws, 1, LBAC_FORM5_EXPORT_COLUMNS);
+
+  const rows = _flattenLbacTree(tree);
+  const numericIndices = new Set<number>([2]);
+  let row = 2;
+
+  for (const flatRow of rows) {
+    const values: Array<string | number | { formula: string }> = [];
+    for (const col of LBAC_FORM5_EXPORT_COLUMNS) {
+      if (flatRow.kind === "group") {
+        values.push(col.key === "programProjectActivity" ? flatRow.data.name : "");
+      } else if (flatRow.kind === "group-total") {
+        if (col.key === "programProjectActivity") {
+          values.push(flatRow.isRoot ? "Grand Total" : "Total");
+        } else if (col.key === "totalCost") {
+          values.push(_decimalToNumber(flatRow.data.appropriation.current));
+        } else {
+          values.push("");
+        }
+      } else {
+        const item = flatRow.data;
+        switch (col.key) {
+        case "programProjectActivity": values.push(item.mfoPpa); break;
+        case "totalCost": values.push(_decimalToNumber(item.appropriation.current)); break;
+        case "performanceIndicator": values.push(item.performanceOutputIndicator ?? ""); break;
+        case "priorYearAccomplishments": values.push(item.other.priorYearAccomplishments ?? ""); break;
+        case "physicalTargets": values.push(item.other.physicalTargets ?? ""); break;
+        case "remarks": values.push(item.other.remarks ?? ""); break;
+        }
+      }
+    }
+
+    if (flatRow.kind === "group") {
+      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        fontColor: "FFFFFFFF",
+        bold: true,
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
+    } else if (flatRow.kind === "group-total") {
+      const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 1, indentDepth: flatRow.depth });
+    } else {
+      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 1, indentDepth: flatRow.depth });
+    }
+
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+async function _buildForm5AExcelBuffer(
+  tree: LbacGroupObject[],
+  _year: number,
+  _quarter: number,
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBAC Form 5A");
+
+  LBAC_FORM5A_EXPORT_COLUMNS.forEach((col, idx) => {
+    ws.getColumn(idx + 1).width = col.key === "programProjectActivity" ? 36 : 16;
+  });
+  _writeSimpleHeaderRow(ws, 1, LBAC_FORM5A_EXPORT_COLUMNS);
+
+  const rows = _flattenLbacTree(tree);
+  const numericIndices = new Set<number>([2, 3, 4, 5, 6]);
+  let row = 2;
+
+  for (const flatRow of rows) {
+    const values: Array<string | number | { formula: string }> = [];
+    for (const col of LBAC_FORM5A_EXPORT_COLUMNS) {
+      if (flatRow.kind === "group") {
+        values.push(col.key === "programProjectActivity" ? flatRow.data.name : "");
+      } else if (flatRow.kind === "group-total") {
+        if (col.key === "programProjectActivity") {
+          values.push(flatRow.isRoot ? "Grand Total" : "Total");
+        } else if (col.key === "allocationQ1") {
+          values.push(_decimalToNumber(flatRow.data.financialAllocation.Q1));
+        } else if (col.key === "allocationQ2") {
+          values.push(_decimalToNumber(flatRow.data.financialAllocation.Q2));
+        } else if (col.key === "allocationQ3") {
+          values.push(_decimalToNumber(flatRow.data.financialAllocation.Q3));
+        } else if (col.key === "allocationQ4") {
+          values.push(_decimalToNumber(flatRow.data.financialAllocation.Q4));
+        } else if (col.key === "allocationTotal") {
+          values.push(_decimalToNumber(flatRow.data.financialAllocation.total));
+        } else {
+          values.push("");
+        }
+      } else {
+        const item = flatRow.data;
+        switch (col.key) {
+        case "programProjectActivity": values.push(item.mfoPpa); break;
+        case "allocationQ1": values.push(_decimalToNumber(item.financialAllocation.Q1)); break;
+        case "allocationQ2": values.push(_decimalToNumber(item.financialAllocation.Q2)); break;
+        case "allocationQ3": values.push(_decimalToNumber(item.financialAllocation.Q3)); break;
+        case "allocationQ4": values.push(_decimalToNumber(item.financialAllocation.Q4)); break;
+        case "allocationTotal": values.push(_decimalToNumber(item.financialAllocation.total)); break;
+        case "targetQ1": values.push(item.quarterlyReport.physicalTargets.Q1 ?? ""); break;
+        case "targetQ2": values.push(item.quarterlyReport.physicalTargets.Q2 ?? ""); break;
+        case "targetQ3": values.push(item.quarterlyReport.physicalTargets.Q3 ?? ""); break;
+        case "targetQ4": values.push(item.quarterlyReport.physicalTargets.Q4 ?? ""); break;
+        }
+      }
+    }
+
+    if (flatRow.kind === "group") {
+      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        fontColor: "FFFFFFFF",
+        bold: true,
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
+    } else if (flatRow.kind === "group-total") {
+      const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 1, indentDepth: flatRow.depth });
+    } else {
+      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 1, indentDepth: flatRow.depth });
+    }
+
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
 function _writeCollPerfTitleRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
@@ -4224,6 +4954,36 @@ export interface LbacQuarterlyExportOptions {
   year: number;
   quarter: number;
   columns: LbacQuarterlyExportColumnKey[];
+}
+
+export interface LbeFOneExportOptions {
+  year: number;
+  quarter: number;
+  implementingUnitId: string;
+  budgetType: LbeF1BudgetType;
+  items: Array<{
+    id: string;
+    forLaterRelease: string;
+    previouslyReleased: string;
+  }>;
+}
+
+export interface Form3ExportOptions {
+  year: number;
+  quarter: number;
+  implementingUnitId: string;
+}
+
+export interface Form5ExportOptions {
+  year: number;
+  quarter: number;
+  implementingUnitId: string;
+}
+
+export interface Form5AExportOptions {
+  year: number;
+  quarter: number;
+  implementingUnitId: string;
 }
 
 export interface CollPerfExportOptions {
