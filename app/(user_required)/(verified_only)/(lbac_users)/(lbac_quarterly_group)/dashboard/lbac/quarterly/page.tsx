@@ -225,7 +225,7 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(103vh-8rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
+            className="h-[calc(103vh-13rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">

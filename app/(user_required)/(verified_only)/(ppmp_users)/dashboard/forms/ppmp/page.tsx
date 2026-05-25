@@ -280,7 +280,7 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
@@ -1157,7 +1157,7 @@ function PlanItemDialog({
               <SaaobSearchCombobox value={saaob} onChange={setSaaob} disabled={submitting} />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-budget`}>Estimated Budget</Label>
+              <Label htmlFor={`${baseId}-budget`}>Estimated Budget (Php)</Label>
               <Input
                 id={`${baseId}-budget`}
                 value={estimatedBudget}
