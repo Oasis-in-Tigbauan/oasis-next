@@ -200,11 +200,16 @@ export function ManageTemplatesDialog({
   onOpenChange,
   apiPath,
   description = "Upload or replace Excel templates used for LBAC report headers and footers.",
+  templateSections = ["header", "footer"],
+  title = "Manage Headers/Footers",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   apiPath: string;
   description?: string;
+  /** Which template slots to show. Defaults to header and footer. */
+  templateSections?: TemplateType[];
+  title?: string;
 }) {
   const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<LbacTemplatesResponse, ApiResponseException>
@@ -216,7 +221,7 @@ export function ManageTemplatesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Manage Headers/Footers</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
@@ -228,21 +233,27 @@ export function ManageTemplatesDialog({
           </Typography>
         ) : (
           <div className="flex flex-col gap-4">
-            <TemplateSection
-              label="Header"
-              type="header"
-              template={templates?.header ?? null}
-              apiPath={apiPath}
-              onMutate={() => void mutate()}
-            />
-            <Separator />
-            <TemplateSection
-              label="Footer"
-              type="footer"
-              template={templates?.footer ?? null}
-              apiPath={apiPath}
-              onMutate={() => void mutate()}
-            />
+            {templateSections.includes("header") && (
+              <TemplateSection
+                label="Header"
+                type="header"
+                template={templates?.header ?? null}
+                apiPath={apiPath}
+                onMutate={() => void mutate()}
+              />
+            )}
+            {templateSections.includes("header") && templateSections.includes("footer") && (
+              <Separator />
+            )}
+            {templateSections.includes("footer") && (
+              <TemplateSection
+                label="Footer"
+                type="footer"
+                template={templates?.footer ?? null}
+                apiPath={apiPath}
+                onMutate={() => void mutate()}
+              />
+            )}
           </div>
         )}
 

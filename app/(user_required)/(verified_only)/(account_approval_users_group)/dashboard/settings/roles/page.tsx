@@ -38,7 +38,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import Typography from "@/components/typography";
 
 export default function RolesPage() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<OfficesExtendedListResponse, ApiResponseException>>(
@@ -69,7 +68,6 @@ export default function RolesPage() {
   return (
     <div className="p-4 pt-0 w-full">
       <div className="w-full flex gap-4 mb-4">
-        <Typography variant="h3" className="grow">Offices</Typography>
         <Button variant="outline" className="ml-auto" onClick={() => mutate()}>
           <RefreshCcw />
           Refresh

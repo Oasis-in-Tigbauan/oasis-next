@@ -46,7 +46,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import Typography from "@/components/typography";
 import { validatorUtilities } from "@/lib/validators";
 
 export default function Page() {
@@ -91,7 +90,6 @@ export default function Page() {
   return (
     <div className="p-4 pt-0 w-full">
       <div className="w-full flex gap-4">
-        <Typography variant="h3" className="mb-4 grow">Office Codes</Typography>
         <CreateOfficeCodeDialog mutate={handleCreateMutate} />
       </div>
       <Table>

@@ -1,0 +1,1 @@
+ALTER TABLE "lbac_collection_performance_data" ALTER COLUMN "account_code" DROP NOT NULL;

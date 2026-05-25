@@ -1,0 +1,1 @@
+ALTER TABLE "lbac_collection_performance_data" ADD COLUMN "ic" text;

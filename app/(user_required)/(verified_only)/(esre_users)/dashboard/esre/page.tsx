@@ -106,10 +106,11 @@ export default function Page() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map(item => (
+            {items.map((item, index) => (
               <EsreTableRow
                 key={item.id}
                 item={item}
+                index={index}
                 selected={selectedItem?.id === item.id}
                 onSelect={() => setSelectedItem(prev => prev?.id === item.id ? null : item)}
               />
@@ -139,16 +140,24 @@ export default function Page() {
 
 function EsreTableRow({
   item,
+  index,
   selected,
   onSelect,
 }: {
   item: EsreItemResponse;
+  index: number;
   selected: boolean;
   onSelect: () => void;
 }) {
   return (
     <TableRow
-      className={selected ? "bg-accent" : undefined}
+      className={
+        selected
+          ? "bg-accent"
+          : index % 2 === 1
+            ? "bg-muted hover:bg-muted/50"
+            : undefined
+      }
       onClick={onSelect}
       style={{ cursor: "pointer" }}
     >

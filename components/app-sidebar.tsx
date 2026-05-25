@@ -134,6 +134,9 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
     hasAllPermissions(permissions.LBAC_DATA_READ, permissions.LBAC_DATA_WRITE)
       ? { title: "Data", href: "/dashboard/lbac/data" }
       : null,
+    hasAllPermissions(permissions.LBAC_DATA_READ, permissions.LBAC_DATA_WRITE)
+      ? { title: "Collection Performance", href: "/dashboard/lbac/coll-perf" }
+      : null,
   ].filter((item): item is SidebarSubItem => item !== null);
 
   const worksheetItems: SidebarSectionItem[] = [

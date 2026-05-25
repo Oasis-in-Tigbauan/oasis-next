@@ -1,4 +1,4 @@
-﻿import { asc, eq, ilike, inArray, or } from "drizzle-orm";
+﻿import { and, asc, eq, ilike, inArray, or } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
@@ -24,12 +24,28 @@ import {
   type LbacQuarterlyExportColumnKey,
   type LbacQuarterlyExportFlatRow,
 } from "@/lib/lbac/export-layout";
+import {
+  buildCollPerfHeaderLayout,
+  COLL_PERF_GROUP_DEPTH_CHILD_COLOR,
+  COLL_PERF_GROUP_DEPTH_ROOT_COLOR,
+  collPerfTotalRowColor,
+  flattenCollPerfForExport,
+  getCollPerfCellValue,
+  quarterEndingLabel,
+  resolveCollPerfExportColumns,
+  type CollPerfExportColDef,
+  type CollPerfExportColumnKey,
+  type CollPerfExportFlatRow,
+} from "@/lib/lbac/coll-perf-export-layout";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import {
   aipReferences,
   expenseClasses,
+  lbacCollectionPerformanceData,
+  lbacCollectionPerformanceGroup,
+  lbacCollectionPerformanceMonthlyData,
   lbacGroups,
   lbacItems,
   lbacQuarterlyReport,
@@ -43,6 +59,7 @@ import { type User } from "@/lib/accounts";
 
 export const LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER = "lbac.main-data";
 export const LBAC_QUARTERLY_TEMPLATE_IDENTIFIER = "lbac.quarterly";
+export const LBAC_COLL_PERF_TEMPLATE_IDENTIFIER = "lbac.coll-perf";
 
 /** ExcelTS numeric number format for monetary amounts. */
 const _NUM_FMT_AMOUNT = "#,##0.00";
@@ -900,6 +917,481 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
   }
 }
 
+// ============================================================
+// Collection performance
+// ============================================================
+
+/**
+ * Fetches the full collection performance hierarchy for the current UTC+8 year.
+ *
+ * @description
+ * Returns all groups and items as a nested tree. Monthly values are filtered to the
+ * current calendar year in UTC+8; derived quarterly totals and performance metrics are
+ * computed per item. Each group includes rolled-up totals for all numeric fields across
+ * its items and nested subgroups (text fields such as particulars and account code are excluded).
+ *
+ * @async
+ * @function collGetAll
+ * @returns {Promise<Result<CollPerfGroupObject[]>>} The root group tree on success, or a failure result on error.
+ */
+export async function collGetAll(): Promise<Result<CollPerfGroupObject[]>> {
+  try {
+    const currentYear = getCollPerfCurrentYear();
+    const [allGroups, allData, allMonthly] = await Promise.all([
+      fetchCollPerfGroups(),
+      db
+        .select({
+          id: lbacCollectionPerformanceData.id,
+          particulars: lbacCollectionPerformanceData.particulars,
+          accountCode: lbacCollectionPerformanceData.accountCode,
+          incomeTarget: lbacCollectionPerformanceData.incomeTarget,
+          groupId: lbacCollectionPerformanceData.groupId,
+        })
+        .from(lbacCollectionPerformanceData),
+      db
+        .select({
+          id: lbacCollectionPerformanceMonthlyData.id,
+          month: lbacCollectionPerformanceMonthlyData.month,
+          year: lbacCollectionPerformanceMonthlyData.year,
+          quarter: lbacCollectionPerformanceMonthlyData.quarter,
+          value: lbacCollectionPerformanceMonthlyData.value,
+          dataId: lbacCollectionPerformanceMonthlyData.dataId,
+        })
+        .from(lbacCollectionPerformanceMonthlyData)
+        .where(eq(lbacCollectionPerformanceMonthlyData.year, currentYear)),
+    ]);
+
+    const monthlyByDataId = new Map<string, CollPerfMonthlyRow[]>();
+    for (const m of allMonthly) {
+      const row: CollPerfMonthlyRow = { ...m, value: String(m.value) };
+      const list = monthlyByDataId.get(m.dataId) ?? [];
+      list.push(row);
+      monthlyByDataId.set(m.dataId, list);
+    }
+
+    const itemsByGroup = new Map<string, CollPerfItemObject[]>();
+    for (const d of allData) {
+      const dataRow: CollPerfDataRow = {
+        ...d,
+        incomeTarget: String(d.incomeTarget),
+      };
+      const item = buildCollPerfItemObject(dataRow, monthlyByDataId.get(d.id) ?? []);
+      const list = itemsByGroup.get(d.groupId) ?? [];
+      list.push(item);
+      itemsByGroup.set(d.groupId, list);
+    }
+
+    return new Success(buildCollPerfTree(allGroups, itemsByGroup));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to fetch collection performance data.", undefined, e);
+  }
+}
+
+/**
+ * Creates a collection performance group, optionally nested under a parent group.
+ *
+ * @description
+ * Inserts a new group row. When parentId is provided, the parent must exist.
+ *
+ * @async
+ * @function collCreateGroup
+ * @param {User} user - The authenticated user creating the group.
+ * @param {string} name - Display name for the group.
+ * @param {string} [parentId] - Optional parent group id; omit for root level.
+ * @returns {Promise<Result<{ id: string; name: string; parentId: string | null }>>} The created group on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ValidationFailure when parentId does not reference an existing group.
+ */
+export async function collCreateGroup(
+  user: User,
+  name: string,
+  parentId?: string,
+): Promise<Result<{ id: string; name: string; parentId: string | null }>> {
+  try {
+    if (parentId) {
+      const [parent] = await db
+        .select({ id: lbacCollectionPerformanceGroup.id })
+        .from(lbacCollectionPerformanceGroup)
+        .where(eq(lbacCollectionPerformanceGroup.id, parentId))
+        .limit(1);
+      if (!parent) {
+        return new Failure(ErrorCodes.ValidationFailure, "The specified parent group does not exist.", { parentId });
+      }
+    }
+
+    const [created] = await db
+      .insert(lbacCollectionPerformanceGroup)
+      .values({
+        name,
+        parentId: parentId ?? null,
+        authorId: user.id,
+      })
+      .returning({
+        id: lbacCollectionPerformanceGroup.id,
+        name: lbacCollectionPerformanceGroup.name,
+        parentId: lbacCollectionPerformanceGroup.parentId,
+      });
+
+    return new Success(created);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create collection performance group.", { userId: user.id }, e);
+  }
+}
+
+/**
+ * Updates the name of a collection performance group.
+ *
+ * @async
+ * @function collModifyGroup
+ * @param {string} id - The group id to update.
+ * @param {string} name - The new group name.
+ * @returns {Promise<Result<{ id: string; name: string }>>} The updated group on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ResourceNotFound when the group does not exist.
+ */
+export async function collModifyGroup(
+  id: string,
+  name: string,
+): Promise<Result<{ id: string; name: string }>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacCollectionPerformanceGroup.id })
+      .from(lbacCollectionPerformanceGroup)
+      .where(eq(lbacCollectionPerformanceGroup.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance group not found.", { id });
+    }
+
+    await db
+      .update(lbacCollectionPerformanceGroup)
+      .set({ name })
+      .where(eq(lbacCollectionPerformanceGroup.id, id));
+
+    return new Success({ id, name });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update collection performance group.", { id }, e);
+  }
+}
+
+/**
+ * Deletes a collection performance group when it has no child groups or data items.
+ *
+ * @async
+ * @function collDeleteGroup
+ * @param {string} id - The group id to delete.
+ * @returns {Promise<Result<{ id: string }>>} The deleted group id on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ResourceNotFound when the group does not exist.
+ * - Returns ValidationFailure when the group or any descendant still contains items or child groups with items.
+ * - Deletes empty descendant groups deepest-first before removing the target group.
+ */
+export async function collDeleteGroup(id: string): Promise<Result<{ id: string }>> {
+  try {
+    const allGroups = await fetchCollPerfGroups();
+    const existing = allGroups.find((g) => g.id === id);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance group not found.", { id });
+    }
+
+    const descendants = collectCollPerfDescendantGroupIds(id, allGroups);
+    const allGroupIds = [id, ...descendants];
+
+    const itemsInTree = await db
+      .select({ id: lbacCollectionPerformanceData.id })
+      .from(lbacCollectionPerformanceData)
+      .where(inArray(lbacCollectionPerformanceData.groupId, allGroupIds))
+      .limit(1);
+
+    if (itemsInTree.length > 0) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Cannot delete a group that still contains collection performance items. Remove all items first.",
+        { id },
+      );
+    }
+
+    const groupsByDepth = new Map<string, number>();
+    const computeDepth = (groupId: string, depth: number) => {
+      groupsByDepth.set(groupId, depth);
+      const children = allGroups.filter((g) => g.parentId === groupId);
+      for (const child of children) {
+        computeDepth(child.id, depth + 1);
+      }
+    };
+    computeDepth(id, 0);
+
+    const sortedIds = [...allGroupIds].sort(
+      (a, b) => (groupsByDepth.get(b) ?? 0) - (groupsByDepth.get(a) ?? 0),
+    );
+
+    await db.transaction(async (tx) => {
+      for (const groupId of sortedIds) {
+        await tx
+          .delete(lbacCollectionPerformanceGroup)
+          .where(eq(lbacCollectionPerformanceGroup.id, groupId));
+      }
+    });
+
+    return new Success({ id });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete collection performance group.", { id }, e);
+  }
+}
+
+/**
+ * Moves a collection performance group to a new parent or to the root level.
+ *
+ * @async
+ * @function collMoveGroup
+ * @param {string} id - The group id to move.
+ * @param {string} [parentId] - Target parent group id, or omit/null for root.
+ * @returns {Promise<Result<{ id: string; parentId: string | null }>>} The moved group on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ResourceNotFound when the group to move does not exist.
+ * - Returns ValidationFailure when parentId does not exist or would create a cycle.
+ */
+export async function collMoveGroup(
+  id: string,
+  parentId?: string,
+): Promise<Result<{ id: string; parentId: string | null }>> {
+  try {
+    const allGroups = await fetchCollPerfGroups();
+    const existing = allGroups.find((g) => g.id === id);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance group not found.", { id });
+    }
+
+    const targetParentId = parentId ?? null;
+
+    if (targetParentId !== null) {
+      const target = allGroups.find((g) => g.id === targetParentId);
+      if (!target) {
+        return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { parentId: targetParentId });
+      }
+
+      const descendants = collectCollPerfDescendantGroupIds(id, allGroups);
+      if (descendants.includes(targetParentId) || targetParentId === id) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "Cannot move a group into itself or one of its descendants.",
+          { id, parentId: targetParentId },
+        );
+      }
+    }
+
+    await db
+      .update(lbacCollectionPerformanceGroup)
+      .set({ parentId: targetParentId })
+      .where(eq(lbacCollectionPerformanceGroup.id, id));
+
+    return new Success({ id, parentId: targetParentId });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to move collection performance group.", { id, parentId }, e);
+  }
+}
+
+/**
+ * Creates a collection performance data item under a group.
+ *
+ * @description
+ * Inserts the data row and optionally upserts monthly values. Monthly entries with the same
+ * month and year update existing rows instead of creating duplicates.
+ *
+ * @async
+ * @function collCreateItem
+ * @param {User} user - The authenticated user creating the item.
+ * @param {string} parentId - The parent group id.
+ * @param {CreateCollPerfDataPayload} payload - Item fields and optional monthly data.
+ * @returns {Promise<Result<CollPerfData>>} The created item with derived fields on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ValidationFailure when parentId does not reference an existing group.
+ */
+export async function collCreateItem(
+  user: User,
+  parentId: string,
+  payload: CreateCollPerfDataPayload,
+): Promise<Result<CollPerfData>> {
+  try {
+    const [parent] = await db
+      .select({ id: lbacCollectionPerformanceGroup.id })
+      .from(lbacCollectionPerformanceGroup)
+      .where(eq(lbacCollectionPerformanceGroup.id, parentId))
+      .limit(1);
+    if (!parent) {
+      return new Failure(ErrorCodes.ValidationFailure, "The specified parent group does not exist.", { parentId });
+    }
+
+    const [created] = await db
+      .insert(lbacCollectionPerformanceData)
+      .values({
+        particulars: payload.particulars,
+        accountCode: payload.accountCode ?? null,
+        incomeTarget: casts.castToDecimal(payload.incomeTarget),
+        groupId: parentId,
+        authorId: user.id,
+      })
+      .returning({ id: lbacCollectionPerformanceData.id });
+
+    if (payload.monthlyData && payload.monthlyData.length > 0) {
+      await upsertCollPerfMonthlyData(created.id, payload.monthlyData);
+    }
+
+    const item = await fetchCollPerfItemById(created.id);
+    if (!item) {
+      return new Failure(ErrorCodes.Fatal, "Unable to retrieve created collection performance item.", { id: created.id });
+    }
+
+    return new Success(toCollPerfData(item));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create collection performance item.", { parentId, userId: user.id }, e);
+  }
+}
+
+/**
+ * Updates a collection performance data item and optionally upserts monthly values.
+ *
+ * @description
+ * Applies partial updates to scalar fields. Monthly entries with matching month and year
+ * update existing rows; non-matching entries are inserted.
+ *
+ * @async
+ * @function collModifyItem
+ * @param {string} id - The data item id.
+ * @param {Partial<CreateCollPerfDataPayload>} payload - Fields to update (all optional).
+ * @returns {Promise<Result<CollPerfData>>} The updated item with derived fields on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ResourceNotFound when the item does not exist.
+ */
+export async function collModifyItem(
+  id: string,
+  payload: Partial<CreateCollPerfDataPayload>,
+): Promise<Result<CollPerfData>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacCollectionPerformanceData.id })
+      .from(lbacCollectionPerformanceData)
+      .where(eq(lbacCollectionPerformanceData.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance item not found.", { id });
+    }
+
+    const updateValues: Record<string, unknown> = {};
+    if (payload.particulars !== undefined) updateValues.particulars = payload.particulars;
+    if (payload.accountCode !== undefined) updateValues.accountCode = payload.accountCode;
+    if (payload.incomeTarget !== undefined) updateValues.incomeTarget = casts.castToDecimal(payload.incomeTarget);
+
+    if (Object.keys(updateValues).length > 0) {
+      await db
+        .update(lbacCollectionPerformanceData)
+        .set(updateValues)
+        .where(eq(lbacCollectionPerformanceData.id, id));
+    }
+
+    if (payload.monthlyData && payload.monthlyData.length > 0) {
+      await upsertCollPerfMonthlyData(id, payload.monthlyData);
+    }
+
+    const item = await fetchCollPerfItemById(id);
+    if (!item) {
+      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated collection performance item.", { id });
+    }
+
+    return new Success(toCollPerfData(item));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update collection performance item.", { id }, e);
+  }
+}
+
+/**
+ * Deletes a collection performance data item and its monthly rows.
+ *
+ * @async
+ * @function collDeleteItem
+ * @param {string} id - The data item id.
+ * @returns {Promise<Result<{ id: string }>>} The deleted item id on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ResourceNotFound when the item does not exist.
+ */
+export async function collDeleteItem(id: string): Promise<Result<{ id: string }>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacCollectionPerformanceData.id })
+      .from(lbacCollectionPerformanceData)
+      .where(eq(lbacCollectionPerformanceData.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance item not found.", { id });
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(lbacCollectionPerformanceMonthlyData)
+        .where(eq(lbacCollectionPerformanceMonthlyData.dataId, id));
+      await tx.delete(lbacCollectionPerformanceData).where(eq(lbacCollectionPerformanceData.id, id));
+    });
+
+    return new Success({ id });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete collection performance item.", { id }, e);
+  }
+}
+
+/**
+ * Moves a collection performance data item to another group.
+ *
+ * @async
+ * @function collMoveItem
+ * @param {string} id - The data item id.
+ * @param {string} parentId - The target group id.
+ * @returns {Promise<Result<{ id: string; parentId: string }>>} The moved item reference on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns ResourceNotFound when the item does not exist.
+ * - Returns ValidationFailure when parentId does not reference an existing group.
+ */
+export async function collMoveItem(
+  id: string,
+  parentId: string,
+): Promise<Result<{ id: string; parentId: string }>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacCollectionPerformanceData.id })
+      .from(lbacCollectionPerformanceData)
+      .where(eq(lbacCollectionPerformanceData.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance item not found.", { id });
+    }
+
+    const [target] = await db
+      .select({ id: lbacCollectionPerformanceGroup.id })
+      .from(lbacCollectionPerformanceGroup)
+      .where(eq(lbacCollectionPerformanceGroup.id, parentId))
+      .limit(1);
+    if (!target) {
+      return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { parentId });
+    }
+
+    await db
+      .update(lbacCollectionPerformanceData)
+      .set({ groupId: parentId })
+      .where(eq(lbacCollectionPerformanceData.id, id));
+
+    return new Success({ id, parentId });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to move collection performance item.", { id, parentId }, e);
+  }
+}
+
 /**
  * Validates a LBAC template type from client input.
  *
@@ -1061,6 +1553,78 @@ export async function removeQuarterlyTemplate(type: LbacTemplateType): Promise<R
 }
 
 /**
+ * Returns header and footer templates for collection performance export.
+ *
+ * @async
+ * @function getCollPerfTemplates
+ * @returns {Promise<Result<LbacTemplatesBundle>>} Combined header/footer metadata or failure.
+ */
+export async function getCollPerfTemplates(): Promise<Result<LbacTemplatesBundle>> {
+  return _fetchLbacTemplatesBundle(LBAC_COLL_PERF_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header or footer template for collection performance export.
+ *
+ * @async
+ * @function uploadCollPerfTemplate
+ * @param {LbacTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<LbacTemplateInfo>>} Template metadata on success.
+ */
+export async function uploadCollPerfTemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: LBAC_COLL_PERF_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Replaces an existing header or footer template for collection performance export.
+ *
+ * @async
+ * @function modifyCollPerfTemplate
+ * @param {LbacTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<LbacTemplateInfo>>} Updated template metadata on success.
+ */
+export async function modifyCollPerfTemplate(
+  input: LbacTemplateUploadInput,
+): Promise<Result<LbacTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: LBAC_COLL_PERF_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+  if (result instanceof Success) {
+    return new Success(_mapLbacTemplate(result.value));
+  }
+  return result;
+}
+
+/**
+ * Removes a header or footer template for collection performance export.
+ *
+ * @async
+ * @function removeCollPerfTemplate
+ * @param {LbacTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or failure.
+ */
+export async function removeCollPerfTemplate(type: LbacTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: LBAC_COLL_PERF_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
  * Exports LBAC main data for the given year/quarter to an XLSX buffer.
  *
  * @description
@@ -1137,6 +1701,45 @@ export async function exportQuarterlyToBuffer(
     return new Success(buffer);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Failed to export LBAC quarterly data.", {}, e);
+  }
+}
+
+/**
+ * Exports collection performance data for the given year/quarter to an XLSX buffer (LBac Form No. 1).
+ *
+ * @description
+ * Calls {@link collGetAll}, then builds a formatted Excel workbook with hierarchical rows and
+ * quarter-specific estimated/actual income columns. A footer template under
+ * {@link LBAC_COLL_PERF_TEMPLATE_IDENTIFIER} is appended when present.
+ *
+ * @async
+ * @function exportCollPerfToBuffer
+ * @param {CollPerfExportOptions} options - Year, quarter, and selected columns.
+ * @returns {Promise<Result<Buffer>>} XLSX buffer on success, or failure.
+ */
+export async function exportCollPerfToBuffer(
+  options: CollPerfExportOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const dataResult = await collGetAll();
+    if (dataResult instanceof Failure) return dataResult;
+
+    const footerResult = await templateBucket.get({
+      identifier: LBAC_COLL_PERF_TEMPLATE_IDENTIFIER,
+      type: "footer",
+    });
+    const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
+
+    const buffer = await _buildCollPerfExcelBuffer(
+      dataResult.value,
+      options.year,
+      options.quarter,
+      options.columns,
+      footerPath,
+    );
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export collection performance data.", {}, e);
   }
 }
 
@@ -2555,6 +3158,616 @@ async function _buildLbacQuarterlyExcelBuffer(
   return Buffer.from(rawBuffer as unknown as Uint8Array);
 }
 
+function _writeCollPerfTitleRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  startRow: number,
+  year: number,
+  quarter: number,
+  colCount: number,
+): number {
+  const formRow = ws.getRow(startRow);
+  const formCell = formRow.getCell(1);
+  formCell.value = "LBac Form No. 1";
+  formCell.font = { italic: true, size: 10, name: "Arial Narrow" };
+  formRow.commit();
+
+  const titleRow = ws.getRow(startRow + 1);
+  const titleCell = titleRow.getCell(1);
+  titleCell.value = "QUARTERLY REPORT OF RECEIPTS";
+  titleCell.font = { bold: true, size: 14, name: "Arial Narrow" };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  if (colCount > 1) {
+    try {
+      ws.mergeCells(startRow + 1, 1, startRow + 1, colCount);
+    } catch {
+      // ignore invalid merge
+    }
+  }
+  titleRow.height = 24;
+  titleRow.commit();
+
+  const subtitleRow = ws.getRow(startRow + 2);
+  const subtitleCell = subtitleRow.getCell(1);
+  subtitleCell.value = `FOR THE QUARTER ENDING ${quarterEndingLabel(year, quarter).toUpperCase()}`;
+  subtitleCell.font = { bold: true, size: 11, name: "Arial Narrow" };
+  subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+  if (colCount > 1) {
+    try {
+      ws.mergeCells(startRow + 2, 1, startRow + 2, colCount);
+    } catch {
+      // ignore invalid merge
+    }
+  }
+  subtitleRow.height = 20;
+  subtitleRow.commit();
+
+  return startRow + 3;
+}
+
+function _writeCollPerfHeaderRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  layout: {
+    row1: string[];
+    row2: string[];
+    row3: string[];
+    merges: import("@/lib/lbac/export-layout").HeaderMergeRange[];
+  },
+) {
+  const writeRow = (rowIndex: number, labels: string[], height: number) => {
+    const wsRow = ws.getRow(rowIndex);
+    labels.forEach((label, idx) => {
+      const cell = wsRow.getCell(idx + 1);
+      cell.value = label;
+      cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+      cell.fill = _HEADER_FILL;
+      cell.border = _THIN_BORDER;
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    });
+    wsRow.height = height;
+    wsRow.commit();
+  };
+
+  writeRow(row, layout.row1, 22);
+  writeRow(row + 1, layout.row2, 22);
+  writeRow(row + 2, layout.row3, 18);
+  _applyHeaderMerges(ws, row, layout.merges);
+}
+
+function _writeCollPerfDataRow(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  columns: readonly CollPerfExportColDef[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  values: any[],
+  quarter: number,
+  style: {
+    fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
+    font?: object;
+    bold?: boolean;
+    depth?: number;
+  },
+) {
+  const wsRow = ws.getRow(row);
+  const particularsIdx = columns.findIndex(c => c.key === "particulars");
+
+  values.forEach((value, idx) => {
+    const colDef = columns[idx];
+    const cell = wsRow.getCell(idx + 1);
+    cell.value = value === "" ? null : value;
+    cell.border = _THIN_BORDER;
+    cell.font = {
+      size: 10,
+      name: "Arial Narrow",
+      bold: style.bold ?? false,
+      color: style.font && "color" in style.font ? style.font.color : undefined,
+    };
+    if (style.fill) cell.fill = style.fill;
+    const isParticulars = colDef?.key === "particulars";
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: colDef?.numeric ? "right" : "left",
+      wrapText: isParticulars || !colDef?.numeric,
+      indent: isParticulars && style.depth !== undefined ? style.depth : undefined,
+    };
+    if (colDef?.numeric) {
+      cell.numFmt = colDef.key === "variancePercent" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+    }
+  });
+
+  if (style.fill && particularsIdx >= 0) {
+    for (let c = 0; c < columns.length; c++) {
+      if (c !== particularsIdx) {
+        wsRow.getCell(c + 1).fill = style.fill;
+      }
+    }
+  }
+
+  void quarter;
+  wsRow.commit();
+}
+
+function _collPerfRowValues(
+  flatRow: CollPerfExportFlatRow,
+  columns: readonly CollPerfExportColDef[],
+  quarter: number,
+): (string | number)[] {
+  return columns.map(col => getCollPerfCellValue(flatRow, col.key, quarter));
+}
+
+async function _buildCollPerfExcelBuffer(
+  tree: CollPerfGroupObject[],
+  year: number,
+  quarter: number,
+  columnKeys: CollPerfExportColumnKey[],
+  footerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+  const columns = resolveCollPerfExportColumns(columnKeys);
+  const headerLayout = buildCollPerfHeaderLayout(quarter, columns);
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("Collection Performance");
+
+  columns.forEach((col, idx) => {
+    const width = col.key === "particulars" || col.key === "remarks" ? 36 : 16;
+    ws.getColumn(idx + 1).width = width;
+  });
+
+  let row = 1;
+  row = _writeCollPerfTitleRows(ws, row, year, quarter, columns.length);
+
+  const headerRow = row;
+  _writeCollPerfHeaderRows(ws, row, headerLayout);
+  row += 3;
+
+  const flatRows = flattenCollPerfForExport(
+    tree as unknown as import("@/lib/http/client/responses").CollPerfGroupResponse[],
+  );
+
+  for (const flatRow of flatRows) {
+    if (flatRow.kind === "group") {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? COLL_PERF_GROUP_DEPTH_ROOT_COLOR : COLL_PERF_GROUP_DEPTH_CHILD_COLOR,
+      );
+      const values = _collPerfRowValues(flatRow, columns, quarter);
+      _writeCollPerfDataRow(ws, row, columns, values, quarter, {
+        fill,
+        bold: true,
+        font: { color: { argb: "FFFFFFFF" } },
+        depth: flatRow.depth,
+      });
+    } else if (flatRow.kind === "group-total") {
+      const fill = _fillArgb(collPerfTotalRowColor(flatRow.depth, flatRow.isRoot));
+      const values = _collPerfRowValues(flatRow, columns, quarter);
+      _writeCollPerfDataRow(ws, row, columns, values, quarter, {
+        fill,
+        bold: true,
+        depth: flatRow.depth,
+      });
+    } else {
+      const values = _collPerfRowValues(flatRow, columns, quarter);
+      _writeCollPerfDataRow(ws, row, columns, values, quarter, {
+        depth: flatRow.depth,
+      });
+    }
+    row++;
+  }
+
+  if (footerTemplatePath) {
+    const footerWb = new Workbook();
+    await footerWb.xlsx.readFile(footerTemplatePath);
+    await _copyTemplateRows(footerWb, ws, row);
+  }
+
+  ws.views = [{ state: "frozen", ySplit: headerRow + 2, xSplit: 0 }];
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+/**
+ * Returns the current calendar year in UTC+8 for collection performance views.
+ *
+ * @function getCollPerfCurrentYear
+ * @returns {number} The current year in UTC+8.
+ */
+function getCollPerfCurrentYear(): number {
+  return DateTime.now().setZone("UTC+8").year;
+}
+
+/**
+ * Maps a calendar month (1–12) to its fiscal quarter (1–4) in UTC+8.
+ *
+ * @function monthToQuarter
+ * @param {number} month - Month number (1–12).
+ * @returns {number} Quarter number (1–4).
+ */
+function monthToQuarter(month: number): number {
+  return Math.ceil(month / 3);
+}
+
+/**
+ * Computes quarterly totals, total collection, performance percentage, and excess/deficit
+ * from monthly rows for the current UTC+8 year.
+ *
+ * @function buildCollPerfDerived
+ * @param {string} incomeTarget - Income target as a decimal string.
+ * @param {CollPerfMonthlyDataItem[]} monthlyRows - Monthly rows for the current year, sorted by month.
+ * @returns {Pick<CollPerfData, "quarterlyData" | "totalCollection" | "collectionPerformance" | "excessOrDeficit">} Derived financial fields.
+ */
+function buildCollPerfDerived(
+  incomeTarget: string,
+  monthlyRows: CollPerfMonthlyDataItem[],
+): Pick<CollPerfData, "quarterlyData" | "totalCollection" | "collectionPerformance" | "excessOrDeficit"> {
+  const sumQuarter = (quarter: number) =>
+    monthlyRows
+      .filter((m) => m.quarter === quarter)
+      .reduce((acc, m) => acc.plus(casts.castFromDecimal(m.value)), new Decimal(0))
+      .toString();
+
+  const totalCollection = monthlyRows
+    .reduce((acc, m) => acc.plus(casts.castFromDecimal(m.value)), new Decimal(0))
+    .toString();
+
+  const targetDec = casts.castFromDecimal(incomeTarget);
+  const totalDec = casts.castFromDecimal(totalCollection);
+  const collectionPerformance = targetDec.isZero()
+    ? "0"
+    : totalDec.div(targetDec).mul(100).toString();
+  const excessOrDeficit = totalDec.minus(targetDec).toString();
+
+  return {
+    quarterlyData: {
+      q1: sumQuarter(1),
+      q2: sumQuarter(2),
+      q3: sumQuarter(3),
+      q4: sumQuarter(4),
+    },
+    totalCollection,
+    collectionPerformance,
+    excessOrDeficit,
+  };
+}
+
+/**
+ * Builds a fully computed collection performance item from a data row and its monthly rows.
+ *
+ * @function buildCollPerfItemObject
+ * @param {CollPerfDataRow} row - The data row from the database.
+ * @param {CollPerfMonthlyRow[]} monthlyRows - Monthly rows for this item (current year only).
+ * @returns {CollPerfItemObject} The item with derived quarterly and performance fields.
+ */
+/**
+ * Strips the discriminant type field from a collection performance item object.
+ *
+ * @function toCollPerfData
+ * @param {CollPerfItemObject} item - Full item object including type discriminant.
+ * @returns {CollPerfData} Item payload without the type field.
+ */
+function toCollPerfData(item: CollPerfItemObject): CollPerfData {
+  return {
+    id: item.id,
+    particulars: item.particulars,
+    accountCode: item.accountCode,
+    incomeTarget: item.incomeTarget,
+    monthlyData: item.monthlyData,
+    quarterlyData: item.quarterlyData,
+    totalCollection: item.totalCollection,
+    collectionPerformance: item.collectionPerformance,
+    excessOrDeficit: item.excessOrDeficit,
+  };
+}
+
+function buildCollPerfItemObject(
+  row: CollPerfDataRow,
+  monthlyRows: CollPerfMonthlyRow[],
+): CollPerfItemObject {
+  const currentYear = getCollPerfCurrentYear();
+  const monthlyData: CollPerfMonthlyDataItem[] = monthlyRows
+    .filter((m) => m.year === currentYear)
+    .map((m) => ({
+      id: m.id,
+      month: m.month,
+      year: m.year,
+      quarter: m.quarter,
+      value: m.value,
+    }))
+    .sort((a, b) => a.month - b.month);
+
+  const derived = buildCollPerfDerived(row.incomeTarget, monthlyData);
+
+  return {
+    type: CollPerfObjectType.Item,
+    id: row.id,
+    particulars: row.particulars,
+    accountCode: row.accountCode,
+    incomeTarget: row.incomeTarget,
+    monthlyData,
+    ...derived,
+  };
+}
+
+/**
+ * Assembles a nested collection performance group tree from flat group and item lists.
+ *
+ * @function buildCollPerfTree
+ * @param {CollPerfGroupRow[]} allGroups - All group rows.
+ * @param {Map<string, CollPerfItemObject[]>} itemsByGroup - Items keyed by group id.
+ * @returns {CollPerfGroupObject[]} Root-level group nodes.
+ */
+function _zeroCollPerfGroupTotals(currentYear: number): CollPerfGroupTotals {
+  const z = "0";
+  const monthlyData: CollPerfMonthlyDataItem[] = [];
+  for (let month = 1; month <= 12; month++) {
+    monthlyData.push({
+      id: "",
+      month,
+      year: currentYear,
+      quarter: monthToQuarter(month),
+      value: z,
+    });
+  }
+  return {
+    incomeTarget: z,
+    monthlyData,
+    quarterlyData: { q1: z, q2: z, q3: z, q4: z },
+    totalCollection: z,
+    collectionPerformance: z,
+    excessOrDeficit: z,
+  };
+}
+
+function _collectAllCollPerfItems(group: CollPerfGroupObject): CollPerfItemObject[] {
+  const items: CollPerfItemObject[] = [];
+  for (const child of group.children) {
+    if (child.type === CollPerfObjectType.Item) {
+      items.push(child);
+    } else {
+      items.push(..._collectAllCollPerfItems(child));
+    }
+  }
+  return items;
+}
+
+/**
+ * Sums numeric collection performance fields across all items in a subtree.
+ * Text fields (particulars, accountCode) are omitted. Performance percentage and
+ * excess/deficit are recomputed from aggregated income target and total collection.
+ *
+ * @function _computeCollPerfGroupTotals
+ * @param {CollPerfItemObject[]} items - All items under a group (including nested groups).
+ * @param {number} currentYear - Calendar year for monthly aggregation (UTC+8).
+ * @returns {CollPerfGroupTotals} Rolled-up numeric totals for the group.
+ */
+function _computeCollPerfGroupTotals(items: CollPerfItemObject[], currentYear: number): CollPerfGroupTotals {
+  let incomeTarget = new Decimal(0);
+  const monthlyByMonth = new Map<number, Decimal>();
+  for (let month = 1; month <= 12; month++) {
+    monthlyByMonth.set(month, new Decimal(0));
+  }
+
+  for (const item of items) {
+    incomeTarget = incomeTarget.plus(casts.castFromDecimal(item.incomeTarget));
+    for (const md of item.monthlyData) {
+      if (md.year === currentYear) {
+        const prev = monthlyByMonth.get(md.month) ?? new Decimal(0);
+        monthlyByMonth.set(md.month, prev.plus(casts.castFromDecimal(md.value)));
+      }
+    }
+  }
+
+  const monthlyData: CollPerfMonthlyDataItem[] = [];
+  for (let month = 1; month <= 12; month++) {
+    monthlyData.push({
+      id: "",
+      month,
+      year: currentYear,
+      quarter: monthToQuarter(month),
+      value: (monthlyByMonth.get(month) ?? new Decimal(0)).toString(),
+    });
+  }
+
+  const derived = buildCollPerfDerived(incomeTarget.toString(), monthlyData);
+
+  return {
+    incomeTarget: incomeTarget.toString(),
+    monthlyData,
+    ...derived,
+  };
+}
+
+function _attachCollPerfGroupTotals(groups: CollPerfGroupObject[], currentYear: number): void {
+  for (const group of groups) {
+    const childGroups = group.children.filter((c) => c.type === CollPerfObjectType.Group) as CollPerfGroupObject[];
+    _attachCollPerfGroupTotals(childGroups, currentYear);
+    group.totals = _computeCollPerfGroupTotals(_collectAllCollPerfItems(group), currentYear);
+  }
+}
+
+function buildCollPerfTree(
+  allGroups: CollPerfGroupRow[],
+  itemsByGroup: Map<string, CollPerfItemObject[]>,
+): CollPerfGroupObject[] {
+  const currentYear = getCollPerfCurrentYear();
+  const groupMap = new Map<string, CollPerfGroupObject>();
+
+  for (const g of allGroups) {
+    groupMap.set(g.id, {
+      type: CollPerfObjectType.Group,
+      id: g.id,
+      name: g.name,
+      children: [],
+      totals: _zeroCollPerfGroupTotals(currentYear),
+    });
+  }
+
+  const roots: CollPerfGroupObject[] = [];
+
+  for (const g of allGroups) {
+    const node = groupMap.get(g.id)!;
+    const groupItems = itemsByGroup.get(g.id) ?? [];
+    node.children.push(...groupItems);
+
+    if (g.parentId === null) {
+      roots.push(node);
+    } else {
+      const parent = groupMap.get(g.parentId);
+      if (parent) {
+        parent.children.push(node);
+      }
+    }
+  }
+
+  _attachCollPerfGroupTotals(roots, currentYear);
+
+  return roots;
+}
+
+/**
+ * Fetches all collection performance group rows ordered by name.
+ *
+ * @async
+ * @function fetchCollPerfGroups
+ * @returns {Promise<CollPerfGroupRow[]>} All group rows.
+ */
+async function fetchCollPerfGroups(): Promise<CollPerfGroupRow[]> {
+  return db
+    .select({
+      id: lbacCollectionPerformanceGroup.id,
+      name: lbacCollectionPerformanceGroup.name,
+      parentId: lbacCollectionPerformanceGroup.parentId,
+    })
+    .from(lbacCollectionPerformanceGroup)
+    .orderBy(asc(lbacCollectionPerformanceGroup.name));
+}
+
+/**
+ * Collects descendant group IDs for a given parent group (breadth-first).
+ *
+ * @function collectCollPerfDescendantGroupIds
+ * @param {string} groupId - The parent group id.
+ * @param {CollPerfGroupRow[]} allGroups - All group rows.
+ * @returns {string[]} Descendant group ids (does not include groupId).
+ */
+function collectCollPerfDescendantGroupIds(groupId: string, allGroups: CollPerfGroupRow[]): string[] {
+  const result: string[] = [];
+  const queue = [groupId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const children = allGroups.filter((g) => g.parentId === current);
+    for (const child of children) {
+      result.push(child.id);
+      queue.push(child.id);
+    }
+  }
+  return result;
+}
+
+/**
+ * Upserts monthly collection performance rows for a data item.
+ * Existing rows matching month and year are updated; others are inserted.
+ *
+ * @async
+ * @function upsertCollPerfMonthlyData
+ * @param {string} dataId - The parent data item id.
+ * @param {CreateCollPerfDataPayload["monthlyData"]} monthlyData - Monthly entries to upsert.
+ * @returns {Promise<void>}
+ */
+async function upsertCollPerfMonthlyData(
+  dataId: string,
+  monthlyData: NonNullable<CreateCollPerfDataPayload["monthlyData"]>,
+): Promise<void> {
+  for (const entry of monthlyData) {
+    const quarter = monthToQuarter(entry.month);
+    const [existing] = await db
+      .select({ id: lbacCollectionPerformanceMonthlyData.id })
+      .from(lbacCollectionPerformanceMonthlyData)
+      .where(
+        and(
+          eq(lbacCollectionPerformanceMonthlyData.dataId, dataId),
+          eq(lbacCollectionPerformanceMonthlyData.month, entry.month),
+          eq(lbacCollectionPerformanceMonthlyData.year, entry.year),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(lbacCollectionPerformanceMonthlyData)
+        .set({
+          value: casts.castToDecimal(entry.value),
+          quarter,
+        })
+        .where(eq(lbacCollectionPerformanceMonthlyData.id, existing.id));
+    } else {
+      await db.insert(lbacCollectionPerformanceMonthlyData).values({
+        dataId,
+        month: entry.month,
+        year: entry.year,
+        quarter,
+        value: casts.castToDecimal(entry.value),
+      });
+    }
+  }
+}
+
+/**
+ * Loads a single collection performance item with derived fields.
+ *
+ * @async
+ * @function fetchCollPerfItemById
+ * @param {string} id - The data item id.
+ * @returns {Promise<CollPerfItemObject | null>} The item or null if not found.
+ */
+async function fetchCollPerfItemById(id: string): Promise<CollPerfItemObject | null> {
+  const [row] = await db
+    .select({
+      id: lbacCollectionPerformanceData.id,
+      particulars: lbacCollectionPerformanceData.particulars,
+      accountCode: lbacCollectionPerformanceData.accountCode,
+      incomeTarget: lbacCollectionPerformanceData.incomeTarget,
+      groupId: lbacCollectionPerformanceData.groupId,
+    })
+    .from(lbacCollectionPerformanceData)
+    .where(eq(lbacCollectionPerformanceData.id, id))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  const currentYear = getCollPerfCurrentYear();
+  const monthlyRows = await db
+    .select({
+      id: lbacCollectionPerformanceMonthlyData.id,
+      month: lbacCollectionPerformanceMonthlyData.month,
+      year: lbacCollectionPerformanceMonthlyData.year,
+      quarter: lbacCollectionPerformanceMonthlyData.quarter,
+      value: lbacCollectionPerformanceMonthlyData.value,
+      dataId: lbacCollectionPerformanceMonthlyData.dataId,
+    })
+    .from(lbacCollectionPerformanceMonthlyData)
+    .where(
+      and(
+        eq(lbacCollectionPerformanceMonthlyData.dataId, id),
+        eq(lbacCollectionPerformanceMonthlyData.year, currentYear),
+      ),
+    );
+
+  return buildCollPerfItemObject(
+    {
+      ...row,
+      incomeTarget: String(row.incomeTarget),
+    },
+    monthlyRows.map((m) => ({ ...m, value: String(m.value) })),
+  );
+}
+
 export enum LbacObjectType {
   Group = 6767,
   Item = 6768,
@@ -2981,12 +4194,6 @@ export type LbacSearchGroupItem = {
 
 export type LbacSearchResult = LbacSearchGroupItem[];
 
-// ============================================================
-// EXPORT 窶・Template identifiers and management
-// ============================================================
-
-
-
 export type LbacTemplateType = templateBucket.TemplateType;
 
 export type LbacTemplateInfo = {
@@ -3018,3 +4225,101 @@ export interface LbacQuarterlyExportOptions {
   quarter: number;
   columns: LbacQuarterlyExportColumnKey[];
 }
+
+export interface CollPerfExportOptions {
+  year: number;
+  quarter: number;
+  columns: CollPerfExportColumnKey[];
+}
+
+export enum CollPerfObjectType {
+  Group = 6780,
+  Item = 6781,
+}
+
+export type CreateCollPerfDataPayload = {
+  particulars: string;
+  accountCode?: string | null;
+  incomeTarget: string;
+  monthlyData?: Array<{
+    month: number;
+    year: number;
+    value: string;
+  }>;
+};
+
+export type CollPerfMonthlyDataItem = {
+  id: string;
+  month: number;
+  year: number;
+  quarter: number;
+  value: string;
+};
+
+export type CollPerfData = {
+  id: string;
+  particulars: string;
+  accountCode: string | null;
+  incomeTarget: string;
+  monthlyData: CollPerfMonthlyDataItem[];
+  quarterlyData: {
+    q1: string;
+    q2: string;
+    q3: string;
+    q4: string;
+  };
+  totalCollection: string;
+  collectionPerformance: string;
+  excessOrDeficit: string;
+};
+
+export type CollPerfGroupTotals = {
+  incomeTarget: string;
+  monthlyData: CollPerfMonthlyDataItem[];
+  quarterlyData: {
+    q1: string;
+    q2: string;
+    q3: string;
+    q4: string;
+  };
+  totalCollection: string;
+  collectionPerformance: string;
+  excessOrDeficit: string;
+};
+
+export type CollPerfGroupObject = {
+  type: CollPerfObjectType.Group;
+  id: string;
+  name: string;
+  children: Array<CollPerfGroupObject | CollPerfItemObject>;
+  totals: CollPerfGroupTotals;
+};
+
+export type CollPerfItemObject = {
+  type: CollPerfObjectType.Item;
+} & CollPerfData;
+
+export type CollPerfObject = CollPerfGroupObject | CollPerfItemObject;
+
+type CollPerfGroupRow = {
+  id: string;
+  name: string;
+  parentId: string | null;
+};
+
+type CollPerfDataRow = {
+  id: string;
+  particulars: string;
+  accountCode: string | null;
+  incomeTarget: string;
+  groupId: string;
+};
+
+type CollPerfMonthlyRow = {
+  id: string;
+  month: number;
+  year: number;
+  quarter: number;
+  value: string;
+  dataId: string;
+};
