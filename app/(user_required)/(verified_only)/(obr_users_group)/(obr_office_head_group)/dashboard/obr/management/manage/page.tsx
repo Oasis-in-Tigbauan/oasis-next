@@ -129,10 +129,10 @@ export default function Page() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map(item => (
+            {items.map((item, index) => (
               <TableRow
                 key={item.id}
-                className="cursor-pointer"
+                className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                 onClick={() => handleRowClick(item)}
               >
                 <TableCell className="font-medium">{item.obrRefNumber}</TableCell>

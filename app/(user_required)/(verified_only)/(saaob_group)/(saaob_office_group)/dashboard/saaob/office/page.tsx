@@ -257,6 +257,9 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={virtualRow.index}
+                      className={
+                        virtualRow.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined
+                      }
                     >
                       <TableCell
                         className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words"

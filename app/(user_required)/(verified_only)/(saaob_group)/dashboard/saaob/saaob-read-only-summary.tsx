@@ -190,7 +190,7 @@ export default function SaaobReadOnlySummary() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={virtualRow.index}
-                      className="select-none"
+                      className={`select-none ${virtualRow.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                     >
                       <TableCell
                         className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words"

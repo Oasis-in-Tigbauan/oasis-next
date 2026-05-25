@@ -562,10 +562,10 @@ export default function Page() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {vouchers.map(v => (
+            {vouchers.map((v, index) => (
               <TableRow
                 key={v.id}
-                className="cursor-pointer"
+                className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                 onClick={() => handleRowClick(v)}
               >
                 <TableCell className="font-medium whitespace-nowrap">{v.disbursementVoucherNumber}</TableCell>

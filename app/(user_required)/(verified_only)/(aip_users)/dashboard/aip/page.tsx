@@ -521,7 +521,14 @@ export default function Page() {
                       key={node.id}
                       data-index={virtualRow.index}
                       data-state={isSelected ? "selected" : undefined}
-                      className={cn("cursor-pointer", isSelected ? "bg-accent" : undefined)}
+                      className={cn(
+                        "cursor-pointer",
+                        isSelected
+                          ? "bg-accent"
+                          : virtualRow.index % 2 === 1
+                            ? "bg-muted hover:bg-muted/50"
+                            : undefined,
+                      )}
                       onClick={() => setSelectedId(node.id)}
                       tabIndex={0}
                     >

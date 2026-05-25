@@ -118,10 +118,10 @@ export default function Page() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {requests.map(req => (
+          {requests.map((req, index) => (
             <TableRow
               key={req.id}
-              className="cursor-pointer"
+              className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
               onClick={() => handleRowClick(req.id)}
             >
               <TableCell className="font-medium">{req.requestNumber}</TableCell>
