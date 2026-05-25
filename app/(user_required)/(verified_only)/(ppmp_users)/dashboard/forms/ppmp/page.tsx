@@ -280,7 +280,7 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-10rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
+            className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
@@ -305,7 +305,7 @@ export default function Page() {
                   <TableHead className="min-w-36">End of Procurement Activity</TableHead>
                   <TableHead className="min-w-44">Expected Delivery/Implementation Period</TableHead>
                   <TableHead className="min-w-44">Source of Funds</TableHead>
-                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation</TableHead>
+                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation (Php)</TableHead>
                 </TableRow>
                 <TableRow>
                   {Array.from({ length: TOTAL_COLS }, (_, idx) => (
@@ -486,7 +486,13 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${isSelected ? "bg-accent" : ""}`}
+                      className={`cursor-pointer select-none ${
+                        isSelected
+                          ? "bg-accent"
+                          : vr.index % 2 === 1
+                            ? "bg-muted hover:bg-muted/50"
+                            : ""
+                      }`}
                       onClick={() => setSelectedRow(prev => (prev?.id === row.id ? null : row))}
                       onDoubleClick={() => {
                         setSelectedRow(row);
@@ -1157,7 +1163,7 @@ function PlanItemDialog({
               <SaaobSearchCombobox value={saaob} onChange={setSaaob} disabled={submitting} />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-budget`}>Estimated Budget</Label>
+              <Label htmlFor={`${baseId}-budget`}>Estimated Budget (Php)</Label>
               <Input
                 id={`${baseId}-budget`}
                 value={estimatedBudget}

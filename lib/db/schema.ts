@@ -777,6 +777,73 @@ export const lbacItems = pgTable("lbac_items", {
     .notNull(),
 });
 
+export const lbacCollectionPerformanceGroup = pgTable("lbac_collection_performance_group", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+  name: text("name").notNull(),
+  parentId: text("parent_id"),
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const lbacCollectionPerformanceData = pgTable("lbac_collection_performance_data", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  particulars: text("particulars").notNull(),
+  accountCode: text("account_code"),
+  incomeTarget: decimal("income_target").notNull(),
+  ic: text("ic"),
+
+  groupId: text("group_id")
+    .references(() => lbacCollectionPerformanceGroup.id)
+    .notNull(),
+  authorId: text("author_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const lbacCollectionPerformanceMonthlyData = pgTable("lbac_collection_performance_monthly_data", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  month: integer("month").notNull(),
+  year: integer("year").notNull(),
+  quarter: integer("quarter").notNull(),
+
+  value: decimal("value").notNull(),
+  dataId: text("data_id")
+    .references(() => lbacCollectionPerformanceData.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const obrMainData = pgTable("obr_main_data", {
   id: text("id")
     .primaryKey()

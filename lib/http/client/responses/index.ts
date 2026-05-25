@@ -58,6 +58,13 @@ import type {
   LbacTemplatesPayload,
   LbacTemplatesResponse,
 } from "@/lib/http/client/responses/LbacTemplatesResponse";
+import type {
+  CollPerfGroupResponse,
+  CollPerfGroupTotals,
+  CollPerfItemResponse,
+  CollPerfMonthlyData,
+  CollPerfResponse,
+} from "@/lib/http/client/responses/LbacCollectionPerformanceResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
 import type {
   SaaobDataResponse,
@@ -181,6 +188,11 @@ export type {
   LbacTemplateInfo,
   LbacTemplatesPayload,
   LbacTemplatesResponse,
+  CollPerfGroupResponse,
+  CollPerfGroupTotals,
+  CollPerfItemResponse,
+  CollPerfMonthlyData,
+  CollPerfResponse,
   SaaobDataResponse,
   SaaobOfficeResponse,
   SaaobEntryResponse,

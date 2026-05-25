@@ -33,6 +33,7 @@ const routeMetaList: Array<{
   { matcher: "/dashboard/lbac/viewer", meta: { section: "Worksheets", title: "LBAC Viewer", breadcrumbs: ["LBAC", "Viewer"] } },
   { matcher: "/dashboard/lbac/quarterly", meta: { section: "Worksheets", title: "LBAC Quarterly Reports", breadcrumbs: ["LBAC", "Quarterly Reports"] } },
   { matcher: "/dashboard/lbac/data", meta: { section: "Worksheets", title: "LBAC Data", breadcrumbs: ["LBAC", "Data"] } },
+  { matcher: "/dashboard/lbac/coll-perf", meta: { section: "Worksheets", title: "Collection Performance", breadcrumbs: ["LBAC", "Collection Performance"] } },
   { matcher: "/dashboard/saaob", meta: { section: "Worksheets", title: "SAAOB Overview", breadcrumbs: ["SAAOB"] } },
   { matcher: "/dashboard/saaob/office", meta: { section: "Worksheets", title: "SAAOB Office View", breadcrumbs: ["SAAOB", "Office View"] } },
   { matcher: "/dashboard/saaob/data", meta: { section: "Worksheets", title: "SAAOB Main Data", breadcrumbs: ["SAAOB", "Main Data"] } },
@@ -79,7 +80,7 @@ export default function AppTopbar() {
   }, [pathname]);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E2EC] bg-white/92 backdrop-blur supports-[backdrop-filter]:bg-white/84">
+    <header className="sticky top-0 z-20 border-b mb-4 border-[#D8E2EC] bg-white/92 backdrop-blur supports-backdrop-filter:bg-white/84">
       <div className="flex h-16 items-center gap-3 px-4 md:px-6">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="size-8 rounded-md border border-[#D8E2EC] bg-white text-[#52657A] shadow-none hover:bg-[#F7FAFC] hover:text-[#022551]" />

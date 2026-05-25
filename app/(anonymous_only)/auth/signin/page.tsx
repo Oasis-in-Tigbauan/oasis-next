@@ -50,7 +50,7 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="grid min-h-svh lg:grid-cols-[60%_auto]">
+    <div className="grid min-h-svh overflow-x-auto lg:grid-cols-[minmax(0,1fr)_min(672px,calc(100svh*672/878))] xl:grid-cols-[60%_auto]">
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="#" className="flex items-center gap-2 font-medium">
@@ -128,7 +128,7 @@ export default function SigninPage() {
           </div>
         </div>
       </div>
-      <div className="bg-muted relative hidden lg:block">
+      <div className="relative hidden min-h-svh shrink-0 lg:block">
         <Image
           src="/assets/company-banner.svg"
           alt="Image"

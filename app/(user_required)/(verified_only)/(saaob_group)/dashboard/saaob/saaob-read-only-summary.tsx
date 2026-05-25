@@ -116,7 +116,7 @@ export default function SaaobReadOnlySummary() {
             ref={tableScrollRef}
             className="h-[500px] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="text-xs [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+            <Table className="text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal">
@@ -190,7 +190,7 @@ export default function SaaobReadOnlySummary() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={virtualRow.index}
-                      className="select-none"
+                      className={`select-none ${virtualRow.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                     >
                       <TableCell
                         className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words"
