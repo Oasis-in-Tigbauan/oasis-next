@@ -338,7 +338,7 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className="cursor-pointer select-none"
+                      className={`cursor-pointer select-none ${vr.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                       title="Click to edit quarterly data"
                       onClick={() => handleItemClick(item)}
                     >

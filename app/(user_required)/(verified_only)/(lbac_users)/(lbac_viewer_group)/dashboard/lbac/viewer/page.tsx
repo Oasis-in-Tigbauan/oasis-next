@@ -241,7 +241,7 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className="select-none"
+                      className={`cursor-pointer select-none ${vr.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
                     >
                       <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
                       <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.mfoPpa}</TableCell>

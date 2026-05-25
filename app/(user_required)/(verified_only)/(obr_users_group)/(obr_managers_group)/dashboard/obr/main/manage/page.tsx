@@ -351,7 +351,13 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={item.id}
                       data-index={virtualRow.index}
-                      className={`cursor-pointer select-none ${isSelected ? "bg-accent" : ""}`}
+                      className={`cursor-pointer select-none ${
+                        isSelected
+                          ? "bg-accent"
+                          : virtualRow.index % 2 === 1
+                            ? "bg-muted hover:bg-muted/50"
+                            : ""
+                      }`}
                       title="Click to select · Double-click to edit"
                       onClick={() => handleRowClick(item)}
                       onDoubleClick={() => handleRowDoubleClick(item)}
