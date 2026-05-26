@@ -72,6 +72,7 @@ export {
   getForm3CellValue,
   getForm5CellValue,
   getForm5ACellValue,
+  getForm3QuarterEndingLabel,
   getLbeF1AroCode,
   getLbeF1BudgetTypeLabel,
   getLbeF1FormNo,
