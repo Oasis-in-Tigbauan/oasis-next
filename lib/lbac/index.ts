@@ -61,6 +61,7 @@ import {
   lbacCollectionPerformanceMonthlyData,
   lbacGroups,
   lbacItems,
+  lbacMonitoring,
   lbacQuarterlyReport,
   obrMainAipReferences,
   obrMainData,
@@ -437,6 +438,10 @@ export async function createLbacItem(
         parentId: groupId,
         authorId: user.id,
       }).returning({ id: lbacItems.id });
+
+      await tx.insert(lbacMonitoring).values({
+        itemId: newItem.id,
+      });
 
       return newItem.id;
     });
@@ -878,6 +883,7 @@ export async function deleteLbacItem(lbacItemId: string): Promise<Result<null>> 
     }
 
     await db.transaction(async (tx) => {
+      await tx.delete(lbacMonitoring).where(eq(lbacMonitoring.itemId, lbacItemId));
       await tx.delete(lbacItems).where(eq(lbacItems.id, lbacItemId));
       await tx.delete(lbacQuarterlyReport).where(eq(lbacQuarterlyReport.id, item.quarterlyReportId));
     });
@@ -885,6 +891,102 @@ export async function deleteLbacItem(lbacItemId: string): Promise<Result<null>> 
     return new Success(null);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to delete LBAC item.", { lbacItemId }, e);
+  }
+}
+
+/**
+ * Updates a LBAC monitoring entry identified by monitoring ID.
+ *
+ * @description
+ * Applies partial updates to monitoring fields only. Decimal-like fields are normalized before persistence.
+ * Returns the updated monitoring item with derived fields computed using Decimal arithmetic.
+ *
+ * On success, wraps the mapped monitoring item in a {@link Success}. Returns {@link Failure} with
+ * ResourceNotFound when the monitoring row does not exist, and Fatal on unexpected errors.
+ *
+ * @async
+ * @function updateMonitoringItem
+ * @param {string} id - The ID of the lbacMonitoring row to update.
+ * @param {Partial<MonitoringItemPayload>} payload - Partial monitoring fields to update.
+ * @returns {Promise<Result<LbacMonitoringItem>>} A result wrapper containing the updated monitoring item on success,
+ *                                                or a failure result on error.
+ */
+export async function updateMonitoringItem(
+  id: string,
+  payload: Partial<MonitoringItemPayload>,
+): Promise<Result<LbacMonitoringItem>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacMonitoring.id })
+      .from(lbacMonitoring)
+      .where(eq(lbacMonitoring.id, id))
+      .limit(1);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "LBAC monitoring item not found.", { id });
+    }
+
+    const updateValues: Record<string, unknown> = {};
+
+    if (payload.ab !== undefined) updateValues.ab = payload.ab;
+    if (payload.actualAccomplishment !== undefined) updateValues.actualAccomplishment = payload.actualAccomplishment;
+    if (payload.abEstimatedCost !== undefined) {
+      updateValues.abEstimatedCost = payload.abEstimatedCost ? casts.castToDecimal(payload.abEstimatedCost) : null;
+    }
+    if (payload.actualExpenditure !== undefined) {
+      updateValues.actualExpenditure = payload.actualExpenditure ? casts.castToDecimal(payload.actualExpenditure) : null;
+    }
+    if (payload.remarks !== undefined) updateValues.remarks = payload.remarks;
+
+    if (Object.keys(updateValues).length > 0) {
+      await db.update(lbacMonitoring).set(updateValues).where(eq(lbacMonitoring.id, id));
+    }
+
+    const rows = await _fetchMonitoringRowsByMonitoringIds([id]);
+    const row = rows[0];
+    if (!row) {
+      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC monitoring item.", { id });
+    }
+
+    return new Success(_buildMonitoringItemObject(row));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC monitoring item.", { id }, e);
+  }
+}
+
+/**
+ * Fetches all LBAC monitoring entries in a hierarchy based on the LBAC group tree.
+ *
+ * @description
+ * Resolves all groups and monitoring rows in batch, maps monitoring entries to item-level payloads,
+ * and assembles a nested tree where groups are arranged using existing LBAC parent-child relationships.
+ * Empty groups are preserved.
+ *
+ * On success, wraps the monitoring tree in a {@link Success}. On unexpected failure, wraps the error in
+ * a fatal {@link Failure}.
+ *
+ * @async
+ * @function getAllMonitoringItems
+ * @returns {Promise<Result<LbacMonitoringTree>>} A result wrapper containing the full monitoring tree on success,
+ *                                                or a failure result on error.
+ */
+export async function getAllMonitoringItems(): Promise<Result<LbacMonitoringTree>> {
+  try {
+    const [groups, rows] = await Promise.all([
+      _fetchGroups(),
+      _fetchMonitoringRows(),
+    ]);
+
+    const itemsByGroup = new Map<string, LbacMonitoringItem[]>();
+    for (const row of rows) {
+      const item = _buildMonitoringItemObject(row);
+      const list = itemsByGroup.get(row.parentId) ?? [];
+      list.push(item);
+      itemsByGroup.set(row.parentId, list);
+    }
+
+    return new Success(_buildMonitoringTree(groups, itemsByGroup));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC monitoring items.", {}, e);
   }
 }
 
@@ -2365,6 +2467,78 @@ async function _fetchItems(): Promise<LbacItemRow[]> {
 }
 
 /**
+ * Fetches all LBAC monitoring rows with linked item metadata used by monitoring APIs.
+ *
+ * @async
+ * @returns {Promise<LbacMonitoringRow[]>} Flat list of monitoring rows.
+ */
+async function _fetchMonitoringRows(): Promise<LbacMonitoringRow[]> {
+  return db
+    .select({
+      id: lbacMonitoring.id,
+      ab: lbacMonitoring.ab,
+      actualAccomplishment: lbacMonitoring.actualAccomplishment,
+      abEstimatedCost: lbacMonitoring.abEstimatedCost,
+      actualExpenditure: lbacMonitoring.actualExpenditure,
+      remarks: lbacMonitoring.remarks,
+      itemId: lbacItems.id,
+      mfoPpa: lbacItems.mfoPpa,
+      parentId: lbacItems.parentId,
+      aipRefId: aipReferences.id,
+      aipReferenceCode: aipReferences.aipReferenceCode,
+      aipDescription: aipReferences.description,
+      aipAmountPS: aipReferences.amountPS,
+      aipAmountMOOE: aipReferences.amountMOOE,
+      aipAmountCO: aipReferences.amountCO,
+      implementingUnitId: officeCodes.id,
+      implementingUnitName: officeCodes.aa,
+    })
+    .from(lbacMonitoring)
+    .innerJoin(lbacItems, eq(lbacItems.id, lbacMonitoring.itemId))
+    .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
+    .leftJoin(officeCodes, eq(officeCodes.id, lbacItems.implementingUnitId))
+    .orderBy(asc(lbacMonitoring.createdAt));
+}
+
+/**
+ * Fetches monitoring rows by monitoring IDs.
+ *
+ * @async
+ * @param {string[]} monitoringIds - Monitoring IDs to fetch.
+ * @returns {Promise<LbacMonitoringRow[]>} Matching monitoring rows.
+ */
+async function _fetchMonitoringRowsByMonitoringIds(monitoringIds: string[]): Promise<LbacMonitoringRow[]> {
+  if (monitoringIds.length === 0) return [];
+
+  return db
+    .select({
+      id: lbacMonitoring.id,
+      ab: lbacMonitoring.ab,
+      actualAccomplishment: lbacMonitoring.actualAccomplishment,
+      abEstimatedCost: lbacMonitoring.abEstimatedCost,
+      actualExpenditure: lbacMonitoring.actualExpenditure,
+      remarks: lbacMonitoring.remarks,
+      itemId: lbacItems.id,
+      mfoPpa: lbacItems.mfoPpa,
+      parentId: lbacItems.parentId,
+      aipRefId: aipReferences.id,
+      aipReferenceCode: aipReferences.aipReferenceCode,
+      aipDescription: aipReferences.description,
+      aipAmountPS: aipReferences.amountPS,
+      aipAmountMOOE: aipReferences.amountMOOE,
+      aipAmountCO: aipReferences.amountCO,
+      implementingUnitId: officeCodes.id,
+      implementingUnitName: officeCodes.aa,
+    })
+    .from(lbacMonitoring)
+    .innerJoin(lbacItems, eq(lbacItems.id, lbacMonitoring.itemId))
+    .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
+    .leftJoin(officeCodes, eq(officeCodes.id, lbacItems.implementingUnitId))
+    .where(inArray(lbacMonitoring.id, monitoringIds))
+    .orderBy(asc(lbacMonitoring.createdAt));
+}
+
+/**
  * Fetches all lbac_quarterly_report rows for the given list of quarterly report IDs.
  *
  * @async
@@ -2749,6 +2923,102 @@ function _buildBaseLbacGroupObject(group: LbacGroupRow): BaseLbacGroupObject {
       ? { id: group.implementingUnitId, name: group.implementingUnitName! }
       : null,
   } satisfies BaseLbacGroupObject;
+}
+
+/**
+ * Maps a monitoring row into a monitoring response object with derived decimal fields.
+ *
+ * @param {LbacMonitoringRow} row - Monitoring row with linked LBAC item metadata.
+ * @returns {LbacMonitoringItem} Monitoring response object.
+ */
+function _buildMonitoringItemObject(row: LbacMonitoringRow): LbacMonitoringItem {
+  const aipAmount = _computeMonitoringAipAmount(row);
+  const abEstimatedCost = casts.castFromDecimal(row.abEstimatedCost ?? "0");
+  const actualExpenditure = casts.castFromDecimal(row.actualExpenditure ?? "0");
+
+  return {
+    id: row.id,
+    type: LbacObjectType.Item,
+    item: {
+      id: row.itemId,
+      mfoPpa: row.mfoPpa,
+      aipRefCode: row.aipRefId
+        ? {
+          id: row.aipRefId,
+          code: row.aipReferenceCode!,
+          description: row.aipDescription!,
+          amount: aipAmount,
+        }
+        : null,
+      implementingUnit: row.implementingUnitId
+        ? {
+          id: row.implementingUnitId,
+          name: row.implementingUnitName!,
+        }
+        : null,
+    },
+    ab: row.ab ?? undefined,
+    actualAccomplishment: row.actualAccomplishment ?? undefined,
+    abEstimatedCost: row.abEstimatedCost ?? undefined,
+    actualExpenditure: row.actualExpenditure ?? undefined,
+    remarks: row.remarks ?? undefined,
+    aipVsAb: casts.castFromDecimal(aipAmount).minus(abEstimatedCost).toString(),
+    aipVsExp: abEstimatedCost.minus(actualExpenditure).toString(),
+  } satisfies LbacMonitoringItem;
+}
+
+/**
+ * Builds the monitoring tree using the LBAC group hierarchy and mapped monitoring items.
+ *
+ * @param {LbacGroupRow[]} allGroups - All LBAC groups.
+ * @param {Map<string, LbacMonitoringItem[]>} itemsByGroup - Monitoring items keyed by parent group ID.
+ * @returns {LbacMonitoringTree} Nested monitoring tree.
+ */
+function _buildMonitoringTree(
+  allGroups: LbacGroupRow[],
+  itemsByGroup: Map<string, LbacMonitoringItem[]>,
+): LbacMonitoringTree {
+  const groupMap = new Map<string, LbacMonitoringGroupObject>();
+
+  for (const group of allGroups) {
+    groupMap.set(group.id, {
+      ..._buildBaseLbacGroupObject(group),
+      children: [],
+    });
+  }
+
+  const roots: LbacMonitoringGroupObject[] = [];
+
+  for (const group of allGroups) {
+    const node = groupMap.get(group.id)!;
+    const items = itemsByGroup.get(group.id) ?? [];
+    node.children.push(...items);
+
+    if (group.parentId === null) {
+      roots.push(node);
+      continue;
+    }
+
+    const parent = groupMap.get(group.parentId);
+    if (parent) {
+      parent.children.push(node);
+    }
+  }
+
+  return roots;
+}
+
+/**
+ * Computes the AIP amount for monitoring responses using amountPS + amountMOOE + amountCO.
+ *
+ * @param {LbacMonitoringRow} row - Monitoring row with AIP monetary fields.
+ * @returns {string} Summed amount as decimal string.
+ */
+function _computeMonitoringAipAmount(row: LbacMonitoringRow): string {
+  return casts.castFromDecimal(row.aipAmountPS ?? "0")
+    .plus(casts.castFromDecimal(row.aipAmountMOOE ?? "0"))
+    .plus(casts.castFromDecimal(row.aipAmountCO ?? "0"))
+    .toString();
 }
 
 function _zeroLbacGroupTotals(): LbacGroupTotals {
@@ -5104,6 +5374,46 @@ export type CreateLbacItemPayload = {
 
 export type UpdateLbacItemPayload = Partial<CreateLbacItemPayload>;
 
+export type MonitoringItemPayload = {
+  ab: Optional<string>;
+  actualAccomplishment: Optional<string>;
+  abEstimatedCost: Optional<string>;
+  actualExpenditure: Optional<string>;
+  remarks: Optional<string>;
+};
+
+export type LbacMonitoringItem = {
+  id: string;
+  type: LbacObjectType.Item;
+  item: {
+    id: string;
+    mfoPpa: string;
+    aipRefCode: {
+      id: string;
+      code: string;
+      description: string;
+      amount: string;
+    } | null;
+    implementingUnit: {
+      id: string;
+      name: string;
+    } | null;
+  };
+  ab?: string;
+  actualAccomplishment?: string;
+  abEstimatedCost?: string;
+  actualExpenditure?: string;
+  remarks?: string;
+  aipVsAb: string;
+  aipVsExp: string;
+};
+
+export type LbacMonitoringGroupObject = BaseLbacGroupObject & {
+  children: Array<LbacMonitoringGroupObject | LbacMonitoringItem>;
+};
+
+export type LbacMonitoringTree = LbacMonitoringGroupObject[];
+
 export type UpdateLbacQuarterlyPayload = Partial<{
   priorYearAccomplishments: string;
   physicalTargetQ1: string;
@@ -5205,6 +5515,26 @@ type ObrAipEntry = {
   quarter: number;
   year: number;
   createdAt: Date;
+};
+
+type LbacMonitoringRow = {
+  id: string;
+  ab: string | null;
+  actualAccomplishment: string | null;
+  abEstimatedCost: string | null;
+  actualExpenditure: string | null;
+  remarks: string | null;
+  itemId: string;
+  mfoPpa: string;
+  parentId: string;
+  aipRefId: string | null;
+  aipReferenceCode: string | null;
+  aipDescription: string | null;
+  aipAmountPS: string | null;
+  aipAmountMOOE: string | null;
+  aipAmountCO: string | null;
+  implementingUnitId: string | null;
+  implementingUnitName: string | null;
 };
 
 export type LbacGroupTotals = {
