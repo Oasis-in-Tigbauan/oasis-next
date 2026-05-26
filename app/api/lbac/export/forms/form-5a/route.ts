@@ -18,12 +18,14 @@ export async function GET(req: NextRequest) {
   const rawYear = searchParams.get("year");
   const rawQuarter = searchParams.get("quarter");
   const aroLink = searchParams.get("aroLink");
+  const lgu = searchParams.get("lgu");
+  const mfo = searchParams.get("mfo");
 
-  if (!rawYear || !rawQuarter || !aroLink) {
+  if (!rawYear || !rawQuarter || !aroLink || !lgu || !mfo) {
     return ApiResponseBuilder
       .createError(
         StatusCodes.Status400BadRequest,
-        "Query parameters 'year', 'quarter', and 'aroLink' are required.",
+        "Query parameters 'year', 'quarter', 'aroLink', 'lgu', and 'mfo' are required.",
       )
       .build();
   }
@@ -44,13 +46,29 @@ export async function GET(req: NextRequest) {
       .createError(StatusCodes.Status400BadRequest, "Invalid 'aroLink'.")
       .build();
   }
+  if (!lgu.trim()) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'lgu'.")
+      .build();
+  }
+  if (!mfo.trim()) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'mfo'.")
+      .build();
+  }
 
-  const result = await lbac.exportForm5AToBuffer({ year, quarter, aroLink });
+  const result = await lbac.exportForm5AToBuffer({
+    year,
+    quarter,
+    aroLink,
+    lgu: lgu.trim(),
+    mfo: mfo.trim(),
+  });
   if (result instanceof Failure) {
     return ApiResponseBuilder.createFromFailure(result).build();
   }
 
-  const filename = `lbac-form-5a-${year}-Q${quarter}.xlsx`;
+  const filename = `lbe-form-5a-${year}-Q${quarter}.xlsx`;
   return new NextResponse(new Uint8Array(result.value), {
     status: 200,
     headers: {

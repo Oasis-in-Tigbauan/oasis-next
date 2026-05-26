@@ -259,7 +259,7 @@ export default function Page() {
               <DropdownMenuItem onClick={() => setExportFormType("lbe-f1")}>LBE Form 1</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setExportFormType("form-3")}>LBAC Form 3</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setExportFormType("form-5")}>LBE Form 5</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setExportFormType("form-5a")}>LBAC Form 5A</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType("form-5a")}>LBE Form 5A</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
