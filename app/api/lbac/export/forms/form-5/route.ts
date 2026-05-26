@@ -17,13 +17,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const rawYear = searchParams.get("year");
   const rawQuarter = searchParams.get("quarter");
-  const implementingUnitId = searchParams.get("implementingUnitId");
+  const aroLink = searchParams.get("aroLink");
 
-  if (!rawYear || !rawQuarter || !implementingUnitId) {
+  if (!rawYear || !rawQuarter || !aroLink) {
     return ApiResponseBuilder
       .createError(
         StatusCodes.Status400BadRequest,
-        "Query parameters 'year', 'quarter', and 'implementingUnitId' are required.",
+        "Query parameters 'year', 'quarter', and 'aroLink' are required.",
       )
       .build();
   }
@@ -39,13 +39,13 @@ export async function GET(req: NextRequest) {
       .createError(StatusCodes.Status400BadRequest, "Invalid 'quarter': must be 1-4.")
       .build();
   }
-  if (!validatorUtilities.isUuid(implementingUnitId)) {
+  if (!validatorUtilities.isUuid(aroLink)) {
     return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'implementingUnitId'.")
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'aroLink'.")
       .build();
   }
 
-  const result = await lbac.exportForm5ToBuffer({ year, quarter, implementingUnitId });
+  const result = await lbac.exportForm5ToBuffer({ year, quarter, aroLink });
   if (result instanceof Failure) {
     return ApiResponseBuilder.createFromFailure(result).build();
   }

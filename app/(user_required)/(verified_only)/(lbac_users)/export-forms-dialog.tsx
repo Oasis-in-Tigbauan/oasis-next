@@ -5,7 +5,7 @@ import { Download, FileSpreadsheet, Table2 } from "lucide-react";
 import useSWR from "swr";
 
 import {
-  filterLbacTreeByImplementingUnit,
+  filterLbacTreeByAroLink,
   flattenLbacForm3ForExport,
   flattenLbacForm5AForExport,
   flattenLbacForm5ForExport,
@@ -23,10 +23,10 @@ import {
 import { LBAC_GROUP_DEPTH_CHILD_COLOR, LBAC_GROUP_DEPTH_ROOT_COLOR, LBAC_TOTAL_CHILD_COLOR, LBAC_TOTAL_ROOT_COLOR } from "@/lib/lbac/export-layout";
 import { $fetch } from "@/lib/http/client/fetch";
 import type {
+  AroOfficeListResponse,
   ApiResponseException,
   BetterFetchResponse,
   LbacGroupResponse,
-  OfficeCodeListResponse,
 } from "@/lib/http/client/responses";
 
 import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
@@ -95,24 +95,24 @@ export function ExportFormsDialog({
   tree,
   exportParams,
 }: ExportFormsDialogProps) {
-  const [implementingUnitId, setImplementingUnitId] = useState("");
+  const [aroLink, setAroLink] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [manageTemplateOpen, setManageTemplateOpen] = useState(false);
 
-  const { data: officeCodesData } = useSWR<
-    BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
-  >("/api/management/data/office-codes", $fetch);
-  const officeCodes = officeCodesData?.data?.data ?? [];
+  const { data: aroOfficesData } = useSWR<
+    BetterFetchResponse<AroOfficeListResponse, ApiResponseException>
+  >("/api/management/data/aro-office", $fetch);
+  const aroOffices = aroOfficesData?.data?.data ?? [];
 
   const filteredTree = useMemo(() => {
-    if (!implementingUnitId) return [];
-    return filterLbacTreeByImplementingUnit(tree, implementingUnitId);
-  }, [tree, implementingUnitId]);
+    if (!aroLink) return [];
+    return filterLbacTreeByAroLink(tree, aroLink);
+  }, [tree, aroLink]);
 
   const handleExport = async () => {
-    if (!implementingUnitId) {
-      setExportError("Please select an office code.");
+    if (!aroLink) {
+      setExportError("Please select an ARO office.");
       return;
     }
 
@@ -122,7 +122,7 @@ export function ExportFormsDialog({
     try {
       const params = new URLSearchParams({
         ...exportParams,
-        implementingUnitId,
+        aroLink,
       });
 
       const response = await fetch(`${exportApiPath(formType)}?${params.toString()}`);
@@ -165,21 +165,21 @@ export function ExportFormsDialog({
             <DialogHeader>
               <DialogTitle>{formLabel(formType)} Export</DialogTitle>
               <DialogDescription>
-                Fixed-column export with office filtering and footer template support.
+                Fixed-column export with ARO office filtering and footer template support.
               </DialogDescription>
             </DialogHeader>
           </div>
 
           <div className="px-6 pt-3 pb-2 border-b">
             <div className="flex flex-col gap-1 w-80">
-              <Label>Office Code</Label>
-              <Select value={implementingUnitId} onValueChange={setImplementingUnitId}>
+              <Label>ARO Office</Label>
+              <Select value={aroLink} onValueChange={setAroLink}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select office code..." />
+                  <SelectValue placeholder="Select ARO office..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {officeCodes.map(code => (
-                    <SelectItem key={code.id} value={code.id}>{code.aa}</SelectItem>
+                  {aroOffices.map(office => (
+                    <SelectItem key={office.id} value={office.id}>{office.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -266,7 +266,7 @@ export function ExportFormsDialog({
                 Cancel
               </Button>
               <Button
-                disabled={exporting || !implementingUnitId}
+                disabled={exporting || !aroLink}
                 onClick={() => void handleExport()}
               >
                 <Download className="size-3.5" />
@@ -312,7 +312,7 @@ function FormPreviewTable({
   if (rows.length === 0) {
     return (
       <div className="text-center py-8 text-sm text-muted-foreground">
-        Select an office code to preview data.
+        Select an ARO office to preview data.
       </div>
     );
   }

@@ -44,9 +44,141 @@ export const LBAC_FORM5A_EXPORT_COLUMNS = [
   { key: "targetQ4", label: "Target Q4", numeric: false },
 ] as const;
 
-export const LBE_F1_BUDGET_TYPES = ["PS", "MOOE", "FE", "CO"] as const;
+export const LBE_F1_ARO_TYPES = ["ps", "mooe", "finex", "capex"] as const;
 
-export type LbeF1BudgetType = (typeof LBE_F1_BUDGET_TYPES)[number];
+export type LbeF1AroType = (typeof LBE_F1_ARO_TYPES)[number];
+export type LbeF1BudgetType = "ab" | "sb" | "rb";
+
+export function getLbeF1FormNo(aroType: string | null | undefined): string {
+  if (aroType === "ps") return "LBE FORM NO.1";
+  if (aroType === "mooe") return "LBE FORM NO.1A";
+  return "LBE FORM NO.1C.";
+}
+
+export function getLbeF1Title(aroType: string | null | undefined): string {
+  if (aroType === "ps") return "ALLOTMENT RELEASE ORDER FOR PERSONAL SERVICES (ARO FOR PS)";
+  if (aroType === "mooe") return "ALLOTMENT RELEASE ORDER FOR MAINTENANCE AND OTHER OPERATING EXPENSES\n(ARO FOR MOOE)";
+  if (aroType === "capex") return "ALLOTMENT RELEASE ORDER FOR CAPITAL EXPENDITURES (ARO FOR CapEx)";
+  return "ALLOTMENT RELEASE ORDER FOR FINANCIAL EXPENDITURES (ARO FOR FinEx)";
+}
+
+export function getLbeF1AroCode(aroType: string | null | undefined): string {
+  if (aroType === "ps") return "PS";
+  if (aroType === "mooe") return "MOOE";
+  if (aroType === "capex") return "CAPEX";
+  if (aroType === "finex") return "FINEX";
+  return "ARO";
+}
+
+export function getLbeF1BudgetTypeLabel(budgetType: string | null | undefined): string {
+  if (budgetType === "ab") return "ANNUAL BUDGET";
+  if (budgetType === "sb") return "SUPPLEMENTAL BUDGET";
+  if (budgetType === "rb") return "REENACTED BUDGET";
+  return "";
+}
+
+const _SMALL = [
+  "ZERO",
+  "ONE",
+  "TWO",
+  "THREE",
+  "FOUR",
+  "FIVE",
+  "SIX",
+  "SEVEN",
+  "EIGHT",
+  "NINE",
+  "TEN",
+  "ELEVEN",
+  "TWELVE",
+  "THIRTEEN",
+  "FOURTEEN",
+  "FIFTEEN",
+  "SIXTEEN",
+  "SEVENTEEN",
+  "EIGHTEEN",
+  "NINETEEN",
+] as const;
+
+const _TENS = [
+  "",
+  "",
+  "TWENTY",
+  "THIRTY",
+  "FORTY",
+  "FIFTY",
+  "SIXTY",
+  "SEVENTY",
+  "EIGHTY",
+  "NINETY",
+] as const;
+
+const _SCALES = ["", "THOUSAND", "MILLION", "BILLION", "TRILLION"] as const;
+
+function _chunkToWords(n: number): string {
+  const parts: string[] = [];
+  const hundreds = Math.floor(n / 100);
+  const remainder = n % 100;
+
+  if (hundreds > 0) {
+    parts.push(`${_SMALL[hundreds]} HUNDRED`);
+    if (remainder > 0) {
+      parts.push("AND");
+    }
+  }
+
+  if (remainder > 0) {
+    if (remainder < 20) {
+      parts.push(_SMALL[remainder]);
+    } else {
+      const ten = Math.floor(remainder / 10);
+      const one = remainder % 10;
+      parts.push(_TENS[ten]);
+      if (one > 0) {
+        parts.push(_SMALL[one]);
+      }
+    }
+  }
+
+  return parts.join(" ").trim();
+}
+
+function _integerToWords(input: bigint): string {
+  if (input === 0n) return "ZERO";
+
+  let n = input;
+  const pieces: string[] = [];
+  let scaleIndex = 0;
+
+  while (n > 0n) {
+    const chunk = Number(n % 1000n);
+    if (chunk > 0) {
+      const chunkWords = _chunkToWords(chunk);
+      const scale = _SCALES[scaleIndex];
+      pieces.unshift(scale ? `${chunkWords} ${scale}` : chunkWords);
+    }
+    n /= 1000n;
+    scaleIndex++;
+  }
+
+  return pieces.join(" ").trim();
+}
+
+export function amountToEnglishWords(value: string | number): string {
+  const raw = String(value ?? "0").trim().replace(/,/g, "");
+  const valid = /^\d+(\.\d+)?$/.test(raw) ? raw : "0";
+  const [integerRaw, decimalsRaw = ""] = valid.split(".");
+  const integerPart = BigInt(integerRaw || "0");
+  const cents = (decimalsRaw + "00").slice(0, 2);
+  const words = _integerToWords(integerPart);
+  const centsValue = Number.parseInt(cents, 10);
+  if (centsValue === 0) {
+    return `${words} PESOS`;
+  }
+
+  const centsLabel = centsValue === 1 ? "CENT" : "CENTS";
+  return `${words} PESOS AND ${centsValue} ${centsLabel}`;
+}
 
 export type LbacForm3ExportColumnKey = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number]["key"];
 export type LbacForm5ExportColumnKey = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number]["key"];
@@ -61,9 +193,9 @@ export type LbacFormExportFlatRow =
   | { kind: "item"; id: string; depth: number; data: LbacItemResponse }
   | { kind: "group-total"; id: string; depth: number; data: LbacGroupTotals; isRoot: boolean };
 
-export function filterLbacTreeByImplementingUnit(
+export function filterLbacTreeByAroLink(
   tree: LbacGroupResponse[],
-  implementingUnitId: string,
+  aroLink: string,
 ): LbacGroupResponse[] {
   const walkGroup = (group: LbacGroupResponse): LbacGroupResponse | null => {
     const filteredChildren: Array<LbacGroupResponse | LbacItemResponse> = [];
@@ -76,7 +208,7 @@ export function filterLbacTreeByImplementingUnit(
         }
       } else {
         const item = child as LbacItemResponse;
-        if (item.implementingUnit?.id === implementingUnitId) {
+        if (item.other.aro?.office.id === aroLink) {
           filteredChildren.push(item);
         }
       }
@@ -235,9 +367,9 @@ export function getForm5ACellValue(
   }
 }
 
-export function flattenLbacFlatItemsForOffice(
+export function flattenLbacFlatItemsForAroLink(
   tree: LbacGroupResponse[],
-  implementingUnitId: string,
+  aroLink: string,
 ): LbacItemResponse[] {
   const items: LbacItemResponse[] = [];
 
@@ -247,7 +379,7 @@ export function flattenLbacFlatItemsForOffice(
         walk((node as LbacGroupResponse).children);
       } else {
         const item = node as LbacItemResponse;
-        if (item.implementingUnit?.id === implementingUnitId) {
+        if (item.other.aro?.office.id === aroLink) {
           items.push(item);
         }
       }

@@ -41,7 +41,12 @@ import {
   LBAC_FORM3_EXPORT_COLUMNS,
   LBAC_FORM5_EXPORT_COLUMNS,
   LBAC_FORM5A_EXPORT_COLUMNS,
-  type LbeF1BudgetType,
+  amountToEnglishWords,
+  getLbeF1AroCode,
+  getLbeF1BudgetTypeLabel,
+  getLbeF1FormNo,
+  getLbeF1Title,
+  type LbeF1AroType,
 } from "@/lib/lbac/forms-export-layout";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
@@ -1945,8 +1950,9 @@ export async function exportLbeFOneToBuffer(
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
 
-    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
-    const flatItems = _flattenItemsForLbeFOne(filteredTree);
+    const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
+    const flatItems = _flattenItemsForLbeFOne(filteredTree)
+      .filter(item => item.other.aro?.type === options.aroType);
     const itemMap = new Map(flatItems.map(item => [item.id, item]));
 
     const selectedItems: LbacObject[] = [];
@@ -1956,7 +1962,7 @@ export async function exportLbeFOneToBuffer(
       if (!found) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "One or more selected items were not found for the selected office.",
+          "One or more selected items were not found for the selected ARO office/type.",
         );
       }
       selectedItems.push(found);
@@ -1974,7 +1980,9 @@ export async function exportLbeFOneToBuffer(
 
     const buffer = await _buildLbeFOneExcelBuffer(
       selectedItems,
-      options.budgetType,
+      options.aroType,
+      options.lgu,
+      options.purpose,
       overrides,
       footerPath,
     );
@@ -1991,7 +1999,7 @@ export async function exportForm3ToBuffer(
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
 
-    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_FORM3_TEMPLATE_IDENTIFIER,
       type: "footer",
@@ -2012,7 +2020,7 @@ export async function exportForm5ToBuffer(
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
 
-    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_FORM5_TEMPLATE_IDENTIFIER,
       type: "footer",
@@ -2033,7 +2041,7 @@ export async function exportForm5AToBuffer(
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
 
-    const filteredTree = _filterTreeByImplementingUnit(dataResult.value, options.implementingUnitId);
+    const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_FORM5A_TEMPLATE_IDENTIFIER,
       type: "footer",
@@ -2473,6 +2481,7 @@ function _buildLbacItemObject(
   return {
     id: item.id,
     type: LbacObjectType.Item,
+    createdAt: item.createdAt.toISOString(),
     mfoPpa: item.mfoPpa,
     majorFinalOutput: item.majorFinalOutput,
     performanceOutputIndicator: item.performanceOutputIndicator,
@@ -3488,9 +3497,9 @@ function _decimalToNumber(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function _filterTreeByImplementingUnit(
+function _filterTreeByAroLink(
   tree: LbacGroupObject[],
-  implementingUnitId: string,
+  aroLink: string,
 ): LbacGroupObject[] {
   const walkGroup = (group: LbacGroupObject): LbacGroupObject | null => {
     const filteredChildren: Array<LbacGroupObject | LbacObject> = [];
@@ -3503,7 +3512,7 @@ function _filterTreeByImplementingUnit(
         }
       } else {
         const item = child as LbacObject;
-        if (item.implementingUnit?.id === implementingUnitId) {
+        if (item.other.aro?.office.id === aroLink) {
           filteredChildren.push(item);
         }
       }
@@ -3626,7 +3635,9 @@ function _writeSimpleDataRow(
 
 async function _buildLbeFOneExcelBuffer(
   items: LbacObject[],
-  budgetType: LbeF1BudgetType,
+  aroType: LbeF1AroType,
+  lgu: string,
+  purpose: string,
   overrides: Map<string, { forLaterRelease: string; previouslyReleased: string }>,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
@@ -3634,11 +3645,28 @@ async function _buildLbeFOneExcelBuffer(
   const wb = new Workbook();
   const ws = wb.addWorksheet("LBE F1");
 
+  const firstItem = items[0];
+  const metadataAroType = firstItem?.other.aro?.type ?? aroType;
+  const metadataBudgetType = firstItem?.other.budgetType ?? null;
+  const metadataFundType = firstItem?.other.tagging ?? "";
+  const metadataDepartment = firstItem?.other.aro?.office.name ?? "";
+  const metadataOfficeCode = firstItem?.other.aro?.office.code ?? "";
+  const createdAtUtc8 = firstItem?.createdAt
+    ? DateTime.fromISO(firstItem.createdAt, { zone: "utc" }).setZone("UTC+8")
+    : DateTime.now().setZone("UTC+8");
+  const issueDate = createdAtUtc8.toFormat("MM/dd/yyyy");
+  const aroYear = createdAtUtc8.year;
+  const fiscalYear = DateTime.now().setZone("UTC+8").year;
+  const aroNo = `${getLbeF1AroCode(metadataAroType)}-${aroYear}-${metadataOfficeCode}`;
+  const formNo = getLbeF1FormNo(metadataAroType);
+  const formTitle = getLbeF1Title(metadataAroType);
+  const appropriationLabel = `AUTHORIZED APPROPRIATION for ${getLbeF1AroCode(metadataAroType)}`;
+
   const columns = [
     { label: "PPA CODE", width: 18 },
     { label: "PPA DESCRIPTION", width: 40 },
     { label: "OBJECT CLASS/ACCOUNT CODE", width: 24 },
-    { label: "AUTHORIZED APPROPRIATION", width: 20 },
+    { label: appropriationLabel, width: 20 },
     { label: "FOR LATER RELEASE", width: 18 },
     { label: "PREVIOUSLY RELEASED AMOUNT", width: 22 },
     { label: "THIS RELEASE", width: 18 },
@@ -3648,31 +3676,145 @@ async function _buildLbeFOneExcelBuffer(
     ws.getColumn(idx + 1).width = col.width;
   });
 
-  _writeSimpleHeaderRow(ws, 1, columns);
+  ws.mergeCells(1, 1, 1, 3);
+  ws.getCell(1, 1).value = formNo;
+  ws.getCell(1, 1).font = { bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(1, 1).alignment = { horizontal: "left", vertical: "middle" };
+
+  const budgetTypeLabel = getLbeF1BudgetTypeLabel(metadataBudgetType);
+  const budgetRows: Array<{ key: "ab" | "sb" | "rb"; label: string }> = [
+    { key: "ab", label: "ANNUAL BUDGET" },
+    { key: "sb", label: "SUPPLEMENTAL BUDGET" },
+    { key: "rb", label: "REENACTED BUDGET" },
+  ];
+
+  budgetRows.forEach((entry, index) => {
+    const row = 1 + index;
+    ws.mergeCells(row, 6, row, 7);
+    ws.getCell(row, 6).value = `${budgetTypeLabel === entry.label ? "[x]" : "[ ]"} ${entry.label}`;
+    ws.getCell(row, 6).font = { size: 10, name: "Arial Narrow" };
+    ws.getCell(row, 6).alignment = { horizontal: "left", vertical: "middle" };
+  });
+
+  ws.mergeCells(5, 1, 5, 7);
+  ws.getCell(5, 1).value = formTitle;
+  ws.getCell(5, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
+  ws.getCell(5, 1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+
+  ws.mergeCells(6, 1, 6, 7);
+  ws.getCell(6, 1).value = `Fiscal Year ${fiscalYear}`;
+  ws.getCell(6, 1).font = { size: 12, name: "Arial Narrow" };
+  ws.getCell(6, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+  const writeMeta = (row: number, leftLabel: string, leftValue: string, rightLabel?: string, rightValue?: string) => {
+    ws.getCell(row, 1).value = leftLabel;
+    ws.getCell(row, 1).font = { bold: true, size: 10, name: "Arial Narrow" };
+    ws.mergeCells(row, 2, row, 5);
+    ws.getCell(row, 2).value = leftValue;
+    ws.getCell(row, 2).font = { size: 10, name: "Arial Narrow" };
+    if (rightLabel) {
+      ws.getCell(row, 6).value = rightLabel;
+      ws.getCell(row, 6).font = { bold: true, size: 10, name: "Arial Narrow" };
+      ws.getCell(row, 7).value = rightValue ?? "";
+      ws.getCell(row, 7).font = { size: 10, name: "Arial Narrow", bold: true };
+    }
+  };
+
+  writeMeta(8, "LGU:", lgu, "ARO No.:", aroNo);
+  writeMeta(9, "Department/Office:", metadataDepartment, "Date of Issue:", issueDate);
+  writeMeta(10, "Purpose:", purpose);
+  writeMeta(11, "Fund Type:", metadataFundType);
+
+  _writeSimpleHeaderRow(ws, 13, columns);
+  _writeSimpleDataRow(ws, 14, ["(1)", "(2)", "(3)", "(4)", "(5)", "(6)", "(7)"], new Set<number>(), {
+    bold: true,
+  });
 
   const numericIndices = new Set([4, 5, 6, 7]);
-  let row = 2;
+  let row = 15;
+  let totalAuthorized = new Decimal(0);
+  let totalForLater = new Decimal(0);
+  let totalPreviouslyReleased = new Decimal(0);
+  let totalThisRelease = new Decimal(0);
+
   for (const item of items) {
     const override = overrides.get(item.id);
-    const authorizedAppropriation = budgetType === "PS"
+    const authorizedAppropriation = metadataAroType === "ps"
       ? item.proposedBudgetPS
-      : budgetType === "MOOE"
+      : metadataAroType === "mooe"
         ? item.proposedBudgetMOOE
-        : budgetType === "FE"
+        : metadataAroType === "finex"
           ? item.proposedBudgetFE
           : item.proposedBudgetCO;
+
+    const authorizedDecimal = casts.castFromDecimal(authorizedAppropriation);
+    const forLaterDecimal = casts.castFromDecimal(override?.forLaterRelease ?? "0");
+    const previouslyDecimal = casts.castFromDecimal(override?.previouslyReleased ?? "0");
+    const thisReleaseDecimal = authorizedDecimal.minus(forLaterDecimal).minus(previouslyDecimal);
+
+    totalAuthorized = totalAuthorized.plus(authorizedDecimal);
+    totalForLater = totalForLater.plus(forLaterDecimal);
+    totalPreviouslyReleased = totalPreviouslyReleased.plus(previouslyDecimal);
+    totalThisRelease = totalThisRelease.plus(thisReleaseDecimal);
+
     const values: Array<string | number | { formula: string }> = [
       item.aipRefCode?.aipReferenceCode ?? "",
       item.mfoPpa,
       item.other.expenseCode?.accountCode ?? "",
-      _decimalToNumber(authorizedAppropriation),
-      _decimalToNumber(override?.forLaterRelease),
-      _decimalToNumber(override?.previouslyReleased),
-      { formula: `D${row}-E${row}-F${row}` },
+      _decimalToNumber(authorizedDecimal.toString()),
+      _decimalToNumber(forLaterDecimal.toString()),
+      _decimalToNumber(previouslyDecimal.toString()),
+      _decimalToNumber(thisReleaseDecimal.toString()),
     ];
     _writeSimpleDataRow(ws, row, values, numericIndices);
     row++;
   }
+
+  ws.mergeCells(row, 1, row, 3);
+  ws.getCell(row, 1).value = "TOTAL";
+  ws.getCell(row, 1).font = { bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, 1).border = _THIN_BORDER;
+
+  const totalValues = [
+    totalAuthorized.toString(),
+    totalForLater.toString(),
+    totalPreviouslyReleased.toString(),
+    totalThisRelease.toString(),
+  ];
+  totalValues.forEach((val, index) => {
+    const col = 4 + index;
+    const cell = ws.getCell(row, col);
+    cell.value = _decimalToNumber(val);
+    cell.font = { bold: true, size: 11, name: "Arial Narrow" };
+    cell.alignment = { horizontal: "right", vertical: "middle" };
+    cell.numFmt = _NUM_FMT_AMOUNT;
+    cell.border = _THIN_BORDER;
+  });
+  row++;
+
+  ws.getCell(row, 1).value = "AMOUNT IN WORDS:";
+  ws.getCell(row, 1).font = { bold: true, size: 10, name: "Arial Narrow" };
+  ws.getCell(row, 1).alignment = { horizontal: "left", vertical: "middle" };
+  ws.mergeCells(row, 2, row, 7);
+  ws.getCell(row, 2).value = amountToEnglishWords(totalThisRelease.toString());
+  ws.getCell(row, 2).font = { bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+
+  for (let col = 1; col <= 7; col++) {
+    ws.getCell(row, col).border = _THIN_BORDER;
+  }
+  row++;
+
+  ws.mergeCells(row, 1, row + 1, 7);
+  ws.getCell(row, 1).value = "NOTES: The allotments herein released shall be used solely for the purposes indicated and disbursements thereto shall be made in accordance with existing budgeting, accounting and auditing rules and regulations. It is the primary responsibility of the head of the Department/Office/ or Unit concerned to keep expenditures within the limits of the amount allotted.";
+  ws.getCell(row, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(row, 1).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.getCell(row, 1).border = _THIN_BORDER;
+  for (let col = 2; col <= 7; col++) {
+    ws.getCell(row, col).border = _THIN_BORDER;
+  }
+  row += 2;
 
   if (footerTemplatePath) {
     const footerWb = new Workbook();
@@ -4562,6 +4704,7 @@ export type BaseLbacGroupObject = {
 export type LbacObject = {
   id: string;
   type: LbacObjectType.Item;
+  createdAt: string;
   mfoPpa: string;
   majorFinalOutput: string | null;
   performanceOutputIndicator: string | null;
@@ -5020,8 +5163,10 @@ export interface LbacQuarterlyExportOptions {
 export interface LbeFOneExportOptions {
   year: number;
   quarter: number;
-  implementingUnitId: string;
-  budgetType: LbeF1BudgetType;
+  aroLink: string;
+  aroType: LbeF1AroType;
+  lgu: string;
+  purpose: string;
   items: Array<{
     id: string;
     forLaterRelease: string;
@@ -5032,19 +5177,19 @@ export interface LbeFOneExportOptions {
 export interface Form3ExportOptions {
   year: number;
   quarter: number;
-  implementingUnitId: string;
+  aroLink: string;
 }
 
 export interface Form5ExportOptions {
   year: number;
   quarter: number;
-  implementingUnitId: string;
+  aroLink: string;
 }
 
 export interface Form5AExportOptions {
   year: number;
   quarter: number;
-  implementingUnitId: string;
+  aroLink: string;
 }
 
 export interface CollPerfExportOptions {

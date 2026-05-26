@@ -15,6 +15,7 @@ export type LbacItemResponse = {
   id: string;
   /** LbacObjectType.Item = 6768 */
   type: 6768;
+  createdAt: string;
   mfoPpa: string;
   majorFinalOutput: string | null;
   performanceOutputIndicator: string | null;
