@@ -75,7 +75,7 @@ export interface ExportFormsDialogProps {
 function formLabel(formType: FormType): string {
   if (formType === "form-3") return "LBAC Form 3";
   if (formType === "form-5") return "LBE Form 5";
-  return "LBAC Form 5A";
+  return "LBE Form 5A";
 }
 
 function templateApiPath(formType: FormType): string {
@@ -134,11 +134,11 @@ export function ExportFormsDialog({
       setExportError("Please select an ARO office.");
       return;
     }
-    if (formType === "form-5" && !lgu.trim()) {
+    if ((formType === "form-5" || formType === "form-5a") && !lgu.trim()) {
       setExportError("Please provide LGU.");
       return;
     }
-    if (formType === "form-5" && !majorFinalOutput.trim()) {
+    if ((formType === "form-5" || formType === "form-5a") && !majorFinalOutput.trim()) {
       setExportError("Please provide Major Final Output (MFO).");
       return;
     }
@@ -151,7 +151,7 @@ export function ExportFormsDialog({
         ...exportParams,
         aroLink,
       });
-      if (formType === "form-5") {
+      if (formType === "form-5" || formType === "form-5a") {
         params.set("lgu", lgu.trim());
         params.set("mfo", majorFinalOutput.trim());
       }
@@ -216,7 +216,7 @@ export function ExportFormsDialog({
                   </SelectContent>
                 </Select>
               </div>
-              {formType === "form-5" && (
+              {(formType === "form-5" || formType === "form-5a") && (
                 <>
                   <div className="flex flex-col gap-1 md:max-w-md">
                     <Label>LGU</Label>
@@ -297,15 +297,23 @@ export function ExportFormsDialog({
                 </div>
               )}
               {formType === "form-5a" && (
-                <FormPreviewTable
-                  tree={filteredTree}
-                  columns={LBAC_FORM5A_EXPORT_COLUMNS}
-                  getCellValue={(row, key) => getForm5ACellValue(
-                    row as LbacFormExportFlatRow,
-                    key as LbacForm5AExportColumnKey,
-                  )}
-                  valueColumnKey="programProjectActivity"
-                />
+                <div className="flex h-full min-h-0 flex-col gap-2">
+                  <div className="rounded-md border p-3 text-xs">
+                    <div className="font-semibold italic">LBE FORM NO.5A</div>
+                    <div className="mt-1 text-center text-lg font-bold leading-tight">DETAILED FINANCIAL AND PHYSICAL PERFORMANCE TARGETS</div>
+                    <div className="text-center text-base">FY {selectedFiscalYear}</div>
+                    <div className="mt-2"><span className="font-medium">LGU: </span>{lgu}</div>
+                    <div><span className="font-medium">Department/Office: </span><span className="font-bold text-blue-700">{selectedAroOffice?.name ?? ""}</span></div>
+                    <div><span className="font-medium">Major Final Output (MFO): </span>{majorFinalOutput}</div>
+                  </div>
+                  <Form5APreviewTable
+                    tree={filteredTree}
+                    getCellValue={(row, key) => getForm5ACellValue(
+                      row as LbacFormExportFlatRow,
+                      key as LbacForm5AExportColumnKey,
+                    )}
+                  />
+                </div>
               )}
             </TabsContent>
 
@@ -463,6 +471,121 @@ function FormPreviewTable({
               return (
                 <tr key={row.id} className="hover:bg-muted/30">
                   {columns.map(col => (
+                    <td
+                      key={col.key}
+                      className={`border border-border px-2 py-1 ${col.numeric ? "text-right font-mono whitespace-nowrap" : "whitespace-normal break-words max-w-xs"}`}
+                    >
+                      {String(getCellValue(row, col.key))}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {truncated && (
+        <Typography variant="small" className="mt-1.5 text-muted-foreground">
+          Showing first {PREVIEW_LIMIT} of {flat.length} rows. The exported file contains all rows.
+        </Typography>
+      )}
+    </div>
+  );
+}
+
+function Form5APreviewTable({
+  tree,
+  getCellValue,
+}: {
+  tree: LbacGroupResponse[];
+  getCellValue: (row: unknown, key: string) => string | number;
+}) {
+  const flat = useMemo(() => flattenLbacForm5AForExport(tree), [tree]);
+  const rows = flat.slice(0, PREVIEW_LIMIT);
+  const truncated = flat.length > PREVIEW_LIMIT;
+
+  if (rows.length === 0) {
+    return (
+      <div className="text-center py-8 text-sm text-muted-foreground">
+        Select an ARO office to preview data.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full text-[10px]">
+      <div className="flex-1 overflow-auto border rounded-md min-h-0">
+        <table className="w-full border-collapse min-w-max text-sm">
+          <thead className="sticky top-0 z-10 bg-muted">
+            <tr>
+              <th rowSpan={2} className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">
+                Program/Project/Activity
+              </th>
+              <th colSpan={5} className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">
+                FINANCIAL ALLOCATION
+              </th>
+              <th colSpan={4} className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">
+                PHYSICAL TARGETS
+              </th>
+            </tr>
+            <tr>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">1ST QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">2ND QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">3RD QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">4TH QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">TOTAL</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">1ST QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">2ND QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">3RD QUARTER</th>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">4TH QUARTER</th>
+            </tr>
+            <tr>
+              <th className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">(1)</th>
+              <th colSpan={5} className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">(2)</th>
+              <th colSpan={4} className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap">(3)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => {
+              if (row.kind === "group") {
+                const bg = row.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR;
+                return (
+                  <tr key={row.id} style={{ backgroundColor: bg, color: "#fff" }}>
+                    {LBAC_FORM5A_EXPORT_COLUMNS.map(col => {
+                      const raw = getCellValue(row, col.key);
+                      const display = col.key === "programProjectActivity" ? String(raw) : "";
+                      return (
+                        <td
+                          key={col.key}
+                          className={`border border-border px-2 py-1 ${col.key === "programProjectActivity" ? "font-semibold whitespace-normal break-words max-w-xs" : ""}`}
+                        >
+                          {display}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              }
+
+              if (row.kind === "group-total") {
+                const bg = row.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR;
+                return (
+                  <tr key={row.id} className="font-bold" style={{ backgroundColor: bg }}>
+                    {LBAC_FORM5A_EXPORT_COLUMNS.map(col => (
+                      <td
+                        key={col.key}
+                        className={`border border-border px-2 py-1 ${col.numeric ? "text-right font-mono" : ""}`}
+                      >
+                        {String(getCellValue(row, col.key))}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={row.id} className="hover:bg-muted/30">
+                  {LBAC_FORM5A_EXPORT_COLUMNS.map(col => (
                     <td
                       key={col.key}
                       className={`border border-border px-2 py-1 ${col.numeric ? "text-right font-mono whitespace-nowrap" : "whitespace-normal break-words max-w-xs"}`}
