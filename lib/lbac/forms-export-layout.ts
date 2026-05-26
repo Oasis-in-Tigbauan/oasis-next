@@ -26,7 +26,7 @@ export const LBAC_FORM5_EXPORT_COLUMNS = [
   { key: "programProjectActivity", label: "Program/Project/Activity", numeric: false },
   { key: "totalCost", label: "Total Cost", numeric: true },
   { key: "performanceIndicator", label: "Performance Indicator", numeric: false },
-  { key: "priorYearAccomplishments", label: "Prior Year Accomplishments", numeric: false },
+  { key: "priorYearAccomplishments", label: "Prior Year Accomplishments (Actual)", numeric: false },
   { key: "physicalTargets", label: "Physical Targets", numeric: false },
   { key: "remarks", label: "Remarks", numeric: false },
 ] as const;
