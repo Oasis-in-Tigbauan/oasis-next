@@ -1,5 +1,6 @@
 import { count } from "drizzle-orm";
 import fsp from "fs/promises";
+import { DateTime } from "luxon";
 import path from "path";
 import { v7 as uuidv7 } from "uuid";
 
@@ -127,6 +128,7 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: usr.id,
+          createdAt: DateTime.fromFormat((item["ISSUE DATE"] ?? "").trim(), "MMMM d, yyyy", { zone: "Asia/Manila" }).toUTC().toJSDate(),
         };
       }),
     );
