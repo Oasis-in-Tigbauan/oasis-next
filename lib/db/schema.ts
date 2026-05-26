@@ -871,6 +871,28 @@ export const lbacCollectionPerformanceMonthlyData = pgTable("lbac_collection_per
     .notNull(),
 });
 
+export const lbacMonitoring = pgTable("lbac_monitoring", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  ab: text("ab"),
+  actualAccomplishment: text("actual_accomplishment"),
+  abEstimatedCost: decimal("ab_estimated_cost"),
+  actualExpenditure: decimal("actual_expenditure"),
+  remarks: text("remarks"),
+
+  itemId: text("item_id")
+    .references(() => lbacItems.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const obrMainData = pgTable("obr_main_data", {
   id: text("id")
     .primaryKey()
