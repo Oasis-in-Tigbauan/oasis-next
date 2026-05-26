@@ -10,6 +10,7 @@ import {
   flattenLbacForm5AForExport,
   flattenLbacForm5ForExport,
   getForm3CellValue,
+  getForm3QuarterEndingLabel,
   getForm5ACellValue,
   getForm5CellValue,
   LBAC_FORM3_EXPORT_COLUMNS,
@@ -103,12 +104,26 @@ export function ExportFormsDialog({
   const { data: aroOfficesData } = useSWR<
     BetterFetchResponse<AroOfficeListResponse, ApiResponseException>
   >("/api/management/data/aro-office", $fetch);
-  const aroOffices = aroOfficesData?.data?.data ?? [];
+  const aroOffices = useMemo(
+    () => aroOfficesData?.data?.data ?? [],
+    [aroOfficesData?.data?.data],
+  );
 
   const filteredTree = useMemo(() => {
     if (!aroLink) return [];
     return filterLbacTreeByAroLink(tree, aroLink);
   }, [tree, aroLink]);
+
+  const selectedAroOffice = useMemo(
+    () => aroOffices.find(office => office.id === aroLink) ?? null,
+    [aroOffices, aroLink],
+  );
+
+  const selectedYear = Number.parseInt(exportParams.year, 10);
+  const selectedQuarter = Number.parseInt(exportParams.quarter, 10);
+  const form3QuarterEndingLabel = Number.isFinite(selectedYear) && Number.isFinite(selectedQuarter)
+    ? getForm3QuarterEndingLabel(selectedYear, selectedQuarter)
+    : "";
 
   const handleExport = async () => {
     if (!aroLink) {
@@ -200,15 +215,26 @@ export function ExportFormsDialog({
 
             <TabsContent value="preview" className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden">
               {formType === "form-3" && (
-                <FormPreviewTable
-                  tree={filteredTree}
-                  columns={LBAC_FORM3_EXPORT_COLUMNS}
-                  getCellValue={(row, key) => getForm3CellValue(
-                    row as LbacFormExportFlatRow,
-                    key as LbacForm3ExportColumnKey,
-                  )}
-                  valueColumnKey="majorFinalOutput"
-                />
+                <div className="flex h-full min-h-0 flex-col gap-2">
+                  <div className="rounded-md border p-3 text-xs">
+                    <div className="font-semibold italic">LBAc Form No.3</div>
+                    <div className="mt-1 text-center text-lg font-bold leading-tight">Quarterly Physical Report of Operations</div>
+                    <div className="text-center text-base font-bold leading-tight">{form3QuarterEndingLabel}</div>
+                    <div className="mt-2">
+                      <span className="font-medium">Department/Office: </span>
+                      <span className="font-bold text-blue-700">{selectedAroOffice?.name ?? ""}</span>
+                    </div>
+                  </div>
+                  <FormPreviewTable
+                    tree={filteredTree}
+                    columns={LBAC_FORM3_EXPORT_COLUMNS}
+                    getCellValue={(row, key) => getForm3CellValue(
+                      row as LbacFormExportFlatRow,
+                      key as LbacForm3ExportColumnKey,
+                    )}
+                    valueColumnKey="majorFinalOutput"
+                  />
+                </div>
               )}
               {formType === "form-5" && (
                 <FormPreviewTable

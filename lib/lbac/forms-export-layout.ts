@@ -180,6 +180,22 @@ export function amountToEnglishWords(value: string | number): string {
   return `${words} PESOS AND ${centsValue} ${centsLabel}`;
 }
 
+function _quarterOrdinal(quarter: number): string {
+  if (quarter === 1) return "1st";
+  if (quarter === 2) return "2nd";
+  if (quarter === 3) return "3rd";
+  return "4th";
+}
+
+export function getForm3QuarterEndingLabel(year: number, quarter: number): string {
+  const normalizedQuarter = Math.min(4, Math.max(1, quarter));
+  const endMonth = normalizedQuarter * 3;
+  const endDate = new Date(Date.UTC(year, endMonth, 0));
+  const month = endDate.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+  const day = String(endDate.getUTCDate()).padStart(2, "0");
+  return `For the Quarter Ending ${month} ${day}, ${year} (${_quarterOrdinal(normalizedQuarter)} Quarter)`;
+}
+
 export type LbacForm3ExportColumnKey = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number]["key"];
 export type LbacForm5ExportColumnKey = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number]["key"];
 export type LbacForm5AExportColumnKey = (typeof LBAC_FORM5A_EXPORT_COLUMNS)[number]["key"];

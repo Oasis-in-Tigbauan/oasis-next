@@ -42,6 +42,7 @@ import {
   LBAC_FORM5_EXPORT_COLUMNS,
   LBAC_FORM5A_EXPORT_COLUMNS,
   amountToEnglishWords,
+  getForm3QuarterEndingLabel,
   getLbeF1AroCode,
   getLbeF1BudgetTypeLabel,
   getLbeF1FormNo,
@@ -2006,7 +2007,9 @@ export async function exportForm3ToBuffer(
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
-    const buffer = await _buildForm3ExcelBuffer(filteredTree, options.year, options.quarter, footerPath);
+    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? "";
+
+    const buffer = await _buildForm3ExcelBuffer(filteredTree, options.year, options.quarter, officeName, footerPath);
     return new Success(buffer);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 3.", {}, e);
@@ -3830,8 +3833,9 @@ async function _buildLbeFOneExcelBuffer(
 
 async function _buildForm3ExcelBuffer(
   tree: LbacGroupObject[],
-  _year: number,
-  _quarter: number,
+  year: number,
+  quarter: number,
+  officeName: string,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
   const { Workbook } = await import("@cj-tech-master/excelts");
@@ -3841,11 +3845,32 @@ async function _buildForm3ExcelBuffer(
   LBAC_FORM3_EXPORT_COLUMNS.forEach((col, idx) => {
     ws.getColumn(idx + 1).width = col.key === "majorFinalOutput" || col.key === "remarks" ? 30 : 18;
   });
-  _writeSimpleHeaderRow(ws, 1, LBAC_FORM3_EXPORT_COLUMNS);
+
+  const lastColumn = LBAC_FORM3_EXPORT_COLUMNS.length;
+  ws.getCell(1, 1).value = "LBAc Form No.3";
+  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+
+  ws.mergeCells(2, 1, 2, lastColumn);
+  ws.getCell(2, 1).value = "Quarterly Physical Report of Operations";
+  ws.getCell(2, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
+  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+  ws.mergeCells(3, 1, 3, lastColumn);
+  ws.getCell(3, 1).value = getForm3QuarterEndingLabel(year, quarter);
+  ws.getCell(3, 1).font = { bold: true, size: 12, name: "Arial Narrow" };
+  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+  ws.getCell(5, 1).value = "Department/Office:";
+  ws.getCell(5, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.mergeCells(5, 2, 5, 6);
+  ws.getCell(5, 2).value = officeName;
+  ws.getCell(5, 2).font = { size: 10, name: "Arial Narrow", bold: true };
+
+  _writeSimpleHeaderRow(ws, 7, LBAC_FORM3_EXPORT_COLUMNS);
 
   const rows = _flattenLbacTree(tree);
   const numericIndices = new Set<number>();
-  let row = 2;
+  let row = 8;
 
   for (const flatRow of rows) {
     const values: Array<string | number | { formula: string }> = [];
@@ -3901,7 +3926,7 @@ async function _buildForm3ExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  ws.views = [{ state: "frozen", ySplit: 7, xSplit: 0 }];
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
