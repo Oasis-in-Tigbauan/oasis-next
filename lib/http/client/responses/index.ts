@@ -1,4 +1,5 @@
 import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
+import type { AroOfficeListResponse, AroOfficeItem } from "@/lib/http/client/responses/AroOfficeListResponse";
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
 import type { EsreListResponse, EsreItem as EsreItemResponse } from "@/lib/http/client/responses/EsreListResponse";
 import type { ExpenseClassByOfficeCodeListResponse } from "@/lib/http/client/responses/ExpenseClassByOfficeCodeListResponse";
@@ -113,6 +114,8 @@ export { isLbacSearchGroup } from "@/lib/http/client/responses/LbacSearchRespons
 
 export type {
   AccountsListResponse,
+  AroOfficeListResponse,
+  AroOfficeItem,
   ApiResponseException,
   EsreListResponse,
   EsreItemResponse,

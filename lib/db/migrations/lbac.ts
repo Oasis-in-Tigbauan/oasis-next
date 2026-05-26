@@ -7,6 +7,7 @@ import { v7 as uuidv7 } from "uuid";
 import type { MigratorFn } from "@/lib/db/types";
 import {
   aipReferences,
+  aroOfficeDefinitions,
   lbacGroups,
   lbacItems,
   lbacQuarterlyReport,
@@ -39,6 +40,16 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
       .filter(r => r.refCode)
       .map(r => [r.refCode!.trim().toUpperCase(), r]),
   );
+
+  const allAroOffices = await client
+    .select({ id: aroOfficeDefinitions.id, name: aroOfficeDefinitions.name })
+    .from(aroOfficeDefinitions);
+  // Multiple rows may share the same name — keep the first encountered (topmost)
+  const aroByName = new Map<string, string>();
+  for (const r of allAroOffices) {
+    const key = r.name.trim().toUpperCase();
+    if (!aroByName.has(key)) aroByName.set(key, r.id);
+  }
 
   // Parse source data
   const lbacObjects = await parseLbacEntries();
@@ -125,6 +136,9 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
           implementingUnitId,
           expenseCodeId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.expenseCodeId ?? null,
           saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.id ?? null,
+          aroType: mapAroType(item["ARO (2)"]),
+          budgetType: mapBudgetType(item["BUDGET TYPE"]),
+          aroLink: aroByName.get((item["DEPARTMENT/OFFICE"] ?? "").trim().toUpperCase()) ?? null,
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: usr.id,
@@ -143,6 +157,25 @@ function tryGetDecimal(value: string | undefined): string | null {
   const num = Number(cleaned);
   if (!Number.isFinite(num)) return null;
   return num.toString();
+}
+
+function mapAroType(value: string | undefined): "ps" | "mooe" | "finex" | "capex" | null {
+  switch ((value ?? "").trim().toLowerCase()) {
+  case "ps":    return "ps";
+  case "mooe":  return "mooe";
+  case "finex": return "finex";
+  case "capex": return "capex";
+  default:      return null;
+  }
+}
+
+function mapBudgetType(value: string | undefined): "ab" | "sb" | "rb" | null {
+  switch ((value ?? "").trim().toUpperCase()) {
+  case "ANNUAL BUDGET":       return "ab";
+  case "SUPPLEMENTAL BUDGET": return "sb";
+  case "REENACTED BUDGET":    return "rb";
+  default:                    return null;
+  }
 }
 
 function isLbacGroup(item: LbacGroup | LbacItem): item is LbacGroup {

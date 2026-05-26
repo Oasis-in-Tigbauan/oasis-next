@@ -48,6 +48,7 @@ import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import {
   aipReferences,
+  aroOfficeDefinitions,
   expenseClasses,
   lbacCollectionPerformanceData,
   lbacCollectionPerformanceGroup,
@@ -391,6 +392,13 @@ export async function createLbacItem(
         return new Failure(ErrorCodes.ValidationFailure, "The specified SAAOB entry does not exist.", { saaobId: payload.saaobId });
       }
     }
+    if (payload.aroLink) {
+      const [aroRow] = await db.select({ id: aroOfficeDefinitions.id }).from(aroOfficeDefinitions)
+        .where(eq(aroOfficeDefinitions.id, payload.aroLink)).limit(1);
+      if (!aroRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "The specified ARO office does not exist.", { aroLink: payload.aroLink });
+      }
+    }
 
     const newItemId = await db.transaction(async (tx) => {
       const [qr] = await tx.insert(lbacQuarterlyReport).values({}).returning({ id: lbacQuarterlyReport.id });
@@ -416,6 +424,9 @@ export async function createLbacItem(
         implementingUnitId: payload.implementingUnitId ?? null,
         expenseCodeId: payload.expenseCodeId ?? null,
         saaobId: payload.saaobId ?? null,
+        aroType: payload.aroType ?? null,
+        budgetType: payload.budgetType ?? null,
+        aroLink: payload.aroLink ?? null,
         quarterlyReportId: qr.id,
         parentId: groupId,
         authorId: user.id,
@@ -564,6 +575,13 @@ export async function updateLbacItem(
         return new Failure(ErrorCodes.ValidationFailure, "The specified SAAOB entry does not exist.", { saaobId: payload.saaobId });
       }
     }
+    if (payload.aroLink) {
+      const [aroRow] = await db.select({ id: aroOfficeDefinitions.id }).from(aroOfficeDefinitions)
+        .where(eq(aroOfficeDefinitions.id, payload.aroLink)).limit(1);
+      if (!aroRow) {
+        return new Failure(ErrorCodes.ValidationFailure, "The specified ARO office does not exist.", { aroLink: payload.aroLink });
+      }
+    }
 
     const updateValues: Record<string, unknown> = {};
     if (payload.aipRefCode !== undefined) updateValues.aipRefCode = payload.aipRefCode;
@@ -586,6 +604,9 @@ export async function updateLbacItem(
     if (payload.implementingUnitId !== undefined) updateValues.implementingUnitId = payload.implementingUnitId;
     if (payload.expenseCodeId !== undefined) updateValues.expenseCodeId = payload.expenseCodeId;
     if (payload.saaobId !== undefined) updateValues.saaobId = payload.saaobId;
+    if (payload.aroType !== undefined) updateValues.aroType = payload.aroType;
+    if (payload.budgetType !== undefined) updateValues.budgetType = payload.budgetType;
+    if (payload.aroLink !== undefined) updateValues.aroLink = payload.aroLink;
 
     if (Object.keys(updateValues).length > 0) {
       await db.update(lbacItems).set(updateValues).where(eq(lbacItems.id, lbacId));
@@ -2283,6 +2304,9 @@ async function _fetchItems(): Promise<LbacItemRow[]> {
       physicalTargets: lbacItems.physicalTargets,
       priorYearAccomplishments: lbacItems.priorYearAccomplishments,
       remarksForOtherMetadata: lbacItems.remarksForOtherMetadata,
+      aroType: lbacItems.aroType,
+      budgetType: lbacItems.budgetType,
+      createdAt: lbacItems.createdAt,
       aipRefId: aipReferences.id,
       aipReferenceCode: aipReferences.aipReferenceCode,
       aipDescription: aipReferences.description,
@@ -2294,6 +2318,9 @@ async function _fetchItems(): Promise<LbacItemRow[]> {
       saaobId: saaobEntries.id,
       saaobName: saaobEntries.name,
       saaobAccountCode: saaobEntries.accountCode,
+      aroOfficeId: aroOfficeDefinitions.id,
+      aroOfficeName: aroOfficeDefinitions.name,
+      aroOfficeCode: aroOfficeDefinitions.code,
       quarterlyReportId: lbacItems.quarterlyReportId,
       parentId: lbacItems.parentId,
     })
@@ -2302,6 +2329,7 @@ async function _fetchItems(): Promise<LbacItemRow[]> {
     .leftJoin(officeCodes, eq(officeCodes.id, lbacItems.implementingUnitId))
     .leftJoin(expenseClasses, eq(expenseClasses.id, lbacItems.expenseCodeId))
     .leftJoin(saaobEntries, eq(saaobEntries.id, lbacItems.saaobId))
+    .leftJoin(aroOfficeDefinitions, eq(aroOfficeDefinitions.id, lbacItems.aroLink))
     .orderBy(asc(lbacItems.createdAt));
 }
 
@@ -2484,6 +2512,19 @@ function _buildLbacItemObject(
       percentage: cutOffPercentage.toString(),
     },
     other: {
+      aro: item.aroType && item.aroOfficeId
+        ? {
+          number: `${item.createdAt.getFullYear()}-${item.aroOfficeCode!}`,
+          id: `${item.aroType.toUpperCase()}-${item.createdAt.getFullYear()}-${item.aroOfficeCode!}`,
+          type: item.aroType,
+          office: {
+            id: item.aroOfficeId,
+            name: item.aroOfficeName!,
+            code: item.aroOfficeCode!,
+          },
+        }
+        : null,
+      budgetType: item.budgetType ?? null,
       gadable: item.gadable,
       tagging: item.tagging,
       amountAttributed: item.amountAttributed,
@@ -4563,6 +4604,17 @@ export type LbacObject = {
     percentage: string;
   };
   other: {
+    aro: {
+      number: string;
+      id: string;
+      type: string;
+      office: {
+        id: string;
+        name: string;
+        code: string;
+      };
+    } | null;
+    budgetType: string | null;
     gadable: boolean;
     tagging: string | null;
     amountAttributed: string | null;
@@ -4738,6 +4790,9 @@ export type CreateLbacItemPayload = {
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
   saaobId?: string | null;
+  aroType?: "ps" | "mooe" | "finex" | "capex" | null;
+  budgetType?: "ab" | "sb" | "rb" | null;
+  aroLink?: string | null;
 };
 
 export type UpdateLbacItemPayload = Partial<CreateLbacItemPayload>;
@@ -4789,6 +4844,9 @@ type LbacItemRow = {
   physicalTargets: string | null;
   priorYearAccomplishments: string | null;
   remarksForOtherMetadata: string | null;
+  aroType: string | null;
+  budgetType: string | null;
+  createdAt: Date;
   aipRefId: string | null;
   aipReferenceCode: string | null;
   aipDescription: string | null;
@@ -4800,6 +4858,9 @@ type LbacItemRow = {
   saaobId: string | null;
   saaobName: string | null;
   saaobAccountCode: string | null;
+  aroOfficeId: string | null;
+  aroOfficeName: string | null;
+  aroOfficeCode: string | null;
   quarterlyReportId: string;
   parentId: string;
 };

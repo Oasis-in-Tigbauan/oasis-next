@@ -50,6 +50,17 @@ export type LbacItemResponse = {
     percentage: string;
   };
   other: {
+    aro: {
+      number: string;
+      id: string;
+      type: string;
+      office: {
+        id: string;
+        name: string;
+        code: string;
+      };
+    } | null;
+    budgetType: string | null;
     gadable: boolean;
     tagging: string | null;
     amountAttributed: string | null;

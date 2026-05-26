@@ -9,6 +9,8 @@ import { $fetch } from "@/lib/http/client/fetch";
 import type {
   ApiResponseException,
   AipSearchResultItem,
+  AroOfficeItem,
+  AroOfficeListResponse,
   BetterFetchResponse,
   LbacDataResponse,
   LbacGroupResponse,
@@ -1004,6 +1006,16 @@ function ItemFormDialog({
     editItem?.other.priorYearAccomplishments ?? "",
   );
   const [otherRemarks, setOtherRemarks] = useState(editItem?.other.remarks ?? "");
+  const [aroType, setAroType] = useState<"ps" | "mooe" | "finex" | "capex" | null>(
+    (editItem?.other.aro?.type as "ps" | "mooe" | "finex" | "capex" | null) ?? null,
+  );
+  const [budgetType, setBudgetType] = useState<"ab" | "sb" | "rb" | null>(
+    (editItem?.other.budgetType as "ab" | "sb" | "rb" | null) ?? null,
+  );
+  const [aroLink, setAroLink] = useState<{ id: string; name: string; code: string } | null>(
+    editItem?.other.aro?.office ?? null,
+  );
+  const [aroQuery, setAroQuery] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -1012,6 +1024,16 @@ function ItemFormDialog({
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
   >("/api/management/data/office-codes", $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
+
+  const { data: aroOfficesData } = useSWR<
+    BetterFetchResponse<AroOfficeListResponse, ApiResponseException>
+  >("/api/management/data/aro-office", $fetch);
+  const aroOffices = aroOfficesData?.data?.data ?? [];
+  const filteredAroOffices = aroOffices.filter(
+    (o: AroOfficeItem) =>
+      o.name.toLowerCase().includes(aroQuery.toLowerCase()) ||
+      o.code.toLowerCase().includes(aroQuery.toLowerCase()),
+  );
 
   const handleSave = async () => {
     if (submitting) return;
@@ -1044,6 +1066,9 @@ function ItemFormDialog({
       if (priorYearAccomplishments.trim()) body.priorYearAccomplishments = priorYearAccomplishments.trim();
       if (otherRemarks.trim()) body.remarksForOtherMetadata = otherRemarks.trim();
       body.saaobId = saaob?.id ?? null;
+      if (aroType) body.aroType = aroType;
+      if (budgetType) body.budgetType = budgetType;
+      body.aroLink = aroLink?.id ?? null;
 
       let res: Response;
       if (mode === "add") {
@@ -1252,6 +1277,60 @@ function ItemFormDialog({
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="flex flex-col gap-1">
+                <Label htmlFor={`${baseId}-budgetType`}>Budget Type</Label>
+                <Select
+                  value={budgetType ?? "__none__"}
+                  onValueChange={v => setBudgetType(v === "__none__" ? null : (v as "ab" | "sb" | "rb"))}
+                  disabled={submitting}
+                >
+                  <SelectTrigger id={`${baseId}-budgetType`}>
+                    <SelectValue placeholder="Select budget type…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    <SelectItem value="ab">Annual Budget</SelectItem>
+                    <SelectItem value="sb">Supplemental Budget</SelectItem>
+                    <SelectItem value="rb">Reenacted Budget</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor={`${baseId}-aroType`}>ARO Type</Label>
+                <Select
+                  value={aroType ?? "__none__"}
+                  onValueChange={v => setAroType(v === "__none__" ? null : (v as "ps" | "mooe" | "finex" | "capex"))}
+                  disabled={submitting}
+                >
+                  <SelectTrigger id={`${baseId}-aroType`}>
+                    <SelectValue placeholder="Select ARO type…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    <SelectItem value="ps">PS</SelectItem>
+                    <SelectItem value="mooe">MOOE</SelectItem>
+                    <SelectItem value="finex">FinEx</SelectItem>
+                    <SelectItem value="capex">CapEx</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Typography variant="muted" className="text-xs font-semibold uppercase">
+                ARO Office Link
+              </Typography>
+              <AroOfficeCombobox
+                value={aroLink}
+                onChange={setAroLink}
+                query={aroQuery}
+                onQueryChange={setAroQuery}
+                options={filteredAroOffices}
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-tagging`}>Tagging</Label>
                 <Input
                   id={`${baseId}-tagging`}
@@ -1319,6 +1398,73 @@ function ItemFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AroOfficeCombobox({
+  value,
+  onChange,
+  query,
+  onQueryChange,
+  options,
+  disabled,
+}: {
+  value: { id: string; name: string; code: string } | null;
+  onChange: (val: { id: string; name: string; code: string } | null) => void;
+  query: string;
+  onQueryChange: (q: string) => void;
+  options: AroOfficeItem[];
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative flex flex-1 flex-col gap-1">
+        <Input
+          placeholder="Search ARO office…"
+          value={open ? query : (value ? `${value.code} — ${value.name}` : "")}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={e => onQueryChange(e.target.value)}
+          disabled={disabled}
+        />
+        {open && (
+          <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+            {options.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No offices found.</div>
+            )}
+            {options.map(o => (
+              <button
+                key={o.id}
+                type="button"
+                className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent"
+                onMouseDown={() => {
+                  onChange({ id: o.id, name: o.name, code: o.code });
+                  setOpen(false);
+                  onQueryChange("");
+                }}
+              >
+                <span>{o.name}</span>
+                <span className="text-xs text-muted-foreground">{o.code}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {value && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-destructive hover:text-destructive"
+          onClick={() => onChange(null)}
+          disabled={disabled}
+        >
+          Clear
+        </Button>
+      )}
+    </div>
   );
 }
 

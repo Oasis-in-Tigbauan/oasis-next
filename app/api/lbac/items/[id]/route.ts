@@ -28,6 +28,9 @@ type UpdateLbacItemBody = {
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
   saaobId?: string | null;
+  aroType?: "ps" | "mooe" | "finex" | "capex" | null;
+  budgetType?: "ab" | "sb" | "rb" | null;
+  aroLink?: string | null;
 };
 
 export async function PATCH(
@@ -74,6 +77,9 @@ export async function PATCH(
       implementingUnitId: { type: "string", formatter: "uuid" },
       expenseCodeId: { type: "string", formatter: "uuid" },
       saaobId: { type: "string", formatter: "uuid" },
+      aroType: { type: "string", formatter: "non-empty-string" },
+      budgetType: { type: "string", formatter: "non-empty-string" },
+      aroLink: { type: "string", formatter: "uuid" },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,
