@@ -379,6 +379,13 @@
       "when": 1779725672620,
       "tag": "0053_nappy_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1779790597281,
+      "tag": "0054_thin_solo",
+      "breakpoints": true
     }
   ]
 }

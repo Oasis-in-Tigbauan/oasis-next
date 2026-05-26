@@ -273,6 +273,26 @@ export const expenseType = pgTable("expense_type", {
     .notNull(),
 });
 
+export const aroOfficeDefinitions = pgTable("aro_office_definitions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description").notNull(),
+  leadUserId: text("lead_user_id")
+    .references(() => user.id)
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const saaobEntryGroup = pgTable("saaob_entry_group", {
   id: text("id")
     .primaryKey()

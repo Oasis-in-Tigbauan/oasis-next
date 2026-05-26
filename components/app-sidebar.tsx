@@ -163,6 +163,7 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
     permissions.DATA_TYPES_MANAGE_READ,
     permissions.DATA_TYPES_MANAGE_WRITE,
   ) ? [
+      { title: "ARO Office Definitions", href: "/dashboard/settings/aro-office", icon: BriefcaseBusiness },
       { title: "Expense Types", href: "/dashboard/settings/expense-types", icon: PhilippinePeso },
       { title: "Expense Codes", href: "/dashboard/settings/expense-codes", icon: PhilippinePeso },
       { title: "Office Codes", href: "/dashboard/settings/office-codes", icon: LampDesk },
