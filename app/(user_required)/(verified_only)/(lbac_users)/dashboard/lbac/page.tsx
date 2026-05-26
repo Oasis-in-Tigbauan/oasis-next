@@ -129,6 +129,26 @@ const allMenuItems: Array<MenuItem> = [
       permissions.LBAC_DATA_WRITE,
     ],
   },
+  {
+    title: "Collection Performance",
+    description: "Manage Collection Performance",
+    href: "/dashboard/lbac/coll-perf",
+    icon: FolderCog,
+    required: [
+      permissions.LBAC_DATA_READ,
+      permissions.LBAC_DATA_WRITE,
+    ],
+  },
+  {
+    title: "Monitoring of Physical and Financial Accomplishment",
+    description: "Manage Monitoring of Physical and Financial Accomplishment",
+    href: "/dashboard/lbac/monitoring",
+    icon: FolderCog,
+    required: [
+      permissions.LBAC_DATA_READ,
+      permissions.LBAC_DATA_WRITE,
+    ],
+  },
 ];
 
 type MenuItem = {

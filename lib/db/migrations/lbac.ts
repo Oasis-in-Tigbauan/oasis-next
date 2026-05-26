@@ -121,7 +121,7 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
 
         return {
           aipRefCode: aipRefId,
-          mfoPpa: item["MFO/ PPA"] || item["MFO/PPA"] || "",
+          mfoPpa: (item["MFO/ PPA"] || item["MFO/PPA"] || "").trim(),
           majorFinalOutput: item["Major Final Output"] || null,
           performanceOutputIndicator: item["Performance/Output Indicator"] || null,
           targetForBudgetYear: item["Target for the Budget Year  (Quantity, Quality & Time)"] || null,
