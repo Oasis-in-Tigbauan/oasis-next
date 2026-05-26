@@ -66,6 +66,11 @@ import type {
   CollPerfMonthlyData,
   CollPerfResponse,
 } from "@/lib/http/client/responses/LbacCollectionPerformanceResponse";
+import type {
+  LbacMonitoringGroupResponse,
+  LbacMonitoringItemResponse,
+  LbacMonitoringResponse,
+} from "@/lib/http/client/responses/LbacMonitoringResponse";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
 import type {
   SaaobDataResponse,
@@ -196,6 +201,9 @@ export type {
   CollPerfItemResponse,
   CollPerfMonthlyData,
   CollPerfResponse,
+  LbacMonitoringGroupResponse,
+  LbacMonitoringItemResponse,
+  LbacMonitoringResponse,
   SaaobDataResponse,
   SaaobOfficeResponse,
   SaaobEntryResponse,

@@ -34,6 +34,7 @@ const routeMetaList: Array<{
   { matcher: "/dashboard/lbac/quarterly", meta: { section: "Worksheets", title: "LBAC Quarterly Reports", breadcrumbs: ["LBAC", "Quarterly Reports"] } },
   { matcher: "/dashboard/lbac/data", meta: { section: "Worksheets", title: "LBAC Data", breadcrumbs: ["LBAC", "Data"] } },
   { matcher: "/dashboard/lbac/coll-perf", meta: { section: "Worksheets", title: "Collection Performance", breadcrumbs: ["LBAC", "Collection Performance"] } },
+  { matcher: "/dashboard/lbac/monitoring", meta: { section: "Worksheets", title: "LBAC Monitoring", breadcrumbs: ["LBAC", "Monitoring"] }},
   { matcher: "/dashboard/saaob", meta: { section: "Worksheets", title: "SAAOB Overview", breadcrumbs: ["SAAOB"] } },
   { matcher: "/dashboard/saaob/office", meta: { section: "Worksheets", title: "SAAOB Office View", breadcrumbs: ["SAAOB", "Office View"] } },
   { matcher: "/dashboard/saaob/data", meta: { section: "Worksheets", title: "SAAOB Main Data", breadcrumbs: ["SAAOB", "Main Data"] } },

@@ -14,6 +14,7 @@ import {
   fundTypes,
   lbacGroups,
   lbacItems,
+  lbacMonitoring,
   lbacQuarterlyReport,
   modeOfProcurements,
   obrDisbursementElectronic,
@@ -88,6 +89,7 @@ async function resetData() {
     await tx.delete(saaobSummaryOfAccountsLinkedGroups);
     await tx.delete(obrDisbursementVouchers);
     await tx.delete(obrRequestItems);
+    await tx.delete(lbacMonitoring);
     await tx.delete(lbacItems);
     await tx.delete(ppmpMajorGroup);
     await tx.delete(saaobSummaryOfAccounts);
