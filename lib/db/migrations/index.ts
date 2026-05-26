@@ -1,6 +1,7 @@
 import { aipMigration } from "@/lib/db/migrations/aip";
 import { expenseCodesMigration } from "@/lib/db/migrations/expense-codes";
 import { expenseTypesMigration } from "@/lib/db/migrations/expense-type";
+import { fundTypesMigration } from "@/lib/db/migrations/fund-types";
 import { lbacMigration } from "@/lib/db/migrations/lbac";
 import { obrEntriesMigration } from "@/lib/db/migrations/obr";
 import { officeCodesMigration } from "@/lib/db/migrations/office-code";
@@ -13,6 +14,7 @@ const migrations: MigratorFn[] = [
   aipMigration,
   officeCodesMigration,
   expenseCodesMigration,
+  fundTypesMigration,
   saaobEntriesMigration,
   lbacMigration,
   supplementalMigration,
