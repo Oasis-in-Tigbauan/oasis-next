@@ -29,6 +29,9 @@ type CreateLbacItemBody = {
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
   saaobId?: string | null;
+  aroType?: "ps" | "mooe" | "finex" | "capex" | null;
+  budgetType?: "ab" | "sb" | "rb" | null;
+  aroLink?: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -68,6 +71,9 @@ export async function POST(req: NextRequest) {
       physicalTargets: { type: "string", formatter: "non-empty-string" },
       priorYearAccomplishments: { type: "string", formatter: "non-empty-string" },
       remarksForOtherMetadata: { type: "string", formatter: "non-empty-string" },
+      aroType: { type: "string", formatter: "non-empty-string" },
+      budgetType: { type: "string", formatter: "non-empty-string" },
+      aroLink: { type: "string", formatter: "uuid" },
     },
     requiredProperties: ["groupId", "mfoPpa"],
     allowUnvalidatedProperties: false,

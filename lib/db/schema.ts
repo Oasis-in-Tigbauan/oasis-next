@@ -740,6 +740,9 @@ export const lbacQuarterlyReport = pgTable("lbac_quarterly_report", {
     .notNull(),
 });
 
+export const aroType = pgEnum("aro_type", ["ps", "mooe", "finex", "capex"]);
+export const lbacBudgetType = pgEnum("lbac_budget_type", ["ab", "sb", "rb"]);
+
 export const lbacItems = pgTable("lbac_items", {
   id: text("id")
     .primaryKey()
@@ -766,6 +769,8 @@ export const lbacItems = pgTable("lbac_items", {
   physicalTargets: text("physical_targets"),
   priorYearAccomplishments: text("prior_year_accomplishments"),
   remarksForOtherMetadata: text("remarks_for_other_metadata"),
+  aroType: aroType("aro_type"),
+  budgetType: lbacBudgetType("budget_type"),
 
   // References
   implementingUnitId: text("implementing_unit_id")
@@ -774,6 +779,8 @@ export const lbacItems = pgTable("lbac_items", {
     .references(() => expenseClasses.id),
   saaobId: text("saaob_id")
     .references(() => saaobEntries.id),
+  aroLink: text("aro_link")
+    .references(() => aroOfficeDefinitions.id),
 
   // Quarterly Reports
   quarterlyReportId: text("lbac_quarterly_report")

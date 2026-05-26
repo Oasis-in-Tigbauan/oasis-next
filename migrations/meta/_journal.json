@@ -386,6 +386,20 @@
       "when": 1779790597281,
       "tag": "0054_thin_solo",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1779790913178,
+      "tag": "0055_confused_klaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1779791319760,
+      "tag": "0056_numerous_mastermind",
+      "breakpoints": true
     }
   ]
 }

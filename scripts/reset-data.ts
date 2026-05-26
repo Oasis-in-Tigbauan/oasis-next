@@ -5,6 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 import { db } from "@/lib/db";
 import {
+  aroOfficeDefinitions,
   aipReferences,
   esre,
   expenseClasses,
@@ -102,6 +103,7 @@ async function resetData() {
     await tx.delete(saaobEntryGroup);
     await tx.delete(expenseClassOfficeCodes);
     await tx.delete(aipReferences);
+    await tx.delete(aroOfficeDefinitions);
     await tx.delete(officeCodes);
     await tx.delete(expenseClasses);
     await tx.delete(fundTypes);
