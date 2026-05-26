@@ -40,6 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -73,7 +74,7 @@ export interface ExportFormsDialogProps {
 
 function formLabel(formType: FormType): string {
   if (formType === "form-3") return "LBAC Form 3";
-  if (formType === "form-5") return "LBAC Form 5";
+  if (formType === "form-5") return "LBE Form 5";
   return "LBAC Form 5A";
 }
 
@@ -97,6 +98,8 @@ export function ExportFormsDialog({
   exportParams,
 }: ExportFormsDialogProps) {
   const [aroLink, setAroLink] = useState("");
+  const [lgu, setLgu] = useState("TIGBAUAN, ILOILO");
+  const [majorFinalOutput, setMajorFinalOutput] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [manageTemplateOpen, setManageTemplateOpen] = useState(false);
@@ -124,10 +127,19 @@ export function ExportFormsDialog({
   const form3QuarterEndingLabel = Number.isFinite(selectedYear) && Number.isFinite(selectedQuarter)
     ? getForm3QuarterEndingLabel(selectedYear, selectedQuarter)
     : "";
+  const selectedFiscalYear = Number.isFinite(selectedYear) ? selectedYear : new Date().getFullYear();
 
   const handleExport = async () => {
     if (!aroLink) {
       setExportError("Please select an ARO office.");
+      return;
+    }
+    if (formType === "form-5" && !lgu.trim()) {
+      setExportError("Please provide LGU.");
+      return;
+    }
+    if (formType === "form-5" && !majorFinalOutput.trim()) {
+      setExportError("Please provide Major Final Output (MFO).");
       return;
     }
 
@@ -139,6 +151,10 @@ export function ExportFormsDialog({
         ...exportParams,
         aroLink,
       });
+      if (formType === "form-5") {
+        params.set("lgu", lgu.trim());
+        params.set("mfo", majorFinalOutput.trim());
+      }
 
       const response = await fetch(`${exportApiPath(formType)}?${params.toString()}`);
       if (!response.ok) {
@@ -186,18 +202,40 @@ export function ExportFormsDialog({
           </div>
 
           <div className="px-6 pt-3 pb-2 border-b">
-            <div className="flex flex-col gap-1 w-80">
-              <Label>ARO Office</Label>
-              <Select value={aroLink} onValueChange={setAroLink}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select ARO office..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {aroOffices.map(office => (
-                    <SelectItem key={office.id} value={office.id}>{office.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="flex flex-col gap-1 w-80">
+                <Label>ARO Office</Label>
+                <Select value={aroLink} onValueChange={setAroLink}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select ARO office..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {aroOffices.map(office => (
+                      <SelectItem key={office.id} value={office.id}>{office.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {formType === "form-5" && (
+                <>
+                  <div className="flex flex-col gap-1 md:max-w-md">
+                    <Label>LGU</Label>
+                    <Input
+                      value={lgu}
+                      onChange={event => setLgu(event.target.value)}
+                      placeholder="e.g. TIGBAUAN, ILOILO"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 md:max-w-md">
+                    <Label>Major Final Output (MFO)</Label>
+                    <Input
+                      value={majorFinalOutput}
+                      onChange={event => setMajorFinalOutput(event.target.value)}
+                      placeholder="Enter major final output"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -237,15 +275,26 @@ export function ExportFormsDialog({
                 </div>
               )}
               {formType === "form-5" && (
-                <FormPreviewTable
-                  tree={filteredTree}
-                  columns={LBAC_FORM5_EXPORT_COLUMNS}
-                  getCellValue={(row, key) => getForm5CellValue(
-                    row as LbacFormExportFlatRow,
-                    key as LbacForm5ExportColumnKey,
-                  )}
-                  valueColumnKey="programProjectActivity"
-                />
+                <div className="flex h-full min-h-0 flex-col gap-2">
+                  <div className="rounded-md border p-3 text-xs">
+                    <div className="font-semibold italic">LBE FORM NO.5</div>
+                    <div className="mt-1 text-center text-lg font-bold leading-tight">SUMMARY OF FINANCIAL AND PHYSICAL PERFORMANCE TARGETS</div>
+                    <div className="text-center text-base">FY {selectedFiscalYear}</div>
+                    <div className="mt-2"><span className="font-medium">LGU: </span>{lgu}</div>
+                    <div><span className="font-medium">Department/Office: </span><span className="font-bold text-blue-700">{selectedAroOffice?.name ?? ""}</span></div>
+                    <div><span className="font-medium">Major Final Output (MFO): </span>{majorFinalOutput}</div>
+                  </div>
+                  <FormPreviewTable
+                    tree={filteredTree}
+                    columns={LBAC_FORM5_EXPORT_COLUMNS}
+                    getCellValue={(row, key) => getForm5CellValue(
+                      row as LbacFormExportFlatRow,
+                      key as LbacForm5ExportColumnKey,
+                    )}
+                    valueColumnKey="programProjectActivity"
+                    indexLabels={["(1)", "(2)", "(3)", "(4)", "(5)", "(6)"]}
+                  />
+                </div>
               )}
               {formType === "form-5a" && (
                 <FormPreviewTable
@@ -320,11 +369,13 @@ function FormPreviewTable({
   columns,
   getCellValue,
   valueColumnKey,
+  indexLabels,
 }: {
   tree: LbacGroupResponse[];
   columns: ReadonlyArray<{ key: string; label: string; numeric: boolean }>;
   getCellValue: (row: unknown, key: string) => string | number;
   valueColumnKey: string;
+  indexLabels?: string[];
 }) {
   const flat = useMemo(() => {
     if (columns === LBAC_FORM3_EXPORT_COLUMNS) return flattenLbacForm3ForExport(tree);
@@ -358,6 +409,18 @@ function FormPreviewTable({
                 </th>
               ))}
             </tr>
+            {indexLabels && indexLabels.length === columns.length && (
+              <tr>
+                {indexLabels.map((label, index) => (
+                  <th
+                    key={`${label}-${index}`}
+                    className="border border-border px-2 py-1 text-center font-bold text-[10px] whitespace-nowrap"
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
           <tbody>
             {rows.map(row => {
