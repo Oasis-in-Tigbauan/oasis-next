@@ -6,17 +6,21 @@ import { Decimal } from "decimal.js";
 import useSWR from "swr";
 
 import {
-  flattenLbacFlatItemsForOffice,
-  LBE_F1_BUDGET_TYPES,
-  type LbeF1BudgetType,
+  amountToEnglishWords,
+  flattenLbacFlatItemsForAroLink,
+  getLbeF1AroCode,
+  getLbeF1FormNo,
+  getLbeF1Title,
+  LBE_F1_ARO_TYPES,
+  type LbeF1AroType,
 } from "@/lib/lbac/client";
 import { $fetch } from "@/lib/http/client/fetch";
 import type {
+  AroOfficeListResponse,
   ApiResponseException,
   BetterFetchResponse,
   LbacGroupResponse,
   LbacItemResponse,
-  OfficeCodeListResponse,
 } from "@/lib/http/client/responses";
 
 import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
@@ -62,10 +66,10 @@ export interface ExportLbeFOneDialogProps {
   };
 }
 
-function getBudgetValue(item: LbacItemResponse, budgetType: LbeF1BudgetType): string {
-  if (budgetType === "PS") return item.proposedBudgetPS;
-  if (budgetType === "MOOE") return item.proposedBudgetMOOE;
-  if (budgetType === "FE") return item.proposedBudgetFE;
+function getBudgetValue(item: LbacItemResponse, aroType: LbeF1AroType): string {
+  if (aroType === "ps") return item.proposedBudgetPS;
+  if (aroType === "mooe") return item.proposedBudgetMOOE;
+  if (aroType === "finex") return item.proposedBudgetFE;
   return item.proposedBudgetCO;
 }
 
@@ -89,32 +93,112 @@ function includesQuery(item: LbacItemResponse, query: string): boolean {
   );
 }
 
+function formatCurrency(value: string): string {
+  try {
+    const amount = new Decimal(value || "0");
+    return amount.toNumber().toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch {
+    return "0.00";
+  }
+}
+
+function getUtc8Year(dateIso: string | undefined): number {
+  const value = dateIso ? new Date(dateIso) : new Date();
+  return Number(new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  }).format(value));
+}
+
+function formatUtc8Date(dateIso: string | undefined): string {
+  const value = dateIso ? new Date(dateIso) : new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  }).formatToParts(value);
+
+  const month = parts.find(part => part.type === "month")?.value ?? "01";
+  const day = parts.find(part => part.type === "day")?.value ?? "01";
+  const year = parts.find(part => part.type === "year")?.value ?? "1970";
+  return `${month}/${day}/${year}`;
+}
+
 export function ExportLbeFOneDialog({
   open,
   onOpenChange,
   tree,
   exportParams,
 }: ExportLbeFOneDialogProps) {
-  const [implementingUnitId, setImplementingUnitId] = useState("");
-  const [budgetType, setBudgetType] = useState<LbeF1BudgetType>("PS");
+  const [aroLink, setAroLink] = useState("");
+  const [aroType, setAroType] = useState<LbeF1AroType>("ps");
+  const [lgu, setLgu] = useState("TIGBAUAN, ILOILO");
+  const [purpose, setPurpose] = useState("");
   const [itemSearch, setItemSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [manageTemplateOpen, setManageTemplateOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const { data: officeCodesData } = useSWR<
-    BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
-  >("/api/management/data/office-codes", $fetch);
-  const officeCodes = officeCodesData?.data?.data ?? [];
+  const { data: aroOfficesData } = useSWR<
+    BetterFetchResponse<AroOfficeListResponse, ApiResponseException>
+  >("/api/management/data/aro-office", $fetch);
+  const aroOffices = aroOfficesData?.data?.data ?? [];
 
   const availableItems = useMemo(() => {
-    if (!implementingUnitId) return [];
-    const byOffice = flattenLbacFlatItemsForOffice(tree, implementingUnitId);
-    return byOffice.filter(item => includesQuery(item, itemSearch));
-  }, [tree, implementingUnitId, itemSearch]);
+    if (!aroLink) return [];
+    const byAroOffice = flattenLbacFlatItemsForAroLink(tree, aroLink);
+    return byAroOffice
+      .filter(item => item.other.aro?.type === aroType)
+      .filter(item => includesQuery(item, itemSearch));
+  }, [tree, aroLink, aroType, itemSearch]);
 
   const selectedIds = useMemo(() => new Set(selectedItems.map(selected => selected.item.id)), [selectedItems]);
+
+  const previewRows = useMemo(() => selectedItems.map(entry => {
+    const authorized = getBudgetValue(entry.item, aroType);
+    const thisRelease = computeThisRelease(authorized, entry.forLaterRelease, entry.previouslyReleased);
+    return {
+      item: entry.item,
+      authorized,
+      forLaterRelease: entry.forLaterRelease,
+      previouslyReleased: entry.previouslyReleased,
+      thisRelease,
+    };
+  }), [selectedItems, aroType]);
+
+  const totals = useMemo(() => {
+    let authorized = new Decimal(0);
+    let forLater = new Decimal(0);
+    let previouslyReleased = new Decimal(0);
+    let thisRelease = new Decimal(0);
+
+    for (const row of previewRows) {
+      try {
+        authorized = authorized.plus(new Decimal(row.authorized || "0"));
+        forLater = forLater.plus(new Decimal(row.forLaterRelease || "0"));
+        previouslyReleased = previouslyReleased.plus(new Decimal(row.previouslyReleased || "0"));
+        thisRelease = thisRelease.plus(new Decimal(row.thisRelease || "0"));
+      } catch {
+        // Skip malformed values and keep other rows valid.
+      }
+    }
+
+    return { authorized, forLater, previouslyReleased, thisRelease };
+  }, [previewRows]);
+
+  const firstItem = selectedItems[0]?.item;
+  const firstAroType = firstItem?.other.aro?.type ?? aroType;
+  const firstBudgetType = firstItem?.other.budgetType ?? null;
+  const fiscalYear = getUtc8Year(undefined);
+  const issueDate = formatUtc8Date(firstItem?.createdAt);
+  const aroYear = getUtc8Year(firstItem?.createdAt);
+  const aroOfficeCode = firstItem?.other.aro?.office.code ?? "";
+  const aroNo = `${getLbeF1AroCode(firstAroType)}-${aroYear}-${aroOfficeCode}`;
+  const departmentOffice = firstItem?.other.aro?.office.name ?? "";
+  const fundType = firstItem?.other.tagging ?? "";
+  const amountInWords = amountToEnglishWords(totals.thisRelease.toFixed(2));
 
   const addItem = (item: LbacItemResponse) => {
     if (selectedIds.has(item.id)) return;
@@ -144,8 +228,16 @@ export function ExportLbeFOneDialog({
   };
 
   const handleExport = async () => {
-    if (!implementingUnitId) {
-      setExportError("Please select an office code.");
+    if (!aroLink) {
+      setExportError("Please select an ARO office.");
+      return;
+    }
+    if (!lgu.trim()) {
+      setExportError("Please enter LGU.");
+      return;
+    }
+    if (!purpose.trim()) {
+      setExportError("Please enter Purpose.");
       return;
     }
     if (selectedItems.length === 0) {
@@ -165,8 +257,10 @@ export function ExportLbeFOneDialog({
         body: JSON.stringify({
           year: Number.parseInt(exportParams.year, 10),
           quarter: Number.parseInt(exportParams.quarter, 10),
-          implementingUnitId,
-          budgetType,
+          aroLink,
+          aroType,
+          lgu: lgu.trim(),
+          purpose: purpose.trim(),
           items: selectedItems.map(entry => ({
             id: entry.item.id,
             forLaterRelease: entry.forLaterRelease,
@@ -215,7 +309,7 @@ export function ExportLbeFOneDialog({
             <DialogHeader>
               <DialogTitle>LBE Form 1 Export</DialogTitle>
               <DialogDescription>
-                Select office, budget type, and items with release values.
+                Select ARO office, ARO type, and items with release values.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -234,27 +328,43 @@ export function ExportLbeFOneDialog({
               <div className="flex flex-col gap-4 pb-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <Label>Office Code</Label>
-                    <Select value={implementingUnitId} onValueChange={setImplementingUnitId}>
+                    <Label>LGU</Label>
+                    <Input
+                      value={lgu}
+                      onChange={e => setLgu(e.target.value)}
+                      placeholder="e.g. TIGBAUAN, ILOILO"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label>Purpose</Label>
+                    <Input
+                      value={purpose}
+                      onChange={e => setPurpose(e.target.value)}
+                      placeholder="e.g. For Executive Governance Program"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label>ARO Office</Label>
+                    <Select value={aroLink} onValueChange={setAroLink}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select office code..." />
+                        <SelectValue placeholder="Select ARO office..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {officeCodes.map(code => (
-                          <SelectItem key={code.id} value={code.id}>{code.aa}</SelectItem>
+                        {aroOffices.map(office => (
+                          <SelectItem key={office.id} value={office.id}>{office.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label>Budget Type</Label>
-                    <Select value={budgetType} onValueChange={value => setBudgetType(value as LbeF1BudgetType)}>
+                    <Label>ARO Type</Label>
+                    <Select value={aroType} onValueChange={value => setAroType(value as LbeF1AroType)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {LBE_F1_BUDGET_TYPES.map(type => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        {LBE_F1_ARO_TYPES.map(type => (
+                          <SelectItem key={type} value={type}>{type.toUpperCase()}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -270,7 +380,7 @@ export function ExportLbeFOneDialog({
                       value={itemSearch}
                       onChange={e => setItemSearch(e.target.value)}
                       placeholder="Search AIP code or MFO/PPA..."
-                      disabled={!implementingUnitId}
+                      disabled={!aroLink}
                     />
                   </div>
                 </div>
@@ -290,7 +400,7 @@ export function ExportLbeFOneDialog({
                         <tr key={item.id}>
                           <td className="border px-2 py-1">{item.aipRefCode?.aipReferenceCode ?? ""}</td>
                           <td className="border px-2 py-1">{item.mfoPpa}</td>
-                          <td className="border px-2 py-1 text-right">{getBudgetValue(item, budgetType)}</td>
+                          <td className="border px-2 py-1 text-right">{getBudgetValue(item, aroType)}</td>
                           <td className="border px-2 py-1 text-center">
                             <Button
                               size="sm"
@@ -308,7 +418,7 @@ export function ExportLbeFOneDialog({
                       {availableItems.length === 0 && (
                         <tr>
                           <td colSpan={4} className="border px-2 py-3 text-center text-muted-foreground">
-                            {implementingUnitId ? "No items found." : "Select an office code first."}
+                            {aroLink ? "No items found for the selected ARO type." : "Select an ARO office first."}
                           </td>
                         </tr>
                       )}
@@ -332,7 +442,7 @@ export function ExportLbeFOneDialog({
                     </thead>
                     <tbody>
                       {selectedItems.map(entry => {
-                        const authorized = getBudgetValue(entry.item, budgetType);
+                        const authorized = getBudgetValue(entry.item, aroType);
                         return (
                           <tr key={entry.item.id}>
                             <td className="border px-2 py-1">{entry.item.aipRefCode?.aipReferenceCode ?? ""}</td>
@@ -392,45 +502,89 @@ export function ExportLbeFOneDialog({
             </TabsContent>
 
             <TabsContent value="preview" className="mt-0 flex-1 min-h-0 overflow-auto data-[state=inactive]:hidden">
-              <div className="border rounded-md overflow-hidden">
-                <table className="w-full border-collapse text-xs">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="border px-2 py-1 text-left">PPA Code</th>
-                      <th className="border px-2 py-1 text-left">PPA Description</th>
-                      <th className="border px-2 py-1 text-left">Object Class/Account Code</th>
-                      <th className="border px-2 py-1 text-right">Authorized Appropriation</th>
-                      <th className="border px-2 py-1 text-right">For Later Release</th>
-                      <th className="border px-2 py-1 text-right">Previously Released Amount</th>
-                      <th className="border px-2 py-1 text-right">This Release</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedItems.map(entry => {
-                      const authorized = getBudgetValue(entry.item, budgetType);
-                      return (
-                        <tr key={entry.item.id}>
-                          <td className="border px-2 py-1">{entry.item.aipRefCode?.aipReferenceCode ?? ""}</td>
-                          <td className="border px-2 py-1">{entry.item.mfoPpa}</td>
-                          <td className="border px-2 py-1">{entry.item.other.expenseCode?.accountCode ?? ""}</td>
-                          <td className="border px-2 py-1 text-right">{authorized}</td>
-                          <td className="border px-2 py-1 text-right">{entry.forLaterRelease}</td>
-                          <td className="border px-2 py-1 text-right">{entry.previouslyReleased}</td>
-                          <td className="border px-2 py-1 text-right font-mono">
-                            {computeThisRelease(authorized, entry.forLaterRelease, entry.previouslyReleased)}
+              <div className="border rounded-md p-3 md:p-4 text-xs">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="font-bold text-sm">{getLbeF1FormNo(firstAroType)}</div>
+                  <div className="flex flex-col gap-1 text-right">
+                    <div>{firstBudgetType === "ab" ? "[x]" : "[ ]"} ANNUAL BUDGET</div>
+                    <div>{firstBudgetType === "sb" ? "[x]" : "[ ]"} SUPPLEMENTAL BUDGET</div>
+                    <div>{firstBudgetType === "rb" ? "[x]" : "[ ]"} REENACTED BUDGET</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 text-center font-bold text-base leading-snug">
+                  {getLbeF1Title(firstAroType)}
+                </div>
+                <div className="text-center mt-1 text-sm">Fiscal Year {fiscalYear}</div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                  <div><span className="font-semibold">LGU:</span> {lgu || "-"}</div>
+                  <div><span className="font-semibold">ARO No.:</span> {aroOfficeCode ? aroNo : "-"}</div>
+                  <div><span className="font-semibold">Department/Office:</span> {departmentOffice || "-"}</div>
+                  <div><span className="font-semibold">Date of Issue:</span> {firstItem ? issueDate : "-"}</div>
+                  <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {purpose || "-"}</div>
+                  <div className="md:col-span-2"><span className="font-semibold">Fund Type:</span> {fundType || "-"}</div>
+                </div>
+
+                <div className="mt-4 overflow-auto border">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-muted">
+                        <th className="border px-2 py-1 text-center">PPA CODE</th>
+                        <th className="border px-2 py-1 text-center">PPA DESCRIPTION</th>
+                        <th className="border px-2 py-1 text-center">OBJECT CLASS/ACCOUNT CODE</th>
+                        <th className="border px-2 py-1 text-center">AUTHORIZED APPROPRIATION for {getLbeF1AroCode(firstAroType)}</th>
+                        <th className="border px-2 py-1 text-center">FOR LATER RELEASE</th>
+                        <th className="border px-2 py-1 text-center">PREVIOUSLY RELEASED AMOUNT</th>
+                        <th className="border px-2 py-1 text-center">THIS RELEASE</th>
+                      </tr>
+                      <tr>
+                        <th className="border px-2 py-1 text-center">(1)</th>
+                        <th className="border px-2 py-1 text-center">(2)</th>
+                        <th className="border px-2 py-1 text-center">(3)</th>
+                        <th className="border px-2 py-1 text-center">(4)</th>
+                        <th className="border px-2 py-1 text-center">(5)</th>
+                        <th className="border px-2 py-1 text-center">(6)</th>
+                        <th className="border px-2 py-1 text-center">(7)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewRows.map(row => (
+                        <tr key={row.item.id}>
+                          <td className="border px-2 py-1">{row.item.aipRefCode?.aipReferenceCode ?? ""}</td>
+                          <td className="border px-2 py-1">{row.item.mfoPpa}</td>
+                          <td className="border px-2 py-1">{row.item.other.expenseCode?.accountCode ?? ""}</td>
+                          <td className="border px-2 py-1 text-right">{formatCurrency(row.authorized)}</td>
+                          <td className="border px-2 py-1 text-right">{formatCurrency(row.forLaterRelease)}</td>
+                          <td className="border px-2 py-1 text-right">{formatCurrency(row.previouslyReleased)}</td>
+                          <td className="border px-2 py-1 text-right font-semibold">{formatCurrency(row.thisRelease)}</td>
+                        </tr>
+                      ))}
+                      {previewRows.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="border px-2 py-3 text-center text-muted-foreground">
+                            Configure and add items first.
                           </td>
                         </tr>
-                      );
-                    })}
-                    {selectedItems.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="border px-2 py-3 text-center text-muted-foreground">
-                          Configure and add items first.
-                        </td>
+                      )}
+                      <tr className="font-semibold">
+                        <td className="border px-2 py-1 text-center" colSpan={3}>TOTAL</td>
+                        <td className="border px-2 py-1 text-right">{formatCurrency(totals.authorized.toFixed(2))}</td>
+                        <td className="border px-2 py-1 text-right">{formatCurrency(totals.forLater.toFixed(2))}</td>
+                        <td className="border px-2 py-1 text-right">{formatCurrency(totals.previouslyReleased.toFixed(2))}</td>
+                        <td className="border px-2 py-1 text-right">{formatCurrency(totals.thisRelease.toFixed(2))}</td>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-2 border p-2">
+                  <span className="font-semibold">AMOUNT IN WORDS: </span>
+                  <span className="font-semibold">{amountInWords}</span>
+                </div>
+                <div className="mt-2 border p-2">
+                  <span className="font-semibold">NOTES:</span> The allotments herein released shall be used solely for the purposes indicated and disbursements thereto shall be made in accordance with existing budgeting, accounting and auditing rules and regulations. It is the primary responsibility of the head of the Department/Office/ or Unit concerned to keep expenditures within the limits of the amount allotted.
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -450,7 +604,7 @@ export function ExportLbeFOneDialog({
                 Cancel
               </Button>
               <Button
-                disabled={exporting || !implementingUnitId || selectedItems.length === 0}
+                disabled={exporting || !aroLink || selectedItems.length === 0}
                 onClick={() => void handleExport()}
               >
                 <Download className="size-3.5" />

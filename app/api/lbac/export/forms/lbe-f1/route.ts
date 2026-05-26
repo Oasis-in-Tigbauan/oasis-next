@@ -6,15 +6,17 @@ import * as permission from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import * as lbac from "@/lib/lbac";
-import { LBE_F1_BUDGET_TYPES } from "@/lib/lbac/client";
+import { LBE_F1_ARO_TYPES } from "@/lib/lbac/client";
 import { Failure } from "@/lib/one-of";
 import { validator, validatorUtilities } from "@/lib/validators";
 
 type LbeF1ExportBody = {
   year: number;
   quarter: number;
-  implementingUnitId: string;
-  budgetType: (typeof LBE_F1_BUDGET_TYPES)[number];
+  aroLink: string;
+  aroType: (typeof LBE_F1_ARO_TYPES)[number];
+  lgu: string;
+  purpose: string;
   items: Array<{
     id: string;
     forLaterRelease: string;
@@ -36,8 +38,10 @@ export async function POST(req: NextRequest) {
   if (
     typeof body.year !== "number"
     || typeof body.quarter !== "number"
-    || typeof body.implementingUnitId !== "string"
-    || typeof body.budgetType !== "string"
+    || typeof body.aroLink !== "string"
+    || typeof body.aroType !== "string"
+    || typeof body.lgu !== "string"
+    || typeof body.purpose !== "string"
   ) {
     return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.").build();
   }
@@ -47,14 +51,24 @@ export async function POST(req: NextRequest) {
       .createError(StatusCodes.Status400BadRequest, "Invalid 'quarter': must be 1-4.")
       .build();
   }
-  if (!validatorUtilities.isUuid(body.implementingUnitId)) {
+  if (!validatorUtilities.isUuid(body.aroLink)) {
     return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'implementingUnitId'.")
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'aroLink'.")
       .build();
   }
-  if (!LBE_F1_BUDGET_TYPES.includes(body.budgetType)) {
+  if (!LBE_F1_ARO_TYPES.includes(body.aroType)) {
     return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'budgetType'.")
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'aroType'.")
+      .build();
+  }
+  if (!body.lgu.trim()) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'lgu'.")
+      .build();
+  }
+  if (!body.purpose.trim()) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, "Invalid 'purpose'.")
       .build();
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -90,8 +104,10 @@ export async function POST(req: NextRequest) {
   const result = await lbac.exportLbeFOneToBuffer({
     year: body.year,
     quarter: body.quarter,
-    implementingUnitId: body.implementingUnitId,
-    budgetType: body.budgetType,
+    aroLink: body.aroLink,
+    aroType: body.aroType,
+    lgu: body.lgu.trim(),
+    purpose: body.purpose.trim(),
     items: body.items,
   });
 
