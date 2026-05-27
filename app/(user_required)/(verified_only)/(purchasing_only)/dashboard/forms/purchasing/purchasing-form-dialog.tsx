@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { DateTime } from "luxon";
-import { Trash2 } from "lucide-react";
+import { FileSpreadsheet, Trash2 } from "lucide-react";
+import { Workbook } from "@cj-tech-master/excelts";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -400,6 +401,312 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     resetDialogState();
   };
 
+  const exportPRToExcel = async () => {
+    // If this dialog was opened for an existing PR (edit mode with an item), prefer server-driven export
+    // which returns a ready-made XLSX file. Otherwise, fall back to client workbook generation.
+    if (editItem?.id) {
+      try {
+        const res = await fetch(`/api/forms/purchasing/${editItem.id}/export`);
+        if (!res.ok) {
+          alert("Export failed: " + res.statusText);
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `purchase-request-${editItem.id}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        return;
+      } catch (err) {
+        console.error(err);
+        alert("Failed to download export.");
+        return;
+      }
+    }
+    const prItems = requestItems
+      .map((item, idx) => ({
+        id: idx + 1,
+        unit: item.unit,
+        description: item.itemDescription,
+        quantity: item.quantity.trim() === "" ? "" : Number(item.quantity),
+        unitCost: item.unitCost.trim() === "" ? "" : Number(item.unitCost),
+      }))
+      .filter(i => i.unit || i.description || i.quantity !== "" || i.unitCost !== "");
+
+    const aipEntry = selectedAips[0];
+
+    const findSigner = (id: string) => {
+      if (!signatoryData) return { name: "", title: "" };
+      const all = [...(signatoryData.headOfOffice ?? []), ...(signatoryData.treasurer ?? []), ...(signatoryData.mayor ?? [])];
+      const found = all.find(s => s.id === id);
+      return found ? { name: found.name, title: found.position } : { name: "", title: "" };
+    };
+
+    const prData = {
+      prNo: form.prNumber || "",
+      department: "",
+      section: "",
+      fpp: "",
+      fund: "",
+      purpose: form.purpose || "",
+      aipPpa: aipEntry?.mfoPpa ?? "",
+      aipDesc: aipEntry?.label ?? "",
+      charges: "",
+      accountCode: "",
+      items: prItems,
+      requestedBy: findSigner(signatories.headOfOfficeId),
+      cashAvailable: findSigner(signatories.treasurerId),
+      approvedBy: findSigner(signatories.approverId),
+    };
+
+    const workbook = new Workbook();
+    const worksheet = workbook.addWorksheet("Purchase Request", { views: [{ showGridLines: true }] });
+
+    worksheet.columns = [
+      { width: 10 },
+      { width: 12 },
+      { width: 42 },
+      { width: 12 },
+      { width: 14 },
+      { width: 16 },
+    ];
+
+    const thinSide = { style: "thin" as const, color: { argb: "000000" } };
+    const thinBorder = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
+
+    const applyBorders = (startRow: number, endRow: number, startCol: number, endCol: number) => {
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = startCol; c <= endCol; c++) {
+          worksheet.getCell(r, c).border = thinBorder;
+        }
+      }
+    };
+
+    worksheet.mergeCells("A2:F2");
+    const titleCell = worksheet.getCell("A2");
+    titleCell.value = "PURCHASE REQUEST";
+    titleCell.font = { name: "Arial", size: 18, bold: true };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(2).height = 32;
+
+    worksheet.getCell("A4").value = "LGU:   MUNICIPAL GOVERNMENT OF TIGBAUAN";
+    worksheet.getCell("A4").font = { name: "Arial", size: 11, bold: true };
+
+    worksheet.getCell("E4").value = "Fund:";
+    worksheet.getCell("E4").font = { name: "Arial", size: 11 };
+    worksheet.getCell("E4").alignment = { horizontal: "right" };
+
+    worksheet.getCell("F4").value = prData.fund;
+    worksheet.getCell("F4").font = { name: "Arial", size: 11, bold: true, underline: true };
+
+    applyBorders(5, 6, 1, 3);
+    applyBorders(5, 6, 4, 5);
+    applyBorders(5, 6, 6, 6);
+
+    worksheet.mergeCells("A5:C5");
+    worksheet.getCell("A5").value = `Department:  ${prData.department}`;
+    worksheet.getCell("A5").font = { name: "Arial", size: 10 };
+
+    worksheet.mergeCells("A6:C6");
+    worksheet.getCell("A6").value = `Section:       ${prData.section}`;
+    worksheet.getCell("A6").font = { name: "Arial", size: 10 };
+
+    worksheet.getCell("D5").value = "PR No.";
+    worksheet.getCell("D5").font = { name: "Arial", size: 10 };
+    worksheet.getCell("E5").value = prData.prNo;
+    worksheet.getCell("E5").font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFF0000" } };
+
+    worksheet.mergeCells("D6:E6");
+    worksheet.getCell("D6").value = `FPP: ${prData.fpp}`;
+    worksheet.getCell("D6").font = { name: "Arial", size: 10 };
+
+    worksheet.getCell("F5").value = "Date:";
+    worksheet.getCell("F5").font = { name: "Arial", size: 10 };
+
+    const headers = ["Item No.", "Unit", "Item Description", "Quantity", "Unit Cost", "Total Cost"];
+    const headerRow = worksheet.getRow(8);
+    headerRow.height = 22;
+
+    headers.forEach((header, index) => {
+      const cell = headerRow.getCell(index + 1);
+      cell.value = header;
+      cell.font = { name: "Arial", size: 10, bold: true };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
+      cell.border = thinBorder;
+    });
+
+    let currentLine = 9;
+    let grandTotal = 0;
+    prData.items.forEach((item) => {
+      const row = worksheet.getRow(currentLine);
+      row.height = 20;
+
+      row.getCell(1).value = item.id;
+      row.getCell(1).alignment = { horizontal: "center" };
+
+      row.getCell(2).value = item.unit;
+      row.getCell(2).alignment = { horizontal: "center" };
+
+      row.getCell(3).value = item.description;
+      row.getCell(3).alignment = { horizontal: "left" };
+
+      row.getCell(4).value = item.quantity;
+      row.getCell(4).alignment = { horizontal: "center" };
+
+      row.getCell(5).value = item.unitCost;
+      row.getCell(5).numFmt = "#,##0.00";
+      row.getCell(5).alignment = { horizontal: "right" };
+
+      if (typeof item.quantity === "number" && typeof item.unitCost === "number") {
+        const itemTotal = item.quantity * item.unitCost;
+        grandTotal += itemTotal;
+        row.getCell(6).value = { formula: `D${currentLine}*E${currentLine}`, result: itemTotal };
+      } else {
+        row.getCell(6).value = "-";
+      }
+      row.getCell(6).numFmt = "#,##0.00";
+      row.getCell(6).alignment = { horizontal: "right" };
+
+      for (let col = 1; col <= 6; col++) {
+        row.getCell(col).border = thinBorder;
+        row.getCell(col).font = { name: "Arial", size: 10 };
+      }
+      currentLine++;
+    });
+
+    const totalRow = worksheet.getRow(currentLine);
+    worksheet.mergeCells(`A${currentLine}:E${currentLine}`);
+    totalRow.getCell(1).value = "TOTAL-------";
+    totalRow.getCell(1).font = { name: "Arial", size: 10, bold: true };
+    totalRow.getCell(1).alignment = { horizontal: "right" };
+
+    totalRow.getCell(6).value = { formula: `SUM(F9:F${currentLine - 1})`, result: grandTotal };
+    totalRow.getCell(6).font = { name: "Arial", size: 10, bold: true };
+    totalRow.getCell(6).numFmt = "#,##0.00";
+    totalRow.getCell(6).alignment = { horizontal: "right" };
+    applyBorders(currentLine, currentLine, 1, 6);
+    currentLine++;
+
+    worksheet.mergeCells(`A${currentLine}:A${currentLine + 2}`);
+    const purposeLbl = worksheet.getCell(`A${currentLine}`);
+    purposeLbl.value = "Purpose:";
+    purposeLbl.font = { name: "Arial", size: 10 };
+    purposeLbl.alignment = { vertical: "top" };
+
+    worksheet.mergeCells(`B${currentLine}:F${currentLine + 2}`);
+    const purposeVal = worksheet.getCell(`B${currentLine}`);
+    purposeVal.value = prData.purpose;
+    purposeVal.font = { name: "Arial", size: 10 };
+    purposeVal.alignment = { vertical: "top", wrapText: true };
+    applyBorders(currentLine, currentLine + 2, 1, 6);
+    currentLine += 3;
+
+    worksheet.getCell(`A${currentLine}`).value = "AIP/PPA:";
+    worksheet.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
+
+    worksheet.mergeCells(`B${currentLine}:F${currentLine}`);
+    worksheet.getCell(`B${currentLine}`).value = `${prData.aipPpa}          ${prData.aipDesc}`;
+    worksheet.getCell(`B${currentLine}`).font = { name: "Arial", size: 9 };
+    applyBorders(currentLine, currentLine, 1, 6);
+    currentLine++;
+
+    worksheet.getCell(`A${currentLine}`).value = "Charges:";
+    worksheet.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
+
+    worksheet.mergeCells(`B${currentLine}:F${currentLine + 1}`);
+    const chargesVal = worksheet.getCell(`B${currentLine}`);
+    chargesVal.value = `${prData.charges}\n${prData.accountCode}`;
+    chargesVal.font = { name: "Arial", size: 9 };
+    chargesVal.alignment = { wrapText: true, vertical: "top" };
+    applyBorders(currentLine, currentLine + 1, 1, 6);
+    currentLine += 2;
+
+    worksheet.mergeCells(`A${currentLine}:B${currentLine}`);
+    worksheet.getCell(`A${currentLine}`).value = "Requested by:";
+    worksheet.mergeCells(`C${currentLine}:D${currentLine}`);
+    worksheet.getCell(`C${currentLine}`).value = "Cash Availability:";
+    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
+    worksheet.getCell(`E${currentLine}`).value = "Approved by:";
+
+    for (let col = 1; col <= 6; col++) {
+      worksheet.getCell(currentLine, col).font = { name: "Arial", size: 10, bold: true };
+      worksheet.getCell(currentLine, col).border = {
+        top: thinSide,
+        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
+        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
+      };
+    }
+    currentLine++;
+
+    worksheet.getRow(currentLine).height = 35;
+    for (let col = 1; col <= 6; col++) {
+      worksheet.getCell(currentLine, col).border = {
+        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
+        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
+      };
+    }
+    currentLine++;
+
+    worksheet.mergeCells(`A${currentLine}:B${currentLine}`);
+    worksheet.getCell(`A${currentLine}`).value = prData.requestedBy.name;
+
+    worksheet.mergeCells(`C${currentLine}:D${currentLine}`);
+    worksheet.getCell(`C${currentLine}`).value = prData.cashAvailable.name;
+
+    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
+    worksheet.getCell(`E${currentLine}`).value = prData.approvedBy.name;
+
+    for (let col = 1; col <= 6; col++) {
+      worksheet.getCell(currentLine, col).font = { name: "Arial", size: 10, bold: true };
+      worksheet.getCell(currentLine, col).alignment = { horizontal: "center" };
+      worksheet.getCell(currentLine, col).border = {
+        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
+        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
+      };
+    }
+    currentLine++;
+
+    worksheet.getRow(currentLine).height = 32;
+    worksheet.mergeCells(`A${currentLine}:B${currentLine}`);
+    worksheet.getCell(`A${currentLine}`).value = prData.requestedBy.title;
+
+    worksheet.mergeCells(`C${currentLine}:D${currentLine}`);
+    worksheet.getCell(`C${currentLine}`).value = prData.cashAvailable.title;
+
+    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
+    worksheet.getCell(`E${currentLine}`).value = prData.approvedBy.title;
+
+    for (let col = 1; col <= 6; col++) {
+      worksheet.getCell(currentLine, col).font = { name: "Arial", size: 9 };
+      worksheet.getCell(currentLine, col).alignment = { horizontal: "center", wrapText: true, vertical: "middle" };
+      worksheet.getCell(currentLine, col).border = {
+        bottom: thinSide,
+        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
+        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
+      };
+    }
+
+    const dataBuffer = await workbook.xlsx.writeBuffer(); // ArrayBuffer | Uint8Array | Buffer...
+    const arrayBuffer =
+      dataBuffer instanceof ArrayBuffer
+        ? dataBuffer
+        : (dataBuffer as Uint8Array).buffer as ArrayBuffer;
+    const outBlob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(outBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Purchase_Request_${prData.prNo || Date.now()}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh]">
@@ -769,6 +1076,11 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         </ScrollArea>
 
         <DialogFooter>
+          {mode === "add" && (
+            <Button type="button" variant="outline" onClick={exportPRToExcel} disabled={submitting}>
+              <FileSpreadsheet className="size-4 mr-2" /> Export PR (.xlsx)
+            </Button>
+          )}
           <DialogClose asChild>
             <Button variant="outline" disabled={submitting}>Cancel</Button>
           </DialogClose>
