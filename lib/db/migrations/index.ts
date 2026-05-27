@@ -4,6 +4,7 @@ import { expenseCodesMigration } from "@/lib/db/migrations/expense-codes";
 import { expenseTypesMigration } from "@/lib/db/migrations/expense-type";
 import { fundTypesMigration } from "@/lib/db/migrations/fund-types";
 import { lbacMigration } from "@/lib/db/migrations/lbac";
+import { lbacF6Migration } from "@/lib/db/migrations/lbac-f6";
 import { obrEntriesMigration } from "@/lib/db/migrations/obr";
 import { officeCodesMigration } from "@/lib/db/migrations/office-code";
 import { procurementTypesMigration } from "@/lib/db/migrations/procurement-types";
@@ -19,6 +20,7 @@ const migrations: MigratorFn[] = [
   fundTypesMigration,
   saaobEntriesMigration,
   lbacMigration,
+  lbacF6Migration,
   supplementalMigration,
   obrEntriesMigration,
   procurementTypesMigration,
