@@ -23,6 +23,19 @@ export const LBAC_FORM3_EXPORT_COLUMNS = [
 ] as const;
 
 export const LBAC_FORM5_EXPORT_COLUMNS = [
+  { key: "aipRefCode", label: "PPA Code", numeric: false },
+  { key: "ppaDescription", label: "PPA Description/ Major Final Output", numeric: false },
+  { key: "targetOutput", label: "Target Output", numeric: false },
+  { key: "actualOutput", label: "Actual Output", numeric: false },
+  { key: "variance", label: "Variance", numeric: false },
+  { key: "accomplishment", label: "% of Accomplishment", numeric: false },
+  { key: "allotmentReleased", label: "Allotment Released", numeric: true },
+  { key: "actualObligationsIncurred", label: "Actual Obligations Incurred", numeric: true },
+  { key: "financialVariance", label: "Variance", numeric: true },
+  { key: "absorptiveCapacity", label: "Absorptive Capacity", numeric: true },
+] as const;
+
+export const LBE_FORM5_EXPORT_COLUMNS = [
   { key: "programProjectActivity", label: "Program/Project/Activity", numeric: false },
   { key: "totalCost", label: "Total Cost", numeric: true },
   { key: "performanceIndicator", label: "Performance Indicator", numeric: false },
@@ -196,12 +209,22 @@ export function getForm3QuarterEndingLabel(year: number, quarter: number): strin
   return `For the Quarter Ending ${month} ${day}, ${year} (${_quarterOrdinal(normalizedQuarter)} Quarter)`;
 }
 
+export function getForm5SemesterEndingLabel(year: number, quarter: number): string {
+  const normalizedQuarter = Math.min(4, Math.max(1, quarter));
+  if (normalizedQuarter <= 2) {
+    return `As of the 1st Semester Ending June 30, ${year}`;
+  }
+  return `As of the 2nd Semester Ending December 31, ${year}`;
+}
+
 export type LbacForm3ExportColumnKey = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number]["key"];
 export type LbacForm5ExportColumnKey = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number]["key"];
+export type LbeForm5ExportColumnKey = (typeof LBE_FORM5_EXPORT_COLUMNS)[number]["key"];
 export type LbacForm5AExportColumnKey = (typeof LBAC_FORM5A_EXPORT_COLUMNS)[number]["key"];
 
 export type LbacForm3ExportColDef = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number];
 export type LbacForm5ExportColDef = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number];
+export type LbeForm5ExportColDef = (typeof LBE_FORM5_EXPORT_COLUMNS)[number];
 export type LbacForm5AExportColDef = (typeof LBAC_FORM5A_EXPORT_COLUMNS)[number];
 
 export type LbacFormExportFlatRow =
@@ -325,6 +348,52 @@ export function getForm3CellValue(
 export function getForm5CellValue(
   row: LbacFormExportFlatRow,
   key: LbacForm5ExportColumnKey,
+  quarter: number,
+): LbacFormsCellValue {
+  const quarterKey = quarter === 1 ? "Q1" : quarter === 2 ? "Q2" : quarter === 3 ? "Q3" : "Q4";
+
+  if (row.kind === "group") {
+    if (key === "ppaDescription") return row.data.name;
+    return "";
+  }
+
+  if (row.kind === "group-total") {
+    if (key === "ppaDescription") return row.isRoot ? "Grand Total" : "Total";
+    if (key === "allotmentReleased") return _parseNumeric(row.data.financialAllocation[quarterKey]);
+    if (key === "actualObligationsIncurred") return _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
+    if (key === "financialVariance") {
+      return _parseNumeric(row.data.financialAllocation[quarterKey])
+        - _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
+    }
+    if (key === "absorptiveCapacity") {
+      const allotment = _parseNumeric(row.data.financialAllocation[quarterKey]);
+      const obligations = _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
+      return allotment === 0 ? 0 : obligations / allotment;
+    }
+    return "";
+  }
+
+  const item = row.data;
+  const allotmentReleased = _parseNumeric(item.financialAllocation[quarterKey]);
+  const actualObligations = _parseNumeric(item.actualFinancialPerformance[quarterKey]);
+  switch (key) {
+  case "aipRefCode": return item.aipRefCode?.aipReferenceCode ?? "";
+  case "ppaDescription": return item.mfoPpa;
+  case "targetOutput": return item.quarterlyReport.physicalTargets[quarterKey] ?? "";
+  case "actualOutput": return item.quarterlyReport.actualPhysicalPerformance[quarterKey] ?? "";
+  case "variance": return item.quarterlyReport.variance ?? "";
+  case "accomplishment": return item.quarterlyReport.accomplishment ?? "";
+  case "allotmentReleased": return allotmentReleased;
+  case "actualObligationsIncurred": return actualObligations;
+  case "financialVariance": return allotmentReleased - actualObligations;
+  case "absorptiveCapacity": return allotmentReleased === 0 ? 0 : actualObligations / allotmentReleased;
+  default: return "";
+  }
+}
+
+export function getLbeForm5CellValue(
+  row: LbacFormExportFlatRow,
+  key: LbeForm5ExportColumnKey,
 ): LbacFormsCellValue {
   if (row.kind === "group") {
     if (key === "programProjectActivity") return row.data.name;

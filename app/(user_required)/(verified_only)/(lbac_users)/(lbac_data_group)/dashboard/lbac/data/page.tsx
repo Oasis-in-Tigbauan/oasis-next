@@ -89,7 +89,7 @@ export default function Page() {
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportFormType, setExportFormType] = useState<"lbe-f1" | "form-3" | "form-5" | "form-5a" | null>(null);
+  const [exportFormType, setExportFormType] = useState<"lbe-f1" | "form-3" | "form-5" | "lbe-f5" | "form-5a" | null>(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -257,12 +257,12 @@ export default function Page() {
               <DropdownMenuItem onClick={() => setExportOpen(true)}>Main Data</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setExportFormType("lbe-f1")}>LBE Form 1</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setExportFormType("form-5")}>LBE Form 5</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType("lbe-f5")}>LBE Form 5</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setExportFormType("form-5a")}>LBE Form 5A</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setExportFormType("form-3")}>LBAC Form 3</DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setExportFormType("form-3")}>LBAC Form 3</DropdownMenuItem>
               <DropdownMenuItem>LBAC Form 4</DropdownMenuItem>
-              <DropdownMenuItem>LBAC Form 5</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType("form-5")}>LBAC Form 5</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -707,7 +707,7 @@ export default function Page() {
         exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
       />
 
-      {(exportFormType === "form-3" || exportFormType === "form-5" || exportFormType === "form-5a") && (
+      {(exportFormType === "form-3" || exportFormType === "form-5" || exportFormType === "lbe-f5" || exportFormType === "form-5a") && (
         <ExportFormsDialog
           open
           onOpenChange={(nextOpen) => {
