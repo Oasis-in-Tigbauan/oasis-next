@@ -2181,6 +2181,31 @@ export async function exportForm5AToBuffer(
 }
 
 /**
+ * Exports LBAC Form 6 (Monitoring of Physical and Financial Accomplishment) to XLSX.
+ *
+ * @description
+ * Uses the current UTC+8 fiscal year for the header title and exports monitoring rows
+ * from the current LBAC monitoring tree. This export intentionally excludes derived
+ * columns for AIP vs AB and AB vs Exp.
+ *
+ * @async
+ * @function exportForm6ToBuffer
+ * @returns {Promise<Result<Buffer>>} XLSX buffer on success, or failure.
+ */
+export async function exportForm6ToBuffer(): Promise<Result<Buffer>> {
+  try {
+    const monitoringResult = await getAllMonitoringItems();
+    if (monitoringResult instanceof Failure) return monitoringResult;
+
+    const fiscalYear = _getCurrentYearUtc8();
+    const buffer = await _buildForm6ExcelBuffer(monitoringResult.value, fiscalYear);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 6.", {}, e);
+  }
+}
+
+/**
  * Returns the current year in UTC+8.
  */
 function _getCurrentYearUtc8(): number {
@@ -3846,6 +3871,10 @@ type _LbacSimpleFlatRow =
   | { kind: "item"; depth: number; data: LbacObject }
   | { kind: "group-total"; depth: number; data: LbacGroupTotals; isRoot: boolean };
 
+type _LbacMonitoringFlatRow =
+  | { kind: "group"; depth: number; data: LbacMonitoringGroupObject }
+  | { kind: "item"; depth: number; data: LbacMonitoringItem };
+
 function _flattenLbacTree(tree: LbacGroupObject[]): _LbacSimpleFlatRow[] {
   const rows: _LbacSimpleFlatRow[] = [];
 
@@ -3858,6 +3887,25 @@ function _flattenLbacTree(tree: LbacGroupObject[]): _LbacSimpleFlatRow[] {
         rows.push({ kind: "group-total", depth, data: group.totals, isRoot: depth === 0 });
       } else {
         rows.push({ kind: "item", depth, data: node as LbacObject });
+      }
+    }
+  };
+
+  walk(tree, 0);
+  return rows;
+}
+
+function _flattenMonitoringTree(tree: LbacMonitoringTree): _LbacMonitoringFlatRow[] {
+  const rows: _LbacMonitoringFlatRow[] = [];
+
+  const walk = (nodes: Array<LbacMonitoringGroupObject | LbacMonitoringItem>, depth: number) => {
+    for (const node of nodes) {
+      if (node.type === LbacObjectType.Group) {
+        const group = node as LbacMonitoringGroupObject;
+        rows.push({ kind: "group", depth, data: group });
+        walk(group.children, depth + 1);
+      } else {
+        rows.push({ kind: "item", depth, data: node as LbacMonitoringItem });
       }
     }
   };
@@ -4711,6 +4759,145 @@ async function _buildCollPerfExcelBuffer(
   }
 
   ws.views = [{ state: "frozen", ySplit: headerRow + 2, xSplit: 0 }];
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+async function _buildForm6ExcelBuffer(
+  tree: LbacMonitoringTree,
+  fiscalYear: number,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("LBAC Form 6");
+
+  const columnWidths = [38, 20, 24, 40, 28, 40, 16, 16, 18, 30];
+  columnWidths.forEach((width, idx) => {
+    ws.getColumn(idx + 1).width = width;
+  });
+
+  const lastColumn = 10;
+
+  ws.getCell(1, 1).value = "LBAc Form No.6";
+  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+
+  ws.mergeCells(2, 1, 2, lastColumn);
+  ws.getCell(2, 1).value = "Local Government Unit of Tigbauan, Iloilo";
+  ws.getCell(2, 1).font = { size: 12, name: "Arial Narrow" };
+  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+  ws.mergeCells(3, 1, 3, lastColumn);
+  ws.getCell(3, 1).value = "Monitoring of Physical and Financial Accomplishment";
+  ws.getCell(3, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
+  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+  ws.mergeCells(4, 1, 4, lastColumn);
+  ws.getCell(4, 1).value = `FY ${fiscalYear}`;
+  ws.getCell(4, 1).font = { size: 12, name: "Arial Narrow" };
+  ws.getCell(4, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+  ws.mergeCells(6, 1, 7, 1);
+  ws.getCell(6, 1).value = "Plan/ PPAs";
+
+  ws.mergeCells(6, 2, 7, 2);
+  ws.getCell(6, 2).value = "AIP Reference\nCode";
+
+  ws.mergeCells(6, 3, 7, 3);
+  ws.getCell(6, 3).value = "Implementing\nOffice/\nDepartment";
+
+  ws.mergeCells(6, 4, 6, 5);
+  ws.getCell(6, 4).value = "Target Output";
+  ws.getCell(7, 4).value = "AIP";
+  ws.getCell(7, 5).value = "AB";
+
+  ws.mergeCells(6, 6, 7, 6);
+  ws.getCell(6, 6).value = "Actual Accomplishment/s";
+
+  ws.mergeCells(6, 7, 6, 8);
+  ws.getCell(6, 7).value = "Estimated Cost";
+  ws.getCell(7, 7).value = "AIP";
+  ws.getCell(7, 8).value = "AB";
+
+  ws.mergeCells(6, 9, 7, 9);
+  ws.getCell(6, 9).value = "Actual\nExpenditure";
+
+  ws.mergeCells(6, 10, 7, 10);
+  ws.getCell(6, 10).value = "Remarks";
+
+  _writeSimpleDataRow(
+    ws,
+    8,
+    ["(1)", "(2)", "(3)", "(4)", "(5)", "(6)", "(7)", "(8)", "(9)", "(10)"],
+    new Set<number>(),
+    { bold: true },
+  );
+
+  for (let r = 6; r <= 8; r++) {
+    for (let c = 1; c <= lastColumn; c++) {
+      const cell = ws.getCell(r, c);
+      cell.fill = _HEADER_FILL;
+      cell.border = _THIN_BORDER;
+      cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    }
+  }
+
+  ws.getRow(6).height = 32;
+  ws.getRow(7).height = 24;
+  ws.getRow(8).height = 20;
+
+  const rows = _flattenMonitoringTree(tree);
+  const numericIndices = new Set<number>([7, 8, 9]);
+  let row = 9;
+
+  for (const flatRow of rows) {
+    if (flatRow.kind === "group") {
+      const values: Array<string | number | { formula: string }> = [
+        flatRow.data.name,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ];
+      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        fontColor: "FFFFFFFF",
+        bold: true,
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
+    } else {
+      const item = flatRow.data;
+      const values: Array<string | number | { formula: string }> = [
+        item.item.mfoPpa,
+        item.item.aipRefCode?.code ?? "",
+        item.item.implementingUnit?.name ?? "",
+        item.item.aipRefCode?.description ?? "",
+        item.ab ?? "",
+        item.actualAccomplishment ?? "",
+        _decimalToNumber(item.item.aipRefCode?.amount),
+        _decimalToNumber(item.abEstimatedCost),
+        _decimalToNumber(item.actualExpenditure),
+        item.remarks ?? "",
+      ];
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
+    }
+    row++;
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 8, xSplit: 0 }];
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
@@ -5688,6 +5875,10 @@ export interface Form5AExportOptions {
   aroLink: string;
   lgu: string;
   mfo: string;
+}
+
+export interface Form6ExportOptions {
+  fiscalYear: number;
 }
 
 export interface CollPerfExportOptions {
