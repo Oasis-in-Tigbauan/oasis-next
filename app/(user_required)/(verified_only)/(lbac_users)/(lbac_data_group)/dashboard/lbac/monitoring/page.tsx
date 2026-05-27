@@ -58,6 +58,8 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRow, setSelectedRow] = useState<SelectableRow | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -119,6 +121,44 @@ export default function Page() {
     setEditorOpen(false);
   }, [mutate]);
 
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      const response = await fetch("/api/lbac/export/forms/form-6");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setExportError(
+          (payload as Record<string, string> | null)?.details
+            ?? (payload as Record<string, string> | null)?.message
+            ?? "Export failed. Please try again.",
+        );
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = /filename=\"([^\"]+)\"/.exec(contentDisposition);
+      const filename = filenameMatch?.[1] ?? "lbac-form-6.xlsx";
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("Unexpected error while exporting. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting]);
+
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
 
@@ -162,13 +202,18 @@ export default function Page() {
             variant="outline"
             size="sm"
             className="h-7 text-xs"
-            onClick={() => alert("Export to LBAC F6 will be available soon.")}
+            onClick={handleExport}
+            disabled={exporting}
           >
             <Download className="size-3" />
-            Export to LBAC F6
+            {exporting ? "Exporting..." : "Export to LBAC F6"}
           </Button>
         </div>
       </div>
+
+      {exportError && (
+        <Typography variant="small" className="text-destructive px-1">{exportError}</Typography>
+      )}
 
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
