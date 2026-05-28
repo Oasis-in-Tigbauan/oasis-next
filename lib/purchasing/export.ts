@@ -2,7 +2,7 @@ import { Buffer } from "buffer";
 import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { office, purchasing, purchasingAip, user, officePosition } from "@/lib/db/schema";
+import { modeOfProcurements, office, purchasing, purchasingAip, user, officePosition } from "@/lib/db/schema";
 import { Failure, Success } from "@/lib/one-of";
 import { ErrorCodes, Result } from "@/lib/one-of";
 
@@ -341,4 +341,348 @@ export async function exportPurchaseRequestToBuffer(
   }
 }
 
-export default exportPurchaseRequestToBuffer;
+/**
+ * Converts a numeric amount to words (Philippine Peso format).
+ * @example numberToWords(1050) // "ONE THOUSAND AND FIFTY PESOS ONLY"
+ */
+function numberToWords(n: number): string {
+  const ones = [
+    "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE",
+    "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN",
+    "SEVENTEEN", "EIGHTEEN", "NINETEEN",
+  ];
+  const tens = ["", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY"];
+
+  const convertBelow1000 = (num: number): string => {
+    if (num === 0) return "";
+    const h = Math.floor(num / 100);
+    const r = num % 100;
+    let s = "";
+    if (h > 0) {
+      s += ones[h] + " HUNDRED";
+      if (r > 0) s += " ";
+    }
+    if (r > 0) {
+      s += r < 20 ? ones[r] : tens[Math.floor(r / 10)] + (r % 10 > 0 ? " " + ones[r % 10] : "");
+    }
+    return s;
+  };
+
+  if (n === 0) return "ZERO PESOS ONLY";
+
+  const whole = Math.floor(n);
+  const cents = Math.round((n - whole) * 100);
+
+  const parts: string[] = [];
+  const units = [
+    [1000000000, "BILLION"],
+    [1000000, "MILLION"],
+    [1000, "THOUSAND"],
+  ] as const;
+  let remainder = whole;
+  for (const [divisor, label] of units) {
+    const q = Math.floor(remainder / divisor);
+    if (q > 0) {
+      parts.push(convertBelow1000(q) + " " + label);
+    }
+    remainder %= divisor;
+  }
+  if (remainder > 0) {
+    parts.push(convertBelow1000(remainder));
+  }
+
+  let result = parts.join(" ").trim() + " PESOS";
+  if (cents > 0) {
+    result += " AND " + convertBelow1000(cents) + " CENTAVOS";
+  }
+  result += " ONLY";
+  return result;
+}
+
+export async function exportPurchaseOrderToBuffer(
+  options: ExportPurchaseOptions,
+): Promise<Result<Buffer>> {
+  try {
+    const { Workbook } = await import("@cj-tech-master/excelts");
+
+    const [sourceItem] = await db
+      .select({
+        prNumber: purchasing.prNumber,
+        requestingOfficeId: purchasing.requestingOfficeId,
+      })
+      .from(purchasing)
+      .where(eq(purchasing.id, options.id))
+      .limit(1);
+
+    if (!sourceItem) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Purchase order item not found.");
+    }
+
+    const allIds = await db
+      .select({ id: purchasing.id })
+      .from(purchasing)
+      .where(eq(purchasing.prNumber, sourceItem.prNumber))
+      .orderBy(purchasing.createdAt);
+
+    if (allIds.length === 0) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No purchase order items found.");
+    }
+
+    const ids = allIds.map(r => r.id);
+
+    const rows = await db
+      .select()
+      .from(purchasing)
+      .where(inArray(purchasing.id, ids));
+
+    const first = rows[0];
+
+    const items: ExportItem[] = rows.map((row, idx) => ({
+      id: idx + 1,
+      unit: row.unit,
+      description: row.itemDescription,
+      quantity: row.quantity === null ? "" : Number(row.quantity),
+      unitCost: row.unitCost === null ? "" : Number(row.unitCost),
+    }));
+
+    let modeOfProcurement = "";
+    if (first.procurementId) {
+      const [procRow] = await db
+        .select({ name: modeOfProcurements.name })
+        .from(modeOfProcurements)
+        .where(eq(modeOfProcurements.id, first.procurementId))
+        .limit(1);
+      modeOfProcurement = procRow?.name ?? "";
+    }
+
+    const wb = new Workbook();
+    const ws = wb.addWorksheet("Purchase Order", { views: [{ showGridLines: true }] });
+
+    ws.columns = [
+      { width: 10 },
+      { width: 12 },
+      { width: 42 },
+      { width: 12 },
+      { width: 14 },
+      { width: 16 },
+    ];
+
+    const thinSide = { style: "thin" as const, color: { argb: "000000" } };
+    const thinBorder = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
+
+    const applyBorders = (startRow: number, endRow: number, startCol: number, endCol: number) => {
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = startCol; c <= endCol; c++) {
+          ws.getCell(r, c).border = thinBorder;
+        }
+      }
+    };
+
+    const formatDate = (d: Date | null | undefined): string =>
+      d
+        ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
+        : "";
+
+    // ── Title section ──────────────────────────────────────────────────────
+    ws.mergeCells("A2:F2");
+    const titleCell = ws.getCell("A2");
+    titleCell.value = "PURCHASE ORDER";
+    titleCell.font = { name: "Arial", size: 18, bold: true };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(2).height = 32;
+
+    ws.mergeCells("A3:F3");
+    const subCell = ws.getCell("A3");
+    subCell.value = "Municipal Government of Tigbauan";
+    subCell.font = { name: "Arial", size: 13, bold: true };
+    subCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(3).height = 24;
+
+    ws.mergeCells("A4:F4");
+    const lguCell = ws.getCell("A4");
+    lguCell.value = "LGU";
+    lguCell.font = { name: "Arial", size: 11, bold: true };
+    lguCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(4).height = 20;
+
+    // ── Separator ──────────────────────────────────────────────────────────
+    applyBorders(5, 5, 1, 6);
+
+    // ── Supplier / PO details (rows 6-8) ───────────────────────────────────
+    const poDateStr = formatDate(first.createdAt);
+
+    type FieldRow = { label: string; value: string; bold?: boolean; red?: boolean };
+    const leftFields: FieldRow[] = [
+      { label: "Supplier:", value: first.supplier ?? "" },
+      { label: "Address:", value: first.address ?? "" },
+      { label: "TIN:", value: first.tinNumber ?? "" },
+      { label: "", value: "" },
+    ];
+    const rightFields: FieldRow[] = [
+      { label: "PO No.:", value: first.purchaseOrderNumber ?? "", bold: true, red: true },
+      { label: "Date:", value: poDateStr },
+      { label: "Mode of Procurement:", value: modeOfProcurement },
+      { label: "PR No./s:", value: first.prNumber ?? "", bold: true, red: true },
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      const r = 6 + i;
+      applyBorders(r, r, 1, 6);
+
+      // Left side: label in col A, value merged B:C
+      ws.getCell(r, 1).value = leftFields[i].label;
+      ws.getCell(r, 1).font = { name: "Arial", size: 10, bold: true };
+      ws.mergeCells(`B${r}:C${r}`);
+      ws.getCell(r, 2).value = leftFields[i].value;
+      ws.getCell(r, 2).font = { name: "Arial", size: 10 };
+
+      // Right side: label in col D, value merged E:F
+      ws.getCell(r, 4).value = rightFields[i].label;
+      ws.getCell(r, 4).font = { name: "Arial", size: 10, bold: true };
+      ws.mergeCells(`E${r}:F${r}`);
+      ws.getCell(r, 5).value = rightFields[i].value;
+      ws.getCell(r, 5).font = {
+        name: "Arial",
+        size: 10,
+        bold: i === 0 || i === 3,
+        color: i === 0 || i === 3 ? { argb: "FFFF0000" } : undefined,
+      };
+    }
+
+    // ── Separator ──────────────────────────────────────────────────────────
+    applyBorders(10, 10, 1, 6);
+
+    // ── Salutation ─────────────────────────────────────────────────────────
+    ws.mergeCells("A11:F11");
+    ws.getCell("A11").value = "Gentlemen:";
+    ws.getCell("A11").font = { name: "Arial", size: 10 };
+    ws.getRow(11).height = 18;
+
+    ws.mergeCells("A12:F12");
+    ws.getCell("A12").value =
+      "    Please furnish this Office the following articles subject to the terms and conditions contained herein:";
+    ws.getCell("A12").font = { name: "Arial", size: 10 };
+    ws.getRow(12).height = 18;
+
+    // ── Separator ──────────────────────────────────────────────────────────
+    applyBorders(13, 13, 1, 6);
+
+    // ── Delivery details (rows 14-15) ──────────────────────────────────────
+    const deliveryDateStr = formatDate(first.dateOfDelivery);
+
+    const deliveryLeft: FieldRow[] = [
+      { label: "Place of Delivery:", value: first.placeOfDelivery ?? "" },
+      { label: "Date of Delivery:", value: deliveryDateStr },
+    ];
+    const deliveryRight: FieldRow[] = [
+      { label: "Delivery Term:", value: first.deliveryTerm ?? "" },
+      { label: "Payment Term:", value: first.paymentTerm ?? "" },
+    ];
+
+    for (let i = 0; i < 2; i++) {
+      const r = 14 + i;
+      applyBorders(r, r, 1, 6);
+
+      ws.getCell(r, 1).value = deliveryLeft[i].label;
+      ws.getCell(r, 1).font = { name: "Arial", size: 10, bold: true };
+      ws.mergeCells(`B${r}:C${r}`);
+      ws.getCell(r, 2).value = deliveryLeft[i].value;
+      ws.getCell(r, 2).font = { name: "Arial", size: 10 };
+
+      ws.getCell(r, 4).value = deliveryRight[i].label;
+      ws.getCell(r, 4).font = { name: "Arial", size: 10, bold: true };
+      ws.mergeCells(`E${r}:F${r}`);
+      ws.getCell(r, 5).value = deliveryRight[i].value;
+      ws.getCell(r, 5).font = { name: "Arial", size: 10 };
+    }
+
+    // ── Separator ──────────────────────────────────────────────────────────
+    applyBorders(16, 16, 1, 6);
+
+    // ── Table header ───────────────────────────────────────────────────────
+    const headers = ["Item No.", "Unit", "Item Description", "Quantity", "Unit Cost", "Total Cost"];
+    const headerRow = ws.getRow(17);
+    headerRow.height = 22;
+    headers.forEach((h, i) => {
+      const cell = headerRow.getCell(i + 1);
+      cell.value = h;
+      cell.font = { name: "Arial", size: 10, bold: true };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
+      cell.border = thinBorder;
+    });
+
+    // ── Separator below header ─────────────────────────────────────────────
+    applyBorders(18, 18, 1, 6);
+
+    // ── Item rows ──────────────────────────────────────────────────────────
+    let currentLine = 19;
+    let grandTotal = 0;
+    for (const item of items) {
+      const row = ws.getRow(currentLine);
+      row.height = 20;
+      row.getCell(1).value = item.id;
+      row.getCell(1).alignment = { horizontal: "center" };
+      row.getCell(2).value = item.unit;
+      row.getCell(2).alignment = { horizontal: "center" };
+      row.getCell(3).value = item.description;
+      row.getCell(3).alignment = { horizontal: "left" };
+      row.getCell(4).value = item.quantity;
+      row.getCell(4).alignment = { horizontal: "center" };
+      row.getCell(5).value = item.unitCost;
+      row.getCell(5).numFmt = "#,##0.00";
+      row.getCell(5).alignment = { horizontal: "right" };
+      if (typeof item.quantity === "number" && typeof item.unitCost === "number") {
+        const itemTotal = item.quantity * item.unitCost;
+        grandTotal += itemTotal;
+        row.getCell(6).value = { formula: `D${currentLine}*E${currentLine}`, result: itemTotal };
+      } else {
+        row.getCell(6).value = "-";
+      }
+      row.getCell(6).numFmt = "#,##0.00";
+      row.getCell(6).alignment = { horizontal: "right" };
+      for (let c = 1; c <= 6; c++) {
+        row.getCell(c).border = thinBorder;
+        row.getCell(c).font = { name: "Arial", size: 10 };
+      }
+      currentLine++;
+    }
+
+    // ── Separator after items ──────────────────────────────────────────────
+    applyBorders(currentLine, currentLine, 1, 6);
+    currentLine++;
+
+    // ── SUB-TOTAL row ─────────────────────────────────────────────────────
+    ws.mergeCells(`A${currentLine}:E${currentLine}`);
+    ws.getCell(currentLine, 1).value = "SUB-TOTAL";
+    ws.getCell(currentLine, 1).font = { name: "Arial", size: 10, bold: true };
+    ws.getCell(currentLine, 1).alignment = { horizontal: "right" };
+    ws.getCell(currentLine, 6).value = grandTotal;
+    ws.getCell(currentLine, 6).numFmt = "#,##0.00";
+    ws.getCell(currentLine, 6).font = { name: "Arial", size: 10, bold: true };
+    ws.getCell(currentLine, 6).alignment = { horizontal: "right" };
+    applyBorders(currentLine, currentLine, 1, 6);
+    currentLine++;
+
+    // ── Amount in words row ────────────────────────────────────────────────
+    ws.mergeCells(`A${currentLine}:D${currentLine}`);
+    ws.getCell(currentLine, 1).value = "(TOTAL AMOUNT IN WORDS)";
+    ws.getCell(currentLine, 1).font = { name: "Arial", size: 10 };
+    ws.getCell(currentLine, 1).alignment = { horizontal: "center" };
+    ws.mergeCells(`E${currentLine}:F${currentLine}`);
+    ws.getCell(currentLine, 5).value = numberToWords(grandTotal);
+    ws.getCell(currentLine, 5).font = { name: "Arial", size: 10, bold: true };
+    ws.getCell(currentLine, 5).alignment = { horizontal: "center" };
+    applyBorders(currentLine, currentLine, 1, 6);
+    currentLine++;
+
+    // ── Closing separator ──────────────────────────────────────────────────
+    applyBorders(currentLine, currentLine, 1, 6);
+
+    const rawBuffer = await wb.xlsx.writeBuffer();
+    if (rawBuffer instanceof Buffer) return new Success(rawBuffer);
+    return new Success(Buffer.from(rawBuffer as unknown as Uint8Array));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to export purchase order.", {}, e as Error);
+  }
+}
