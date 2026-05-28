@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -15,7 +15,7 @@ import type {
 
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
-import { PurchaseOrderDialog, PurchasingFormDialog } from "@/app/(user_required)/(verified_only)/(purchasing_only)/dashboard/forms/purchasing/purchasing-form-dialog";
+import { PurchaseOrderDialog, PurchasingFormDialog } from "@/components/purchasing-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -136,14 +136,14 @@ export default function Page() {
 
         <Button
           variant="outline"
-          size="icon-sm"
+          size="sm"
           aria-label="Create Purchase Request"
           onClick={() => {
             setAddKey(key => key + 1);
             setAddOpen(true);
           }}
         >
-          <Plus />
+          Create a Purchase Request (PR)
         </Button>
 
         <Button
@@ -155,7 +155,7 @@ export default function Page() {
             setCreatePoOpen(true);
           }}
         >
-          Create an Purchase Order (PO)
+          Create a Purchase Order (PO)
         </Button>
 
         {poSelectionHasMismatch && (
