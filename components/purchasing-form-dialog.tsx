@@ -91,6 +91,8 @@ type SelectedAip = {
   label: string;
   aipCode: Optional<string>;
   mfoPpa: string;
+  sourceOfFund: string;
+  implementingOffice: string;
 };
 
 function makeEmptyForm(): PurchasingFormState {
@@ -176,6 +178,8 @@ function makeInitialAips(item: Optional<PurchasingItemResponse>): SelectedAip[] 
     label: `${entry.aipCode} - ${entry.ppa}`,
     aipCode: entry.aipCode,
     mfoPpa: entry.ppa,
+    sourceOfFund: entry.sourceOfFund ?? "",
+    implementingOffice: entry.implementingOffice ?? "",
   }));
 }
 
@@ -253,11 +257,13 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         label: "",
         aipCode: null,
         mfoPpa: "",
+        sourceOfFund: "",
+        implementingOffice: "",
       },
     ]);
   };
 
-  const updateAipRow = (key: string, selected: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string }) => {
+  const updateAipRow = (key: string, selected: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string; sourceOfFund: string; implementingOffice: string }) => {
     setSelectedAips(prev => prev.map(row => {
       if (row.key !== key) return row;
 
@@ -267,6 +273,8 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         label: selected.label,
         aipCode: selected.aipCode,
         mfoPpa: selected.mfoPpa,
+        sourceOfFund: selected.sourceOfFund,
+        implementingOffice: selected.implementingOffice,
       };
     }));
   };
@@ -403,31 +411,6 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
   };
 
   const exportPRToExcel = async () => {
-    // If this dialog was opened for an existing PR (edit mode with an item), prefer server-driven export
-    // which returns a ready-made XLSX file. Otherwise, fall back to client workbook generation.
-    if (editItem?.id) {
-      try {
-        const res = await fetch(`/api/forms/purchasing/${editItem.id}/export`);
-        if (!res.ok) {
-          alert("Export failed: " + res.statusText);
-          return;
-        }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `purchase-request-${editItem.id}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        return;
-      } catch (err) {
-        console.error(err);
-        alert("Failed to download export.");
-        return;
-      }
-    }
     const prItems = requestItems
       .map((item, idx) => ({
         id: idx + 1,
@@ -449,15 +432,14 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
 
     const prData = {
       prNo: form.prNumber || "",
-      department: "",
+      department: aipEntry?.implementingOffice ?? "",
       section: "",
       fpp: "",
       fund: "",
       purpose: form.purpose || "",
-      aipPpa: aipEntry?.mfoPpa ?? "",
       aipDesc: aipEntry?.label ?? "",
-      charges: "",
-      accountCode: "",
+      sourceOfFund: aipEntry?.sourceOfFund ?? "",
+      aipCode: aipEntry?.aipCode ?? "",
       items: prItems,
       requestedBy: findSigner(signatories.headOfOfficeId),
       cashAvailable: findSigner(signatories.treasurerId),
@@ -613,7 +595,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     worksheet.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
 
     worksheet.mergeCells(`B${currentLine}:F${currentLine}`);
-    worksheet.getCell(`B${currentLine}`).value = `${prData.aipPpa}          ${prData.aipDesc}`;
+    worksheet.getCell(`B${currentLine}`).value = `${prData.aipDesc}`;
     worksheet.getCell(`B${currentLine}`).font = { name: "Arial", size: 9 };
     applyBorders(currentLine, currentLine, 1, 6);
     currentLine++;
@@ -623,7 +605,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
 
     worksheet.mergeCells(`B${currentLine}:F${currentLine + 1}`);
     const chargesVal = worksheet.getCell(`B${currentLine}`);
-    chargesVal.value = `${prData.charges}\n${prData.accountCode}`;
+    chargesVal.value = `${prData.sourceOfFund}\n${prData.aipCode}`;
     chargesVal.font = { name: "Arial", size: 9 };
     chargesVal.alignment = { wrapText: true, vertical: "top" };
     applyBorders(currentLine, currentLine + 1, 1, 6);
@@ -966,6 +948,8 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                           label: row.label,
                           aipCode: row.aipCode,
                           mfoPpa: row.mfoPpa,
+                          sourceOfFund: row.sourceOfFund,
+                          implementingOffice: row.implementingOffice,
                         }
                         : null}
                       onChange={value => updateAipRow(row.key, value)}
@@ -1079,11 +1063,9 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         </ScrollArea>
 
         <DialogFooter>
-          {mode === "add" && (
-            <Button type="button" variant="outline" onClick={exportPRToExcel} disabled={submitting}>
-              <FileSpreadsheet className="size-4 mr-2" /> Export PR (.xlsx)
-            </Button>
-          )}
+          <Button type="button" variant="outline" onClick={exportPRToExcel} disabled={submitting}>
+            <FileSpreadsheet className="size-4 mr-2" /> Export PR (.xlsx)
+          </Button>
           <DialogClose asChild>
             <Button variant="outline" disabled={submitting}>Cancel</Button>
           </DialogClose>
@@ -1509,8 +1491,8 @@ function LbacSearchCombobox({
   onChange,
   disabled,
 }: {
-  value: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string } | null;
-  onChange: (value: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string }) => void;
+  value: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string; sourceOfFund: string; implementingOffice: string } | null;
+  onChange: (value: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string; sourceOfFund: string; implementingOffice: string }) => void;
   disabled: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -1548,11 +1530,18 @@ function LbacSearchCombobox({
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
           )}
           {!isLoading && query.length >= 2 && renderLbacNodes(results, 0, item => {
+            const sourceOfFund = item.other?.expenseCode
+              ? item.other.expenseCode.accountCode
+                ? `${item.other.expenseCode.accountName} ${item.other.expenseCode.accountCode}`
+                : item.other.expenseCode.accountName
+              : "";
             onChange({
               id: item.id,
               label: `${item.aipRefCode?.aipReferenceCode ?? "N/A"} - ${item.mfoPpa}`,
               aipCode: item.aipRefCode?.aipReferenceCode ?? null,
               mfoPpa: item.mfoPpa,
+              sourceOfFund,
+              implementingOffice: item.aipRefCode?.implementingOffice ?? "",
             });
             setOpen(false);
             setQuery("");
