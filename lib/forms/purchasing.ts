@@ -939,8 +939,11 @@ async function _fetchPurchaseRequestItemBatch(
         ppa: purchasingAip.ppa,
         sourceOfFund: purchasingAip.sourceOfFund,
         amountCharged: purchasingAip.amountCharged,
+        implementingOffice: aipReferences.implementingOffice,
       })
       .from(purchasingAip)
+      .leftJoin(lbacItems, eq(lbacItems.id, purchasingAip.lbacReferenceId))
+      .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
       .where(inArray(purchasingAip.purchasingId, uniqueIds)),
     userIds.length === 0
       ? Promise.resolve([])
@@ -977,6 +980,7 @@ async function _fetchPurchaseRequestItemBatch(
       ppa: aipRow.ppa,
       sourceOfFund: aipRow.sourceOfFund,
       amountCharged: aipRow.amountCharged,
+      implementingOffice: aipRow.implementingOffice,
     });
   }
 
@@ -1163,6 +1167,7 @@ export type PurchaseRequestItem = {
     ppa: string;
     sourceOfFund: Optional<string>;
     amountCharged: Optional<string>;
+    implementingOffice: Optional<string>;
   }>;
 };
 

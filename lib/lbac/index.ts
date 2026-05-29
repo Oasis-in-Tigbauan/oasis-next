@@ -116,6 +116,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
         aipRefId: aipReferences.id,
         aipReferenceCode: aipReferences.aipReferenceCode,
         aipDescription: aipReferences.description,
+        aipImplementingOffice: aipReferences.implementingOffice,
         expenseCodeId: expenseClasses.id,
         expenseAccountName: expenseClasses.accountName,
         expenseAccountCode: expenseClasses.accountCode,
@@ -155,7 +156,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
         id: row.id,
         mfoPpa: row.mfoPpa,
         aipRefCode: row.aipRefId
-          ? { id: row.aipRefId, aipReferenceCode: row.aipReferenceCode!, description: row.aipDescription! }
+          ? { id: row.aipRefId, aipReferenceCode: row.aipReferenceCode!, description: row.aipDescription!, implementingOffice: row.aipImplementingOffice ?? null }
           : null,
         other: {
           expenseCode: row.expenseCodeId
@@ -6029,6 +6030,7 @@ export type LbacSearchResultItem = {
     id: string;
     aipReferenceCode: string;
     description: string;
+    implementingOffice: string | null;
   } | null;
   other: {
     expenseCode: {
