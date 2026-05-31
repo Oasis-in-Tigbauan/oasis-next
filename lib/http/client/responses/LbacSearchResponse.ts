@@ -7,6 +7,7 @@ export type LbacSearchResultItem = {
     id: string;
     aipReferenceCode: string;
     description: string;
+    implementingOffice: string | null;
   } | null;
   other: {
     expenseCode: {
