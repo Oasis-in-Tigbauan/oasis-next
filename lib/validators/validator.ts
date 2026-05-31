@@ -294,9 +294,9 @@ export class Validator {
       if (current.type === "date") {
         const dateMinMax = this.checkMinMaxDate(
           current.type,
-                    object[property] as Date,
-                    current.min as DateTime,
-                    current.max as DateTime,
+          object[property] as Date,
+          current.min as DateTime,
+          current.max as DateTime,
         );
         if (!dateMinMax.ok) {
           return {
