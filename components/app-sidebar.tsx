@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness,
+  CalendarDays,
   Car,
   ChevronRight,
   FileSpreadsheet,
@@ -152,6 +153,7 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
   ].filter((item): item is SidebarSectionItem => item !== null);
 
   const officeFormItems: SidebarItem[] = [
+    { title: "Leave Application", href: "/dashboard/forms/leave", icon: CalendarDays },
     hasPermission(permissions.PURCHASING_REQUEST_MANAGE) ? { title: "PR/PO Form", href: "/dashboard/forms/purchasing", icon: ShoppingBasket } : null,
     hasPermission(permissions.PPMP_READ) ? { title: "PPMP", href: "/dashboard/forms/ppmp", icon: ShoppingCart } : null,
     hasPermission(permissions.OBR_DISBURSEMENT_CREATE) ? { title: "DV-Elec", href: "/dashboard/forms/elec", icon: PlugZap } : null,
