@@ -277,6 +277,34 @@ export async function getAll(): Promise<Result<TravelOrderItem[]>> {
 }
 
 /**
+ * Fetches one travel order with requestor and approver details.
+ *
+ * @description
+ * Reads the full joined travel-order record by ID and maps the stored UTC
+ * timestamps to UTC+8 presentation values. Returns a not-found failure when
+ * the travel order does not exist.
+ *
+ * @async
+ * @function getById
+ * @param {string} id - The UUID of the travel order to fetch.
+ * @returns {Promise<Result<TravelOrderItem>>} Travel order on success, or failure.
+ * @remarks This function does not perform permission checks; callers must verify access first.
+ */
+export async function getById(id: string): Promise<Result<TravelOrderItem>> {
+  try {
+    const row = await _fetchById(id);
+    if (!row) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found.", { id });
+    }
+
+    return new Success(_mapRow(row));
+  }
+  catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to retrieve travel order.", { id }, e);
+  }
+}
+
+/**
  * Creates a new travel order for the given user.
  *
  * @description
