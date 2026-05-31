@@ -149,6 +149,16 @@ const allMenuItems: Array<MenuItem> = [
       permissions.LBAC_DATA_WRITE,
     ],
   },
+  {
+    title: "Statement of Receipts and Expenditures (F4)",
+    description: "Manage LBAC F4 — Statement of Receipts and Expenditures",
+    href: "/dashboard/lbac/f4",
+    icon: FolderCog,
+    required: [
+      permissions.LBAC_DATA_READ,
+      permissions.LBAC_DATA_WRITE,
+    ],
+  },
 ];
 
 type MenuItem = {
