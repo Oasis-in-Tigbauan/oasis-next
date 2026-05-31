@@ -13,7 +13,7 @@ type MoveEntryBody = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/saaob/entries/[id]/move">,
 ) {
   const session = await auth.verify([permission.SAAOB_DATA_READ, permission.SAAOB_DATA_WRITE], "and");
   if (!session || session.code !== SessionCode.Ok) {
