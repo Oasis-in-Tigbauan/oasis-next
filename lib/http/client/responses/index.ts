@@ -71,6 +71,10 @@ import type {
   LbacMonitoringItemResponse,
   LbacMonitoringResponse,
 } from "@/lib/http/client/responses/LbacMonitoringResponse";
+import type {
+  LbacF4ItemResponse,
+  LbacF4Response,
+} from "@/lib/http/client/responses/LbacF4Response";
 import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
 import type {
   SaaobDataResponse,
@@ -204,6 +208,8 @@ export type {
   LbacMonitoringGroupResponse,
   LbacMonitoringItemResponse,
   LbacMonitoringResponse,
+  LbacF4ItemResponse,
+  LbacF4Response,
   SaaobDataResponse,
   SaaobOfficeResponse,
   SaaobEntryResponse,
