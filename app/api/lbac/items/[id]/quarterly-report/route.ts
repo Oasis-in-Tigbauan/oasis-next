@@ -26,7 +26,7 @@ type UpdateLbacQuarterlyBody = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/lbac/items/[id]/quarterly-report">,
 ) {
   const session = await auth.verify([
     permission.LBAC_QUARTERLY_READ,
