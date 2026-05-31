@@ -10,7 +10,7 @@ import { validator, validatorUtilities } from "@/lib/validators";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/obr/main/[id]">,
 ) {
   const session = await auth.verify([permission.OBR_MANAGEMENT_WRITE]);
   if (!session || session.code !== SessionCode.Ok) {
@@ -118,7 +118,7 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/obr/main/[id]">,
 ) {
   const session = await auth.verify([permission.OBR_MANAGEMENT_WRITE]);
   if (!session || session.code !== SessionCode.Ok) {
