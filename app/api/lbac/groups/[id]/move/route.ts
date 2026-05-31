@@ -13,7 +13,7 @@ type MoveLbacGroupBody = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/lbac/groups/[id]/move">,
 ) {
   const session = await auth.verify(
     [permission.LBAC_DATA_READ, permission.LBAC_DATA_WRITE],
