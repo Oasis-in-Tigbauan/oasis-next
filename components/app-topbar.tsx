@@ -52,6 +52,7 @@ const routeMetaList: Array<{
   { matcher: "/dashboard/forms/ppmp", meta: { section: "Office Forms", title: "Project Procurement Management Plan", breadcrumbs: ["PPMP"] } },
   { matcher: "/dashboard/forms/elec", meta: { section: "Office Forms", title: "DV-Elec", breadcrumbs: ["DV-Elec"] } },
   { matcher: "/dashboard/forms/travel-order", meta: { section: "Office Forms", title: "Travel Orders", breadcrumbs: ["Travel Orders"] } },
+  { matcher: "/dashboard/forms/leave", meta: { section: "Office Forms", title: "Application for Leave", breadcrumbs: ["Leave Application"] } },
   { matcher: "/dashboard/settings/approvals", meta: { section: "Administration", title: "Account Approvals", breadcrumbs: ["Approvals"] } },
   { matcher: "/dashboard/settings/invitations", meta: { section: "Administration", title: "Invitations", breadcrumbs: ["Invitations"] } },
   { matcher: "/dashboard/settings/users", meta: { section: "Administration", title: "User Management", breadcrumbs: ["Users"] } },

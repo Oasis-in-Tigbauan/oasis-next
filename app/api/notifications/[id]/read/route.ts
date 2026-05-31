@@ -5,7 +5,7 @@ import * as notifications from "@/lib/notifications";
 
 export async function PATCH(
   _: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/notifications/[id]/read">,
 ) {
   const session = await auth.verify();
   if (!session || session.code !== SessionCode.Ok) {
