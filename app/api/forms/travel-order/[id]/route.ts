@@ -8,7 +8,7 @@ import { oneOf } from "@/lib/one-of";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { validator, validatorUtilities } from "@/lib/validators";
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: RouteContext<"/api/forms/travel-order/[id]">) {
   const session = await auth.verify([
     permission.TRAVEL_WRITE,
   ]);
@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   );
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: RouteContext<"/api/forms/travel-order/[id]">) {
   const session = await auth.verify([
     permission.TRAVEL_WRITE,
   ]);
