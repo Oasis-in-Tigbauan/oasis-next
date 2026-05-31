@@ -7,7 +7,7 @@ import * as travelOrder from "@/lib/forms/travel-order";
 import { oneOf } from "@/lib/one-of";
 import { validatorUtilities } from "@/lib/validators";
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_req: NextRequest, { params }: RouteContext<"/api/forms/travel-order/[id]/approve">) {
   const session = await auth.verify([
     permission.TRAVEL_APPROVER,
   ]);

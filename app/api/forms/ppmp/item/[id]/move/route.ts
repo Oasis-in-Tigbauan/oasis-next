@@ -15,7 +15,7 @@ type MoveItemBody = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/forms/ppmp/item/[id]/move">,
 ) {
   const session = await auth.verify([permission.PPMP_READ, permission.PPMP_MANAGE]);
   if (!session || session.code !== SessionCode.Ok) {

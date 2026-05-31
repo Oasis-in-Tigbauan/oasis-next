@@ -10,7 +10,7 @@ import { validator, validatorUtilities } from "@/lib/validators";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/forms/ppmp/item/[id]">,
 ) {
   const session = await auth.verify([permission.PPMP_READ, permission.PPMP_MANAGE]);
   if (!session || session.code !== SessionCode.Ok) {
@@ -75,7 +75,7 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: RouteContext<"/api/forms/ppmp/item/[id]">,
 ) {
   const session = await auth.verify([permission.PPMP_READ, permission.PPMP_MANAGE]);
   if (!session || session.code !== SessionCode.Ok) {

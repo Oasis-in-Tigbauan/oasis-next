@@ -11,7 +11,7 @@ import * as Sentry from "@sentry/nextjs";
  */
 export async function tryParseJson<T>(req: NextRequest): Promise<T | null> {
   try {
-    return req.json();
+    return await req.json();
   } catch (e) {
     Sentry.captureException(e);
     return null;
