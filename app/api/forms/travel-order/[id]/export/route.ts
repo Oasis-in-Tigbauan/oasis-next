@@ -7,6 +7,7 @@ import {
   type TravelOrderLetterheadImage,
 } from "@/lib/forms/travel-order-export";
 import * as permission from "@/lib/db/permissions";
+import * as serverOnlyValidators from "@/lib/validators/server-only-validators";
 import * as travelOrder from "@/lib/forms/travel-order";
 import { tryReadFormData } from "@/lib/http/RequestUtilities";
 import { validatorUtilities } from "@/lib/validators";
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let header: TravelOrderLetterheadImage | undefined;
   if (validatorUtilities.isExisty(headerObject)) {
-    const img = await validatorUtilities.tryReadImage(headerObject as File, { maxSize: 6291456 });
+    const img = await serverOnlyValidators.tryReadImage(headerObject as File, { maxSize: 6291456 });
     if (!img) {
       return ApiResponseBuilder
         .createError(StatusCodes.Status400BadRequest, "Invalid image.")
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let footer: TravelOrderLetterheadImage | undefined;
   if (validatorUtilities.isExisty(footerObject)) {
-    const img = await validatorUtilities.tryReadImage(footerObject as File, { maxSize: 6291456 });
+    const img = await serverOnlyValidators.tryReadImage(footerObject as File, { maxSize: 6291456 });
     if (!img) {
       return ApiResponseBuilder
         .createError(StatusCodes.Status400BadRequest, "Invalid image.")
