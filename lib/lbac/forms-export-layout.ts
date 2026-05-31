@@ -1,3 +1,5 @@
+import { toCurrency } from "to-words";
+
 import type {
   LbacGroupResponse,
   LbacGroupTotals,
@@ -90,107 +92,8 @@ export function getLbeF1BudgetTypeLabel(budgetType: string | null | undefined): 
   return "";
 }
 
-const _SMALL = [
-  "ZERO",
-  "ONE",
-  "TWO",
-  "THREE",
-  "FOUR",
-  "FIVE",
-  "SIX",
-  "SEVEN",
-  "EIGHT",
-  "NINE",
-  "TEN",
-  "ELEVEN",
-  "TWELVE",
-  "THIRTEEN",
-  "FOURTEEN",
-  "FIFTEEN",
-  "SIXTEEN",
-  "SEVENTEEN",
-  "EIGHTEEN",
-  "NINETEEN",
-] as const;
-
-const _TENS = [
-  "",
-  "",
-  "TWENTY",
-  "THIRTY",
-  "FORTY",
-  "FIFTY",
-  "SIXTY",
-  "SEVENTY",
-  "EIGHTY",
-  "NINETY",
-] as const;
-
-const _SCALES = ["", "THOUSAND", "MILLION", "BILLION", "TRILLION"] as const;
-
-function _chunkToWords(n: number): string {
-  const parts: string[] = [];
-  const hundreds = Math.floor(n / 100);
-  const remainder = n % 100;
-
-  if (hundreds > 0) {
-    parts.push(`${_SMALL[hundreds]} HUNDRED`);
-    if (remainder > 0) {
-      parts.push("AND");
-    }
-  }
-
-  if (remainder > 0) {
-    if (remainder < 20) {
-      parts.push(_SMALL[remainder]);
-    } else {
-      const ten = Math.floor(remainder / 10);
-      const one = remainder % 10;
-      parts.push(_TENS[ten]);
-      if (one > 0) {
-        parts.push(_SMALL[one]);
-      }
-    }
-  }
-
-  return parts.join(" ").trim();
-}
-
-function _integerToWords(input: bigint): string {
-  if (input === 0n) return "ZERO";
-
-  let n = input;
-  const pieces: string[] = [];
-  let scaleIndex = 0;
-
-  while (n > 0n) {
-    const chunk = Number(n % 1000n);
-    if (chunk > 0) {
-      const chunkWords = _chunkToWords(chunk);
-      const scale = _SCALES[scaleIndex];
-      pieces.unshift(scale ? `${chunkWords} ${scale}` : chunkWords);
-    }
-    n /= 1000n;
-    scaleIndex++;
-  }
-
-  return pieces.join(" ").trim();
-}
-
 export function amountToEnglishWords(value: string | number): string {
-  const raw = String(value ?? "0").trim().replace(/,/g, "");
-  const valid = /^\d+(\.\d+)?$/.test(raw) ? raw : "0";
-  const [integerRaw, decimalsRaw = ""] = valid.split(".");
-  const integerPart = BigInt(integerRaw || "0");
-  const cents = (decimalsRaw + "00").slice(0, 2);
-  const words = _integerToWords(integerPart);
-  const centsValue = Number.parseInt(cents, 10);
-  if (centsValue === 0) {
-    return `${words} PESOS`;
-  }
-
-  const centsLabel = centsValue === 1 ? "CENT" : "CENTS";
-  return `${words} PESOS AND ${centsValue} ${centsLabel}`;
+  return toCurrency(value, { localeCode: "en-PH" });
 }
 
 function _quarterOrdinal(quarter: number): string {

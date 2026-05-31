@@ -117,6 +117,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
         aipRefId: aipReferences.id,
         aipReferenceCode: aipReferences.aipReferenceCode,
         aipDescription: aipReferences.description,
+        aipImplementingOffice: aipReferences.implementingOffice,
         expenseCodeId: expenseClasses.id,
         expenseAccountName: expenseClasses.accountName,
         expenseAccountCode: expenseClasses.accountCode,
@@ -156,7 +157,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
         id: row.id,
         mfoPpa: row.mfoPpa,
         aipRefCode: row.aipRefId
-          ? { id: row.aipRefId, aipReferenceCode: row.aipReferenceCode!, description: row.aipDescription! }
+          ? { id: row.aipRefId, aipReferenceCode: row.aipReferenceCode!, description: row.aipDescription!, implementingOffice: row.aipImplementingOffice ?? null }
           : null,
         other: {
           expenseCode: row.expenseCodeId
@@ -2274,6 +2275,258 @@ export async function exportForm6ToBuffer(): Promise<Result<Buffer>> {
     return new Success(buffer);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 6.", {}, e);
+  }
+}
+
+
+/**
+ * Retrieves all LBAC F4 statement items, optionally filtered by fiscal year.
+ *
+ * @description
+ * Fetches rows from `lbac_statement_of_expenditures`, optionally scoped to `forFiscalYear`, then builds a
+ * parent-child tree with computed variance fields on each node.
+ *
+ * On success, wraps the tree in a {@link Success}. On unexpected failure, wraps the error in a fatal
+ * {@link Failure}.
+ *
+ * @async
+ * @function getAllF4Items
+ * @param {number} [forFiscalYear] - When provided, only rows for this fiscal year are returned.
+ * @returns {Promise<Result<LbacF4Item[]>>} Hierarchical F4 items on success, or a failure result on error.
+ *
+ * @remarks
+ * - Returns an empty array when no rows exist for the given filter.
+ */
+export async function getAllF4Items(forFiscalYear?: number): Promise<Result<LbacF4Item[]>> {
+  try {
+    const baseQuery = db
+      .select({
+        id: lbacStatementOfExpenditures.id,
+        parentId: lbacStatementOfExpenditures.parentId,
+        particulars: lbacStatementOfExpenditures.particulars,
+        accountCode: lbacStatementOfExpenditures.accountCode,
+        estimate: lbacStatementOfExpenditures.estimate,
+        actual: lbacStatementOfExpenditures.actual,
+        remarks: lbacStatementOfExpenditures.remarks,
+        forFiscalYear: lbacStatementOfExpenditures.forFiscalYear,
+      })
+      .from(lbacStatementOfExpenditures);
+
+    const rows = await (
+      forFiscalYear !== undefined
+        ? baseQuery.where(eq(lbacStatementOfExpenditures.forFiscalYear, forFiscalYear))
+        : baseQuery
+    ).orderBy(asc(lbacStatementOfExpenditures.createdAt));
+
+    return new Success(_buildF4Tree(rows));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to fetch LBAC F4 items.", { forFiscalYear }, e);
+  }
+}
+
+/**
+ * Creates one or more LBAC F4 statement items for a fiscal year, including nested children.
+ *
+ * @description
+ * Each entry in `contents` is inserted as a root row unless `parentId` references an existing row for the same
+ * fiscal year. Nested `children` are inserted recursively under their parent. After insert, returns the full
+ * tree for the fiscal year via {@link getAllF4Items}.
+ *
+ * On success, wraps the fiscal-year tree in a {@link Success}. On validation failure (invalid parent), returns a
+ * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function createF4Items
+ * @param {number} forFiscalYear - Fiscal year assigned to every inserted row.
+ * @param {CreateF4ItemPayload[]} contents - Root or child payloads to create.
+ * @returns {Promise<Result<LbacF4Item[]>>} The full F4 tree for the fiscal year on success, or a failure result on error.
+ *
+ * @remarks
+ * - Validates that each `parentId` references an existing row with the same `forFiscalYear`.
+ */
+export async function createF4Items(
+  forFiscalYear: number,
+  contents: CreateF4ItemPayload[],
+): Promise<Result<LbacF4Item[]>> {
+  try {
+    for (const item of contents) {
+      if (!item.parentId) {
+        continue;
+      }
+
+      const [parent] = await db
+        .select({
+          id: lbacStatementOfExpenditures.id,
+          forFiscalYear: lbacStatementOfExpenditures.forFiscalYear,
+        })
+        .from(lbacStatementOfExpenditures)
+        .where(eq(lbacStatementOfExpenditures.id, item.parentId))
+        .limit(1);
+
+      if (!parent) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "The specified parent item does not exist.",
+          { parentId: item.parentId },
+        );
+      }
+
+      if (parent.forFiscalYear !== forFiscalYear) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "Parent item belongs to a different fiscal year.",
+          { parentId: item.parentId, forFiscalYear },
+        );
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      for (const item of contents) {
+        const parentId = item.parentId ?? null;
+        await _insertF4ItemRecursive(tx, item, forFiscalYear, parentId);
+      }
+    });
+
+    return getAllF4Items(forFiscalYear);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create LBAC F4 items.", { forFiscalYear }, e);
+  }
+}
+
+/**
+ * Updates an existing LBAC F4 statement item.
+ *
+ * @description
+ * Applies partial updates to scalar fields. Nullable fields may be explicitly cleared with `null`. Returns the
+ * updated item with computed variance and an empty `children` array (flat node).
+ *
+ * On success, wraps the updated item in a {@link Success}. On not-found failure, returns {@link Failure} with
+ * {@link ErrorCodes.ResourceNotFound}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function updateF4Item
+ * @param {string} id - Identifier of the row to update.
+ * @param {UpdateF4ItemPayload} payload - Partial fields to update.
+ * @returns {Promise<Result<LbacF4Item>>} The updated item on success, or a failure result on error.
+ */
+export async function updateF4Item(
+  id: string,
+  payload: UpdateF4ItemPayload,
+): Promise<Result<LbacF4Item>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacStatementOfExpenditures.id })
+      .from(lbacStatementOfExpenditures)
+      .where(eq(lbacStatementOfExpenditures.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "LBAC F4 item not found.", { id });
+    }
+
+    const updateValues: Record<string, unknown> = {};
+
+    if (payload.particulars !== undefined) {
+      updateValues.particulars = payload.particulars;
+    }
+    if (payload.accountCode !== undefined) {
+      updateValues.accountCode = payload.accountCode;
+    }
+    if (payload.estimate !== undefined) {
+      updateValues.estimate = payload.estimate === null
+        ? null
+        : casts.castToDecimal(payload.estimate);
+    }
+    if (payload.actual !== undefined) {
+      updateValues.actual = payload.actual === null
+        ? null
+        : casts.castToDecimal(payload.actual);
+    }
+    if (payload.remarks !== undefined) {
+      updateValues.remarks = payload.remarks;
+    }
+
+    if (Object.keys(updateValues).length > 0) {
+      await db
+        .update(lbacStatementOfExpenditures)
+        .set(updateValues)
+        .where(eq(lbacStatementOfExpenditures.id, id));
+    }
+
+    const [row] = await db
+      .select({
+        id: lbacStatementOfExpenditures.id,
+        parentId: lbacStatementOfExpenditures.parentId,
+        particulars: lbacStatementOfExpenditures.particulars,
+        accountCode: lbacStatementOfExpenditures.accountCode,
+        estimate: lbacStatementOfExpenditures.estimate,
+        actual: lbacStatementOfExpenditures.actual,
+        remarks: lbacStatementOfExpenditures.remarks,
+        forFiscalYear: lbacStatementOfExpenditures.forFiscalYear,
+      })
+      .from(lbacStatementOfExpenditures)
+      .where(eq(lbacStatementOfExpenditures.id, id))
+      .limit(1);
+
+    if (!row) {
+      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC F4 item.", { id });
+    }
+
+    return new Success(_mapF4RowToItem(row));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC F4 item.", { id, payload }, e);
+  }
+}
+
+/**
+ * Deletes an LBAC F4 statement item when it has no child rows.
+ *
+ * @description
+ * Verifies the row exists and has no descendants. If any child rows reference this id as `parentId`, returns a
+ * validation failure instead of deleting.
+ *
+ * On success, wraps `undefined` in a {@link Success}. On not-found or validation failure, returns an appropriate
+ * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function deleteF4Item
+ * @param {string} id - Identifier of the row to delete.
+ * @returns {Promise<Result<void>>} Void on success, or a failure result on error.
+ *
+ * @remarks
+ * - Delete is blocked while nested items still exist under this row.
+ */
+export async function deleteF4Item(id: string): Promise<Result<void>> {
+  try {
+    const [existing] = await db
+      .select({ id: lbacStatementOfExpenditures.id })
+      .from(lbacStatementOfExpenditures)
+      .where(eq(lbacStatementOfExpenditures.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "LBAC F4 item not found.", { id });
+    }
+
+    const [child] = await db
+      .select({ id: lbacStatementOfExpenditures.id })
+      .from(lbacStatementOfExpenditures)
+      .where(eq(lbacStatementOfExpenditures.parentId, id))
+      .limit(1);
+
+    if (child) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Cannot delete an item that still has nested entries. Remove all children first.",
+        { id },
+      );
+    }
+
+    await db.delete(lbacStatementOfExpenditures).where(eq(lbacStatementOfExpenditures.id, id));
+
+    return new Success(undefined);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete LBAC F4 item.", { id }, e);
   }
 }
 
@@ -5541,6 +5794,131 @@ async function fetchCollPerfItemById(id: string): Promise<CollPerfItemObject | n
   );
 }
 
+
+/**
+ * Computes variance amount and percentage from estimate and actual decimal strings.
+ *
+ * @description
+ * Returns `"0.00"` for both fields when either estimate or actual is null or missing.
+ * Percentage is `(varianceAmounts / estimate) * 100` when estimate is non-zero; otherwise `"0.00"`.
+ *
+ * @param {string | null} estimate - Estimated amount as a decimal string.
+ * @param {string | null} actual - Actual amount as a decimal string.
+ * @returns {{ varianceAmounts: string; variancePercentage: string }} Computed variance fields.
+ */
+function _computeF4Variance(
+  estimate: string | null,
+  actual: string | null,
+): { varianceAmounts: string; variancePercentage: string } {
+  if (estimate === null || actual === null) {
+    return { varianceAmounts: "0.00", variancePercentage: "0.00" };
+  }
+
+  const estimateDec = new Decimal(estimate);
+  const actualDec = new Decimal(actual);
+  const varianceAmounts = estimateDec.minus(actualDec).toFixed(2);
+
+  if (estimateDec.isZero()) {
+    return { varianceAmounts, variancePercentage: "0.00" };
+  }
+
+  const variancePercentage = new Decimal(varianceAmounts)
+    .div(estimateDec)
+    .times(100)
+    .toFixed(2);
+
+  return { varianceAmounts, variancePercentage };
+}
+
+/**
+ * Maps a database row to an F4 item response node without children populated.
+ *
+ * @param {F4DbRow} row - Raw statement-of-expenditures row from the database.
+ * @returns {LbacF4Item} Mapped item with computed variance fields and an empty children array.
+ */
+function _mapF4RowToItem(row: F4DbRow): LbacF4Item {
+  const { varianceAmounts, variancePercentage } = _computeF4Variance(row.estimate, row.actual);
+
+  return {
+    id: row.id,
+    particulars: row.particulars,
+    accountCode: row.accountCode,
+    estimate: row.estimate,
+    actual: row.actual,
+    varianceAmounts,
+    variancePercentage,
+    remarks: row.remarks,
+    forFiscalYear: row.forFiscalYear,
+    parentId: row.parentId,
+    children: [],
+  };
+}
+
+/**
+ * Builds a hierarchical tree from a flat list of F4 statement rows.
+ *
+ * @description
+ * Links each node to its parent via `parentId`. Rows whose parent is missing from the set are treated as roots.
+ *
+ * @param {F4DbRow[]} rows - Flat rows for a single fiscal year (or filtered subset).
+ * @returns {LbacF4Item[]} Root-level items with nested `children`.
+ */
+function _buildF4Tree(rows: F4DbRow[]): LbacF4Item[] {
+  const nodeMap = new Map<string, LbacF4Item>();
+
+  for (const row of rows) {
+    nodeMap.set(row.id, _mapF4RowToItem(row));
+  }
+
+  const roots: LbacF4Item[] = [];
+
+  for (const row of rows) {
+    const node = nodeMap.get(row.id)!;
+    if (row.parentId && nodeMap.has(row.parentId)) {
+      nodeMap.get(row.parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
+}
+
+/**
+ * Recursively inserts F4 statement rows and their nested children inside a transaction.
+ *
+ * @param {Parameters<typeof db.transaction>[0] extends (tx: infer Tx) => unknown ? Tx : never} tx - Active Drizzle transaction.
+ * @param {CreateF4ItemPayload} item - Item payload to insert.
+ * @param {number} forFiscalYear - Fiscal year stored on each inserted row.
+ * @param {string | null} parentId - Parent row id, or null for a root row.
+ * @returns {Promise<string>} The id of the inserted row.
+ */
+async function _insertF4ItemRecursive(
+  tx: Pick<typeof db, "insert">,
+  item: CreateF4ItemPayload,
+  forFiscalYear: number,
+  parentId: string | null,
+): Promise<string> {
+  const [inserted] = await tx
+    .insert(lbacStatementOfExpenditures)
+    .values({
+      particulars: item.particulars,
+      accountCode: item.accountCode ?? null,
+      estimate: item.estimate !== undefined ? casts.castToDecimal(item.estimate) : null,
+      actual: item.actual !== undefined ? casts.castToDecimal(item.actual) : null,
+      remarks: item.remarks ?? null,
+      forFiscalYear,
+      parentId,
+    })
+    .returning({ id: lbacStatementOfExpenditures.id });
+
+  for (const child of item.children ?? []) {
+    await _insertF4ItemRecursive(tx, child, forFiscalYear, inserted.id);
+  }
+
+  return inserted.id;
+}
+
 export enum LbacObjectType {
   Group = 6767,
   Item = 6768,
@@ -6030,6 +6408,7 @@ export type LbacSearchResultItem = {
     id: string;
     aipReferenceCode: string;
     description: string;
+    implementingOffice: string | null;
   } | null;
   other: {
     expenseCode: {
@@ -6270,378 +6649,3 @@ type F4DbRow = {
   remarks: string | null;
   forFiscalYear: number;
 };
-
-/**
- * Computes variance amount and percentage from estimate and actual decimal strings.
- *
- * @description
- * Returns `"0.00"` for both fields when either estimate or actual is null or missing.
- * Percentage is `(varianceAmounts / estimate) * 100` when estimate is non-zero; otherwise `"0.00"`.
- *
- * @param {string | null} estimate - Estimated amount as a decimal string.
- * @param {string | null} actual - Actual amount as a decimal string.
- * @returns {{ varianceAmounts: string; variancePercentage: string }} Computed variance fields.
- */
-function _computeF4Variance(
-  estimate: string | null,
-  actual: string | null,
-): { varianceAmounts: string; variancePercentage: string } {
-  if (estimate === null || actual === null) {
-    return { varianceAmounts: "0.00", variancePercentage: "0.00" };
-  }
-
-  const estimateDec = new Decimal(estimate);
-  const actualDec = new Decimal(actual);
-  const varianceAmounts = estimateDec.minus(actualDec).toFixed(2);
-
-  if (estimateDec.isZero()) {
-    return { varianceAmounts, variancePercentage: "0.00" };
-  }
-
-  const variancePercentage = new Decimal(varianceAmounts)
-    .div(estimateDec)
-    .times(100)
-    .toFixed(2);
-
-  return { varianceAmounts, variancePercentage };
-}
-
-/**
- * Maps a database row to an F4 item response node without children populated.
- *
- * @param {F4DbRow} row - Raw statement-of-expenditures row from the database.
- * @returns {LbacF4Item} Mapped item with computed variance fields and an empty children array.
- */
-function _mapF4RowToItem(row: F4DbRow): LbacF4Item {
-  const { varianceAmounts, variancePercentage } = _computeF4Variance(row.estimate, row.actual);
-
-  return {
-    id: row.id,
-    particulars: row.particulars,
-    accountCode: row.accountCode,
-    estimate: row.estimate,
-    actual: row.actual,
-    varianceAmounts,
-    variancePercentage,
-    remarks: row.remarks,
-    forFiscalYear: row.forFiscalYear,
-    parentId: row.parentId,
-    children: [],
-  };
-}
-
-/**
- * Builds a hierarchical tree from a flat list of F4 statement rows.
- *
- * @description
- * Links each node to its parent via `parentId`. Rows whose parent is missing from the set are treated as roots.
- *
- * @param {F4DbRow[]} rows - Flat rows for a single fiscal year (or filtered subset).
- * @returns {LbacF4Item[]} Root-level items with nested `children`.
- */
-function _buildF4Tree(rows: F4DbRow[]): LbacF4Item[] {
-  const nodeMap = new Map<string, LbacF4Item>();
-
-  for (const row of rows) {
-    nodeMap.set(row.id, _mapF4RowToItem(row));
-  }
-
-  const roots: LbacF4Item[] = [];
-
-  for (const row of rows) {
-    const node = nodeMap.get(row.id)!;
-    if (row.parentId && nodeMap.has(row.parentId)) {
-      nodeMap.get(row.parentId)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-
-  return roots;
-}
-
-/**
- * Recursively inserts F4 statement rows and their nested children inside a transaction.
- *
- * @param {Parameters<typeof db.transaction>[0] extends (tx: infer Tx) => unknown ? Tx : never} tx - Active Drizzle transaction.
- * @param {CreateF4ItemPayload} item - Item payload to insert.
- * @param {number} forFiscalYear - Fiscal year stored on each inserted row.
- * @param {string | null} parentId - Parent row id, or null for a root row.
- * @returns {Promise<string>} The id of the inserted row.
- */
-async function _insertF4ItemRecursive(
-  tx: Pick<typeof db, "insert">,
-  item: CreateF4ItemPayload,
-  forFiscalYear: number,
-  parentId: string | null,
-): Promise<string> {
-  const [inserted] = await tx
-    .insert(lbacStatementOfExpenditures)
-    .values({
-      particulars: item.particulars,
-      accountCode: item.accountCode ?? null,
-      estimate: item.estimate !== undefined ? casts.castToDecimal(item.estimate) : null,
-      actual: item.actual !== undefined ? casts.castToDecimal(item.actual) : null,
-      remarks: item.remarks ?? null,
-      forFiscalYear,
-      parentId,
-    })
-    .returning({ id: lbacStatementOfExpenditures.id });
-
-  for (const child of item.children ?? []) {
-    await _insertF4ItemRecursive(tx, child, forFiscalYear, inserted.id);
-  }
-
-  return inserted.id;
-}
-
-/**
- * Retrieves all LBAC F4 statement items, optionally filtered by fiscal year.
- *
- * @description
- * Fetches rows from `lbac_statement_of_expenditures`, optionally scoped to `forFiscalYear`, then builds a
- * parent-child tree with computed variance fields on each node.
- *
- * On success, wraps the tree in a {@link Success}. On unexpected failure, wraps the error in a fatal
- * {@link Failure}.
- *
- * @async
- * @function getAllF4Items
- * @param {number} [forFiscalYear] - When provided, only rows for this fiscal year are returned.
- * @returns {Promise<Result<LbacF4Item[]>>} Hierarchical F4 items on success, or a failure result on error.
- *
- * @remarks
- * - Returns an empty array when no rows exist for the given filter.
- */
-export async function getAllF4Items(forFiscalYear?: number): Promise<Result<LbacF4Item[]>> {
-  try {
-    const baseQuery = db
-      .select({
-        id: lbacStatementOfExpenditures.id,
-        parentId: lbacStatementOfExpenditures.parentId,
-        particulars: lbacStatementOfExpenditures.particulars,
-        accountCode: lbacStatementOfExpenditures.accountCode,
-        estimate: lbacStatementOfExpenditures.estimate,
-        actual: lbacStatementOfExpenditures.actual,
-        remarks: lbacStatementOfExpenditures.remarks,
-        forFiscalYear: lbacStatementOfExpenditures.forFiscalYear,
-      })
-      .from(lbacStatementOfExpenditures);
-
-    const rows = await (
-      forFiscalYear !== undefined
-        ? baseQuery.where(eq(lbacStatementOfExpenditures.forFiscalYear, forFiscalYear))
-        : baseQuery
-    ).orderBy(asc(lbacStatementOfExpenditures.createdAt));
-
-    return new Success(_buildF4Tree(rows));
-  } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch LBAC F4 items.", { forFiscalYear }, e);
-  }
-}
-
-/**
- * Creates one or more LBAC F4 statement items for a fiscal year, including nested children.
- *
- * @description
- * Each entry in `contents` is inserted as a root row unless `parentId` references an existing row for the same
- * fiscal year. Nested `children` are inserted recursively under their parent. After insert, returns the full
- * tree for the fiscal year via {@link getAllF4Items}.
- *
- * On success, wraps the fiscal-year tree in a {@link Success}. On validation failure (invalid parent), returns a
- * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
- *
- * @async
- * @function createF4Items
- * @param {number} forFiscalYear - Fiscal year assigned to every inserted row.
- * @param {CreateF4ItemPayload[]} contents - Root or child payloads to create.
- * @returns {Promise<Result<LbacF4Item[]>>} The full F4 tree for the fiscal year on success, or a failure result on error.
- *
- * @remarks
- * - Validates that each `parentId` references an existing row with the same `forFiscalYear`.
- */
-export async function createF4Items(
-  forFiscalYear: number,
-  contents: CreateF4ItemPayload[],
-): Promise<Result<LbacF4Item[]>> {
-  try {
-    for (const item of contents) {
-      if (!item.parentId) {
-        continue;
-      }
-
-      const [parent] = await db
-        .select({
-          id: lbacStatementOfExpenditures.id,
-          forFiscalYear: lbacStatementOfExpenditures.forFiscalYear,
-        })
-        .from(lbacStatementOfExpenditures)
-        .where(eq(lbacStatementOfExpenditures.id, item.parentId))
-        .limit(1);
-
-      if (!parent) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "The specified parent item does not exist.",
-          { parentId: item.parentId },
-        );
-      }
-
-      if (parent.forFiscalYear !== forFiscalYear) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "Parent item belongs to a different fiscal year.",
-          { parentId: item.parentId, forFiscalYear },
-        );
-      }
-    }
-
-    await db.transaction(async (tx) => {
-      for (const item of contents) {
-        const parentId = item.parentId ?? null;
-        await _insertF4ItemRecursive(tx, item, forFiscalYear, parentId);
-      }
-    });
-
-    return getAllF4Items(forFiscalYear);
-  } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create LBAC F4 items.", { forFiscalYear }, e);
-  }
-}
-
-/**
- * Updates an existing LBAC F4 statement item.
- *
- * @description
- * Applies partial updates to scalar fields. Nullable fields may be explicitly cleared with `null`. Returns the
- * updated item with computed variance and an empty `children` array (flat node).
- *
- * On success, wraps the updated item in a {@link Success}. On not-found failure, returns {@link Failure} with
- * {@link ErrorCodes.ResourceNotFound}. On unexpected failure, wraps the error in a fatal {@link Failure}.
- *
- * @async
- * @function updateF4Item
- * @param {string} id - Identifier of the row to update.
- * @param {UpdateF4ItemPayload} payload - Partial fields to update.
- * @returns {Promise<Result<LbacF4Item>>} The updated item on success, or a failure result on error.
- */
-export async function updateF4Item(
-  id: string,
-  payload: UpdateF4ItemPayload,
-): Promise<Result<LbacF4Item>> {
-  try {
-    const [existing] = await db
-      .select({ id: lbacStatementOfExpenditures.id })
-      .from(lbacStatementOfExpenditures)
-      .where(eq(lbacStatementOfExpenditures.id, id))
-      .limit(1);
-
-    if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC F4 item not found.", { id });
-    }
-
-    const updateValues: Record<string, unknown> = {};
-
-    if (payload.particulars !== undefined) {
-      updateValues.particulars = payload.particulars;
-    }
-    if (payload.accountCode !== undefined) {
-      updateValues.accountCode = payload.accountCode;
-    }
-    if (payload.estimate !== undefined) {
-      updateValues.estimate = payload.estimate === null
-        ? null
-        : casts.castToDecimal(payload.estimate);
-    }
-    if (payload.actual !== undefined) {
-      updateValues.actual = payload.actual === null
-        ? null
-        : casts.castToDecimal(payload.actual);
-    }
-    if (payload.remarks !== undefined) {
-      updateValues.remarks = payload.remarks;
-    }
-
-    if (Object.keys(updateValues).length > 0) {
-      await db
-        .update(lbacStatementOfExpenditures)
-        .set(updateValues)
-        .where(eq(lbacStatementOfExpenditures.id, id));
-    }
-
-    const [row] = await db
-      .select({
-        id: lbacStatementOfExpenditures.id,
-        parentId: lbacStatementOfExpenditures.parentId,
-        particulars: lbacStatementOfExpenditures.particulars,
-        accountCode: lbacStatementOfExpenditures.accountCode,
-        estimate: lbacStatementOfExpenditures.estimate,
-        actual: lbacStatementOfExpenditures.actual,
-        remarks: lbacStatementOfExpenditures.remarks,
-        forFiscalYear: lbacStatementOfExpenditures.forFiscalYear,
-      })
-      .from(lbacStatementOfExpenditures)
-      .where(eq(lbacStatementOfExpenditures.id, id))
-      .limit(1);
-
-    if (!row) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC F4 item.", { id });
-    }
-
-    return new Success(_mapF4RowToItem(row));
-  } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC F4 item.", { id, payload }, e);
-  }
-}
-
-/**
- * Deletes an LBAC F4 statement item when it has no child rows.
- *
- * @description
- * Verifies the row exists and has no descendants. If any child rows reference this id as `parentId`, returns a
- * validation failure instead of deleting.
- *
- * On success, wraps `undefined` in a {@link Success}. On not-found or validation failure, returns an appropriate
- * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
- *
- * @async
- * @function deleteF4Item
- * @param {string} id - Identifier of the row to delete.
- * @returns {Promise<Result<void>>} Void on success, or a failure result on error.
- *
- * @remarks
- * - Delete is blocked while nested items still exist under this row.
- */
-export async function deleteF4Item(id: string): Promise<Result<void>> {
-  try {
-    const [existing] = await db
-      .select({ id: lbacStatementOfExpenditures.id })
-      .from(lbacStatementOfExpenditures)
-      .where(eq(lbacStatementOfExpenditures.id, id))
-      .limit(1);
-
-    if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC F4 item not found.", { id });
-    }
-
-    const [child] = await db
-      .select({ id: lbacStatementOfExpenditures.id })
-      .from(lbacStatementOfExpenditures)
-      .where(eq(lbacStatementOfExpenditures.parentId, id))
-      .limit(1);
-
-    if (child) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "Cannot delete an item that still has nested entries. Remove all children first.",
-        { id },
-      );
-    }
-
-    await db.delete(lbacStatementOfExpenditures).where(eq(lbacStatementOfExpenditures.id, id));
-
-    return new Success(undefined);
-  } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete LBAC F4 item.", { id }, e);
-  }
-}

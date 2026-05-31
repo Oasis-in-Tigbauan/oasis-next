@@ -12,6 +12,7 @@ export type PurchasingItemAip = {
   ppa: string;
   sourceOfFund: Optional<string>;
   amountCharged: Optional<string>;
+  implementingOffice: Optional<string>;
 };
 
 export type PurchasingItemResponse = {
