@@ -893,6 +893,34 @@ export const lbacMonitoring = pgTable("lbac_monitoring", {
     .notNull(),
 });
 
+export const lbacStatementOfExpenditures = pgTable("lbac_statement_of_expenditures", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  parentId: text("parent_id"),
+  particulars: text("particulars")
+    .notNull(),
+  accountCode: text("account_code"),
+  estimate: decimal("estimate"),
+  actual: decimal("actual"),
+  remarks: text("remarks"),
+  forFiscalYear: integer("for_fiscal_year")
+    .notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
 export const obrMainData = pgTable("obr_main_data", {
   id: text("id")
     .primaryKey()
