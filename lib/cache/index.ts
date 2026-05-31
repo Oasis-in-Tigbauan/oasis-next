@@ -9,8 +9,14 @@ const globalForRedis = global as unknown as {
   cacheManager: CacheManager | undefined;
 };
 
+async function createRedisClient() {
+  return await createClient({ url: REDIS_URL })
+    .on("error", (e) => Sentry.captureException(e))
+    .connect();
+}
+
 class CacheManager {
-  private _client?: ReturnType<typeof createClient>;
+  private _client?: Awaited<ReturnType<typeof createRedisClient>>;
 
   /**
    * Returns a connected and healthy Redis client, creating/reconnecting if needed.
@@ -21,17 +27,14 @@ class CacheManager {
    *
    * @returns {Promise<ReturnType<typeof createClient>>} A ready-to-use Redis client.
    */
-  private async getClient(): Promise<ReturnType<typeof createClient>> {
+  private async getClient(): Promise<ReturnType<typeof createRedisClient>> {
     // If a client exists and is healthy, return it
     if (this._client?.isOpen && this._client?.isReady) {
       return this._client;
     }
 
     // Otherwise, create/reconnect
-    this._client = await createClient({ url: REDIS_URL })
-      .on("error", (e) => Sentry.captureException(e))
-      .connect();
-
+    this._client = await createRedisClient();
     return this._client;
   }
 
