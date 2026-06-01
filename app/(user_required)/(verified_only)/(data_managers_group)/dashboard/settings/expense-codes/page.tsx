@@ -33,12 +33,12 @@ import Loading from "@/components/loading";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { validatorUtilities } from "@/lib/validators";
 
 type ExpenseClassItem = ExpenseClassListResponse["data"][number];
@@ -102,42 +102,45 @@ export default function Page() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <div className="w-full flex gap-4">
+      <div className="w-full flex gap-4 mb-4">
         <CreateExpenseClassDialog mutate={handleCreateMutate} officeCodes={officeCodes} />
       </div>
-      <Table>
-        <TableCaption>
-          Loaded total of&nbsp;
-          <span>
-            {data?.data?.data && Array.isArray(data.data.data) ? data.data.data.length : 0}
-          </span>&nbsp;items
-        </TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Account Name</TableHead>
-            <TableHead>FPP</TableHead>
-            <TableHead>Classification</TableHead>
-            <TableHead>Sub-Classification</TableHead>
-            <TableHead>Group</TableHead>
-            <TableHead>Account Code</TableHead>
-            <TableHead>Expense Class</TableHead>
-            <TableHead>Allowed Office Codes</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {
-            (data?.data?.data ?? []).map(x => (
-              <ExpenseClassRow
-                key={x.id}
-                data={x}
-                mutate={handleUpdateMutate}
-                mutateDelete={handleDeleteMutate}
-                officeCodes={officeCodes}
-              />
-            ))
-          }
-        </TableBody>
-      </Table>
+      <div className="border rounded-lg p-2">
+        {(data?.data?.data ?? []).length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No expense codes found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="min-w-48 text-center">Account Name</TableHead>
+                  <TableHead className="min-w-24 text-center">FPP</TableHead>
+                  <TableHead className="min-w-36 text-center">Classification</TableHead>
+                  <TableHead className="min-w-40 text-center">Sub-Classification</TableHead>
+                  <TableHead className="min-w-28 text-center">Group</TableHead>
+                  <TableHead className="min-w-32 text-center">Account Code</TableHead>
+                  <TableHead className="min-w-32 text-center">Expense Class</TableHead>
+                  <TableHead className="min-w-48 text-center">Allowed Office Codes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.data?.data ?? []).map((x, index) => (
+                  <ExpenseClassRow
+                    key={x.id}
+                    data={x}
+                    index={index}
+                    mutate={handleUpdateMutate}
+                    mutateDelete={handleDeleteMutate}
+                    officeCodes={officeCodes}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -356,11 +359,13 @@ function CreateExpenseClassDialog({
 
 function ExpenseClassRow({
   data,
+  index,
   mutate,
   mutateDelete,
   officeCodes,
 }: {
   data: ExpenseClassItem;
+  index: number;
   mutate: (item: ExpenseClassResponse) => void;
   mutateDelete: (id: string) => void;
   officeCodes: OfficeCodeListResponse["data"];
@@ -455,15 +460,26 @@ function ExpenseClassRow({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <TableRow className="cursor-pointer">
-          <TableCell className="font-medium">{data.accountName}</TableCell>
-          <TableCell>{data.fpp}</TableCell>
-          <TableCell>{data.classification}</TableCell>
-          <TableCell>{data.subClassification}</TableCell>
-          <TableCell>{data.group}</TableCell>
-          <TableCell>{data.accountCode}</TableCell>
-          <TableCell>{data.class}</TableCell>
-          <TableCell>{allowedOfficeCodesText}</TableCell>
+        <TableRow
+          className={cn(
+            "cursor-pointer",
+            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+          )}
+        >
+          <TableCell className="font-medium whitespace-normal wrap-break-word">
+            {data.accountName}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.fpp ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.classification ?? "-"}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.subClassification ?? "-"}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.group ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.accountCode ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.class ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{allowedOfficeCodesText}</TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent className="min-w-[75%]">
