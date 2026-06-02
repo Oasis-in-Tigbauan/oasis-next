@@ -50,15 +50,15 @@ export default function Page() {
   const roleName = data.data.data.office.role.name;
 
   return (
-    <div className="relative flex min-h-[calc(100svh-4rem)] flex-1 flex-col">
+    <div className="relative flex min-h-[calc(100svh-4rem)] flex-1 flex-col -mt-8">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[url('/assets/bg-gray-waves.png')] bg-cover bg-center bg-no-repeat"
       />
       <div className="relative z-10 flex flex-1 flex-col gap-6 p-4 pt-4 md:p-6">
-        <section className="mx-auto w-full max-w-5xl space-y-3">
-          <div className="flex flex-col gap-1">
-            <Typography variant="h2" className="text-[#022551]">Notification Center</Typography>
+        <section className="mx-auto w-full max-w-5xl space-y-3 mt-4">
+          <div className="flex flex-col gap-1 text-center">
+            <Typography variant="h2" className="text-[#022551]">Welcome {roleName}!</Typography>
             <Typography variant="p" className="text-muted-foreground">
               Priority request movement for {roleName}. Review actions that need attention before moving into worksheet work.
             </Typography>
