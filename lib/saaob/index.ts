@@ -20,6 +20,8 @@ import {
   saaobSummaryOfAccounts,
   saaobSummaryOfAccountsGroup,
   saaobSummaryOfAccountsLinkedGroups,
+  saaobStatisticItems,
+  saaobStatisticSelectedGroups,
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
@@ -1007,6 +1009,357 @@ export async function deleteSummaryItem(id: string): Promise<Result<null>> {
   }
 }
 
+export async function createStatisticEntry(
+  payload: SaaobCreateStatisticEntryPayload,
+  type: "group" | "item",
+  parentId?: string,
+): Promise<Result<BaseSaaobStatisticNode>> {
+  try {
+    const isGroup = type === "group";
+    if (parentId) {
+      const [parent] = await db
+        .select({ id: saaobStatisticItems.id, isGroup: saaobStatisticItems.isGroup, type: saaobStatisticItems.type })
+        .from(saaobStatisticItems)
+        .where(eq(saaobStatisticItems.id, parentId))
+        .limit(1);
+      if (!parent) {
+        return new Failure(ErrorCodes.ResourceNotFound, "Parent statistic group does not exist.", { parentId });
+      }
+      if (!parent.isGroup) {
+        return new Failure(ErrorCodes.ValidationFailure, "Parent must be a group.", { parentId });
+      }
+      if (parent.type !== payload.statisticType) {
+        return new Failure(ErrorCodes.ValidationFailure, "Parent statistic type does not match item type.", {
+          parentType: parent.type,
+          statisticType: payload.statisticType,
+        });
+      }
+    }
+
+    const selectedMainGroupIds = payload.selectedMainGroupIds ?? [];
+    const selectedSummaryItemIds = payload.selectedSummaryItemIds ?? [];
+    if (!isGroup) {
+      const validation = await _validateStatisticSelectedReferenceIds(selectedMainGroupIds, selectedSummaryItemIds);
+      if (validation instanceof Failure) return validation;
+    }
+
+    const [created] = await db
+      .insert(saaobStatisticItems)
+      .values({
+        name: payload.name,
+        type: payload.statisticType,
+        isGroup,
+        parentId: parentId ?? null,
+      })
+      .returning({
+        id: saaobStatisticItems.id,
+        name: saaobStatisticItems.name,
+        type: saaobStatisticItems.type,
+        isGroup: saaobStatisticItems.isGroup,
+        parentId: saaobStatisticItems.parentId,
+      });
+
+    if (!isGroup && (selectedMainGroupIds.length > 0 || selectedSummaryItemIds.length > 0)) {
+      await db.insert(saaobStatisticSelectedGroups).values([
+        ...selectedMainGroupIds.map(refId => ({
+          refId: created.id,
+          mainItemGroupRefId: refId,
+          summaryOfAccountRefId: null,
+        })),
+        ...selectedSummaryItemIds.map(refId => ({
+          refId: created.id,
+          mainItemGroupRefId: null,
+          summaryOfAccountRefId: refId,
+        })),
+      ]);
+    }
+
+    return new Success(created);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create statistic entry.", { payload, type, parentId }, e);
+  }
+}
+
+export async function updateStatisticEntry(
+  id: string,
+  payload: SaaobUpdateStatisticEntryPayload,
+): Promise<Result<BaseSaaobStatisticNode>> {
+  try {
+    const [existing] = await db
+      .select({
+        id: saaobStatisticItems.id,
+        name: saaobStatisticItems.name,
+        type: saaobStatisticItems.type,
+        isGroup: saaobStatisticItems.isGroup,
+        parentId: saaobStatisticItems.parentId,
+      })
+      .from(saaobStatisticItems)
+      .where(eq(saaobStatisticItems.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Statistic entry not found.", { id });
+    }
+
+    if ((payload.selectedMainGroupIds !== undefined || payload.selectedSummaryItemIds !== undefined) && existing.isGroup) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Statistic groups cannot have selected references.",
+        { id },
+      );
+    }
+
+    if (payload.name !== undefined) {
+      await db.update(saaobStatisticItems).set({ name: payload.name }).where(eq(saaobStatisticItems.id, id));
+    }
+
+    if (payload.selectedMainGroupIds !== undefined || payload.selectedSummaryItemIds !== undefined) {
+      const selectedMainGroupIds = payload.selectedMainGroupIds ?? [];
+      const selectedSummaryItemIds = payload.selectedSummaryItemIds ?? [];
+      const validation = await _validateStatisticSelectedReferenceIds(selectedMainGroupIds, selectedSummaryItemIds);
+      if (validation instanceof Failure) return validation;
+
+      await db.transaction(async tx => {
+        await tx.delete(saaobStatisticSelectedGroups).where(eq(saaobStatisticSelectedGroups.refId, id));
+        if (selectedMainGroupIds.length > 0 || selectedSummaryItemIds.length > 0) {
+          await tx.insert(saaobStatisticSelectedGroups).values([
+            ...selectedMainGroupIds.map(refId => ({
+              refId: id,
+              mainItemGroupRefId: refId,
+              summaryOfAccountRefId: null,
+            })),
+            ...selectedSummaryItemIds.map(refId => ({
+              refId: id,
+              mainItemGroupRefId: null,
+              summaryOfAccountRefId: refId,
+            })),
+          ]);
+        }
+      });
+    }
+
+    return new Success({
+      id,
+      name: payload.name ?? existing.name,
+      type: existing.type,
+      isGroup: existing.isGroup,
+      parentId: existing.parentId,
+    });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update statistic entry.", { id, payload }, e);
+  }
+}
+
+export async function deleteStatisticEntry(id: string): Promise<Result<null>> {
+  try {
+    const [existing] = await db
+      .select({ id: saaobStatisticItems.id, isGroup: saaobStatisticItems.isGroup })
+      .from(saaobStatisticItems)
+      .where(eq(saaobStatisticItems.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Statistic entry not found.", { id });
+    }
+
+    if (existing.isGroup) {
+      const [child] = await db
+        .select({ id: saaobStatisticItems.id })
+        .from(saaobStatisticItems)
+        .where(eq(saaobStatisticItems.parentId, id))
+        .limit(1);
+      if (child) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "Cannot delete a group that still contains items.",
+          { id },
+        );
+      }
+    }
+
+    await db.delete(saaobStatisticItems).where(eq(saaobStatisticItems.id, id));
+    return new Success(null);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to delete statistic entry.", { id }, e);
+  }
+}
+
+export async function moveStatisticEntry(id: string, parentId: string | null): Promise<Result<null>> {
+  try {
+    const allItems = await db
+      .select({
+        id: saaobStatisticItems.id,
+        type: saaobStatisticItems.type,
+        isGroup: saaobStatisticItems.isGroup,
+        parentId: saaobStatisticItems.parentId,
+      })
+      .from(saaobStatisticItems);
+
+    const existing = allItems.find(item => item.id === id);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Statistic entry not found.", { id });
+    }
+
+    if (parentId !== null) {
+      const target = allItems.find(item => item.id === parentId);
+      if (!target) {
+        return new Failure(ErrorCodes.ValidationFailure, "Target parent does not exist.", { parentId });
+      }
+      if (!target.isGroup) {
+        return new Failure(ErrorCodes.ValidationFailure, "Target parent must be a group.", { parentId });
+      }
+      if (target.type !== existing.type) {
+        return new Failure(ErrorCodes.ValidationFailure, "Target parent type does not match entry type.", {
+          parentType: target.type,
+          entryType: existing.type,
+        });
+      }
+
+      const descendants = _collectDescendantStatisticIds(id, allItems);
+      if (descendants.includes(parentId)) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "Cannot move a statistic group into one of its own descendants.",
+          { id, parentId },
+        );
+      }
+    }
+
+    await db.update(saaobStatisticItems).set({ parentId }).where(eq(saaobStatisticItems.id, id));
+    return new Success(null);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to move statistic entry.", { id, parentId }, e);
+  }
+}
+
+export async function getAllStatisticEntries(
+  year?: number,
+  month?: number,
+): Promise<Result<SaaobStatisticsResult>> {
+  try {
+    const [statisticRows, selectedRows, allDataResult, allSummaryResult] = await Promise.all([
+      db.select({
+        id: saaobStatisticItems.id,
+        name: saaobStatisticItems.name,
+        type: saaobStatisticItems.type,
+        isGroup: saaobStatisticItems.isGroup,
+        parentId: saaobStatisticItems.parentId,
+        createdAt: saaobStatisticItems.createdAt,
+      }).from(saaobStatisticItems).orderBy(asc(saaobStatisticItems.createdAt)),
+      db.select({
+        refId: saaobStatisticSelectedGroups.refId,
+        mainItemGroupRefId: saaobStatisticSelectedGroups.mainItemGroupRefId,
+        summaryOfAccountRefId: saaobStatisticSelectedGroups.summaryOfAccountRefId,
+      }).from(saaobStatisticSelectedGroups),
+      getAll(year, month),
+      getAllSummary(year, month),
+    ]);
+
+    if (allDataResult instanceof Failure) return allDataResult;
+    if (allSummaryResult instanceof Failure) return allSummaryResult;
+
+    const groupAggregateMap = new Map<string, SaaobSummaryItemAggregate>();
+    const collectSaaobGroupTotals = (nodes: SaaobElements) => {
+      for (const group of nodes) {
+        groupAggregateMap.set(group.id, group.total);
+        const childGroups = group.children.filter((child): child is SaaobGroup => "children" in child);
+        collectSaaobGroupTotals(childGroups);
+      }
+    };
+    collectSaaobGroupTotals(allDataResult.value);
+
+    const summaryAggregateMap = new Map<string, SaaobSummaryItemAggregate>();
+    const collectSummaryItems = (nodes: SaaobSummaryElements) => {
+      for (const group of nodes) {
+        for (const child of group.children) {
+          if ("children" in child) {
+            collectSummaryItems([child]);
+          } else {
+            summaryAggregateMap.set(child.id, child);
+          }
+        }
+      }
+    };
+    collectSummaryItems(allSummaryResult.value);
+
+    const selectedRefsByStatisticId = new Map<string, { mainGroupIds: string[]; summaryItemIds: string[] }>();
+    for (const selected of selectedRows) {
+      const existing = selectedRefsByStatisticId.get(selected.refId) ?? { mainGroupIds: [], summaryItemIds: [] };
+      if (selected.mainItemGroupRefId) {
+        existing.mainGroupIds.push(selected.mainItemGroupRefId);
+      }
+      if (selected.summaryOfAccountRefId) {
+        existing.summaryItemIds.push(selected.summaryOfAccountRefId);
+      }
+      selectedRefsByStatisticId.set(selected.refId, existing);
+    }
+
+    const aggregateByStatisticId = new Map<string, SaaobSummaryItemAggregate>();
+    for (const row of statisticRows) {
+      if (row.isGroup) continue;
+      const selectedReferences = selectedRefsByStatisticId.get(row.id) ?? { mainGroupIds: [], summaryItemIds: [] };
+      const mainRefs = selectedReferences.mainGroupIds
+        .map(refId => groupAggregateMap.get(refId))
+        .filter((v): v is SaaobSummaryItemAggregate => !!v);
+      const summaryRefs = selectedReferences.summaryItemIds
+        .map(refId => summaryAggregateMap.get(refId))
+        .filter((v): v is SaaobSummaryItemAggregate => !!v);
+      const refs = [...mainRefs, ...summaryRefs];
+      aggregateByStatisticId.set(row.id, _sumStatisticAggregates(refs));
+    }
+
+    const byParent = new Map<string | null, StatisticRow[]>();
+    for (const row of statisticRows) {
+      const arr = byParent.get(row.parentId) ?? [];
+      arr.push(row);
+      byParent.set(row.parentId, arr);
+    }
+
+    const buildNodes = (parentId: string | null, type: SaaobStatisticType): Array<SaaobStatisticGroup | SaaobStatisticEntry> => {
+      const rows = (byParent.get(parentId) ?? []).filter(row => row.type === type);
+      const nodes: Array<SaaobStatisticGroup | SaaobStatisticEntry> = [];
+
+      for (const row of rows) {
+        if (row.isGroup) {
+          const children = buildNodes(row.id, type);
+          const childAggregates = children.map(child => "children" in child ? child.total : child);
+          nodes.push({
+            id: row.id,
+            name: row.name,
+            type: row.type,
+            isGroup: true,
+            parentId: row.parentId,
+            total: _sumStatisticAggregates(childAggregates),
+            children,
+          });
+          continue;
+        }
+
+        const aggregate = aggregateByStatisticId.get(row.id) ?? _sumStatisticAggregates([]);
+        nodes.push({
+          id: row.id,
+          name: row.name,
+          type: row.type,
+          isGroup: false,
+          parentId: row.parentId,
+          selectedMainGroupIds: selectedRefsByStatisticId.get(row.id)?.mainGroupIds ?? [],
+          selectedSummaryItemIds: selectedRefsByStatisticId.get(row.id)?.summaryItemIds ?? [],
+          ...aggregate,
+        });
+      }
+
+      return nodes;
+    };
+
+    return new Success({
+      budget: buildNodes(null, "budget"),
+      sumPerSector: buildNodes(null, "sum_per_sector"),
+    });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve statistic entries.", {}, e);
+  }
+}
+
 /**
  * Validates a SAAOB template type from an untrusted value.
  *
@@ -1863,6 +2216,54 @@ function _collectDescendantSummaryGroupIds(
   return result;
 }
 
+function _collectDescendantStatisticIds(
+  itemId: string,
+  allItems: Array<{ id: string; parentId: string | null }>,
+): string[] {
+  const result: string[] = [];
+  const queue = [itemId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const children = allItems.filter(item => item.parentId === current);
+    for (const child of children) {
+      result.push(child.id);
+      queue.push(child.id);
+    }
+  }
+  return result;
+}
+
+async function _validateStatisticSelectedReferenceIds(
+  selectedMainGroupIds: string[],
+  selectedSummaryItemIds: string[],
+): Promise<Failure | null> {
+  if (selectedMainGroupIds.length > 0) {
+    const existingGroups = await db
+      .select({ id: saaobEntryGroup.id })
+      .from(saaobEntryGroup)
+      .where(inArray(saaobEntryGroup.id, selectedMainGroupIds));
+    const found = new Set(existingGroups.map(group => group.id));
+    const missing = selectedMainGroupIds.filter(ref => !found.has(ref));
+    if (missing.length > 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "Some selected main groups do not exist.", { missing });
+    }
+  }
+
+  if (selectedSummaryItemIds.length > 0) {
+    const existingSummaryItems = await db
+      .select({ id: saaobSummaryOfAccounts.id })
+      .from(saaobSummaryOfAccounts)
+      .where(inArray(saaobSummaryOfAccounts.id, selectedSummaryItemIds));
+    const found = new Set(existingSummaryItems.map(item => item.id));
+    const missing = selectedSummaryItemIds.filter(ref => !found.has(ref));
+    if (missing.length > 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "Some selected summary items do not exist.", { missing });
+    }
+  }
+
+  return null;
+}
+
 function _collectEntriesForGroups(
   linkedGroupIds: string[],
   allSaaobGroups: SaaobGroupRow[],
@@ -1953,6 +2354,74 @@ function _computeSummaryItemAggregate(entries: SaaobEntry[]): SaaobSummaryItemAg
         value: oblWithPRsValue.toString(),
         balance: oblWithPRsBalance.toString(),
         percentage: oblWithPRsPercentage.toString(),
+      },
+      pr: pr.toString(),
+    },
+  };
+}
+
+function _sumStatisticAggregates(aggregates: SaaobSummaryItemAggregate[]): SaaobSummaryItemAggregate {
+  if (aggregates.length === 0) {
+    return _computeSummaryItemAggregate([]);
+  }
+
+  const sum = (selector: (aggregate: SaaobSummaryItemAggregate) => string) =>
+    aggregates.reduce((acc, aggregate) => acc.plus(new Decimal(selector(aggregate))), new Decimal(0));
+
+  const annualBudget = sum(a => a.annualBudget);
+  const supplementalOrContinuing = sum(a => a.supplementalOrContinuing);
+  const appropriation = annualBudget.plus(supplementalOrContinuing);
+  const allotment = sum(a => a.allotment);
+  const obligation = sum(a => a.obligation);
+  const unObligatedBalance = appropriation.minus(obligation);
+  const percentage = appropriation.isZero() ? new Decimal(0) : obligation.div(appropriation).mul(100);
+
+  const qabValue = allotment.minus(obligation);
+  const qabPercentage = allotment.isZero() ? new Decimal(0) : obligation.div(allotment).mul(100);
+
+  const disbursedValue = sum(a => a.other.disbursed.value);
+  const disbursedPercentage = appropriation.isZero() ? new Decimal(0) : disbursedValue.div(appropriation).mul(100);
+  const disbursedVariance = obligation.minus(disbursedValue);
+
+  const lbacValue = sum(a => a.other.lbacBudget.value);
+  const lbacVariance = sum(a => a.other.lbacBudget.variance);
+  const lbacObligated = sum(a => a.other.lbacBudget.obligated);
+  const lbacVarianceObligated = sum(a => a.other.lbacBudget.varianceObligated);
+
+  const obligationWithPRsValue = sum(a => a.other.obligationWithPRs.value);
+  const obligationWithPRsBalance = appropriation.minus(obligationWithPRsValue);
+  const obligationWithPRsPercentage = appropriation.isZero() ? new Decimal(0) : obligationWithPRsValue.div(appropriation).mul(100);
+
+  const pr = sum(a => a.other.pr);
+
+  return {
+    annualBudget: annualBudget.toString(),
+    supplementalOrContinuing: supplementalOrContinuing.toString(),
+    appropriation: appropriation.toString(),
+    allotment: allotment.toString(),
+    obligation: obligation.toString(),
+    unObligatedBalance: unObligatedBalance.toString(),
+    percentage: percentage.toString(),
+    other: {
+      quarterlyAllotmentBalance: {
+        value: qabValue.toString(),
+        percentage: qabPercentage.toString(),
+      },
+      disbursed: {
+        value: disbursedValue.toString(),
+        percentage: disbursedPercentage.toString(),
+        variance: disbursedVariance.toString(),
+      },
+      lbacBudget: {
+        value: lbacValue.toString(),
+        variance: lbacVariance.toString(),
+        obligated: lbacObligated.toString(),
+        varianceObligated: lbacVarianceObligated.toString(),
+      },
+      obligationWithPRs: {
+        value: obligationWithPRsValue.toString(),
+        balance: obligationWithPRsBalance.toString(),
+        percentage: obligationWithPRsPercentage.toString(),
       },
       pr: pr.toString(),
     },
@@ -2577,6 +3046,15 @@ type SummaryGroupRow = {
   createdAt: Date;
 };
 
+type StatisticRow = {
+  id: string;
+  name: string;
+  type: SaaobStatisticType;
+  isGroup: boolean;
+  parentId: string | null;
+  createdAt: Date;
+};
+
 export type SaaobSummaryItemAggregate = {
   annualBudget: string;
   supplementalOrContinuing: string;
@@ -2610,3 +3088,45 @@ export type SaaobSummaryGroup = BaseSaaobSummaryGroup & {
 };
 
 export type SaaobSummaryElements = Array<SaaobSummaryGroup>;
+
+export type SaaobStatisticType = "budget" | "sum_per_sector";
+
+export type BaseSaaobStatisticNode = {
+  id: string;
+  name: string;
+  type: SaaobStatisticType;
+  isGroup: boolean;
+  parentId: string | null;
+};
+
+export type SaaobStatisticEntry = BaseSaaobStatisticNode & SaaobSummaryItemAggregate & {
+  isGroup: false;
+  selectedMainGroupIds: string[];
+  selectedSummaryItemIds: string[];
+};
+
+export type SaaobStatisticGroup = BaseSaaobStatisticNode & {
+  isGroup: true;
+  total: SaaobSummaryItemAggregate;
+  children: Array<SaaobStatisticGroup | SaaobStatisticEntry>;
+};
+
+export type SaaobStatisticElements = Array<SaaobStatisticGroup | SaaobStatisticEntry>;
+
+export type SaaobStatisticsResult = {
+  budget: SaaobStatisticElements;
+  sumPerSector: SaaobStatisticElements;
+};
+
+export type SaaobCreateStatisticEntryPayload = {
+  name: string;
+  statisticType: SaaobStatisticType;
+  selectedMainGroupIds?: string[];
+  selectedSummaryItemIds?: string[];
+};
+
+export type SaaobUpdateStatisticEntryPayload = {
+  name?: string;
+  selectedMainGroupIds?: string[];
+  selectedSummaryItemIds?: string[];
+};

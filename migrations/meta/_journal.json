@@ -414,6 +414,20 @@
       "when": 1780246462137,
       "tag": "0058_chilly_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1780300131162,
+      "tag": "0059_worthless_trauma",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1780300347118,
+      "tag": "0060_complex_shriek",
+      "breakpoints": true
     }
   ]
 }

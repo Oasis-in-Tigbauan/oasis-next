@@ -109,6 +109,11 @@ import type {
   SaaobSummaryItemResponse,
 } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
 import { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+import type {
+  SaaobStatisticGroupResponse,
+  SaaobStatisticItemResponse,
+} from "@/lib/http/client/responses/SaaobStatisticsDataResponse";
+import { isSaaobStatisticDataGroup } from "@/lib/http/client/responses/SaaobStatisticsDataResponse";
 
 export type SaaobTreeNode = SaaobGroupResponse | SaaobEntryResponse;
 
@@ -348,6 +353,91 @@ export function flattenSaaobSummaryVisible(
     }
 
     if (!parentGroupId) continue;
+    rows.push({ kind: "item", id: node.id, depth, data: node, groupId: parentGroupId });
+  }
+
+  return rows;
+}
+
+// ============================================================
+// STATISTICS — Client utilities
+// ============================================================
+
+export type SaaobStatisticTreeNode = SaaobStatisticGroupResponse | SaaobStatisticItemResponse;
+
+export type SaaobStatisticFlatRow =
+  | { kind: "group"; id: string; depth: number; data: SaaobStatisticGroupResponse }
+  | { kind: "item"; id: string; depth: number; data: SaaobStatisticItemResponse; groupId?: string };
+
+export function collectSaaobStatisticGroups(
+  nodes: SaaobStatisticTreeNode[],
+  result: SaaobStatisticGroupResponse[] = [],
+): SaaobStatisticGroupResponse[] {
+  for (const node of nodes) {
+    if (isSaaobStatisticDataGroup(node)) {
+      result.push(node);
+      collectSaaobStatisticGroups(node.children, result);
+    }
+  }
+  return result;
+}
+
+export function filterSaaobStatisticTreeByQuery(
+  tree: Array<SaaobStatisticGroupResponse | SaaobStatisticItemResponse>,
+  query: string,
+): Array<SaaobStatisticGroupResponse | SaaobStatisticItemResponse> {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return tree;
+
+  const filterNodes = (nodes: SaaobStatisticTreeNode[]): SaaobStatisticTreeNode[] => {
+    const output: SaaobStatisticTreeNode[] = [];
+
+    for (const node of nodes) {
+      if (isSaaobStatisticDataGroup(node)) {
+        const groupMatches = node.name.toLowerCase().includes(normalized);
+        if (groupMatches) {
+          output.push(node);
+          continue;
+        }
+
+        const filteredChildren = filterNodes(node.children);
+        if (filteredChildren.length > 0) {
+          output.push({ ...node, children: filteredChildren });
+        }
+        continue;
+      }
+
+      if (node.name.toLowerCase().includes(normalized)) {
+        output.push(node);
+      }
+    }
+
+    return output;
+  };
+
+  return filterNodes(tree);
+}
+
+export function flattenSaaobStatisticVisible(
+  nodes: SaaobStatisticTreeNode[],
+  collapsed: Set<string>,
+  depth: number,
+  ignoreCollapsed = false,
+  parentGroupId?: string,
+): SaaobStatisticFlatRow[] {
+  const rows: SaaobStatisticFlatRow[] = [];
+
+  for (const node of nodes) {
+    if (isSaaobStatisticDataGroup(node)) {
+      rows.push({ kind: "group", id: node.id, depth, data: node });
+      if (ignoreCollapsed || !collapsed.has(node.id)) {
+        rows.push(
+          ...flattenSaaobStatisticVisible(node.children, collapsed, depth + 1, ignoreCollapsed, node.id),
+        );
+      }
+      continue;
+    }
+
     rows.push({ kind: "item", id: node.id, depth, data: node, groupId: parentGroupId });
   }
 

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer, serial, uniqueIndex } from "drizzle-orm/pg-core";
+import { check, pgEnum, pgTable, text, timestamp, boolean, index, decimal, foreignKey, integer, serial, uniqueIndex } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const office = pgTable("office", {
@@ -396,6 +396,61 @@ export const saaobSummaryOfAccountsLinkedGroups = pgTable("saaob_summary_of_acco
     .references(() => saaobSummaryOfAccounts.id)
     .notNull(),
 });
+
+export const saaobStatisticGroupTypes = pgEnum("saaob_statistic_groups", ["budget", "sum_per_sector"]);
+
+export const saaobStatisticItems = pgTable("saaob_statistic_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  name: text("name")
+    .notNull(),
+  type: saaobStatisticGroupTypes("type")
+    .notNull(),
+  isGroup: boolean("is_group")
+    .default(false)
+    .notNull(),
+
+  parentId: text("parent_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  foreignKey({
+    columns: [table.parentId],
+    foreignColumns: [table.id],
+  }),
+]);
+
+export const saaobStatisticSelectedGroups = pgTable("saaob_statistic_selected_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  mainItemGroupRefId: text("main_group_ref_id")
+    .references(() => saaobEntryGroup.id),
+  summaryOfAccountRefId: text("summary_of_account_ref_id")
+    .references(() => saaobSummaryOfAccounts.id),
+
+  refId: text("ref_id")
+    .references(() => saaobStatisticItems.id, { onDelete: "cascade" })
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+}, table => [
+  check(
+    "check_exclusive_arc",
+    sql`(${table.mainItemGroupRefId} IS NOT NULL AND ${table.summaryOfAccountRefId} IS NULL) OR (${table.mainItemGroupRefId} IS NULL AND ${table.summaryOfAccountRefId} IS NOT NULL)`,
+  ),
+]);
 
 export const obrRequestType = pgEnum("obr_request_type", ["basic", "advanced"]);
 
