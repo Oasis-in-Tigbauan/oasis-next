@@ -89,6 +89,13 @@ import type {
   SaaobSummaryItemResponse,
 } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
 import type {
+  SaaobStatisticAggregateResponse,
+  SaaobStatisticGroupResponse,
+  SaaobStatisticItemResponse,
+  SaaobStatisticsDataResponse,
+  SaaobStatisticType,
+} from "@/lib/http/client/responses/SaaobStatisticsDataResponse";
+import type {
   SaaobTemplateInfo,
   SaaobTemplatesPayload,
   SaaobTemplatesResponse,
@@ -119,6 +126,7 @@ import type {
 export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
 export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
 export { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+export { isSaaobStatisticDataGroup } from "@/lib/http/client/responses/SaaobStatisticsDataResponse";
 export { isLbacSearchGroup } from "@/lib/http/client/responses/LbacSearchResponse";
 
 export type {
@@ -221,6 +229,11 @@ export type {
   SaaobSummaryDataResponse,
   SaaobSummaryGroupResponse,
   SaaobSummaryItemResponse,
+  SaaobStatisticsDataResponse,
+  SaaobStatisticType,
+  SaaobStatisticAggregateResponse,
+  SaaobStatisticGroupResponse,
+  SaaobStatisticItemResponse,
   SaaobTemplateInfo,
   SaaobTemplatesPayload,
   SaaobTemplatesResponse,

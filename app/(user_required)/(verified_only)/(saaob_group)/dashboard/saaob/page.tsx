@@ -11,6 +11,7 @@ import { $fetch } from "@/lib/http/client/fetch";
 import {
   ApiResponseException,
   BetterFetchResponse,
+  SaaobStatisticsDataResponse,
   UserResponse,
 } from "@/lib/http/client/responses";
 import * as permissions from "@/lib/db/permissions";
@@ -21,11 +22,28 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
+import SaaobReadOnlyStatistics from "./saaob-read-only-statistics";
 import SaaobReadOnlySummary from "./saaob-read-only-summary";
 
 export default function Page() {
   const { data, error, isLoading } = useSWR<BetterFetchResponse<UserResponse, ApiResponseException>>(
     "/api/account/me",
+    $fetch,
+  );
+
+  const {
+    data: budgetStatisticsData,
+    error: budgetStatisticsError,
+  } = useSWR<BetterFetchResponse<SaaobStatisticsDataResponse, ApiResponseException>>(
+    "/api/saaob/statistics/budget",
+    $fetch,
+  );
+
+  const {
+    data: summaryPerSectorData,
+    error: summaryPerSectorError,
+  } = useSWR<BetterFetchResponse<SaaobStatisticsDataResponse, ApiResponseException>>(
+    "/api/saaob/statistics/summary-sector",
     $fetch,
   );
 
@@ -39,6 +57,7 @@ export default function Page() {
 
   const permissionSet = new Set(data.data.data.office.role.permissions);
   const canReadSaaobData = permissionSet.has(permissions.SAAOB_DATA_READ);
+  const canWriteSaaobData = permissionSet.has(permissions.SAAOB_DATA_WRITE);
 
   const menuItems = allMenuItems.filter(item =>
     item.required.every(required => permissionSet.has(required)),
@@ -104,7 +123,44 @@ export default function Page() {
 
       {canReadSaaobData && (
         <div className="mt-6">
-          <Typography variant="h4" className="mb-3">Summary of Accounts</Typography>
+          <div className="flex items-center justify-between mb-3">
+            <Typography variant="h4">Summary per Sector</Typography>
+            {canWriteSaaobData && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/dashboard/saaob/statistics">
+                  Edit
+                </Link>
+              </Button>
+            )}
+          </div>
+          {summaryPerSectorError || summaryPerSectorData?.error
+            ? <DeadHamster />
+            : <SaaobReadOnlyStatistics data={summaryPerSectorData?.data?.data ?? []} />}
+
+          <div className="flex items-center justify-between mb-3 mt-6">
+            <Typography variant="h4">Budget Statistics</Typography>
+            {canWriteSaaobData && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/dashboard/saaob/statistics">
+                  Edit
+                </Link>
+              </Button>
+            )}
+          </div>
+          {budgetStatisticsError || budgetStatisticsData?.error
+            ? <DeadHamster />
+            : <SaaobReadOnlyStatistics data={budgetStatisticsData?.data?.data ?? []} />}
+
+          <div className="flex items-center justify-between mb-3 mt-6">
+            <Typography variant="h4">Summary of Accounts</Typography>
+            {canWriteSaaobData && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/dashboard/saaob/accounts-summary">
+                  Edit
+                </Link>
+              </Button>
+            )}
+          </div>
           <SaaobReadOnlySummary />
         </div>
       )}
@@ -126,16 +182,6 @@ const allMenuItems: Array<MenuItem> = [
     title: "Main Data",
     description: "Manage SAAOB Data",
     href: "/dashboard/saaob/data",
-    icon: FolderCog,
-    required: [
-      permissions.SAAOB_DATA_READ,
-      permissions.SAAOB_DATA_WRITE,
-    ],
-  },
-  {
-    title: "Summary of Accounts",
-    description: "Manage Summary of Accounts aggregates",
-    href: "/dashboard/saaob/accounts-summary",
     icon: FolderCog,
     required: [
       permissions.SAAOB_DATA_READ,
