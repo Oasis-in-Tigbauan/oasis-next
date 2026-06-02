@@ -49,6 +49,8 @@ const _BLUE_COLOR = { argb: "FF2F75B6" };
 const _ROOT_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD9E1F2" } };
 /** Light-gray fill for column header row. */
 const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFE2EFDA" } };
+/** Light-yellow fill for prepended section header rows. */
+const _SECTION_HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFFFF2CC" } };
 
 /**
  * In ExcelJS/ExcelTS, cells that belong to a merged range but are NOT the
@@ -1560,8 +1562,14 @@ export async function exportMainDataToBuffer(
   options: SaaobExportOptions,
 ): Promise<Result<Buffer>> {
   try {
-    const dataResult = await getAll(options.year, options.month);
+    const [dataResult, statisticsResult, summaryResult] = await Promise.all([
+      getAll(options.year, options.month),
+      getAllStatisticEntries(options.year, options.month),
+      getAllSummary(options.year, options.month),
+    ]);
     if (dataResult instanceof Failure) return dataResult;
+    const statistics = statisticsResult instanceof Success ? statisticsResult.value : null;
+    const summaryData = summaryResult instanceof Success ? summaryResult.value : null;
 
     const [headerResult, footerResult] = await Promise.all([
       templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
@@ -1570,7 +1578,14 @@ export async function exportMainDataToBuffer(
     const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
-    const buffer = await _buildSaaobExcelBuffer(dataResult.value, options.columns, headerPath, footerPath);
+    const buffer = await _buildSaaobExcelBuffer(
+      dataResult.value,
+      options.columns,
+      headerPath,
+      footerPath,
+      statistics,
+      summaryData,
+    );
     return new Success(buffer);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB main data.", {}, e);
@@ -2543,6 +2558,41 @@ function _flattenForExport(
   return rows;
 }
 
+function _flattenStatisticsForExport(
+  nodes: SaaobStatisticElements,
+  depth: number,
+): _ExportFlatRow[] {
+  const rows: _ExportFlatRow[] = [];
+  for (const node of nodes) {
+    if (node.isGroup) {
+      rows.push({ kind: "statistic-group", depth, data: node });
+      rows.push(..._flattenStatisticsForExport(node.children, depth + 1));
+      rows.push({ kind: "statistic-total", depth, data: node });
+    } else {
+      rows.push({ kind: "statistic-item", depth, data: node });
+    }
+  }
+  return rows;
+}
+
+function _flattenSummaryForExport(
+  nodes: SaaobSummaryElements,
+  depth: number,
+): _ExportFlatRow[] {
+  const rows: _ExportFlatRow[] = [];
+  for (const group of nodes) {
+    rows.push({ kind: "summary-group", depth, data: group });
+    for (const child of group.children) {
+      if ("children" in child) {
+        rows.push(..._flattenSummaryForExport([child], depth + 1));
+      } else {
+        rows.push({ kind: "summary-item", depth: depth + 1, data: child });
+      }
+    }
+  }
+  return rows;
+}
+
 function _getEntryColumnValue(entry: SaaobEntry, col: SaaobExportColumnKey): number | string {
   switch (col) {
   case "accountCode":                return entry.accountCode ?? "";
@@ -2745,6 +2795,8 @@ async function _buildSaaobExcelBuffer(
   columns: SaaobExportColumnKey[],
   headerTemplatePath: string | null,
   footerTemplatePath: string | null,
+  statistics: SaaobStatisticsResult | null = null,
+  summaryData: SaaobSummaryElements | null = null,
 ): Promise<Buffer> {
   const { Workbook } = await import("@cj-tech-master/excelts");
 
@@ -2789,11 +2841,32 @@ async function _buildSaaobExcelBuffer(
   row++;
 
   // ---- Data rows ----
-  const flatRows = _flattenForExport(tree, 0);
-  for (const flatRow of flatRows) {
+  const allFlatRows: _ExportFlatRow[] = [];
+  if (statistics) {
+    allFlatRows.push({ kind: "section-header", label: "SUMMARY PER SECTOR" });
+    allFlatRows.push(..._flattenStatisticsForExport(statistics.sumPerSector, 0));
+    allFlatRows.push({ kind: "section-header", label: "BUDGET STATISTICS" });
+    allFlatRows.push(..._flattenStatisticsForExport(statistics.budget, 0));
+  }
+  if (summaryData) {
+    allFlatRows.push({ kind: "section-header", label: "SUMMARY OF ACCOUNTS" });
+    allFlatRows.push(..._flattenSummaryForExport(summaryData, 0));
+  }
+  allFlatRows.push(..._flattenForExport(tree, 0));
+
+  for (const flatRow of allFlatRows) {
     const wsRow = ws.getRow(row);
 
-    if (flatRow.kind === "group") {
+    if (flatRow.kind === "section-header") {
+      ws.mergeCells(row, 1, row, totalCols);
+      const cell = wsRow.getCell(1);
+      cell.value = flatRow.label;
+      cell.font = { bold: true, italic: true, size: 11, name: "Arial Narrow" };
+      cell.fill = _SECTION_HEADER_FILL;
+      cell.border = _THIN_BORDER;
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      wsRow.height = 20;
+    } else if (flatRow.kind === "group" || flatRow.kind === "statistic-group" || flatRow.kind === "summary-group") {
       const { depth, data } = flatRow;
 
       if (depth === 0) {
@@ -2827,7 +2900,7 @@ async function _buildSaaobExcelBuffer(
           wsRow.getCell(c).border = _THIN_BORDER;
         }
       }
-    } else if (flatRow.kind === "total") {
+    } else if (flatRow.kind === "total" || flatRow.kind === "statistic-total") {
       // Total row — placed after all children of a group
       const { depth, data } = flatRow;
       const label = depth === 0
@@ -2853,9 +2926,9 @@ async function _buildSaaobExcelBuffer(
           dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
         }
       });
-    } else {
-      // Entry / item — indent 2, data in subsequent columns
-      const { data } = flatRow;
+    } else if (flatRow.kind === "entry") {
+      // Entry / item — indent 2, data in subsequent columns.
+      const data = flatRow.data;
       const nameCell = wsRow.getCell(1);
       nameCell.value = data.name;
       nameCell.font = { size: 10, name: "Arial Narrow" };
@@ -2872,6 +2945,28 @@ async function _buildSaaobExcelBuffer(
           dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
         }
       });
+    } else if (flatRow.kind === "statistic-item" || flatRow.kind === "summary-item") {
+      const data = flatRow.data;
+      const nameCell = wsRow.getCell(1);
+      nameCell.value = data.name;
+      nameCell.font = { size: 10, name: "Arial Narrow" };
+      nameCell.border = _THIN_BORDER;
+      nameCell.alignment = { vertical: "middle", indent: 2, wrapText: true };
+
+      columns.forEach((col, idx) => {
+        const dataCell = wsRow.getCell(idx + 2);
+        dataCell.value = _getGroupTotalColumnValue(data, col);
+        dataCell.font = { size: 10, name: "Arial Narrow" };
+        dataCell.border = _THIN_BORDER;
+        dataCell.alignment = { vertical: "middle", horizontal: _isNumericColumn(col) ? "right" : "left" };
+        if (_isNumericColumn(col)) {
+          dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+        }
+      });
+    } else {
+      // Exhaustive guard for future flat row kinds.
+      const _never: never = flatRow;
+      void _never;
     }
 
     wsRow.commit();
@@ -3024,9 +3119,15 @@ export interface SaaobExportOptions {
 }
 
 type _ExportFlatRow =
+  | { kind: "section-header"; label: string }
   | { kind: "group"; depth: number; data: SaaobGroup }
   | { kind: "entry"; depth: number; data: SaaobEntry }
-  | { kind: "total"; depth: number; data: SaaobGroup };
+  | { kind: "total"; depth: number; data: SaaobGroup }
+  | { kind: "statistic-group"; depth: number; data: SaaobStatisticGroup }
+  | { kind: "statistic-item"; depth: number; data: SaaobStatisticEntry }
+  | { kind: "statistic-total"; depth: number; data: SaaobStatisticGroup }
+  | { kind: "summary-group"; depth: number; data: SaaobSummaryGroup }
+  | { kind: "summary-item"; depth: number; data: SaaobSummaryItem };
 
 type ObrMainRow = {
   saaobId: string;
