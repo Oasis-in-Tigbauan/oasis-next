@@ -3985,6 +3985,38 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getColumn(8).width = 13;
   ws.getColumn(9).width = 14;
 
+  // Extra columns used only by electric-detail rows inside EXPLANATION.
+  ws.getColumn(10).width = 12;
+  ws.getColumn(11).width = 4;
+  ws.getColumn(12).width = 13;
+  ws.getColumn(13).width = 14;
+  ws.getColumn(14).width = 13;
+  ws.getColumn(15).width = 14;
+
+  const isElecLayout = elecData.length > 0;
+  const explanationLeftStartCol = 1;
+  const explanationLeftEndCol = isElecLayout ? 13 : 7;
+  const explanationAmountStartCol = isElecLayout ? 14 : 8;
+  const explanationAmountEndCol = isElecLayout ? 15 : 9;
+
+  const headerLeftStartCol = 1;
+  const headerLeftEndCol = isElecLayout ? 9 : 6;
+  const headerRightStartCol = headerLeftEndCol + 1;
+  const headerRightEndCol = isElecLayout ? 15 : 9;
+
+  const payeeValueStartCol = 2;
+  const payeeValueEndCol = isElecLayout ? 9 : 6;
+  const rightMetaStartCol = isElecLayout ? 10 : 7;
+  const rightMetaEndCol = headerRightEndCol;
+  const rightMetaCodeStartCol = isElecLayout ? 12 : 8;
+
+  const signerLeftStartCol = 1;
+  const signerLeftEndCol = isElecLayout ? 8 : 5;
+  const signerRightStartCol = signerLeftEndCol + 1;
+  const signerRightEndCol = isElecLayout ? 15 : 9;
+  const signerLeftValueStartCol = signerLeftStartCol + 1;
+  const signerRightValueStartCol = signerRightStartCol + 1;
+
   let row = 1;
   if (headerTemplatePath) {
     const headerWb = new Workbook();
@@ -3993,82 +4025,83 @@ async function _buildDisbursementVoucherExcelBuffer(
   }
 
   // DV number row — appears above the DISBURSEMENT VOUCHER title, right-aligned, red
-  ws.mergeCells(row, 1, row, 6);
-  ws.mergeCells(row, 7, row, 9);
-  ws.getCell(row, 7).value = voucher.disbursementVoucherNumber;
-  ws.getCell(row, 7).font = { bold: true, size: 16, color: { argb: "FFFF0000" } };
-  ws.getCell(row, 7).alignment = { horizontal: "right", vertical: "middle" };
+  ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
+  ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
+  ws.getCell(row, headerRightStartCol).value = voucher.disbursementVoucherNumber;
+  ws.getCell(row, headerRightStartCol).font = { bold: true, size: 16, color: { argb: "FFFF0000" } };
+  ws.getCell(row, headerRightStartCol).alignment = { horizontal: "right", vertical: "middle" };
   row++;
 
   // DISBURSEMENT VOUCHER title spanning 2 rows; Fund on the right
-  ws.mergeCells(row, 1, row + 1, 6);
-  ws.mergeCells(row, 7, row + 1, 9);
-  ws.getCell(row, 1).value = "DISBURSEMENT VOUCHER";
-  ws.getCell(row, 1).font = { bold: true, size: 18 };
-  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, 7).value = `Fund: ${voucher.fundType?.name ?? ""}`;
-  _applyDisbursementBorder(ws, row, 1, 9);
-  _applyDisbursementBorder(ws, row + 1, 1, 9);
+  ws.mergeCells(row, headerLeftStartCol, row + 1, headerLeftEndCol);
+  ws.mergeCells(row, headerRightStartCol, row + 1, headerRightEndCol);
+  ws.getCell(row, headerLeftStartCol).value = "DISBURSEMENT VOUCHER";
+  ws.getCell(row, headerLeftStartCol).font = { bold: true, size: 18 };
+  ws.getCell(row, headerLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, headerRightStartCol).value = `Fund: ${voucher.fundType?.name ?? ""}`;
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
+  _applyDisbursementBorder(ws, row + 1, headerLeftStartCol, headerRightEndCol);
   row += 2;
 
   // Mode of Payment + DV No.
-  ws.mergeCells(row, 1, row, 6);
-  ws.mergeCells(row, 7, row, 9);
-  ws.getCell(row, 1).value = "Mode of Payment:      ☐ Check      ☐ Cash      ☐ Others";
-  ws.getCell(row, 7).value = `DV No.: ${voucher.disbursementVoucherNumber}`;
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
+  ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
+  ws.getCell(row, headerLeftStartCol).value = "Mode of Payment:      ☐ Check      ☐ Cash      ☐ Others";
+  ws.getCell(row, headerRightStartCol).value = `DV No.: ${voucher.disbursementVoucherNumber}`;
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Payee row 1 of 2: label + value (rowspan 2) + ID No./TIN
   ws.getCell(row, 1).value = "Payee:";
-  ws.mergeCells(row, 2, row + 1, 6);
-  ws.getCell(row, 2).value = voucher.payee ?? "";
-  ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-  ws.mergeCells(row, 7, row, 9);
-  ws.getCell(row, 7).value = "ID No./TIN:";
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, payeeValueStartCol, row + 1, payeeValueEndCol);
+  ws.getCell(row, payeeValueStartCol).value = voucher.payee ?? "";
+  ws.getCell(row, payeeValueStartCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+  ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
+  ws.getCell(row, rightMetaStartCol).value = "ID No./TIN:";
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Payee row 2 of 2: OBR No.
-  ws.mergeCells(row, 7, row, 9);
-  ws.getCell(row, 7).value = `OBR No.: ${voucher.prNumber ?? ""}`;
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
+  ws.getCell(row, rightMetaStartCol).value = `OBR No.: ${voucher.prNumber ?? ""}`;
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Address row 1 of 3: label + value (rowspan 3) + Responsibility Center header
   ws.getCell(row, 1).value = "Address:";
-  ws.mergeCells(row, 2, row + 2, 6);
-  ws.getCell(row, 2).value = voucher.address;
-  ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "top", wrapText: true };
-  ws.mergeCells(row, 7, row, 9);
-  ws.getCell(row, 7).value = "Responsibility Center:";
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, payeeValueStartCol, row + 2, payeeValueEndCol);
+  ws.getCell(row, payeeValueStartCol).value = voucher.address;
+  ws.getCell(row, payeeValueStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
+  ws.getCell(row, rightMetaStartCol).value = "Responsibility Center:";
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Address row 2 of 3: Office/Unit/Project | Code column headers
-  ws.getCell(row, 7).value = "Office/Unit/Project";
-  ws.getCell(row, 7).alignment = { horizontal: "center", vertical: "middle" };
-  ws.mergeCells(row, 8, row, 9);
-  ws.getCell(row, 8).value = "Code";
-  ws.getCell(row, 8).alignment = { horizontal: "center", vertical: "middle" };
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.getCell(row, rightMetaStartCol).value = "Office/Unit/Project";
+  ws.getCell(row, rightMetaStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.mergeCells(row, rightMetaCodeStartCol, row, rightMetaEndCol);
+  ws.getCell(row, rightMetaCodeStartCol).value = "Code";
+  ws.getCell(row, rightMetaCodeStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Address row 3 of 3: RC value
-  ws.getCell(row, 7).value = voucher.responsibilityCenter.aa;
-  ws.getCell(row, 7).alignment = { horizontal: "left", vertical: "middle" };
-  ws.mergeCells(row, 8, row, 9);
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.getCell(row, rightMetaStartCol).value = voucher.responsibilityCenter.aa;
+  ws.getCell(row, rightMetaStartCol).alignment = { horizontal: "left", vertical: "middle" };
+  ws.mergeCells(row, rightMetaCodeStartCol, row, rightMetaEndCol);
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // EXPLANATION header
-  ws.mergeCells(row, 1, row, 7);
-  ws.mergeCells(row, 8, row, 9);
-  ws.getCell(row, 1).value = "EXPLANATION";
-  ws.getCell(row, 8).value = "Amount";
-  _applyDisbursementBorder(ws, row, 1, 9, "center");
-  ws.getCell(row, 1).font = { bold: true };
-  ws.getCell(row, 8).font = { bold: true };
+  ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
+  ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
+  ws.getCell(row, explanationLeftStartCol).value = "EXPLANATION";
+  ws.getCell(row, explanationAmountStartCol).value = "Amount";
+  _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol, "center");
+  _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "center");
+  ws.getCell(row, explanationLeftStartCol).font = { bold: true };
+  ws.getCell(row, explanationAmountStartCol).font = { bold: true };
   row++;
 
   const grossAmount = _toDecimal(voucher.grossAmount);
@@ -4076,29 +4109,140 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   const explanationStart = row;
   const explanationRows = elecData.length > 0 ? 3 : 2;
-  ws.mergeCells(explanationStart, 1, explanationStart + explanationRows, 7);
-  ws.getCell(explanationStart, 1).value = voucher.particulars;
-  ws.getCell(explanationStart, 1).alignment = { horizontal: "left", vertical: "top", wrapText: true };
-  ws.mergeCells(explanationStart, 8, explanationStart + explanationRows, 9);
-  ws.getCell(explanationStart, 8).value = _formatNumber(withholdings.netAmount);
-  ws.getCell(explanationStart, 8).font = { bold: true, size: 13 };
-  ws.getCell(explanationStart, 8).alignment = { horizontal: "right", vertical: "middle" };
+  ws.mergeCells(explanationStart, explanationLeftStartCol, explanationStart + explanationRows, explanationLeftEndCol);
+  ws.getCell(explanationStart, explanationLeftStartCol).value = voucher.particulars;
+  ws.getCell(explanationStart, explanationLeftStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountEndCol);
+  ws.getCell(explanationStart, explanationAmountStartCol).value = _formatNumber(withholdings.netAmount);
+  ws.getCell(explanationStart, explanationAmountStartCol).font = { bold: true, size: 13 };
+  ws.getCell(explanationStart, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
   for (let rr = explanationStart; rr <= explanationStart + explanationRows; rr++) {
-    _applyDisbursementBorder(ws, rr, 1, 9);
+    _applyDisbursementBorder(ws, rr, explanationLeftStartCol, explanationLeftEndCol);
+    _applyDisbursementBorder(ws, rr, explanationAmountStartCol, explanationAmountEndCol, "right");
   }
   row = explanationStart + explanationRows + 1;
 
   if (elecData.length > 0) {
-    ws.getCell(row, 1).value = "BILLING NAME";
-    ws.getCell(row, 3).value = "METER SERIAL#";
-    ws.getCell(row, 4).value = "ACCOUNT";
-    ws.getCell(row, 5).value = "GROSS";
-    ws.getCell(row, 6).value = "VATABLE SALES";
-    ws.getCell(row, 7).value = "VAT 5%";
-    ws.getCell(row, 8).value = "EVAT 2%";
-    ws.getCell(row, 9).value = "NET";
-    _applyDisbursementBorder(ws, row, 1, 9, "center");
-    for (let c = 1; c <= 9; c++) ws.getCell(row, c).font = { bold: true };
+    const billingStartCol = 2;
+    const billingEndCol = 5;
+    const meterCol = billingEndCol + 1;
+    const accountCol = meterCol + 1;
+    const grossCol = accountCol + 1;
+    const vatableCol = grossCol + 1;
+    const vatCol = vatableCol + 1;
+    const evatCol = vatCol + 1;
+    const netStartCol = evatCol + 1;
+    const netEndCol = netStartCol;
+
+    const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+    const maxBillingLen = Math.max(
+      "BILLING NAME".length,
+      ...elecData.map((item) => (item.billingName ?? "").trim().length),
+    );
+    const maxMeterLen = Math.max(
+      "METER SERIAL#".length,
+      ...elecData.map((item) => (item.meterSerial ?? "").trim().length),
+    );
+    const maxAccountLen = Math.max(
+      "ACCOUNT".length,
+      ...elecData.map((item) => (item.account ?? "").trim().length),
+    );
+    const numberLens = elecData.map((item) => {
+      const itemGross = _toDecimal(item.gross);
+      const itemVatable = _toDecimal(item.vatableSales);
+      const itemVat = itemVatable.mul("0.05");
+      const itemEvat = itemVatable.mul("0.02");
+      const itemNet = itemGross.sub(itemVat).sub(itemEvat);
+
+      return {
+        gross: _formatNumber(itemGross).length,
+        vatable: _formatNumber(itemVatable).length,
+        vat: _formatNumber(itemVat).length,
+        evat: _formatNumber(itemEvat).length,
+        net: _formatNumber(itemNet).length,
+      };
+    });
+    const maxGrossLen = Math.max("GROSS".length, ...numberLens.map((item) => item.gross));
+    const maxVatableLen = Math.max("VATABLE SALES".length, ...numberLens.map((item) => item.vatable));
+    const maxVatLen = Math.max("VAT 5%".length, ...numberLens.map((item) => item.vat));
+    const maxEvatLen = Math.max("EVAT 2%".length, ...numberLens.map((item) => item.evat));
+    const maxNetLen = Math.max("NET".length, ...numberLens.map((item) => item.net));
+
+    const desiredWidths = {
+      billing: clamp(Math.round(maxBillingLen * 0.9 + 6), 30, 54),
+      meter: clamp(Math.round(maxMeterLen + 3), 12, 20),
+      account: clamp(Math.round(maxAccountLen + 3), 11, 18),
+      gross: clamp(Math.round(maxGrossLen + 3), 10, 16),
+      vatable: clamp(Math.round(maxVatableLen + 3), 11, 18),
+      vat: clamp(Math.round(maxVatLen + 3), 10, 15),
+      evat: clamp(Math.round(maxEvatLen + 3), 10, 15),
+      net: clamp(Math.round(maxNetLen + 4), 14, 24),
+    };
+    const targetWidthBudget = 118;
+    const totalDesired = Object.values(desiredWidths).reduce((acc, value) => acc + value, 0);
+    const widthScale = totalDesired > 0 ? targetWidthBudget / totalDesired : 1;
+
+    const scaled = {
+      billing: clamp(Math.round(desiredWidths.billing * widthScale), 30, 54),
+      meter: clamp(Math.round(desiredWidths.meter * widthScale), 10, 20),
+      account: clamp(Math.round(desiredWidths.account * widthScale), 10, 18),
+      gross: clamp(Math.round(desiredWidths.gross * widthScale), 9, 16),
+      vatable: clamp(Math.round(desiredWidths.vatable * widthScale), 10, 18),
+      vat: clamp(Math.round(desiredWidths.vat * widthScale), 9, 15),
+      evat: clamp(Math.round(desiredWidths.evat * widthScale), 9, 15),
+      net: clamp(Math.round(desiredWidths.net * widthScale), 14, 24),
+    };
+
+    // Apply proportional widths only for the electric-detail area columns.
+    const col12Width = Math.max(8, Math.round(scaled.net * 0.5));
+    const col13Width = Math.max(8, scaled.net - col12Width);
+
+    const col5Width = Math.max(9, Math.round(scaled.billing * 0.20));
+    const col2Adjusted = Math.max(9, Math.round(scaled.billing * 0.35));
+    const col3Adjusted = Math.max(8, Math.round(scaled.billing * 0.23));
+    const col4Adjusted = Math.max(8, scaled.billing - col2Adjusted - col3Adjusted - col5Width);
+
+    ws.getColumn(2).width = col2Adjusted;
+    ws.getColumn(3).width = col3Adjusted;
+    ws.getColumn(4).width = col4Adjusted;
+    ws.getColumn(5).width = col5Width;
+    ws.getColumn(6).width = scaled.meter;
+    ws.getColumn(7).width = scaled.account;
+    ws.getColumn(8).width = scaled.gross;
+    ws.getColumn(9).width = scaled.vatable;
+    ws.getColumn(10).width = scaled.vat;
+    ws.getColumn(11).width = scaled.evat;
+    ws.getColumn(12).width = col12Width + col13Width;
+    ws.getColumn(13).width = 4;
+    ws.getColumn(14).width = 13;
+    ws.getColumn(15).width = 14;
+
+    const billingCombinedWidth = col2Adjusted + col3Adjusted + col4Adjusted + col5Width;
+    const billingCharsPerLine = Math.max(24, Math.floor(billingCombinedWidth * 1.5));
+
+    ws.getCell(row, billingStartCol).value = "BILLING NAME";
+    ws.mergeCells(row, billingStartCol, row, billingEndCol);
+    ws.getCell(row, meterCol).value = "METER SERIAL#";
+    ws.getCell(row, accountCol).value = "ACCOUNT";
+    ws.getCell(row, grossCol).value = "GROSS";
+    ws.getCell(row, vatableCol).value = "VATABLE SALES";
+    ws.getCell(row, vatCol).value = "VAT 5%";
+    ws.getCell(row, evatCol).value = "EVAT 2%";
+    ws.mergeCells(row, netStartCol, row, netEndCol);
+    ws.getCell(row, netStartCol).value = "NET";
+    ws.getCell(row, billingStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, meterCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, accountCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, grossCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, vatableCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, vatCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, evatCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, netStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    _applyDisbursementBorder(ws, row, 2, 12, "center");
+    _applyDisbursementBorder(ws, row, 14, 15, "right");
+    for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = { bold: true };
+    ws.getCell(row, netStartCol).font = { bold: true };
+    ws.getRow(row).height = 30;
     row++;
 
     let totalGross = new Decimal(0);
@@ -4113,17 +4257,31 @@ async function _buildDisbursementVoucherExcelBuffer(
       const itemVat = itemVatable.mul("0.05");
       const itemEvat = itemVatable.mul("0.02");
       const itemNet = itemGross.sub(itemVat).sub(itemEvat);
+      const billingName = item.billingName?.trim() ?? "";
+      const billingLines = Math.max(1, Math.ceil(billingName.length / billingCharsPerLine));
+      const rowHeight = Math.max(28, billingLines * 16);
 
-      ws.getCell(row, 1).value = item.billingName;
-      ws.mergeCells(row, 1, row, 2);
-      ws.getCell(row, 3).value = item.meterSerial;
-      ws.getCell(row, 4).value = item.account;
-      ws.getCell(row, 5).value = _formatNumber(itemGross);
-      ws.getCell(row, 6).value = _formatNumber(itemVatable);
-      ws.getCell(row, 7).value = _formatNumber(itemVat);
-      ws.getCell(row, 8).value = _formatNumber(itemEvat);
-      ws.getCell(row, 9).value = _formatNumber(itemNet);
-      _applyDisbursementBorder(ws, row, 1, 9);
+      ws.getCell(row, billingStartCol).value = billingName;
+      ws.mergeCells(row, billingStartCol, row, billingEndCol);
+      ws.getCell(row, meterCol).value = item.meterSerial;
+      ws.getCell(row, accountCol).value = item.account;
+      ws.getCell(row, grossCol).value = _formatNumber(itemGross);
+      ws.getCell(row, vatableCol).value = _formatNumber(itemVatable);
+      ws.getCell(row, vatCol).value = _formatNumber(itemVat);
+      ws.getCell(row, evatCol).value = _formatNumber(itemEvat);
+      ws.mergeCells(row, netStartCol, row, netEndCol);
+      ws.getCell(row, netStartCol).value = _formatNumber(itemNet);
+      ws.getCell(row, billingStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+      ws.getCell(row, meterCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+      ws.getCell(row, accountCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+      ws.getCell(row, grossCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
+      ws.getCell(row, vatableCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
+      ws.getCell(row, vatCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
+      ws.getCell(row, evatCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
+      ws.getCell(row, netStartCol).alignment = { horizontal: "right", vertical: "middle" };
+      _applyDisbursementBorder(ws, row, 2, 12);
+      _applyDisbursementBorder(ws, row, 14, 15, "right");
+      ws.getRow(row).height = rowHeight;
 
       totalGross = totalGross.add(itemGross);
       totalVatableSales = totalVatableSales.add(itemVatable);
@@ -4133,15 +4291,20 @@ async function _buildDisbursementVoucherExcelBuffer(
       row++;
     }
 
-    ws.getCell(row, 1).value = "TOTAL";
-    ws.mergeCells(row, 1, row, 4);
-    ws.getCell(row, 5).value = _formatNumber(totalGross);
-    ws.getCell(row, 6).value = _formatNumber(totalVatableSales);
-    ws.getCell(row, 7).value = _formatNumber(totalVat);
-    ws.getCell(row, 8).value = _formatNumber(totalEvat);
-    ws.getCell(row, 9).value = _formatNumber(totalNet);
-    _applyDisbursementBorder(ws, row, 1, 9);
-    for (let c = 1; c <= 9; c++) ws.getCell(row, c).font = { bold: true };
+    ws.getCell(row, billingStartCol).value = "TOTAL";
+    ws.mergeCells(row, billingStartCol, row, accountCol);
+    ws.getCell(row, grossCol).value = _formatNumber(totalGross);
+    ws.getCell(row, vatableCol).value = _formatNumber(totalVatableSales);
+    ws.getCell(row, vatCol).value = _formatNumber(totalVat);
+    ws.getCell(row, evatCol).value = _formatNumber(totalEvat);
+    ws.mergeCells(row, netStartCol, row, netEndCol);
+    ws.getCell(row, netStartCol).value = _formatNumber(totalNet);
+    ws.getCell(row, netStartCol).alignment = { horizontal: "right", vertical: "middle" };
+    _applyDisbursementBorder(ws, row, 2, 12);
+    _applyDisbursementBorder(ws, row, 14, 15, "right");
+    for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = { bold: true };
+    ws.getCell(row, netStartCol).font = { bold: true };
+    ws.getRow(row).height = 30;
     row++;
   }
 
@@ -4162,120 +4325,126 @@ async function _buildDisbursementVoucherExcelBuffer(
   ];
 
   for (const item of breakdownRows) {
-    ws.mergeCells(row, 2, row, 7);
-    ws.getCell(row, 2).value = item.label;
-    ws.mergeCells(row, 8, row, 9);
-    ws.getCell(row, 8).value = item.value;
-    ws.getCell(row, 8).alignment = { horizontal: "right", vertical: "middle" };
-    _applyDisbursementBorder(ws, row, 1, 9);
+    ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
+    ws.getCell(row, explanationLeftStartCol).value = item.label;
+    ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
+    ws.getCell(row, explanationAmountStartCol).value = item.value;
+    ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+    _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
+    _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
     if (item.bold) {
-      ws.getCell(row, 2).font = { bold: true };
-      ws.getCell(row, 8).font = { bold: true };
+      ws.getCell(row, explanationLeftStartCol).font = { bold: true };
+      ws.getCell(row, explanationAmountStartCol).font = { bold: true };
     }
     row++;
   }
 
-  ws.mergeCells(row, 1, row, 7);
-  ws.mergeCells(row, 8, row, 9);
-  ws.getCell(row, 1).value = "Amount Due";
-  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, 8).value = _formatNumber(withholdings.netAmount);
-  ws.getCell(row, 8).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
-  ws.getCell(row, 8).alignment = { horizontal: "right", vertical: "middle" };
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
+  ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
+  ws.getCell(row, explanationLeftStartCol).value = "Amount Due";
+  ws.getCell(row, explanationLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, explanationAmountStartCol).value = _formatNumber(withholdings.netAmount);
+  ws.getCell(row, explanationAmountStartCol).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
+  ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
+  _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
   row++;
 
-  ws.mergeCells(row, 1, row, 5);
-  ws.mergeCells(row, 6, row, 9);
-  ws.getCell(row, 1).value = "A. Certified";
-  ws.getCell(row, 6).value = "B. Certified";
-  ws.getCell(row, 1).font = { bold: true };
-  ws.getCell(row, 6).font = { bold: true };
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
+  ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
+  ws.getCell(row, signerLeftStartCol).value = "A. Certified";
+  ws.getCell(row, signerRightStartCol).value = "B. Certified";
+  ws.getCell(row, signerLeftStartCol).font = { bold: true };
+  ws.getCell(row, signerRightStartCol).font = { bold: true };
+  _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
+  _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
-  ws.mergeCells(row, 1, row, 5);
-  ws.mergeCells(row, 6, row, 9);
-  ws.getCell(row, 1).value = "☑ Allotment obligated for the purpose as indicated above";
-  ws.getCell(row, 6).value = "☑ Funds Available";
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
+  ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
+  ws.getCell(row, signerLeftStartCol).value = "☑ Allotment obligated for the purpose as indicated above";
+  ws.getCell(row, signerRightStartCol).value = "☑ Funds Available";
+  _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
+  _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
-  ws.mergeCells(row, 1, row, 5);
-  ws.mergeCells(row, 6, row, 9);
-  ws.getCell(row, 1).value = "☑ Supporting documents complete";
-  _applyDisbursementBorder(ws, row, 1, 9);
+  ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
+  ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
+  ws.getCell(row, signerLeftStartCol).value = "☑ Supporting documents complete";
+  _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
+  _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
   for (let i = 0; i < 4; i++) {
-    ws.mergeCells(row + i, 2, row + i, 5);
-    ws.mergeCells(row + i, 7, row + i, 9);
-    _applyDisbursementBorder(ws, row + i, 1, 9);
+    ws.mergeCells(row + i, signerLeftValueStartCol, row + i, signerLeftEndCol);
+    ws.mergeCells(row + i, signerRightValueStartCol, row + i, signerRightEndCol);
+    _applyDisbursementBorder(ws, row + i, signerLeftStartCol, signerLeftEndCol);
+    _applyDisbursementBorder(ws, row + i, signerRightStartCol, signerRightEndCol);
   }
-  ws.getCell(row, 1).value = "Signature:";
-  ws.getCell(row, 6).value = "Signature:";
-  ws.getCell(row + 1, 1).value = "Printed Name:";
-  ws.getCell(row + 1, 2).value = voucher.signers.accountant.name.toUpperCase();
-  ws.getCell(row + 1, 2).font = { bold: true };
-  ws.getCell(row + 1, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 1, 6).value = "Printed Name:";
-  ws.getCell(row + 1, 7).value = voucher.signers.treasurer.name.toUpperCase();
-  ws.getCell(row + 1, 7).font = { bold: true };
-  ws.getCell(row + 1, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 2, 1).value = "Position:";
-  ws.getCell(row + 2, 2).value = voucher.signers.accountant.position;
-  ws.getCell(row + 2, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 2, 6).value = "Position:";
-  ws.getCell(row + 2, 7).value = voucher.signers.treasurer.position;
-  ws.getCell(row + 2, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 3, 1).value = "Date:";
-  ws.getCell(row + 3, 6).value = "Date:";
+  ws.getCell(row, signerLeftStartCol).value = "Signature:";
+  ws.getCell(row, signerRightStartCol).value = "Signature:";
+  ws.getCell(row + 1, signerLeftStartCol).value = "Printed Name:";
+  ws.getCell(row + 1, signerLeftValueStartCol).value = voucher.signers.accountant.name.toUpperCase();
+  ws.getCell(row + 1, signerLeftValueStartCol).font = { bold: true };
+  ws.getCell(row + 1, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 1, signerRightStartCol).value = "Printed Name:";
+  ws.getCell(row + 1, signerRightValueStartCol).value = voucher.signers.treasurer.name.toUpperCase();
+  ws.getCell(row + 1, signerRightValueStartCol).font = { bold: true };
+  ws.getCell(row + 1, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, signerLeftStartCol).value = "Position:";
+  ws.getCell(row + 2, signerLeftValueStartCol).value = voucher.signers.accountant.position;
+  ws.getCell(row + 2, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, signerRightStartCol).value = "Position:";
+  ws.getCell(row + 2, signerRightValueStartCol).value = voucher.signers.treasurer.position;
+  ws.getCell(row + 2, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 3, signerLeftStartCol).value = "Date:";
+  ws.getCell(row + 3, signerRightStartCol).value = "Date:";
   ws.getRow(row).height = 28;
   ws.getRow(row + 1).height = 34;
   ws.getRow(row + 2).height = 30;
   ws.getRow(row + 3).height = 28;
   row += 4;
 
-  ws.mergeCells(row, 1, row, 5);
-  ws.mergeCells(row, 6, row, 9);
-  ws.getCell(row, 1).value = "C. Approved for Payment";
-  ws.getCell(row, 6).value = "D. Received Payment";
-  ws.getCell(row, 1).font = { bold: true };
-  ws.getCell(row, 6).font = { bold: true };
-  _applyDisbursementBorder(ws, row, 1, 5);
-  _applyDisbursementBorder(ws, row, 6, 9);
+  ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
+  ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
+  ws.getCell(row, signerLeftStartCol).value = "C. Approved for Payment";
+  ws.getCell(row, signerRightStartCol).value = "D. Received Payment";
+  ws.getCell(row, signerLeftStartCol).font = { bold: true };
+  ws.getCell(row, signerRightStartCol).font = { bold: true };
+  _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
+  _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
   const sectionCStart = row - 1;
   for (let i = 0; i < 4; i++) {
-    ws.mergeCells(row + i, 2, row + i, 5);
-    ws.mergeCells(row + i, 7, row + i, 9);
-    _applyDisbursementBorder(ws, row + i, 1, 5);
-    _applyDisbursementBorder(ws, row + i, 6, 9);
+    ws.mergeCells(row + i, signerLeftValueStartCol, row + i, signerLeftEndCol);
+    ws.mergeCells(row + i, signerRightValueStartCol, row + i, signerRightEndCol);
+    _applyDisbursementBorder(ws, row + i, signerLeftStartCol, signerLeftEndCol);
+    _applyDisbursementBorder(ws, row + i, signerRightStartCol, signerRightEndCol);
   }
 
-  ws.getCell(row, 1).value = "Signature:/ Printed Name:";
-  ws.getCell(row, 6).value = "Check No./ Date";
-  ws.getCell(row, 7).value = "Bank Name";
+  ws.getCell(row, signerLeftStartCol).value = "Signature:/ Printed Name:";
+  ws.getCell(row, signerRightStartCol).value = "Check No./ Date";
+  ws.getCell(row, signerRightValueStartCol).value = "Bank Name";
 
-  ws.getCell(row + 1, 1).value = "Position:";
-  ws.getCell(row + 1, 2).value = voucher.signers.mayor.name.toUpperCase();
-  ws.getCell(row + 1, 2).font = { bold: true };
-  ws.getCell(row + 1, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 1, 6).value = "Signature/ Printed Name/ Date";
-  ws.getCell(row + 1, 7).value = (voucher.payee ?? "").toUpperCase();
-  ws.getCell(row + 1, 7).font = { bold: true };
-  ws.getCell(row + 1, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 1, signerLeftStartCol).value = "Position:";
+  ws.getCell(row + 1, signerLeftValueStartCol).value = voucher.signers.mayor.name.toUpperCase();
+  ws.getCell(row + 1, signerLeftValueStartCol).font = { bold: true };
+  ws.getCell(row + 1, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 1, signerRightStartCol).value = "Signature/ Printed Name/ Date";
+  ws.getCell(row + 1, signerRightValueStartCol).value = (voucher.payee ?? "").toUpperCase();
+  ws.getCell(row + 1, signerRightValueStartCol).font = { bold: true };
+  ws.getCell(row + 1, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
 
-  ws.getCell(row + 2, 1).value = "Date:";
-  ws.getCell(row + 2, 2).value = voucher.signers.mayor.position;
-  ws.getCell(row + 2, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 2, 6).value = "OR/Other Documents";
-  ws.getCell(row + 2, 7).value = "JEV No./ Date";
-  ws.getCell(row + 2, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, signerLeftStartCol).value = "Date:";
+  ws.getCell(row + 2, signerLeftValueStartCol).value = voucher.signers.mayor.position;
+  ws.getCell(row + 2, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, signerRightStartCol).value = "OR/Other Documents";
+  ws.getCell(row + 2, signerRightValueStartCol).value = "JEV No./ Date";
+  ws.getCell(row + 2, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
 
-  ws.getCell(row + 3, 1).value = "";
-  ws.getCell(row + 3, 6).value = "";
+  ws.getCell(row + 3, signerLeftStartCol).value = "";
+  ws.getCell(row + 3, signerRightStartCol).value = "";
 
   ws.getRow(row).height = 40;
   ws.getRow(row + 1).height = 52;
@@ -4283,12 +4452,12 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getRow(row + 3).height = 34;
 
   const sectionCEnd = row + 3;
-  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, 1, 5);
-  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, 6, 9);
+  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, signerLeftStartCol, signerLeftEndCol);
+  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, signerRightStartCol, signerRightEndCol);
   row += 4;
 
   for (let r = 1; r <= row; r++) {
-    for (let c = 1; c <= 9; c++) {
+    for (let c = 1; c <= 15; c++) {
       // Ensure a consistent export typography while preserving style attributes.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cell = ws.getCell(r, c) as any;
