@@ -140,7 +140,7 @@ export function isUuid(uuid: Optional<string>): boolean {
 export function isNumber(
   value: Optional<string | number>,
   allowNegative: boolean = true,
-  limitSafeIntegersOnly: boolean = true,
+  limitSafeIntegersOnly: boolean = false,
 ): boolean {
   if (!isExisty(value)) return false;
   if (typeof value === "string" && !isNotEmpty(value)) return false;
