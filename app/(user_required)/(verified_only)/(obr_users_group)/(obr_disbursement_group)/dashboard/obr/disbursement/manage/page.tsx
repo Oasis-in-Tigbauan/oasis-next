@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { Pencil, X, Check, Trash2 } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Pencil, X, Check, Trash2, Download, Upload, FileSpreadsheet } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -11,6 +11,8 @@ import type {
   FundTypesListResponse,
   ObrDisbursementVoucherListResponse,
   ObrDisbursementVoucherItem,
+  ObrTemplateInfo,
+  ObrTemplatesResponse,
 } from "@/lib/http/client/responses";
 
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -125,6 +133,183 @@ function StatusBadge({ status }: { status: string | null }) {
   return <Badge variant="secondary">{status}</Badge>;
 }
 
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") return fallback;
+
+  const data = payload as {
+    error?: { message?: unknown };
+    message?: unknown;
+    errors?: unknown;
+  };
+
+  if (typeof data.error?.message === "string") return data.error.message;
+  if (typeof data.message === "string") return data.message;
+  if (Array.isArray(data.errors)) {
+    const msgs = data.errors.filter((v): v is string => typeof v === "string");
+    if (msgs.length > 0) return msgs.join(" ");
+  }
+
+  return fallback;
+}
+
+function formatTemplateDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Taipei",
+  }).format(new Date(iso));
+}
+
+function HeaderTemplateSection({
+  template,
+  apiPath,
+  onMutate,
+}: {
+  template: ObrTemplateInfo | null;
+  apiPath: string;
+  onMutate: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const runUpload = useCallback(async (file: File, mode: "upload" | "replace") => {
+    setSubmitting(true);
+    setActionError(null);
+
+    const formData = new FormData();
+    formData.set("type", "header");
+    formData.set("file", file);
+
+    try {
+      const response = await fetch(apiPath, {
+        method: mode === "upload" ? "POST" : "PATCH",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setActionError(extractErrorMessage(payload, `Failed to ${mode} template.`));
+        return;
+      }
+
+      onMutate();
+    } catch {
+      setActionError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [apiPath, onMutate]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    void runUpload(file, template ? "replace" : "upload");
+  }, [runUpload, template]);
+
+  const handleRemove = useCallback(async () => {
+    setSubmitting(true);
+    setActionError(null);
+
+    try {
+      const response = await fetch(apiPath, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "header" }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setActionError(extractErrorMessage(payload, "Failed to remove template."));
+        return;
+      }
+
+      onMutate();
+    } catch {
+      setActionError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [apiPath, onMutate]);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <Typography variant="small" className="font-semibold">Header Template</Typography>
+          {template ? (
+            <Typography variant="small" className="text-muted-foreground">
+              Last updated {formatTemplateDate(template.updatedAt)}
+            </Typography>
+          ) : (
+            <Typography variant="small" className="text-muted-foreground">Not uploaded</Typography>
+          )}
+        </div>
+        <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" />
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        disabled={submitting}
+        onChange={handleFileChange}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        {!template ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            disabled={submitting}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-3" />
+            Upload
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={submitting}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="size-3" />
+              Replace
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              disabled={submitting}
+              onClick={() => void handleRemove()}
+            >
+              <Trash2 className="size-3" />
+              Remove
+            </Button>
+          </>
+        )}
+      </div>
+
+      <Typography variant="small" className="text-muted-foreground">
+        Excel (.xlsx) files only.
+      </Typography>
+
+      {actionError && (
+        <Typography variant="small" className="text-destructive">{actionError}</Typography>
+      )}
+    </div>
+  );
+}
+
 // --- Detail / Edit Dialog ---
 
 type DetailDialogProps = {
@@ -142,6 +327,9 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("details");
 
   const [vatableAmount, setVatableAmount] = useState("");
   const [taxType, setTaxType] = useState<string>(NONE);
@@ -153,10 +341,22 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
     $fetch,
   );
 
+  const {
+    data: templatesData,
+    error: templatesError,
+    isLoading: templatesLoading,
+    mutate: mutateTemplates,
+  } = useSWR<BetterFetchResponse<ObrTemplatesResponse, ApiResponseException>>(
+    open ? "/api/obr/disbursements/templates" : null,
+    $fetch,
+  );
+
   const fundTypes = fundTypesData?.data?.data ?? [];
+  const templates = templatesData?.data?.data;
 
   const startEditing = useCallback(() => {
     if (!voucher) return;
+    setActiveTab("details");
     setVatableAmount(voucher.vatableAmount ?? "");
     setTaxType(voucher.taxType ?? NONE);
     setFundTypeId(voucher.fundType?.id ?? NONE);
@@ -223,12 +423,47 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
     }
   }, [voucher, onDeleted, onOpenChange]);
 
+  const handleExport = useCallback(async () => {
+    if (!voucher) return;
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      const response = await fetch(`/api/obr/disbursements/${voucher.id}/export`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setExportError(extractErrorMessage(payload, "Export failed. Please try again."));
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
+      const filename = filenameMatch?.[1] ?? `disbursement-voucher-${voucher.id}.xlsx`;
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("An unexpected error occurred. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [voucher]);
+
   const handleClose = useCallback((o: boolean) => {
     if (!o) {
       setEditing(false);
       setSaveError(null);
       setConfirmingDelete(false);
       setDeleteError(null);
+      setExportError(null);
+      setActiveTab("details");
     }
     onOpenChange(o);
   }, [onOpenChange]);
@@ -262,187 +497,216 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
           </div>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh] pr-1">
-          <div className="flex flex-col gap-4 pb-2">
-            {/* General */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field>
-                <Label>Payee</Label>
-                <Input readOnly value={voucher.payee} />
-              </Field>
-              <Field>
-                <Label>Address</Label>
-                <Input readOnly value={voucher.address} />
-              </Field>
-              <Field className="md:col-span-2">
-                <Label>Particulars</Label>
-                <Input readOnly value={voucher.particulars} />
-              </Field>
-              <Field>
-                <Label>PR #</Label>
-                <Input readOnly value={voucher.prNumber ?? "—"} />
-              </Field>
-            </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <TabsList className="mb-3 self-start">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="template" disabled={editing}>Template</TabsTrigger>
+          </TabsList>
 
-            <Separator />
+          <TabsContent value="details" className="mt-0 min-h-0 flex-1 overflow-y-scroll overflow-x-hidden data-[state=inactive]:hidden">
+            <ScrollArea className="max-h-[60vh] pr-1">
+              <div className="flex flex-col gap-4 pb-2">
+                {/* General */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Field>
+                    <Label>Payee</Label>
+                    <Input readOnly value={voucher.payee} />
+                  </Field>
+                  <Field>
+                    <Label>Address</Label>
+                    <Input readOnly value={voucher.address} />
+                  </Field>
+                  <Field className="md:col-span-2">
+                    <Label>Particulars</Label>
+                    <Input readOnly value={voucher.particulars} />
+                  </Field>
+                  <Field>
+                    <Label>PR #</Label>
+                    <Input readOnly value={voucher.prNumber ?? "—"} />
+                  </Field>
+                </div>
 
-            {/* Amounts */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              <Field>
-                <Label>Gross Amount</Label>
-                <Input readOnly value={formatCurrency(voucher.grossAmount)} />
-              </Field>
-              <Field>
-                <Label>Vatable Amount</Label>
-                {editing ? (
-                  <Input
-                    value={vatableAmount}
-                    onChange={e => setVatableAmount(e.target.value)}
-                    placeholder="e.g. 1234.56"
-                  />
-                ) : (
-                  <Input readOnly value={formatCurrency(voucher.vatableAmount)} />
-                )}
-              </Field>
-              <Field>
-                <Label>Tax Type</Label>
-                {editing ? (
-                  <Select value={taxType} onValueChange={setTaxType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select tax type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>None</SelectItem>
-                      {(["vat-g", "vat-s", "nvat-g", "nvat-s"] as TaxType[]).map(t => (
-                        <SelectItem key={t} value={t}>{TAX_TYPE_LABELS[t]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input readOnly value={voucher.taxType ? (TAX_TYPE_LABELS[voucher.taxType as TaxType] ?? voucher.taxType) : "—"} />
-                )}
-              </Field>
-            </div>
+                <Separator />
 
-            {/* Tax Breakdown */}
-            <div>
-              <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">Tax Breakdown</Typography>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-                <Field>
-                  <Label>Tax</Label>
-                  <Input readOnly value={formatCurrency(voucher.taxBreakdown.tax)} />
-                </Field>
-                <Field>
-                  <Label>VAT (5%)</Label>
-                  <Input readOnly value={formatCurrency(voucher.taxBreakdown.vat5)} />
-                </Field>
-                <Field>
-                  <Label>PT (3%)</Label>
-                  <Input readOnly value={formatCurrency(voucher.taxBreakdown.pt3)} />
-                </Field>
-                <Field>
-                  <Label>EWT (2%)</Label>
-                  <Input readOnly value={formatCurrency(voucher.taxBreakdown.ewt2)} />
-                </Field>
-                <Field>
-                  <Label>EWT (1%)</Label>
-                  <Input readOnly value={formatCurrency(voucher.taxBreakdown.ewt1)} />
-                </Field>
-                <Field>
-                  <Label>Net Amount</Label>
-                  <Input readOnly value={formatCurrency(voucher.taxBreakdown.netAmount)} />
-                </Field>
+                {/* Amounts */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <Field>
+                    <Label>Gross Amount</Label>
+                    <Input readOnly value={formatCurrency(voucher.grossAmount)} />
+                  </Field>
+                  <Field>
+                    <Label>Vatable Amount</Label>
+                    {editing ? (
+                      <Input
+                        value={vatableAmount}
+                        onChange={e => setVatableAmount(e.target.value)}
+                        placeholder="e.g. 1234.56"
+                      />
+                    ) : (
+                      <Input readOnly value={formatCurrency(voucher.vatableAmount)} />
+                    )}
+                  </Field>
+                  <Field>
+                    <Label>Tax Type</Label>
+                    {editing ? (
+                      <Select value={taxType} onValueChange={setTaxType}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select tax type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>None</SelectItem>
+                          {(["vat-g", "vat-s", "nvat-g", "nvat-s"] as TaxType[]).map(t => (
+                            <SelectItem key={t} value={t}>{TAX_TYPE_LABELS[t]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input readOnly value={voucher.taxType ? (TAX_TYPE_LABELS[voucher.taxType as TaxType] ?? voucher.taxType) : "—"} />
+                    )}
+                  </Field>
+                </div>
+
+                {/* Tax Breakdown */}
+                <div>
+                  <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">Tax Breakdown</Typography>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    <Field>
+                      <Label>Tax</Label>
+                      <Input readOnly value={formatCurrency(voucher.taxBreakdown.tax)} />
+                    </Field>
+                    <Field>
+                      <Label>VAT (5%)</Label>
+                      <Input readOnly value={formatCurrency(voucher.taxBreakdown.vat5)} />
+                    </Field>
+                    <Field>
+                      <Label>PT (3%)</Label>
+                      <Input readOnly value={formatCurrency(voucher.taxBreakdown.pt3)} />
+                    </Field>
+                    <Field>
+                      <Label>EWT (2%)</Label>
+                      <Input readOnly value={formatCurrency(voucher.taxBreakdown.ewt2)} />
+                    </Field>
+                    <Field>
+                      <Label>EWT (1%)</Label>
+                      <Input readOnly value={formatCurrency(voucher.taxBreakdown.ewt1)} />
+                    </Field>
+                    <Field>
+                      <Label>Net Amount</Label>
+                      <Input readOnly value={formatCurrency(voucher.taxBreakdown.netAmount)} />
+                    </Field>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Fund / RC / Status */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <Field>
+                    <Label>Fund</Label>
+                    {editing ? (
+                      <Select value={fundTypeId} onValueChange={setFundTypeId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select fund type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>None</SelectItem>
+                          {fundTypes.map(f => (
+                            <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input readOnly value={voucher.fundType?.name ?? "—"} />
+                    )}
+                  </Field>
+                  <Field>
+                    <Label>RC</Label>
+                    <Input readOnly value={voucher.responsibilityCenter.aa} />
+                  </Field>
+                  <Field>
+                    <Label>Status</Label>
+                    {editing ? (
+                      <Select value={status} onValueChange={setStatus}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>None</SelectItem>
+                          {STATUS_OPTIONS.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input readOnly value={voucher.status ?? "—"} />
+                    )}
+                  </Field>
+                </div>
+
+                <Separator />
+
+                {/* Signers */}
+                <div>
+                  <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">Signers</Typography>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Field>
+                      <Label>Head of Office</Label>
+                      <Input readOnly value={voucher.signers.headOfOffice.name} />
+                    </Field>
+                    <Field>
+                      <Label>Position</Label>
+                      <Input readOnly value={voucher.signers.headOfOffice.position} />
+                    </Field>
+                    <Field>
+                      <Label>Payment Approved By</Label>
+                      <Input readOnly value={voucher.signers.mayor.name} />
+                    </Field>
+                    <Field>
+                      <Label>Position</Label>
+                      <Input readOnly value={voucher.signers.mayor.position} />
+                    </Field>
+                    <Field>
+                      <Label>Accountant</Label>
+                      <Input readOnly value={voucher.signers.accountant.name} />
+                    </Field>
+                    <Field>
+                      <Label>Position</Label>
+                      <Input readOnly value={voucher.signers.accountant.position} />
+                    </Field>
+                    <Field>
+                      <Label>Treasurer</Label>
+                      <Input readOnly value={voucher.signers.treasurer.name} />
+                    </Field>
+                    <Field>
+                      <Label>Position</Label>
+                      <Input readOnly value={voucher.signers.treasurer.position} />
+                    </Field>
+                  </div>
+                </div>
               </div>
-            </div>
+            </ScrollArea>
+          </TabsContent>
 
-            <Separator />
+          <TabsContent value="template" className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+            {templatesLoading ? (
+              <Loading />
+            ) : templatesError || templatesData?.error ? (
+              <Typography variant="small" className="text-destructive">
+                Failed to load templates. Please close and try again.
+              </Typography>
+            ) : (
+              <HeaderTemplateSection
+                template={templates?.header ?? null}
+                apiPath="/api/obr/disbursements/templates"
+                onMutate={() => void mutateTemplates()}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
 
-            {/* Fund / RC / Status */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              <Field>
-                <Label>Fund</Label>
-                {editing ? (
-                  <Select value={fundTypeId} onValueChange={setFundTypeId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select fund type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>None</SelectItem>
-                      {fundTypes.map(f => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input readOnly value={voucher.fundType?.name ?? "—"} />
-                )}
-              </Field>
-              <Field>
-                <Label>RC</Label>
-                <Input readOnly value={voucher.responsibilityCenter.aa} />
-              </Field>
-              <Field>
-                <Label>Status</Label>
-                {editing ? (
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>None</SelectItem>
-                      {STATUS_OPTIONS.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input readOnly value={voucher.status ?? "—"} />
-                )}
-              </Field>
-            </div>
-
-            <Separator />
-
-            {/* Signers */}
-            <div>
-              <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">Signers</Typography>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Field>
-                  <Label>Head of Office</Label>
-                  <Input readOnly value={voucher.signers.headOfOffice.name} />
-                </Field>
-                <Field>
-                  <Label>Position</Label>
-                  <Input readOnly value={voucher.signers.headOfOffice.position} />
-                </Field>
-                <Field>
-                  <Label>Payment Approved By</Label>
-                  <Input readOnly value={voucher.signers.mayor.name} />
-                </Field>
-                <Field>
-                  <Label>Position</Label>
-                  <Input readOnly value={voucher.signers.mayor.position} />
-                </Field>
-                <Field>
-                  <Label>Accountant</Label>
-                  <Input readOnly value={voucher.signers.accountant.name} />
-                </Field>
-                <Field>
-                  <Label>Position</Label>
-                  <Input readOnly value={voucher.signers.accountant.position} />
-                </Field>
-                <Field>
-                  <Label>Treasurer</Label>
-                  <Input readOnly value={voucher.signers.treasurer.name} />
-                </Field>
-                <Field>
-                  <Label>Position</Label>
-                  <Input readOnly value={voucher.signers.treasurer.position} />
-                </Field>
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
+        {!editing && exportError && (
+          <p className="text-sm text-destructive">{exportError}</p>
+        )}
 
         {editing && (
           <>
@@ -483,7 +747,11 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
         )}
 
         {!editing && !confirmingDelete && (
-          <DialogFooter>
+          <DialogFooter className="justify-between">
+            <Button onClick={() => void handleExport()} disabled={exporting}>
+              <Download className="size-4 mr-1" />
+              {exporting ? "Exporting..." : "Export"}
+            </Button>
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
             </DialogClose>

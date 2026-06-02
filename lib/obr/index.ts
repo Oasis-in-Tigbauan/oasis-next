@@ -38,6 +38,7 @@ import { validatorUtilities } from "@/lib/validators";
 import { type User } from "@/lib/accounts";
 
 export const OBR_FORM_TEMPLATE_IDENTIFIER = "obr.form";
+export const OBR_DV_FORM_TEMPLATE_IDENTIFIER = "obr.dv.form";
 
 const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS
 
@@ -848,6 +849,99 @@ export async function removeObrFormTemplate(type: ObrTemplateType): Promise<Resu
 }
 
 /**
+ * Returns header and footer templates for disbursement voucher form export.
+ *
+ * @description
+ * Fetches template metadata for the disbursement voucher export identifier and maps missing template slots to `null`
+ * so clients can render upload/replace actions without treating empty slots as errors.
+ *
+ * @async
+ * @function getObrDvFormTemplates
+ * @returns {Promise<Result<ObrTemplatesBundle>>} Combined header/footer metadata or failure.
+ */
+export async function getObrDvFormTemplates(): Promise<Result<ObrTemplatesBundle>> {
+  return _fetchObrTemplatesBundle(OBR_DV_FORM_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header template for disbursement voucher export.
+ *
+ * @description
+ * Persists a `.xlsx` template to the shared template bucket under the disbursement voucher export identifier.
+ * The bucket enforces a single template per `(identifier, type)` pair; callers should use
+ * `modifyObrDvFormTemplate` when replacing an existing template.
+ *
+ * @async
+ * @function uploadObrDvFormTemplate
+ * @param {ObrTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<ObrTemplateInfo>>} Template metadata on success, or a failure result.
+ */
+export async function uploadObrDvFormTemplate(
+  input: ObrTemplateUploadInput,
+): Promise<Result<ObrTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: OBR_DV_FORM_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+
+  if (result instanceof Success) {
+    return new Success(_mapObrTemplate(result.value));
+  }
+
+  return result;
+}
+
+/**
+ * Replaces an existing header template for disbursement voucher export.
+ *
+ * @description
+ * Writes a new template workbook and updates the template bucket metadata for the disbursement voucher export
+ * identifier. Returns a not-found failure when no existing template slot exists for the requested type.
+ *
+ * @async
+ * @function modifyObrDvFormTemplate
+ * @param {ObrTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<ObrTemplateInfo>>} Updated template metadata on success, or a failure result.
+ */
+export async function modifyObrDvFormTemplate(
+  input: ObrTemplateUploadInput,
+): Promise<Result<ObrTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: OBR_DV_FORM_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+
+  if (result instanceof Success) {
+    return new Success(_mapObrTemplate(result.value));
+  }
+
+  return result;
+}
+
+/**
+ * Removes a header template for disbursement voucher export.
+ *
+ * @description
+ * Deletes the template bucket record (and backing file) for the requested slot under the disbursement voucher export
+ * identifier. Returns a not-found failure when no template exists for the slot.
+ *
+ * @async
+ * @function removeObrDvFormTemplate
+ * @param {ObrTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or failure.
+ */
+export async function removeObrDvFormTemplate(type: ObrTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: OBR_DV_FORM_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
  * Exports an OBR request form to an XLSX buffer.
  *
  * @description
@@ -878,6 +972,63 @@ export async function exportObrRequestFormToBuffer(requestId: string, user: User
       ErrorCodes.Fatal,
       "Failed to export OBR request form.",
       { requestId, userId: user.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Exports an OBR disbursement voucher form to an XLSX buffer.
+ *
+ * @description
+ * Validates disbursement write access, loads the requested disbursement voucher, includes optional electronic billing
+ * rows when available, loads the optional uploaded disbursement-voucher header template, and generates a formatted
+ * workbook matching the printable DV form layout.
+ *
+ * On success, wraps the XLSX bytes in a {@link Success}. On access, validation, lookup, or template-storage errors,
+ * returns a {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function exportDisbursementVoucherToBuffer
+ * @param {string} id - Identifier of the disbursement voucher to export.
+ * @param {User} actor - User requesting the export.
+ * @returns {Promise<Result<Buffer>>} Workbook bytes on success, or a failure result.
+ */
+export async function exportDisbursementVoucherToBuffer(id: string, actor: User): Promise<Result<Buffer>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to export the object you requested.",
+        { id, userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const voucher = await _getDisbursementVoucherById(id);
+    if (!voucher) {
+      return new Failure(
+        ErrorCodes.ResourceNotFound,
+        "No such disbursement voucher found.",
+        { id, userId: actor.id },
+      );
+    }
+
+    const headerPathResult = await _getTemplatePath(OBR_DV_FORM_TEMPLATE_IDENTIFIER, "header");
+    if (headerPathResult instanceof Failure) return headerPathResult;
+
+    const elecData = voucher.hasElecData
+      ? await _getElecDataForVoucher(voucher.id)
+      : [];
+
+    const buffer = await _buildDisbursementVoucherExcelBuffer(voucher, elecData, headerPathResult.value);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Failed to export disbursement voucher form.",
+      { id, userId: actor.id },
       e,
     );
   }
@@ -1488,6 +1639,141 @@ export async function deleteDisbursementVoucher(id: string, actor: User): Promis
       e,
     );
   }
+}
+
+async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementVoucher | null> {
+  const [hasElecData] = await db
+    .select({ voucherId: obrDisbursementElectronic.voucherId })
+    .from(obrDisbursementElectronic)
+    .where(eq(obrDisbursementElectronic.voucherId, id))
+    .limit(1);
+
+  const [ref] = await db
+    .select({
+      id: obrDisbursementVouchers.id,
+      disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+      payee: obrDisbursementVouchers.payee,
+      address: obrDisbursementVouchers.address,
+      particulars: obrDisbursementVouchers.particulars,
+      prNumber: obrDisbursementVouchers.prNumber,
+      grossAmount: obrDisbursementVouchers.grossAmount,
+      vatableAmount: obrDisbursementVouchers.vatableAmount,
+      taxType: obrDisbursementVouchers.taxType,
+      status: obrDisbursementVouchers.status,
+
+      responsibilityCenterId: officeCodes.id,
+      responsibilityCenterAA: officeCodes.aa,
+
+      headUserId: obrDisbursementVouchers.headUserId,
+      headUserName: obrDisbursementVouchers.headUserName,
+      headUserPositionName: obrDisbursementVouchers.headUserPositionName,
+
+      accountantId: obrDisbursementVouchers.accountantId,
+      accountantName: obrDisbursementVouchers.accountantName,
+      accountantPositionName: obrDisbursementVouchers.accountantPositionName,
+
+      treasurerId: obrDisbursementVouchers.treasurerId,
+      treasurerName: obrDisbursementVouchers.treasurerName,
+      treasurerPositionName: obrDisbursementVouchers.treasurerPositionName,
+
+      mayorId: obrDisbursementVouchers.mayorId,
+      mayorName: obrDisbursementVouchers.mayorName,
+      mayorPositionName: obrDisbursementVouchers.mayorPositionName,
+
+      fundTypeId: fundTypes.id,
+      fundTypeName: fundTypes.name,
+      fundTypeDescription: fundTypes.description,
+      createdAt: obrDisbursementVouchers.createdAt,
+    })
+    .from(obrDisbursementVouchers)
+    .innerJoin(
+      officeCodes,
+      eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId),
+    )
+    .leftJoin(
+      fundTypes,
+      eq(fundTypes.id, obrDisbursementVouchers.fundTypeId),
+    )
+    .where(eq(obrDisbursementVouchers.id, id))
+    .limit(1);
+
+  if (!ref) {
+    return null;
+  }
+
+  return {
+    id: ref.id,
+    disbursementVoucherNumber: ref.disbursementVoucherNumber,
+    createdAt: ref.createdAt,
+    payee: ref.payee,
+    address: ref.address,
+    particulars: ref.particulars,
+    grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? ref.grossAmount! : null,
+    vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
+    taxType: ref.taxType ?? null,
+    taxBreakdown: createTaxBreakdown(
+      validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
+      ref.taxType ?? null,
+    ),
+    responsibilityCenter: {
+      id: ref.responsibilityCenterId,
+      aa: ref.responsibilityCenterAA,
+    },
+    signers: {
+      accountant: {
+        id: ref.accountantId,
+        name: ref.accountantName,
+        position: ref.accountantPositionName,
+      },
+      treasurer: {
+        id: ref.treasurerId,
+        name: ref.treasurerName,
+        position: ref.treasurerPositionName,
+      },
+      mayor: {
+        id: ref.mayorId,
+        name: ref.mayorName,
+        position: ref.mayorPositionName,
+      },
+      headOfOffice: {
+        id: ref.headUserId,
+        name: ref.headUserName,
+        position: ref.headUserPositionName,
+      },
+    },
+    fundType: validatorUtilities.isNotEmpty(ref.fundTypeId)
+      ? { id: ref.fundTypeId!, name: ref.fundTypeName!, description: ref.fundTypeDescription! }
+      : null,
+    status: validatorUtilities.isNotEmpty(ref.status) ? ref.status : null,
+    prNumber: validatorUtilities.isNotEmpty(ref.prNumber) ? ref.prNumber : null,
+    hasElecData: !!hasElecData,
+  } satisfies ObrDisbursementVoucher;
+}
+
+async function _getElecDataForVoucher(voucherId: string): Promise<Array<ObrDisbursementElectronicItem>> {
+  const rows = await db
+    .select({
+      id: obrDisbursementElectronic.id,
+      billingName: obrDisbursementElectronic.billingName,
+      meterSerial: obrDisbursementElectronic.meterSerial,
+      account: obrDisbursementElectronic.account,
+      gross: obrDisbursementElectronic.gross,
+      vatableSales: obrDisbursementElectronic.vatableSales,
+      taxType: obrDisbursementElectronic.taxType,
+    })
+    .from(obrDisbursementElectronic)
+    .where(eq(obrDisbursementElectronic.voucherId, voucherId))
+    .orderBy(asc(obrDisbursementElectronic.createdAt));
+
+  return rows.map(row => ({
+    id: row.id,
+    billingName: row.billingName,
+    meterSerial: row.meterSerial,
+    account: row.account,
+    gross: row.gross,
+    vatableSales: row.vatableSales,
+    taxType: row.taxType,
+  }));
 }
 
 /**
@@ -3558,6 +3844,405 @@ async function _copyTemplateRows(
   return currentRow;
 }
 
+function _toDecimal(value: Optional<string>): Decimal {
+  if (!validatorUtilities.isNumber(value)) {
+    return new Decimal(0);
+  }
+
+  return casts.castFromDecimal(value!);
+}
+
+function _formatNumber(value: Decimal): string {
+  return Number(value.toFixed(2)).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function _formatParens(value: Decimal): string {
+  return `(${_formatNumber(value)})`;
+}
+
+function _taxTypeLabel(type: Optional<string>): string {
+  if (type === "vat-s") return "VAT - Services";
+  if (type === "vat-g") return "VAT - Goods";
+  if (type === "nvat-s") return "Non-VAT - Services";
+  if (type === "nvat-g") return "Non-VAT - Goods";
+  return "-";
+}
+
+function _withholdingRows(grossAmount: Decimal, taxType: Optional<string>) {
+  let vatLabel = "PT 3%";
+  if (!validatorUtilities.isNotEmpty(taxType)) {
+    vatLabel = "-";
+  } else if (taxType === "vat-g" || taxType === "vat-s") {
+    vatLabel = "VAT 5%";
+  }
+
+  let ewtLabel = "EWT 2%";
+  if (!validatorUtilities.isNotEmpty(taxType)) {
+    ewtLabel = "-";
+  } else if (taxType === "vat-g" || taxType === "nvat-g") {
+    ewtLabel = "EWT 1%";
+  }
+
+  const vatAmount = vatLabel === "VAT 5%"
+    ? grossAmount.div("1.12").mul("0.05")
+    : vatLabel === "PT 3%"
+      ? grossAmount.mul("0.03")
+      : new Decimal(0);
+
+  let ewtAmount = new Decimal(0);
+  if (taxType === "vat-g") {
+    ewtAmount = grossAmount.div("1.12").mul("0.01");
+  } else if (taxType === "vat-s") {
+    ewtAmount = grossAmount.div("1.12").mul("0.02");
+  } else if (taxType === "nvat-g") {
+    ewtAmount = grossAmount.mul("0.01");
+  } else if (taxType === "nvat-s") {
+    ewtAmount = grossAmount.mul("0.02");
+  }
+
+  const totalWithholding = vatAmount.add(ewtAmount);
+  const netAmount = grossAmount.sub(totalWithholding);
+
+  return {
+    vatLabel,
+    vatAmount,
+    ewtLabel,
+    ewtAmount,
+    totalWithholding,
+    netAmount,
+  };
+}
+
+function _applyDisbursementBorder(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  colStart: number,
+  colEnd: number,
+  horizontal: "left" | "center" | "right" = "left",
+) {
+  for (let col = colStart; col <= colEnd; col++) {
+    ws.getCell(row, col).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    ws.getCell(row, col).alignment = {
+      vertical: "middle",
+      horizontal,
+      wrapText: true,
+    };
+  }
+}
+
+async function _buildDisbursementVoucherExcelBuffer(
+  voucher: ObrDisbursementVoucher,
+  elecData: Array<ObrDisbursementElectronicItem>,
+  headerTemplatePath: string | null,
+): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("Disbursement Voucher");
+  ws.getColumn(1).width = 14;
+  ws.getColumn(2).width = 22;
+  ws.getColumn(3).width = 14;
+  ws.getColumn(4).width = 14;
+  ws.getColumn(5).width = 16;
+  ws.getColumn(6).width = 14;
+  ws.getColumn(7).width = 12;
+  ws.getColumn(8).width = 13;
+  ws.getColumn(9).width = 14;
+
+  let row = 1;
+  if (headerTemplatePath) {
+    const headerWb = new Workbook();
+    await headerWb.xlsx.readFile(headerTemplatePath);
+    row = await _copyTemplateRows(headerWb, ws, row);
+  }
+
+  // DV number row — appears above the DISBURSEMENT VOUCHER title, right-aligned, red
+  ws.mergeCells(row, 1, row, 6);
+  ws.mergeCells(row, 7, row, 9);
+  ws.getCell(row, 7).value = voucher.disbursementVoucherNumber;
+  ws.getCell(row, 7).font = { bold: true, size: 16, color: { argb: "FFFF0000" } };
+  ws.getCell(row, 7).alignment = { horizontal: "right", vertical: "middle" };
+  row++;
+
+  // DISBURSEMENT VOUCHER title spanning 2 rows; Fund on the right
+  ws.mergeCells(row, 1, row + 1, 6);
+  ws.mergeCells(row, 7, row + 1, 9);
+  ws.getCell(row, 1).value = "DISBURSEMENT VOUCHER";
+  ws.getCell(row, 1).font = { bold: true, size: 18 };
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, 7).value = `Fund: ${voucher.fundType?.name ?? ""}`;
+  _applyDisbursementBorder(ws, row, 1, 9);
+  _applyDisbursementBorder(ws, row + 1, 1, 9);
+  row += 2;
+
+  // Mode of Payment + DV No.
+  ws.mergeCells(row, 1, row, 6);
+  ws.mergeCells(row, 7, row, 9);
+  ws.getCell(row, 1).value = "Mode of Payment:      ☐ Check      ☐ Cash      ☐ Others";
+  ws.getCell(row, 7).value = `DV No.: ${voucher.disbursementVoucherNumber}`;
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  // Payee row 1 of 2: label + value (rowspan 2) + ID No./TIN
+  ws.getCell(row, 1).value = "Payee:";
+  ws.mergeCells(row, 2, row + 1, 6);
+  ws.getCell(row, 2).value = voucher.payee ?? "";
+  ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+  ws.mergeCells(row, 7, row, 9);
+  ws.getCell(row, 7).value = "ID No./TIN:";
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  // Payee row 2 of 2: OBR No.
+  ws.mergeCells(row, 7, row, 9);
+  ws.getCell(row, 7).value = `OBR No.: ${voucher.prNumber ?? ""}`;
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  // Address row 1 of 3: label + value (rowspan 3) + Responsibility Center header
+  ws.getCell(row, 1).value = "Address:";
+  ws.mergeCells(row, 2, row + 2, 6);
+  ws.getCell(row, 2).value = voucher.address;
+  ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.mergeCells(row, 7, row, 9);
+  ws.getCell(row, 7).value = "Responsibility Center:";
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  // Address row 2 of 3: Office/Unit/Project | Code column headers
+  ws.getCell(row, 7).value = "Office/Unit/Project";
+  ws.getCell(row, 7).alignment = { horizontal: "center", vertical: "middle" };
+  ws.mergeCells(row, 8, row, 9);
+  ws.getCell(row, 8).value = "Code";
+  ws.getCell(row, 8).alignment = { horizontal: "center", vertical: "middle" };
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  // Address row 3 of 3: RC value
+  ws.getCell(row, 7).value = voucher.responsibilityCenter.aa;
+  ws.getCell(row, 7).alignment = { horizontal: "left", vertical: "middle" };
+  ws.mergeCells(row, 8, row, 9);
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  // EXPLANATION header
+  ws.mergeCells(row, 1, row, 7);
+  ws.mergeCells(row, 8, row, 9);
+  ws.getCell(row, 1).value = "EXPLANATION";
+  ws.getCell(row, 8).value = "Amount";
+  _applyDisbursementBorder(ws, row, 1, 9, "center");
+  ws.getCell(row, 1).font = { bold: true };
+  ws.getCell(row, 8).font = { bold: true };
+  row++;
+
+  const grossAmount = _toDecimal(voucher.grossAmount);
+  const withholdings = _withholdingRows(grossAmount, voucher.taxType);
+
+  const explanationStart = row;
+  const explanationRows = elecData.length > 0 ? 3 : 2;
+  ws.mergeCells(explanationStart, 1, explanationStart + explanationRows, 7);
+  ws.getCell(explanationStart, 1).value = voucher.particulars;
+  ws.getCell(explanationStart, 1).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.mergeCells(explanationStart, 8, explanationStart + explanationRows, 9);
+  ws.getCell(explanationStart, 8).value = _formatNumber(withholdings.netAmount);
+  ws.getCell(explanationStart, 8).font = { bold: true, size: 13 };
+  ws.getCell(explanationStart, 8).alignment = { horizontal: "right", vertical: "middle" };
+  for (let rr = explanationStart; rr <= explanationStart + explanationRows; rr++) {
+    _applyDisbursementBorder(ws, rr, 1, 9);
+  }
+  row = explanationStart + explanationRows + 1;
+
+  if (elecData.length > 0) {
+    ws.getCell(row, 1).value = "BILLING NAME";
+    ws.getCell(row, 3).value = "METER SERIAL#";
+    ws.getCell(row, 4).value = "ACCOUNT";
+    ws.getCell(row, 5).value = "GROSS";
+    ws.getCell(row, 6).value = "VATABLE SALES";
+    ws.getCell(row, 7).value = "VAT 5%";
+    ws.getCell(row, 8).value = "EVAT 2%";
+    ws.getCell(row, 9).value = "NET";
+    _applyDisbursementBorder(ws, row, 1, 9, "center");
+    for (let c = 1; c <= 9; c++) ws.getCell(row, c).font = { bold: true };
+    row++;
+
+    let totalGross = new Decimal(0);
+    let totalVatableSales = new Decimal(0);
+    let totalVat = new Decimal(0);
+    let totalEvat = new Decimal(0);
+    let totalNet = new Decimal(0);
+
+    for (const item of elecData) {
+      const itemGross = _toDecimal(item.gross);
+      const itemVatable = _toDecimal(item.vatableSales);
+      const itemVat = itemVatable.mul("0.05");
+      const itemEvat = itemVatable.mul("0.02");
+      const itemNet = itemGross.sub(itemVat).sub(itemEvat);
+
+      ws.getCell(row, 1).value = item.billingName;
+      ws.mergeCells(row, 1, row, 2);
+      ws.getCell(row, 3).value = item.meterSerial;
+      ws.getCell(row, 4).value = item.account;
+      ws.getCell(row, 5).value = _formatNumber(itemGross);
+      ws.getCell(row, 6).value = _formatNumber(itemVatable);
+      ws.getCell(row, 7).value = _formatNumber(itemVat);
+      ws.getCell(row, 8).value = _formatNumber(itemEvat);
+      ws.getCell(row, 9).value = _formatNumber(itemNet);
+      _applyDisbursementBorder(ws, row, 1, 9);
+
+      totalGross = totalGross.add(itemGross);
+      totalVatableSales = totalVatableSales.add(itemVatable);
+      totalVat = totalVat.add(itemVat);
+      totalEvat = totalEvat.add(itemEvat);
+      totalNet = totalNet.add(itemNet);
+      row++;
+    }
+
+    ws.getCell(row, 1).value = "TOTAL";
+    ws.mergeCells(row, 1, row, 4);
+    ws.getCell(row, 5).value = _formatNumber(totalGross);
+    ws.getCell(row, 6).value = _formatNumber(totalVatableSales);
+    ws.getCell(row, 7).value = _formatNumber(totalVat);
+    ws.getCell(row, 8).value = _formatNumber(totalEvat);
+    ws.getCell(row, 9).value = _formatNumber(totalNet);
+    _applyDisbursementBorder(ws, row, 1, 9);
+    for (let c = 1; c <= 9; c++) ws.getCell(row, c).font = { bold: true };
+    row++;
+  }
+
+  const breakdownRows: Array<{ label: string; value: string; bold?: boolean }> = [
+    { label: "GROSS AMOUNT", value: _formatNumber(grossAmount), bold: true },
+    { label: "Less: Withholding Taxes", value: "" },
+    { label: _taxTypeLabel(voucher.taxType), value: "" },
+    {
+      label: withholdings.vatLabel,
+      value: withholdings.vatLabel === "-" ? "-" : _formatParens(withholdings.vatAmount),
+    },
+    {
+      label: withholdings.ewtLabel,
+      value: withholdings.ewtLabel === "-" ? "-" : _formatParens(withholdings.ewtAmount),
+    },
+    { label: "TOTAL WITHHOLDING TAXES", value: _formatParens(withholdings.totalWithholding), bold: true },
+    { label: "NET AMOUNT", value: _formatNumber(withholdings.netAmount), bold: true },
+  ];
+
+  for (const item of breakdownRows) {
+    ws.mergeCells(row, 2, row, 7);
+    ws.getCell(row, 2).value = item.label;
+    ws.mergeCells(row, 8, row, 9);
+    ws.getCell(row, 8).value = item.value;
+    ws.getCell(row, 8).alignment = { horizontal: "right", vertical: "middle" };
+    _applyDisbursementBorder(ws, row, 1, 9);
+    if (item.bold) {
+      ws.getCell(row, 2).font = { bold: true };
+      ws.getCell(row, 8).font = { bold: true };
+    }
+    row++;
+  }
+
+  ws.mergeCells(row, 1, row, 7);
+  ws.mergeCells(row, 8, row, 9);
+  ws.getCell(row, 1).value = "Amount Due";
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, 8).value = _formatNumber(withholdings.netAmount);
+  ws.getCell(row, 8).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
+  ws.getCell(row, 8).alignment = { horizontal: "right", vertical: "middle" };
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  ws.mergeCells(row, 1, row, 5);
+  ws.mergeCells(row, 6, row, 9);
+  ws.getCell(row, 1).value = "A. Certified";
+  ws.getCell(row, 6).value = "B. Certified";
+  ws.getCell(row, 1).font = { bold: true };
+  ws.getCell(row, 6).font = { bold: true };
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  ws.mergeCells(row, 1, row, 5);
+  ws.mergeCells(row, 6, row, 9);
+  ws.getCell(row, 1).value = "☑ Allotment obligated for the purpose as indicated above";
+  ws.getCell(row, 6).value = "☑ Funds Available";
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  ws.mergeCells(row, 1, row, 5);
+  ws.mergeCells(row, 6, row, 9);
+  ws.getCell(row, 1).value = "☑ Supporting documents complete";
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  for (let i = 0; i < 4; i++) {
+    ws.mergeCells(row + i, 2, row + i, 5);
+    ws.mergeCells(row + i, 7, row + i, 9);
+    _applyDisbursementBorder(ws, row + i, 1, 9);
+  }
+  ws.getCell(row, 1).value = "Signature:";
+  ws.getCell(row, 6).value = "Signature:";
+  ws.getCell(row + 1, 1).value = "Printed Name:";
+  ws.getCell(row + 1, 2).value = voucher.signers.accountant.name;
+  ws.getCell(row + 1, 6).value = "Printed Name:";
+  ws.getCell(row + 1, 7).value = voucher.signers.treasurer.name;
+  ws.getCell(row + 2, 1).value = "Position:";
+  ws.getCell(row + 2, 2).value = voucher.signers.accountant.position;
+  ws.getCell(row + 2, 6).value = "Position:";
+  ws.getCell(row + 2, 7).value = voucher.signers.treasurer.position;
+  ws.getCell(row + 3, 1).value = "Date:";
+  ws.getCell(row + 3, 6).value = "Date:";
+  row += 4;
+
+  ws.mergeCells(row, 1, row, 5);
+  ws.mergeCells(row, 6, row, 9);
+  ws.getCell(row, 1).value = "C. Approved for Payment";
+  ws.getCell(row, 6).value = "D. Received Payment";
+  ws.getCell(row, 1).font = { bold: true };
+  ws.getCell(row, 6).font = { bold: true };
+  _applyDisbursementBorder(ws, row, 1, 9);
+  row++;
+
+  for (let i = 0; i < 4; i++) {
+    ws.mergeCells(row + i, 2, row + i, 5);
+    ws.mergeCells(row + i, 7, row + i, 9);
+    _applyDisbursementBorder(ws, row + i, 1, 9);
+  }
+  ws.getCell(row, 1).value = "Signature:/Printed Name:";
+  ws.getCell(row, 2).value = voucher.signers.mayor.name;
+  ws.getCell(row, 6).value = "Signature:/Printed Name:";
+  ws.getCell(row, 7).value = voucher.payee ?? "";
+  ws.getCell(row + 1, 1).value = "Position:";
+  ws.getCell(row + 1, 2).value = voucher.signers.mayor.position;
+  ws.getCell(row + 1, 6).value = "OR/Other Documents:";
+  ws.getCell(row + 1, 7).value = "";
+  ws.getCell(row + 2, 1).value = "Date:";
+  ws.getCell(row + 2, 6).value = "Date:";
+  row += 4;
+
+  for (let r = 1; r <= row; r++) {
+    for (let c = 1; c <= 9; c++) {
+      // Ensure a consistent export typography while preserving style attributes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cell = ws.getCell(r, c) as any;
+      cell.font = {
+        ...(cell.font ?? {}),
+        name: "Arial Narrow",
+      };
+    }
+    ws.getRow(r).commit();
+  }
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
 async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplatePath: string | null): Promise<Buffer> {
   const { Workbook } = await import("@cj-tech-master/excelts");
 
@@ -3893,6 +4578,16 @@ type ObrDisbursementVoucher = {
   status: Optional<string>;
   prNumber: Optional<string>;
   hasElecData: boolean;
+}
+
+type ObrDisbursementElectronicItem = {
+  id: string;
+  billingName: string;
+  meterSerial: string;
+  account: string;
+  gross: string;
+  vatableSales: string;
+  taxType: TaxType;
 }
 
 export type ValidApproverPermissionType =
