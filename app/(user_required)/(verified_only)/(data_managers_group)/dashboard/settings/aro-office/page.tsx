@@ -29,12 +29,12 @@ import Loading from "@/components/loading";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { validatorUtilities } from "@/lib/validators";
 
 type AROUser = {
@@ -110,33 +110,35 @@ export default function Page() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <div className="w-full flex gap-4">
+      <div className="w-full flex gap-4 mb-4">
         <CreateARODialog mutate={handleCreateMutate} />
       </div>
-      <Table>
-        <TableCaption>
-          Loaded total of&nbsp;
-          <span>
-            {data?.data?.data && Array.isArray(data.data.data) ? data.data.data.length : 0}
-          </span>&nbsp;items
-        </TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Lead User</TableHead>
-            <TableHead>Lead Position</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {
-            (data?.data?.data || []).map(x => (
-              <ARORow key={x.id} data={x} mutate={handleUpdateMutate} />
-            ))
-          }
-        </TableBody>
-      </Table>
+      <div className="border rounded-lg p-2">
+        {(data?.data?.data || []).length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No ARO office definitions found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="min-w-48 text-center">Name</TableHead>
+                  <TableHead className="min-w-32 text-center">Code</TableHead>
+                  <TableHead className="min-w-64 text-center">Description</TableHead>
+                  <TableHead className="min-w-48 text-center">Lead User</TableHead>
+                  <TableHead className="min-w-48 text-center">Lead Position</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.data?.data || []).map((x, index) => (
+                  <ARORow key={x.id} data={x} index={index} mutate={handleUpdateMutate} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -265,7 +267,15 @@ function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
   );
 }
 
-function ARORow({ data, mutate }: { data: AROItem, mutate: (item: AROResponse) => void }) {
+function ARORow({
+  data,
+  index,
+  mutate,
+}: {
+  data: AROItem;
+  index: number;
+  mutate: (item: AROResponse) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<AROUpdatePayload>({
@@ -309,12 +319,25 @@ function ARORow({ data, mutate }: { data: AROItem, mutate: (item: AROResponse) =
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <TableRow className="cursor-pointer">
-          <TableCell className="font-medium">{data.name}</TableCell>
-          <TableCell>{data.code}</TableCell>
-          <TableCell>{data.description}</TableCell>
-          <TableCell>{data.leadUser.name}</TableCell>
-          <TableCell>{data.leadUser.position.name}</TableCell>
+        <TableRow
+          className={cn(
+            "cursor-pointer",
+            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+          )}
+        >
+          <TableCell className="font-medium whitespace-normal wrap-break-word">
+            {data.name}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.code}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.description ?? "-"}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.leadUser.name}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.leadUser.position.name}
+          </TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent>

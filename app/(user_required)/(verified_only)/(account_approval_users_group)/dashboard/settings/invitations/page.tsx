@@ -13,6 +13,7 @@ import {
   OfficesListResponse,
 } from "@/lib/http/client/responses";
 
+import DeadHamster from "@/components/dead-hamster";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,7 @@ import {
 import { Field, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Loading from "@/components/loading";
 import {
   Select,
   SelectContent,
@@ -36,16 +38,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 export default function Invitations() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<InvitationListResponse, ApiResponseException>>(
@@ -75,35 +77,64 @@ export default function Invitations() {
     }
   };
 
+  if (isLoading) {
+    return (<Loading />);
+  }
+
+  if (error || data?.error) {
+    return (<DeadHamster />);
+  }
+
+  const invitations = data?.data?.data ?? [];
+
   return (
     <div className="p-4 pt-0 w-full">
-      <InvitationForm handleInvite={handleInvite} />
-
-      <Table>
-        <TableCaption>{
-          isLoading ? "Loading..." : (error || data?.error) ? "Hmm. That didn't work. Try again later." : "That's all!"
-        }</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-55">Email</TableHead>
-            <TableHead>Office Position</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {
-            (data?.data?.data || []).map((invitation) => (
-              <Row key={invitation.id} data={invitation} onRevoke={onRevokeHandler} />
-            ))
-          }
-        </TableBody>
-      </Table>
+      <div className="w-full flex gap-4 mb-4">
+        <InvitationForm handleInvite={handleInvite} />
+      </div>
+      <div className="border rounded-lg p-2">
+        {invitations.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No pending invitations.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="min-w-64 text-center">Email</TableHead>
+                  <TableHead className="min-w-48 text-center">Office Position</TableHead>
+                  <TableHead className="min-w-28 text-center">Status</TableHead>
+                  <TableHead className="min-w-28 text-center">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invitations.map((invitation, index) => (
+                  <Row
+                    key={invitation.id}
+                    data={invitation}
+                    index={index}
+                    onRevoke={onRevokeHandler}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function Row({ data, onRevoke }: { data: InvitationListResponse["data"][0], onRevoke: (id: string) => void }) {
+function Row({
+  data,
+  index,
+  onRevoke,
+}: {
+  data: InvitationListResponse["data"][0];
+  index: number;
+  onRevoke: (id: string) => void;
+}) {
   const [isRevoking, setIsRevoking] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
@@ -144,10 +175,18 @@ function Row({ data, onRevoke }: { data: InvitationListResponse["data"][0], onRe
   };
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">{data.email}</TableCell>
-      <TableCell>{data.officeName}</TableCell>
-      <TableCell>
+    <TableRow
+      className={cn(
+        index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+      )}
+    >
+      <TableCell className="font-medium whitespace-normal wrap-break-word">
+        {data.email}
+      </TableCell>
+      <TableCell className="whitespace-normal wrap-break-word">
+        {data.officeName}
+      </TableCell>
+      <TableCell className="text-center">
         <Badge
           variant="outline"
           className="bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 border-0"
@@ -155,27 +194,25 @@ function Row({ data, onRevoke }: { data: InvitationListResponse["data"][0], onRe
           Pending
         </Badge>
       </TableCell>
-      <TableCell className="text-right space-x-2">
-        <Button
-          onClick={handleResend}
-          disabled={isResending}
-          variant="outline"
-          className="h-8 w-8"
-        >
-          {
-            isResending ? (<Spinner />) : (<RefreshCcw />)
-          }
-        </Button>
-        <Button
-          onClick={handleRevoke}
-          disabled={isRevoking}
-          variant="outline"
-          className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white"
-        >
-          {
-            isRevoking ? (<Spinner />) : (<Trash />)
-          }
-        </Button>
+      <TableCell className="text-center">
+        <div className="inline-flex gap-2">
+          <Button
+            onClick={handleResend}
+            disabled={isResending}
+            variant="outline"
+            className="h-8 w-8"
+          >
+            {isResending ? (<Spinner />) : (<RefreshCcw />)}
+          </Button>
+          <Button
+            onClick={handleRevoke}
+            disabled={isRevoking}
+            variant="outline"
+            className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white"
+          >
+            {isRevoking ? (<Spinner />) : (<Trash />)}
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -232,7 +269,7 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="mb-4">
+        <Button>
           <Plus />
           Invite a Member to Organization
         </Button>

@@ -1,12 +1,5 @@
 "use client";
 
-import {
-  ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  type RowData,
-  useReactTable,
-} from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
 import { type SubmitEvent, useState } from "react";
 import useSWR from "swr";
@@ -57,42 +50,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Typography from "@/components/typography";
-
-const columns: ColumnDef<User>[] = [
-  {
-    accessorKey: "fullName",
-    header: "Full Name",
-  },
-  {
-    accessorKey: "email",
-    header: "Email",
-  },
-  {
-    accessorKey: "office.name",
-    header: "Office",
-  },
-  {
-    accessorKey: "office.role.name",
-    header: "Role",
-  },
-  {
-    id: "status",
-    header: "Status",
-    cell: ({ row }) => getStatusBadge(row.original),
-  },
-  {
-    id: "actions",
-    header: "Actions",
-    cell: ({ row, table }) => {
-      return(
-        <UserActions
-          user={row.original}
-          mutateFn={table.options.meta?.mutateUserFn || (() => { })}
-        />
-      );
-    },
-  },
-];
+import { cn } from "@/lib/utils";
 
 export default function UsersPage() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<AccountsListResponse, ApiResponseException>>(
@@ -126,78 +84,72 @@ export default function UsersPage() {
     return (<DeadHamster />);
   }
 
+  const users = data?.data?.data ?? [];
+
   return (
     <div className="p-4 pt-0 w-full">
-      <UserDataTable columns={columns} data={data?.data?.data || []} mutateUserFn={handleMutateFn} />
+      <div className="border rounded-lg p-2">
+        {users.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No users found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="min-w-48 text-center">Full Name</TableHead>
+                  <TableHead className="min-w-64 text-center">Email</TableHead>
+                  <TableHead className="min-w-40 text-center">Office</TableHead>
+                  <TableHead className="min-w-40 text-center">Role</TableHead>
+                  <TableHead className="min-w-28 text-center">Status</TableHead>
+                  <TableHead className="min-w-28 text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user, index) => (
+                  <Row
+                    key={user.id}
+                    data={user}
+                    index={index}
+                    mutateFn={handleMutateFn}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function UserDataTable({ columns, data, mutateUserFn }: UserDataTableProps) {
-  // eslint-disable-next-line
-  const table = useReactTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-
-    meta: {
-      mutateUserFn: (id: string, user: User) => {
-        mutateUserFn(id, user);
-      },
-    },
-  });
-
+function Row({
+  data,
+  index,
+  mutateFn,
+}: {
+  data: User;
+  index: number;
+  mutateFn: (id: string, user: User) => void;
+}) {
   return (
-    <div className="overflow-hidden rounded-md border">
-      <Table>
-        <TableHeader>
-          {
-            table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id}>
-                {
-                  headerGroup.headers.map(header => {
-                    return (
-                      <TableHead key={header.id}>
-                        {
-                          header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())
-                        }
-                      </TableHead>
-                    );
-                  })
-                }
-              </TableRow>
-            ))
-          }
-        </TableHeader>
-        <TableBody>
-          {
-            table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map(row => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                  {
-                    row.getVisibleCells().map(cell => (
-                      <TableCell key={cell.id}>
-                        {
-                          flexRender(cell.column.columnDef.cell, cell.getContext())
-                        }
-                      </TableCell>
-                    ))
-                  }
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No Results.
-                </TableCell>
-              </TableRow>
-            )
-          }
-        </TableBody>
-      </Table>
-    </div>
+    <TableRow
+      className={cn(
+        index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+      )}
+    >
+      <TableCell className="font-medium whitespace-normal wrap-break-word">
+        {data.fullName}
+      </TableCell>
+      <TableCell className="whitespace-normal wrap-break-word">{data.email}</TableCell>
+      <TableCell className="whitespace-normal wrap-break-word">{data.office.name}</TableCell>
+      <TableCell className="whitespace-normal wrap-break-word">{data.office.role.name}</TableCell>
+      <TableCell className="text-center">{getStatusBadge(data)}</TableCell>
+      <TableCell className="text-center">
+        <UserActions user={data} mutateFn={mutateFn} />
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -395,17 +347,4 @@ function ChangeRoleDialog({ user, mutateFn }: { user: User, mutateFn: (id: strin
       </DialogContent>
     </Dialog>
   );
-}
-
-declare module "@tanstack/react-table" {
-  // eslint-disable-next-line
-  interface TableMeta<TData extends RowData> {
-    mutateUserFn: (id: string, user: User) => void;
-  }
-}
-
-interface UserDataTableProps {
-  columns: ColumnDef<User>[];
-  data: User[];
-  mutateUserFn: (id: string, data: User) => void;
 }
