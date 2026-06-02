@@ -308,7 +308,7 @@ export default function Page() {
         ) : (
           <div
             ref={tableScrollRef}
-            className="h-[calc(100vh-10rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
+            className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible"
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#D4F3F3]">
@@ -404,7 +404,7 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${isSelected ? "bg-accent" : ""}`}
+                      className={`cursor-pointer select-none ${_collPerfRowClass(item.collectionPerformance, isSelected)}`}
                       title="Double-click to edit"
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
@@ -1171,6 +1171,15 @@ function fmtPercent(val: string | null | undefined): string {
 
 function txt(val: string | null | undefined): string {
   return val ?? "—";
+}
+
+function _collPerfRowClass(collectionPerformance: string | undefined, isSelected: boolean): string {
+  if (isSelected) return "bg-accent";
+  const pct = Number(collectionPerformance);
+  if (Number.isNaN(pct)) return "";
+  if (pct < 0) return "bg-red-50 hover:bg-red-100/80";
+  if (Math.abs(pct - 100) < 0.01) return "bg-green-50 hover:bg-green-100/80";
+  return "";
 }
 
 function _getUtc8Year(): number {
