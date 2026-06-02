@@ -3939,6 +3939,33 @@ function _applyDisbursementBorder(
   }
 }
 
+function _applyDisbursementSectionBox(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  rowStart: number,
+  rowEnd: number,
+  colStart: number,
+  colEnd: number,
+) {
+  for (let row = rowStart; row <= rowEnd; row++) {
+    for (let col = colStart; col <= colEnd; col++) {
+      ws.getCell(row, col).border = {
+        top: { style: row === rowStart ? "medium" : "thin", color: { argb: "FF000000" } },
+        left: { style: col === colStart ? "medium" : "thin", color: { argb: "FF000000" } },
+        bottom: { style: row === rowEnd ? "medium" : "thin", color: { argb: "FF000000" } },
+        right: { style: col === colEnd ? "medium" : "thin", color: { argb: "FF000000" } },
+      };
+      if (!ws.getCell(row, col).alignment) {
+        ws.getCell(row, col).alignment = {
+          vertical: "middle",
+          horizontal: "left",
+          wrapText: true,
+        };
+      }
+    }
+  }
+}
+
 async function _buildDisbursementVoucherExcelBuffer(
   voucher: ObrDisbursementVoucher,
   elecData: Array<ObrDisbursementElectronicItem>,
@@ -4188,15 +4215,25 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getCell(row, 1).value = "Signature:";
   ws.getCell(row, 6).value = "Signature:";
   ws.getCell(row + 1, 1).value = "Printed Name:";
-  ws.getCell(row + 1, 2).value = voucher.signers.accountant.name;
+  ws.getCell(row + 1, 2).value = voucher.signers.accountant.name.toUpperCase();
+  ws.getCell(row + 1, 2).font = { bold: true };
+  ws.getCell(row + 1, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 1, 6).value = "Printed Name:";
-  ws.getCell(row + 1, 7).value = voucher.signers.treasurer.name;
+  ws.getCell(row + 1, 7).value = voucher.signers.treasurer.name.toUpperCase();
+  ws.getCell(row + 1, 7).font = { bold: true };
+  ws.getCell(row + 1, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 2, 1).value = "Position:";
   ws.getCell(row + 2, 2).value = voucher.signers.accountant.position;
+  ws.getCell(row + 2, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 2, 6).value = "Position:";
   ws.getCell(row + 2, 7).value = voucher.signers.treasurer.position;
+  ws.getCell(row + 2, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 3, 1).value = "Date:";
   ws.getCell(row + 3, 6).value = "Date:";
+  ws.getRow(row).height = 28;
+  ws.getRow(row + 1).height = 34;
+  ws.getRow(row + 2).height = 30;
+  ws.getRow(row + 3).height = 28;
   row += 4;
 
   ws.mergeCells(row, 1, row, 5);
@@ -4205,24 +4242,49 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getCell(row, 6).value = "D. Received Payment";
   ws.getCell(row, 1).font = { bold: true };
   ws.getCell(row, 6).font = { bold: true };
-  _applyDisbursementBorder(ws, row, 1, 9);
+  _applyDisbursementBorder(ws, row, 1, 5);
+  _applyDisbursementBorder(ws, row, 6, 9);
   row++;
 
+  const sectionCStart = row - 1;
   for (let i = 0; i < 4; i++) {
     ws.mergeCells(row + i, 2, row + i, 5);
     ws.mergeCells(row + i, 7, row + i, 9);
-    _applyDisbursementBorder(ws, row + i, 1, 9);
+    _applyDisbursementBorder(ws, row + i, 1, 5);
+    _applyDisbursementBorder(ws, row + i, 6, 9);
   }
-  ws.getCell(row, 1).value = "Signature:/Printed Name:";
-  ws.getCell(row, 2).value = voucher.signers.mayor.name;
-  ws.getCell(row, 6).value = "Signature:/Printed Name:";
-  ws.getCell(row, 7).value = voucher.payee ?? "";
+
+  ws.getCell(row, 1).value = "Signature:/ Printed Name:";
+  ws.getCell(row, 6).value = "Check No./ Date";
+  ws.getCell(row, 7).value = "Bank Name";
+
   ws.getCell(row + 1, 1).value = "Position:";
-  ws.getCell(row + 1, 2).value = voucher.signers.mayor.position;
-  ws.getCell(row + 1, 6).value = "OR/Other Documents:";
-  ws.getCell(row + 1, 7).value = "";
+  ws.getCell(row + 1, 2).value = voucher.signers.mayor.name.toUpperCase();
+  ws.getCell(row + 1, 2).font = { bold: true };
+  ws.getCell(row + 1, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 1, 6).value = "Signature/ Printed Name/ Date";
+  ws.getCell(row + 1, 7).value = (voucher.payee ?? "").toUpperCase();
+  ws.getCell(row + 1, 7).font = { bold: true };
+  ws.getCell(row + 1, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+
   ws.getCell(row + 2, 1).value = "Date:";
-  ws.getCell(row + 2, 6).value = "Date:";
+  ws.getCell(row + 2, 2).value = voucher.signers.mayor.position;
+  ws.getCell(row + 2, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, 6).value = "OR/Other Documents";
+  ws.getCell(row + 2, 7).value = "JEV No./ Date";
+  ws.getCell(row + 2, 7).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+
+  ws.getCell(row + 3, 1).value = "";
+  ws.getCell(row + 3, 6).value = "";
+
+  ws.getRow(row).height = 40;
+  ws.getRow(row + 1).height = 52;
+  ws.getRow(row + 2).height = 40;
+  ws.getRow(row + 3).height = 34;
+
+  const sectionCEnd = row + 3;
+  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, 1, 5);
+  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, 6, 9);
   row += 4;
 
   for (let r = 1; r <= row; r++) {
