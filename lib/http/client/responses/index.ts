@@ -28,6 +28,11 @@ import type { RoleDefinitionResponse } from "@/lib/http/client/responses/RoleDef
 import type { UnactivatedListResponse } from "@/lib/http/client/responses/UnactivatedListResponse";
 import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib/http/client/responses/ObrRequestSummaryListResponse";
 import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, ObrRequestDetailApprover } from "@/lib/http/client/responses/ObrRequestDetailResponse";
+import type {
+  ObrTemplateInfo,
+  ObrTemplatesPayload,
+  ObrTemplatesResponse,
+} from "@/lib/http/client/responses/ObrTemplatesResponse";
 import type { ObrDisbursementVoucherListResponse, ObrDisbursementVoucherItem, ObrDisbursementTaxBreakdown } from "@/lib/http/client/responses/ObrDisbursementVoucherListResponse";
 import type { ObrItemListResponse, ObrItem, ObrItemOfficeData } from "@/lib/http/client/responses/ObrItemListResponse";
 import type { ObrSearchResponse, ObrSearchItem } from "@/lib/http/client/responses/ObrSearchResponse";
@@ -164,6 +169,9 @@ export type {
   ObrRequestDetail,
   ObrRequestDetailItem,
   ObrRequestDetailApprover,
+  ObrTemplateInfo,
+  ObrTemplatesPayload,
+  ObrTemplatesResponse,
   ObrDisbursementVoucherListResponse,
   ObrDisbursementVoucherItem,
   ObrDisbursementTaxBreakdown,
