@@ -32,12 +32,12 @@ import Loading from "@/components/loading";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 export default function RolesPage() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<OfficesExtendedListResponse, ApiResponseException>>(
@@ -65,6 +65,8 @@ export default function RolesPage() {
     return (<DeadHamster />);
   }
 
+  const offices = data?.data?.data ?? [];
+
   return (
     <div className="p-4 pt-0 w-full">
       <div className="w-full flex gap-4 mb-4">
@@ -74,41 +76,56 @@ export default function RolesPage() {
         </Button>
         <AddOfficeDialog handleCreate={triggerMutate} />
       </div>
-      <Table>
-        <TableCaption>
-          {
-            isLoading ? "Loading..." : (error || data?.error)
-              ? "Hmm. That didn't work. Try again later."
-              : `Loaded total of ${(data?.data?.data || []).length} offices.`
-          }
-        </TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-55">Office Name</TableHead>
-            <TableHead>User Count</TableHead>
-            <TableHead>Role Count</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {
-            (data?.data?.data || []).map((office) => (
-              <Row key={office.id} data={office} />
-            ))
-          }
-        </TableBody>
-      </Table>
+      <div className="border rounded-lg p-2">
+        {offices.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No offices found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="min-w-64 text-center">Office Name</TableHead>
+                  <TableHead className="min-w-32 text-center">User Count</TableHead>
+                  <TableHead className="min-w-32 text-center">Role Count</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {offices.map((office, index) => (
+                  <Row key={office.id} data={office} index={index} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function Row({ data }: { data: OfficesExtendedListResponse["data"][0] }) {
+function Row({
+  data,
+  index,
+}: {
+  data: OfficesExtendedListResponse["data"][0];
+  index: number;
+}) {
   const goTo = () => redirect(`/dashboard/settings/roles/${data.id}/roles`, RedirectType.replace);
 
   return (
-    <TableRow className="cursor-pointer" onClick={goTo}>
-      <TableCell>{data.name}</TableCell>
-      <TableCell>{data.userCount}</TableCell>
-      <TableCell>{data.roleCount}</TableCell>
+    <TableRow
+      className={cn(
+        "cursor-pointer",
+        index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+      )}
+      onClick={goTo}
+    >
+      <TableCell className="font-medium whitespace-normal wrap-break-word">
+        {data.name}
+      </TableCell>
+      <TableCell className="text-center">{data.userCount}</TableCell>
+      <TableCell className="text-center">{data.roleCount}</TableCell>
     </TableRow>
   );
 }
@@ -154,7 +171,7 @@ function AddOfficeDialog({ handleCreate }: { handleCreate: (invitation: OfficesE
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="mb-4">
+        <Button>
           <Plus />
           Add Office
         </Button>

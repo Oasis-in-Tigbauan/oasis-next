@@ -52,7 +52,7 @@ export default function SigninPage() {
   };
 
   return (
-    <main className="grid min-h-svh bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[minmax(0,1fr)_minmax(420px,45vw)] dark:bg-background">
+    <main className="grid min-h-svh overflow-x-auto bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
       <section className="flex min-h-svh flex-col px-6 py-6 sm:px-10 lg:px-14">
         <header className="flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
@@ -166,7 +166,7 @@ export default function SigninPage() {
         </div>
       </section>
 
-      <section className="relative hidden min-h-svh overflow-hidden border-l bg-[oklch(0.18_0.04_258)] lg:block">
+      <section className="relative hidden min-h-svh shrink-0 lg:block">
         <Image
           src="/assets/company-banner.svg"
           alt="Municipal operations banner"
@@ -175,7 +175,6 @@ export default function SigninPage() {
           height={878}
           className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(0.985_0.006_255_/_0.16),transparent_34%,transparent)]" />
       </section>
     </main>
   );

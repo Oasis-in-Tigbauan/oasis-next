@@ -40,12 +40,12 @@ import {
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { validatorUtilities } from "@/lib/validators";
 
 export default function Page() {
@@ -89,36 +89,38 @@ export default function Page() {
 
   return (
     <div className="p-4 pt-0 w-full">
-      <div className="w-full flex gap-4">
+      <div className="w-full flex gap-4 mb-4">
         <CreateOfficeCodeDialog mutate={handleCreateMutate} />
       </div>
-      <Table>
-        <TableCaption>
-          Loaded total of&nbsp;
-          <span>
-            {data?.data?.data && Array.isArray(data.data.data) ? data.data.data.length : 0}
-          </span>&nbsp;items
-        </TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>AA</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Head</TableHead>
-            <TableHead>Sector</TableHead>
-            <TableHead>Function</TableHead>
-            <TableHead>Lift Office</TableHead>
-            <TableHead>Sub-office</TableHead>
-            <TableHead>Office</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {
-            (data?.data?.data || []).map(x => (
-              <OfficeCodeRow key={x.id} data={x} mutate={handleUpdateMutate} />
-            ))
-          }
-        </TableBody>
-      </Table>
+      <div className="border rounded-lg p-2">
+        {(data?.data?.data || []).length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No office codes found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="min-w-24 text-center">AA</TableHead>
+                  <TableHead className="min-w-24 text-center">Code</TableHead>
+                  <TableHead className="min-w-40 text-center">Head</TableHead>
+                  <TableHead className="min-w-32 text-center">Sector</TableHead>
+                  <TableHead className="min-w-32 text-center">Function</TableHead>
+                  <TableHead className="min-w-32 text-center">Lift Office</TableHead>
+                  <TableHead className="min-w-32 text-center">Sub-office</TableHead>
+                  <TableHead className="min-w-40 text-center">Office</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.data?.data || []).map((x, index) => (
+                  <OfficeCodeRow key={x.id} data={x} index={index} mutate={handleUpdateMutate} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -283,7 +285,15 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
   );
 }
 
-function OfficeCodeRow({ data, mutate }: { data: OfficeCodeResponse["data"], mutate: (item: OfficeCodeResponse) => void }) {
+function OfficeCodeRow({
+  data,
+  index,
+  mutate,
+}: {
+  data: OfficeCodeResponse["data"];
+  index: number;
+  mutate: (item: OfficeCodeResponse) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<OfficeCodeUpdatePayload>({
@@ -328,15 +338,22 @@ function OfficeCodeRow({ data, mutate }: { data: OfficeCodeResponse["data"], mut
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <TableRow className="cursor-pointer">
-          <TableCell className="font-medium">{data.aa}</TableCell>
-          <TableCell>{data.code}</TableCell>
-          <TableCell>{data.headUser.name}</TableCell>
-          <TableCell>{data.sector}</TableCell>
-          <TableCell>{data.function}</TableCell>
-          <TableCell>{data.liftOffice}</TableCell>
-          <TableCell>{data.subOffice}</TableCell>
-          <TableCell>{data.office.name}</TableCell>
+        <TableRow
+          className={cn(
+            "cursor-pointer",
+            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+          )}
+        >
+          <TableCell className="font-medium whitespace-normal wrap-break-word">
+            {data.aa}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.code ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.headUser.name}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.sector ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.function ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.liftOffice ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.subOffice ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.office.name}</TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent className="min-w-[75%]">

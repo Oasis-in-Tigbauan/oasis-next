@@ -27,9 +27,9 @@ export default async function VerifiedLayout({ children }: { children: ReactNode
     <SidebarProvider>
       <NotificationStreamBridge />
       <AppSidebar user={session.user!} />
-      <SidebarInset className="min-w-0 overflow-x-hidden">
+      <SidebarInset className="min-w-0">
         <AppTopbar />
-        {children}
+        <div className="min-w-0 flex-1 overflow-x-hidden">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
