@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
               return { ok: false, error: "Particulars cannot be empty at position: " + i };
             }
 
-            if (!validatorUtilities.isNumber(o[i].amount, false, true)) {
+            if (!validatorUtilities.isNumber(o[i].amount, false, false)) {
               return { ok: false, error: "Invalid amount at position: " + i };
             }
           }

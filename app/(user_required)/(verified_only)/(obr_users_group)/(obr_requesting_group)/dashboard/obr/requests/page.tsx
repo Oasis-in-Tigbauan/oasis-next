@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { Download, FileSpreadsheet, PlusIcon, Table2, Trash2, Trash2Icon, Upload } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -11,8 +11,11 @@ import type {
   UserResponse,
   ObrRequestSummaryListResponse,
   ObrRequestDetailResponse,
+  ObrRequestDetail,
+  ObrTemplatesResponse,
   ExpenseClassListResponse,
   OfficeCodeListResponse,
+  ObrTemplateInfo,
 } from "@/lib/http/client/responses";
 import * as permissions from "@/lib/db/permissions";
 
@@ -32,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -133,6 +137,337 @@ function ApprovalStatusBadge({ status }: { status: string }) {
     <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
       Pending
     </Badge>
+  );
+}
+
+function formatTemplateDate(isoString: string): string {
+  return new Date(isoString).toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") return fallback;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.details === "string") return record.details;
+  if (typeof record.message === "string") return record.message;
+  return fallback;
+}
+
+function HeaderTemplateSection({
+  template,
+  apiPath,
+  onMutate,
+}: {
+  template: ObrTemplateInfo | null;
+  apiPath: string;
+  onMutate: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const runUpload = useCallback(async (file: File, mode: "upload" | "replace") => {
+    setSubmitting(true);
+    setActionError(null);
+
+    const formData = new FormData();
+    formData.set("type", "header");
+    formData.set("file", file);
+
+    try {
+      const response = await fetch(apiPath, {
+        method: mode === "upload" ? "POST" : "PATCH",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setActionError(extractErrorMessage(payload, `Failed to ${mode} template.`));
+        return;
+      }
+
+      onMutate();
+    } catch {
+      setActionError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [apiPath, onMutate]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    void runUpload(file, template ? "replace" : "upload");
+  }, [runUpload, template]);
+
+  const handleRemove = useCallback(async () => {
+    setSubmitting(true);
+    setActionError(null);
+
+    try {
+      const response = await fetch(apiPath, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "header" }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setActionError(extractErrorMessage(payload, "Failed to remove template."));
+        return;
+      }
+
+      onMutate();
+    } catch {
+      setActionError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [apiPath, onMutate]);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <Typography variant="small" className="font-semibold">Header Template</Typography>
+          {template ? (
+            <Typography variant="small" className="text-muted-foreground">
+              Last updated {formatTemplateDate(template.updatedAt)}
+            </Typography>
+          ) : (
+            <Typography variant="small" className="text-muted-foreground">Not uploaded</Typography>
+          )}
+        </div>
+        <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" />
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        disabled={submitting}
+        onChange={handleFileChange}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        {!template ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            disabled={submitting}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-3" />
+            Upload
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={submitting}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="size-3" />
+              Replace
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              disabled={submitting}
+              onClick={() => void handleRemove()}
+            >
+              <Trash2 className="size-3" />
+              Remove
+            </Button>
+          </>
+        )}
+      </div>
+
+      <Typography variant="small" className="text-muted-foreground">
+        Excel (.xlsx) files only.
+      </Typography>
+
+      {actionError && (
+        <Typography variant="small" className="text-destructive">{actionError}</Typography>
+      )}
+    </div>
+  );
+}
+
+function ObrExportDialog({
+  open,
+  onOpenChange,
+  requestId,
+  detail,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  requestId: string;
+  detail: ObrRequestDetail;
+}) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const { data, error, isLoading, mutate } = useSWR<
+    BetterFetchResponse<ObrTemplatesResponse, ApiResponseException>
+  >(open ? "/api/obr/templates" : null, $fetch);
+
+  const templates = data?.data?.data;
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const response = await fetch(`/api/obr/requests/${requestId}/export`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setExportError(extractErrorMessage(payload, "Export failed. Please try again."));
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
+      const filename = filenameMatch?.[1] ?? `obr-request-${requestId}.xlsx`;
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      onOpenChange(false);
+    } catch {
+      setExportError("An unexpected error occurred. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [onOpenChange, requestId]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex flex-col sm:max-w-none w-[96vw] h-[88vh] p-0 gap-0 overflow-hidden">
+        <div className="flex-none px-6 pt-6 pb-3 border-b">
+          <DialogHeader>
+            <DialogTitle>Export OBR Request</DialogTitle>
+            <DialogDescription>
+              Preview the request export and optionally customize the header template.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3">
+          <TabsList className="flex-none mb-3 self-start">
+            <TabsTrigger value="preview" className="text-xs gap-1.5">
+              <Table2 className="size-3" />
+              Preview
+            </TabsTrigger>
+            <TabsTrigger value="header" className="text-xs gap-1.5">
+              Header
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="preview" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+            <ScrollArea className="h-0 min-h-0 flex-1">
+              <div className="flex flex-col gap-4 pb-4 pr-4">
+                <div className="rounded-lg border p-4">
+                  <Typography variant="small" className="font-semibold mb-2">
+                    Request {detail.requestNumber}
+                  </Typography>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-muted-foreground">Payee:</span> {detail.payee}</div>
+                    <div><span className="text-muted-foreground">Office:</span> {detail.officeAddress}</div>
+                    <div><span className="text-muted-foreground">OBR No.:</span> {detail.obrNumber ?? "—"}</div>
+                    <div><span className="text-muted-foreground">PR No.:</span> {detail.prNumber ?? "—"}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>RC</TableHead>
+                        <TableHead>Particulars</TableHead>
+                        <TableHead>FPP (Expense Name)</TableHead>
+                        <TableHead>Account Code</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detail.requestItems.map(item => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.responsibilityCenter.name}</TableCell>
+                          <TableCell>{item.particulars}</TableCell>
+                          <TableCell>{item.expenseCode.name}</TableCell>
+                          <TableCell>{item.expenseCode.accountCode ?? "-"}</TableCell>
+                          <TableCell className="text-right">
+                            {Number.parseFloat(item.amount).toLocaleString("en-PH", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="header" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+            {isLoading ? (
+              <Loading />
+            ) : error || data?.error ? (
+              <Typography variant="small" className="text-destructive">
+                Failed to load templates. Please close and try again.
+              </Typography>
+            ) : (
+              <HeaderTemplateSection
+                template={templates?.header ?? null}
+                apiPath="/api/obr/templates"
+                onMutate={() => void mutate()}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex-none px-6 py-4 border-t flex flex-col gap-2">
+          {exportError && (
+            <Typography variant="small" className="text-destructive">
+              {exportError}
+            </Typography>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={exporting}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button disabled={exporting} onClick={() => void handleExport()}>
+              <Download className="size-3.5" />
+              {exporting ? "Exporting..." : "Export"}
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -255,6 +590,7 @@ function RequestDetailDialog({
   const { data, error, isLoading } = useSWR<
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
   >(open ? `/api/obr/requests/${id}` : null, $fetch);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const detail = data?.data?.data;
 
@@ -428,12 +764,28 @@ function RequestDetailDialog({
           )}
         </ScrollArea>
 
-        <DialogFooter className="pt-4">
+        <DialogFooter className="pt-4 justify-between">
+          <Button
+            variant="secondary"
+            onClick={() => setExportOpen(true)}
+            disabled={!detail}
+          >
+            Export
+          </Button>
           <DialogClose asChild>
             <Button variant="outline">Close</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>
+
+      {detail && (
+        <ObrExportDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          requestId={id}
+          detail={detail}
+        />
+      )}
     </Dialog>
   );
 }

@@ -2,10 +2,16 @@ import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "d
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
+import * as templateBucket from "@/lib/buckets/templates";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { publishEvent } from "@/lib/events";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
+import {
+  amountToWords,
+  buildChargesString,
+  type ObrFormSignerBlock,
+} from "@/lib/obr/form-export-layout";
 import {
   aipReferences,
   esre,
@@ -30,6 +36,10 @@ import {
 import * as permissions from "@/lib/db/permissions";
 import { validatorUtilities } from "@/lib/validators";
 import { type User } from "@/lib/accounts";
+
+export const OBR_FORM_TEMPLATE_IDENTIFIER = "obr.form";
+
+const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS
 
 /**
  * Creates a new OBR request for the given user.
@@ -722,6 +732,151 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
     return new Failure(
       ErrorCodes.Fatal,
       "Unable to fetch the obr request due to an error.",
+      { requestId, userId: user.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Validates an OBR template type from client input.
+ *
+ * @param {unknown} type - Raw template type.
+ * @returns {Result<ObrTemplateType>} Parsed type or validation failure.
+ */
+export function parseObrTemplateType(type: unknown): Result<ObrTemplateType> {
+  if (type !== "header" && type !== "footer") {
+    return new Failure(
+      ErrorCodes.ValidationFailure,
+      "Invalid template type. Must be 'header' or 'footer'.",
+    );
+  }
+  return new Success(type);
+}
+
+/**
+ * Returns header and footer templates for OBR form export.
+ *
+ * @description
+ * Fetches template metadata for the OBR form export identifier and maps missing template slots to `null`
+ * so clients can render upload/replace actions without treating empty slots as errors.
+ *
+ * @async
+ * @function getObrFormTemplates
+ * @returns {Promise<Result<ObrTemplatesBundle>>} Combined header/footer metadata or failure.
+ */
+export async function getObrFormTemplates(): Promise<Result<ObrTemplatesBundle>> {
+  return _fetchObrTemplatesBundle(OBR_FORM_TEMPLATE_IDENTIFIER);
+}
+
+/**
+ * Uploads a new header template for OBR form export.
+ *
+ * @description
+ * Persists a `.xlsx` template to the shared template bucket under the OBR form identifier. The bucket
+ * enforces a single template per `(identifier, type)` pair; callers should use `modifyObrFormTemplate`
+ * when replacing an existing template.
+ *
+ * @async
+ * @function uploadObrFormTemplate
+ * @param {ObrTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<ObrTemplateInfo>>} Template metadata on success, or a failure result.
+ */
+export async function uploadObrFormTemplate(
+  input: ObrTemplateUploadInput,
+): Promise<Result<ObrTemplateInfo>> {
+  const result = await templateBucket.upload({
+    identifier: OBR_FORM_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+
+  if (result instanceof Success) {
+    return new Success(_mapObrTemplate(result.value));
+  }
+
+  return result;
+}
+
+/**
+ * Replaces an existing header template for OBR form export.
+ *
+ * @description
+ * Writes a new template workbook and updates the template bucket metadata for the OBR form identifier.
+ * Returns a not-found failure when no existing template slot exists for the requested type.
+ *
+ * @async
+ * @function modifyObrFormTemplate
+ * @param {ObrTemplateUploadInput} input - Template type, file buffer, and filename.
+ * @returns {Promise<Result<ObrTemplateInfo>>} Updated template metadata on success, or a failure result.
+ */
+export async function modifyObrFormTemplate(
+  input: ObrTemplateUploadInput,
+): Promise<Result<ObrTemplateInfo>> {
+  const result = await templateBucket.modify({
+    identifier: OBR_FORM_TEMPLATE_IDENTIFIER,
+    type: input.type,
+    file: input.file,
+    filename: input.filename,
+  });
+
+  if (result instanceof Success) {
+    return new Success(_mapObrTemplate(result.value));
+  }
+
+  return result;
+}
+
+/**
+ * Removes a header template for OBR form export.
+ *
+ * @description
+ * Deletes the template bucket record (and backing file) for the requested slot under the OBR form
+ * identifier. Returns a not-found failure when no template exists for the slot.
+ *
+ * @async
+ * @function removeObrFormTemplate
+ * @param {ObrTemplateType} type - Template type to delete.
+ * @returns {Promise<Result<void>>} Void success or failure.
+ */
+export async function removeObrFormTemplate(type: ObrTemplateType): Promise<Result<void>> {
+  return templateBucket.remove({
+    identifier: OBR_FORM_TEMPLATE_IDENTIFIER,
+    type,
+  });
+}
+
+/**
+ * Exports an OBR request form to an XLSX buffer.
+ *
+ * @description
+ * Validates request read access by reusing {@link getObrRequestById}, loads the optional uploaded OBR header
+ * template, and generates a formatted workbook matching the printable OBR form layout.
+ *
+ * On success, wraps the XLSX bytes in a {@link Success}. On access, validation, or template-storage errors,
+ * returns a {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function exportObrRequestFormToBuffer
+ * @param {string} requestId - Identifier of the OBR request to export.
+ * @param {User} user - User requesting the export.
+ * @returns {Promise<Result<Buffer>>} Workbook bytes on success, or a failure result.
+ */
+export async function exportObrRequestFormToBuffer(requestId: string, user: User): Promise<Result<Buffer>> {
+  try {
+    const requestResult = await getObrRequestById(requestId, user);
+    if (requestResult instanceof Failure) return requestResult;
+
+    const headerPathResult = await _getTemplatePath(OBR_FORM_TEMPLATE_IDENTIFIER, "header");
+    if (headerPathResult instanceof Failure) return headerPathResult;
+
+    const buffer = await _buildObrFormExcelBuffer(requestResult.value, headerPathResult.value);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Failed to export OBR request form.",
       { requestId, userId: user.id },
       e,
     );
@@ -3196,6 +3351,389 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
   });
 }
 
+function _mapObrTemplate(item: templateBucket.TemplateBucketItem): ObrTemplateInfo {
+  return {
+    id: item.id,
+    templateType: item.templateType,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+async function _getObrTemplateSlot(
+  identifier: string,
+  type: ObrTemplateType,
+): Promise<Result<ObrTemplateInfo | null>> {
+  const result = await templateBucket.get({ identifier, type });
+  if (result instanceof Success) {
+    return new Success(_mapObrTemplate(result.value));
+  }
+  if (result.type === ErrorCodes.ResourceNotFound) {
+    return new Success(null);
+  }
+  return result;
+}
+
+async function _fetchObrTemplatesBundle(identifier: string): Promise<Result<ObrTemplatesBundle>> {
+  const headerResult = await _getObrTemplateSlot(identifier, "header");
+  if (headerResult instanceof Failure) return headerResult;
+
+  const footerResult = await _getObrTemplateSlot(identifier, "footer");
+  if (footerResult instanceof Failure) return footerResult;
+
+  return new Success({
+    header: headerResult.value,
+    footer: footerResult.value,
+  });
+}
+
+async function _getTemplatePath(identifier: string, type: ObrTemplateType): Promise<Result<string | null>> {
+  const result = await templateBucket.get({ identifier, type });
+  if (result instanceof Success) return new Success(result.value.templatePath);
+  if (result.type === ErrorCodes.ResourceNotFound) return new Success(null);
+  return result;
+}
+
+function _toMoneyNumber(value: string): number {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return parsed;
+}
+
+function _applyCellBorder(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  colStart: number,
+  colEnd: number,
+) {
+  for (let col = colStart; col <= colEnd; col++) {
+    ws.getCell(row, col).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    ws.getCell(row, col).alignment = {
+      vertical: "middle",
+      horizontal: "left",
+      wrapText: true,
+    };
+  }
+}
+
+function _renderSignerBlock(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  startRow: number,
+  colStart: number,
+  colEnd: number,
+  signer: ObrFormSignerBlock,
+) {
+  for (let row = startRow; row < startRow + 5; row++) {
+    _applyCellBorder(ws, row, colStart, colEnd);
+    if (colEnd > colStart + 1) {
+      ws.mergeCells(row, colStart + 1, row, colEnd);
+    }
+  }
+
+  ws.getCell(startRow, colStart).value = "Signature";
+  ws.getCell(startRow + 1, colStart).value = "Printed Name";
+  ws.getCell(startRow + 1, colStart + 1).value = signer.printedName;
+  ws.getCell(startRow + 2, colStart).value = "Position";
+  ws.getCell(startRow + 2, colStart + 1).value = signer.position;
+  ws.getCell(startRow + 3, colStart + 1).value = signer.roleLabel;
+  ws.getCell(startRow + 4, colStart).value = "Date";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function _resolveTemplateValue(cellValue: any): unknown {
+  if (cellValue === null || cellValue === undefined) return cellValue;
+
+  if (typeof cellValue === "object") {
+    if ("error" in cellValue) return null;
+    if ("formula" in cellValue || "sharedFormula" in cellValue) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = (cellValue as any).result;
+      if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+        return null;
+      }
+      return result ?? null;
+    }
+  }
+
+  return cellValue;
+}
+
+function _offsetMergeRange(range: string, rowOffset: number): string | null {
+  const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(range);
+  if (!match) return null;
+  return `${match[1]}${Number.parseInt(match[2], 10) + rowOffset}:${match[3]}${Number.parseInt(match[4], 10) + rowOffset}`;
+}
+
+async function _copyTemplateRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWorkbook: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  destWorksheet: any,
+  startRow: number,
+): Promise<number> {
+  const srcWs = srcWorkbook.getWorksheet(1);
+  if (!srcWs) return startRow;
+
+  const rowOffset = startRow - 1;
+  let currentRow = startRow;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWs.eachRow({ includeEmpty: true }, (row: any) => {
+    const destRow = destWorksheet.getRow(currentRow);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell({ includeEmpty: true }, (cell: any, colNum: number) => {
+      if (cell.type === _MERGE_CELL_TYPE) return;
+
+      const destCell = destRow.getCell(colNum);
+      destCell.value = _resolveTemplateValue(cell.value);
+      if (cell.font) destCell.font = cell.font;
+      if (cell.fill) destCell.fill = cell.fill;
+      if (cell.border) destCell.border = cell.border;
+      if (cell.alignment) destCell.alignment = cell.alignment;
+      if (cell.numFmt) destCell.numFmt = cell.numFmt;
+    });
+    if (row.height) destRow.height = row.height;
+    destRow.commit();
+    currentRow++;
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const merges: string[] = (srcWs.model as any)?.mergeCells ?? [];
+  for (const range of merges) {
+    const adjusted = _offsetMergeRange(range, rowOffset);
+    if (!adjusted) continue;
+    try {
+      destWorksheet.mergeCells(adjusted);
+    } catch {
+      // Ignore overlapping or invalid ranges.
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const destWorkbook = destWorksheet.workbook as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const srcImages: any[] = srcWs.getImages();
+  for (const image of srcImages) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imageModel = image.model as any;
+    if (imageModel.type !== "image") continue;
+
+    const srcImageData = srcWorkbook.getImage(imageModel.imageId);
+    if (!srcImageData) continue;
+
+    const newImageId = destWorkbook.addImage(srcImageData);
+    const srcRange = imageModel.range;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adjustedRange: any = {
+      tl: {
+        nativeCol: srcRange.tl.nativeCol,
+        nativeColOff: srcRange.tl.nativeColOff,
+        nativeRow: srcRange.tl.nativeRow + rowOffset,
+        nativeRowOff: srcRange.tl.nativeRowOff,
+      },
+      editAs: srcRange.editAs,
+    };
+
+    if (srcRange.br) {
+      adjustedRange.br = {
+        nativeCol: srcRange.br.nativeCol,
+        nativeColOff: srcRange.br.nativeColOff,
+        nativeRow: srcRange.br.nativeRow + rowOffset,
+        nativeRowOff: srcRange.br.nativeRowOff,
+      };
+    }
+    if (srcRange.ext) adjustedRange.ext = srcRange.ext;
+    if (srcRange.hyperlinks) adjustedRange.hyperlinks = srcRange.hyperlinks;
+
+    destWorksheet.addImage(newImageId, adjustedRange);
+  }
+
+  return currentRow;
+}
+
+async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplatePath: string | null): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("OBR Form");
+  ws.getColumn(1).width = 14;
+  ws.getColumn(2).width = 18;
+  ws.getColumn(3).width = 18;
+  ws.getColumn(4).width = 18;
+  ws.getColumn(5).width = 24;
+  ws.getColumn(6).width = 16;
+  ws.getColumn(7).width = 18;
+
+  let row = 1;
+  if (headerTemplatePath) {
+    const headerWb = new Workbook();
+    await headerWb.xlsx.readFile(headerTemplatePath);
+    row = await _copyTemplateRows(headerWb, ws, row);
+  }
+
+  ws.mergeCells(row, 1, row, 7);
+  ws.getCell(row, 1).value = "OBLIGATION REQUEST";
+  ws.getCell(row, 1).font = { bold: true, size: 20, name: "Times New Roman" };
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = `Request: ${request.requestNumber}`;
+  ws.getCell(row, 5).value = `Obligation No.: ${request.obrNumber ?? ""}`;
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = `Payee: ${request.payee ?? ""}`;
+  ws.getCell(row, 5).value = `PR No.: ${request.prNumber ?? ""}`;
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = `Office: ${request.officeAddress}`;
+  ws.getCell(row, 5).value = "Date:";
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 7);
+  ws.getCell(row, 1).value = "Address:";
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.getCell(row, 1).value = "RC";
+  ws.getCell(row, 2).value = "PARTICULARS";
+  ws.getCell(row, 5).value = "FPP";
+  ws.getCell(row, 6).value = "ACCOUNT CODE";
+  ws.getCell(row, 7).value = "AMOUNT";
+  _applyCellBorder(ws, row, 1, 7);
+  for (let col = 1; col <= 7; col++) {
+    ws.getCell(row, col).font = { bold: true };
+    ws.getCell(row, col).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  }
+  row++;
+
+  let totalAmount = 0;
+  for (const item of request.requestItems) {
+    const amount = _toMoneyNumber(item.amount);
+    totalAmount += amount;
+
+    ws.mergeCells(row, 2, row, 4);
+    ws.getCell(row, 1).value = item.responsibilityCenter.name;
+    ws.getCell(row, 2).value = item.particulars;
+    ws.getCell(row, 5).value = item.expenseCode.name;
+    ws.getCell(row, 6).value = item.expenseCode.accountCode ?? "-";
+    ws.getCell(row, 7).value = amount;
+    ws.getCell(row, 7).numFmt = "#,##0.00";
+    _applyCellBorder(ws, row, 1, 7);
+    row++;
+  }
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 6);
+  if (request.requestItems.length === 1) {
+    const singleItem = request.requestItems[0];
+    ws.getCell(row, 1).value = `Charges: ${buildChargesString(
+      singleItem.responsibilityCenter.name,
+      singleItem.expenseCode.name,
+      singleItem.amount,
+    )}`;
+  }
+  ws.getCell(row, 5).value = "Total Amount Requested:";
+  ws.getCell(row, 7).value = totalAmount;
+  ws.getCell(row, 7).numFmt = "#,##0.00";
+  ws.getCell(row, 5).font = { bold: true };
+  ws.getCell(row, 7).font = { bold: true };
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = "Amount in Words:";
+  ws.getCell(row, 5).value = amountToWords(totalAmount).toUpperCase();
+  ws.getCell(row, 5).font = { bold: true, color: { argb: "FF0000FF" } };
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = "Certified:";
+  ws.getCell(row, 5).value = "Certified:";
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = "☑ Charges to appropriation/allotment necessary, lawful and under my direct supervision";
+  ws.getCell(row, 5).value = "☑ Existence of available appropriation";
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = "☑ Supporting documents valid, proper and legal";
+  _applyCellBorder(ws, row, 1, 7);
+  row++;
+
+  const signerBlocks: ObrFormSignerBlock[] = request.approvers.slice(0, 3).map((approver, idx) => ({
+    printedName: approver.signer?.name ?? "-",
+    position: approver.position.name,
+    roleLabel: idx === 0
+      ? "Head, Requesting Office/Authorized Representative"
+      : idx === 1
+        ? "Head, Budget Unit/Authorized Representative"
+        : "Local Chief Executive/Authorized Representative",
+  }));
+
+  if (signerBlocks.length <= 2) {
+    _renderSignerBlock(ws, row, 1, 4, signerBlocks[0] ?? {
+      printedName: "-",
+      position: "-",
+      roleLabel: "Head, Requesting Office/Authorized Representative",
+    });
+    _renderSignerBlock(ws, row, 5, 7, signerBlocks[1] ?? {
+      printedName: "-",
+      position: "-",
+      roleLabel: "Head, Budget Unit/Authorized Representative",
+    });
+  } else {
+    _renderSignerBlock(ws, row, 1, 2, signerBlocks[0]);
+    _renderSignerBlock(ws, row, 3, 5, signerBlocks[1]);
+    _renderSignerBlock(ws, row, 6, 7, signerBlocks[2]);
+  }
+  row += 5;
+
+  for (let r = 1; r <= row; r++) {
+    for (let c = 1; c <= 7; c++) {
+      // Ensure a consistent export typography while preserving style attributes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cell = ws.getCell(r, c) as any;
+      cell.font = {
+        ...(cell.font ?? {}),
+        name: "Arial Narrow",
+      };
+    }
+  }
+
+  for (let r = 1; r <= row; r++) {
+    ws.getRow(r).commit();
+  }
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
 type AccessRequestReaderValidationResult = {
   error?: ErrorCodes | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -3222,6 +3760,26 @@ type CreateNewRequestType = {
     amount: string;
   }>
 }
+
+export type ObrTemplateType = templateBucket.TemplateType;
+
+export type ObrTemplateInfo = {
+  id: string;
+  templateType: ObrTemplateType;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ObrTemplatesBundle = {
+  header: ObrTemplateInfo | null;
+  footer: ObrTemplateInfo | null;
+};
+
+export type ObrTemplateUploadInput = {
+  type: ObrTemplateType;
+  file: Buffer;
+  filename: string;
+};
 
 type BaseObrRequestType = {
   id: string;
