@@ -1,0 +1,149 @@
+"use client";
+
+import Image from "next/image";
+import { type SyntheticEvent, useState } from "react";
+import { Mail } from "lucide-react";
+
+import { $fetch } from "@/lib/http/client/fetch";
+
+import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+
+export default function SigninPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<RecoveryRequestPageState>({
+    email: "",
+  });
+
+  const onFieldUpdate = (e: SyntheticEvent<HTMLInputElement>, key: keyof RecoveryRequestPageState) => {
+    setCredentials(l => ({ ...l, [key]: (e.target as HTMLInputElement).value }));
+  };
+
+  const onSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const { data, error } = await $fetch<{ data: { message: string }}>("/api/auth/request-reset-password", {
+        method: "POST",
+        body: credentials,
+      });
+
+      if (error) {
+        setSuccessMessage(null);
+        setErrorMessage("Invalid request. Check if the email is correct.");
+        return;
+      }
+
+      if (data !== null && data !== undefined) {
+        setErrorMessage(null);
+        setSuccessMessage(data.data.message);
+      }
+    }
+    finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <main className="grid min-h-svh overflow-x-auto bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
+      <section className="flex min-h-svh flex-col px-6 py-6 sm:px-10 lg:px-14">
+        <header className="flex items-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
+            <Image
+              src={process.env.NEXT_PUBLIC_PROJECT_ORG_SEAL as string}
+              alt="Organization Seal"
+              width={34}
+              height={34}
+              priority
+            />
+          </div>
+          <div className="leading-tight">
+            <p className="text-sm font-semibold tracking-tight">Oasis Next</p>
+            <p className="text-xs text-muted-foreground">{process.env.NEXT_PUBLIC_PROJECT_ORG_NAME}</p>
+          </div>
+        </header>
+
+        <div className="flex flex-1 items-center justify-center py-10">
+          <div className="w-full max-w-[420px]">
+            <div className="rounded-2xl border bg-card p-6 shadow-[0_20px_70px_-45px_oklch(0.35_0.08_258)] sm:p-8">
+              <form onSubmit={onSubmit}>
+                <FieldGroup className="gap-5">
+                  <div className="space-y-2">
+                    <h1 className="text-2xl font-semibold tracking-tight">
+                      Recover your Account
+                    </h1>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      Enter the email of your account
+                    </p>
+                  </div>
+
+                  {errorMessage && (
+                    <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {errorMessage}
+                    </div>
+                  )}
+
+                  {successMessage && (
+                    <div className="rounded-lg border border-green-300 bg-green-200 px-3 py-2 text-sm text-black">
+                      {successMessage}
+                    </div>
+                  )}
+
+                  <Field>
+                    <FieldLabel htmlFor="email">Email address</FieldLabel>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        className="h-10 pl-9"
+                        placeholder="name@example.com"
+                        type="email"
+                        autoCapitalize="none"
+                        autoComplete="email"
+                        autoCorrect="off"
+                        value={credentials.email}
+                        onInput={e => onFieldUpdate(e, "email")}
+                        disabled={isLoading}
+                        required
+                      />
+                    </div>
+                  </Field>
+
+                  <Button className="h-10 w-full" disabled={isLoading}>
+                    {isLoading && <Spinner />}
+                    {isLoading ? "Requesting..." : "Request a Password Reset"}
+                  </Button>
+                </FieldGroup>
+              </form>
+            </div>
+
+            <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
+              Access is limited to authorized municipal personnel.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative hidden min-h-svh shrink-0 lg:block">
+        <Image
+          src="/assets/company-banner.svg"
+          alt="Municipal operations banner"
+          loading="eager"
+          width={672}
+          height={878}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      </section>
+    </main>
+  );
+}
+
+type RecoveryRequestPageState = {
+  email: string;
+};

@@ -7,11 +7,15 @@ import { twoFactor } from "better-auth/plugins";
 
 import { db } from "@/lib/db";
 import { getUserById, type User } from "@/lib/accounts";
+import * as mailer from "@/lib/mailer";
 import type { Permissions } from "@/lib/db/permissions";
+import { ResetPasswordMail } from "@/lib/mailer/templates/ResetPasswordMail";
 import { unwrap } from "@/lib/one-of";
 
+const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL as string;
+
 export const auth = betterAuth({
-  basePath: process.env.BETTER_AUTH_URL as string,
+  basePath: BETTER_AUTH_URL,
   appName: "oasis-next",
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -19,6 +23,17 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, token }) => {
+      void mailer.send({
+        to: [user.email],
+        subject: "Reset your Password",
+        html: ResetPasswordMail({
+          resetURL: new URL(`/recovery?token=${token}`, BETTER_AUTH_URL)
+            .toString(),
+        }),
+      });
+    },
   },
   plugins: [twoFactor(), nextCookies()],
 
