@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import Link from "next/link";
 
 export default function SigninPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -57,8 +58,8 @@ export default function SigninPage() {
         <header className="flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
             <Image
-              src="/assets/tigbauan-seal.png"
-              alt="Municipality of Tigbauan seal"
+              src={process.env.NEXT_PUBLIC_PROJECT_ORG_SEAL as string}
+              alt="Organization Seal"
               width={34}
               height={34}
               priority
@@ -66,7 +67,7 @@ export default function SigninPage() {
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight">Oasis Next</p>
-            <p className="text-xs text-muted-foreground">Municipality of Tigbauan</p>
+            <p className="text-xs text-muted-foreground">{process.env.NEXT_PUBLIC_PROJECT_ORG_NAME}</p>
           </div>
         </header>
 
@@ -156,6 +157,9 @@ export default function SigninPage() {
                     {isLoading ? "Signing in..." : "Sign in"}
                   </Button>
                 </FieldGroup>
+                <Button className="mt-4 ml-auto mr-auto text-center w-full" variant="link" asChild>
+                  <Link href="/reset-password">Reset Password</Link>
+                </Button>
               </form>
             </div>
 

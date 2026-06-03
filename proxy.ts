@@ -18,7 +18,9 @@ export async function proxy(req: NextRequest) {
         path === "/api/enrollment/eligibility" ||
         path === "/api/enrollment/enroll" ||
         path === "/api/auth/sign-in" ||
-        path === "/api/auth/sign-out";
+        path === "/api/auth/sign-out" ||
+        path === "/api/auth/request-reset-password" ||
+        path === "/api/auth/reset-password";
 
   // Not authenticated.
   if (!isPublic && !session) {
