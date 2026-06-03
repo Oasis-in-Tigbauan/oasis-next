@@ -5,7 +5,10 @@ import { oneOf } from "@/lib/one-of";
 import * as office from "@/lib/office";
 
 export async function GET() {
-  const session = await auth.verify([permission.SAAOB_DATA_READ, permission.SAAOB_DATA_WRITE], "and");
+  const session = await auth.verify([
+    permission.SAAOB_DATA_READ,
+    permission.SAAOB_DATA_WRITE,
+  ], "and");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }

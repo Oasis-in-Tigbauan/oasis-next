@@ -2836,7 +2836,14 @@ export async function getValidUsersAsApprovers(
       .select({ id: user.id, name: user.name })
       .from(user)
       .innerJoin(officePosition, eq(user.officePositionId, officePosition.id))
-      .where(sql`${officePosition.permissions} @> ARRAY[${filter}]`);
+      .where(
+        and(
+          eq(user.emailVerified, true),
+          eq(user.banned, false),
+          eq(user.shadowBanned, false),
+          sql`${officePosition.permissions} @> ARRAY[${filter}]`,
+        ),
+      );
 
     return new Success(users);
   } catch (e) {
