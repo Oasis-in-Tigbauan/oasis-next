@@ -64,7 +64,7 @@ const routeMetaList: Array<{
   { matcher: "/dashboard/settings/fund-types", meta: { section: "Data Management", title: "Fund Types", breadcrumbs: ["Fund Types"] } },
   { matcher: "/dashboard/settings/procurement-types", meta: { section: "Data Management", title: "Procurement Types", breadcrumbs: ["Procurement Types"] } },
   { matcher: "/dashboard/settings/aro-office", meta: { section: "ARO Office Definitions", title: "ARO Office Definitions", breadcrumbs: ["ARO Office Definitions"]} },
-  { matcher: "/dashboard/settings", meta: { section: "Administration", title: "Settings", breadcrumbs: ["Settings"] } },
+  { matcher: "/dashboard/settings", meta: { section: "Account", title: "Settings", breadcrumbs: ["Settings"] } },
 ];
 
 export default function AppTopbar() {

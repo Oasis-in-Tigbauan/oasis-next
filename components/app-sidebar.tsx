@@ -14,7 +14,6 @@ import {
   Mail,
   PhilippinePeso,
   PlugZap,
-  Settings,
   ShoppingBasket,
   ShoppingCart,
   ShieldUser,
@@ -228,7 +227,7 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
         <SidebarSection label="Office Forms" items={officeFormItems} pathname={pathname} />
         <SidebarSection label="Data Management" items={dataManagementItems} pathname={pathname} />
 
-        {administrationItems.length > 0 && (
+        {(administrationItems.length > 0 || accessControlItems.length > 0) && (
           <SidebarGroup className="gap-1.5 border-t border-white/18 pt-2 p-0">
             <SidebarGroupLabel className="px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/72">
               Account
@@ -272,10 +271,6 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
                     </SidebarMenuItem>
                   </Collapsible>
                 )}
-                <SidebarNavItem
-                  item={{ title: "Settings", href: "/dashboard/settings", icon: Settings, exact: true }}
-                  pathname={pathname}
-                />
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -18,6 +18,7 @@ export default function BreadcrumbComponent() {
   const routeName = useMemo(() => {
     if (pathname === "/dashboard") return "Home";
     if (pathname === "/dashboard/esre") return "Electronic Statement of Receipts and Expenditures (ESRE)";
+    if (pathname === "/dashboard/settings") return "Settings";
     if (pathname === "/dashboard/settings/approvals") return "Account Approvals";
     if (pathname === "/dashboard/settings/roles") return "Offices & Role Management";
     if (pathname === "/dashboard/settings/invitations") return "Invitations";
