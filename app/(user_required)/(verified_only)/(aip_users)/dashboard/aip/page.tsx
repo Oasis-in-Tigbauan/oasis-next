@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -15,19 +15,24 @@ import type {
   BetterFetchResponse,
 } from "@/lib/http/client/responses";
 import { cn } from "@/lib/utils";
+import {
+  AipPageSpacerRow,
+  AipPageTableCells,
+  AipPageTableHeader,
+  useAipColumnVisibility,
+} from "@/lib/aip/page-display";
+import type { AipPageColumnDef } from "@/lib/aip/page-columns";
 
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
+import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import { AipFormDialog } from "@/app/(user_required)/(verified_only)/(aip_users)/dashboard/aip/aip-form-dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -44,38 +49,10 @@ type VisibleRow = {
   depth: number;
 };
 
-const monthNames = [
-  "",
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
 function toAmount(value: string | null): number {
   if (!value) return 0;
   const parsed = Number.parseFloat(value.replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatMoney(value: number): string {
-  return value.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatMonth(value: number | null): string {
-  if (!value || value < 1 || value > 12) return "-";
-  return monthNames[value] ?? "-";
 }
 
 function flattenVisibleRows(
@@ -115,6 +92,8 @@ export default function Page() {
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveParentId, setMoveParentId] = useState<string>("");
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const columnVisibility = useAipColumnVisibility();
 
   const roots = useMemo(() => data?.data?.data ?? [], [data]);
   const visibleRows = useMemo(
@@ -444,6 +423,18 @@ export default function Page() {
             {moveBusy ? "Moving..." : `Move (${checkedIds.size})`}
           </Button>
         </div>
+
+        <div className="ml-auto">
+          <ColumnVisibilityPicker
+            groups={columnVisibility.pickerGroups}
+            selected={columnVisibility.visibleKeys}
+            selectedToggleableCount={columnVisibility.selectedToggleableCount}
+            totalToggleableCount={columnVisibility.totalToggleableCount}
+            onToggle={columnVisibility.toggle}
+            onSelectAll={columnVisibility.selectAll}
+            onDeselectAll={columnVisibility.deselectAll}
+          />
+        </div>
       </div>
 
       <div className="border rounded-lg p-2">
@@ -462,41 +453,11 @@ export default function Page() {
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
-                <TableRow>
-                  <TableHead rowSpan={2} className="min-w-8 border-l"></TableHead>
-                  <TableHead rowSpan={2} className="min-w-64 text-center">AIP Reference Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-80 text-center">Program/Project/Activity Description</TableHead>
-                  <TableHead rowSpan={2} className="min-w-56 text-center">Implementing Office</TableHead>
-                  <TableHead colSpan={2} className="text-center">Schedule of Implementation</TableHead>
-                  <TableHead rowSpan={2} className="min-w-72 text-center">Expected Outputs</TableHead>
-                  <TableHead rowSpan={2} className="min-w-56 text-center">Funding Source</TableHead>
-                  <TableHead colSpan={4} className="text-center">Amount</TableHead>
-                  <TableHead colSpan={4} className="text-center">Amount In Thousands</TableHead>
-                  <TableHead colSpan={2} className="text-center">Amount of Climate Change PPAs</TableHead>
-                  <TableHead rowSpan={2} className="min-w-48 text-center">CC Topology Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-24 text-center">Gadable</TableHead>
-                  <TableHead rowSpan={2} className="min-w-40 text-center">GAD Amount</TableHead>
-                </TableRow>
-                <TableRow>
-                  <TableHead className="text-center">Start</TableHead>
-                  <TableHead className="text-center">Completion</TableHead>
-                  <TableHead className="text-center">PS</TableHead>
-                  <TableHead className="text-center">MOOE</TableHead>
-                  <TableHead className="text-center">CO</TableHead>
-                  <TableHead className="text-center">Total</TableHead>
-                  <TableHead className="text-center">PS</TableHead>
-                  <TableHead className="text-center">MOOE</TableHead>
-                  <TableHead className="text-center">CO</TableHead>
-                  <TableHead className="text-center">Total</TableHead>
-                  <TableHead className="text-center">Climate Change Adaption</TableHead>
-                  <TableHead className="text-center">Climate Change Mitigation</TableHead>
-                </TableRow>
+                <AipPageTableHeader columns={columnVisibility.orderedVisible as AipPageColumnDef[]} />
               </TableHeader>
               <TableBody>
                 {paddingTop > 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={21} style={{ height: `${paddingTop}px` }} />
-                  </TableRow>
+                  <AipPageSpacerRow colCount={columnVisibility.visibleCount} height={paddingTop} />
                 ) : null}
 
                 {virtualRows.map(virtualRow => {
@@ -513,6 +474,23 @@ export default function Page() {
                   const amountCCAdapt = toAmount(node.amountCCAdapt);
                   const amountCCMitigate = toAmount(node.amountCCMitigate);
                   const gadAmount = toAmount(node.gadAmount);
+
+                  const cellCtx = {
+                    node,
+                    depth,
+                    isGroup,
+                    isExpanded,
+                    isChecked,
+                    amountPS,
+                    amountMOOE,
+                    amountCO,
+                    amountTotal,
+                    amountCCAdapt,
+                    amountCCMitigate,
+                    gadAmount,
+                    toggleExpanded,
+                    toggleChecked,
+                  };
 
                   return (
                     <TableRow
@@ -532,74 +510,16 @@ export default function Page() {
                       onClick={() => setSelectedId(node.id)}
                       tabIndex={0}
                     >
-                      <TableCell>
-                        <Checkbox
-                          checked={isChecked}
-                          onClick={e => e.stopPropagation()}
-                          onCheckedChange={checked => toggleChecked(node.id, checked === true)}
-                          aria-label={`Select ${node.type}`}
-                        />
-                      </TableCell>
-
-                      <TableCell>
-                        <div
-                          className="flex items-center gap-2"
-                          style={{ paddingLeft: `${depth * 16}px` }}
-                        >
-                          {isGroup ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center justify-center"
-                              onClick={e => {
-                                e.stopPropagation();
-                                toggleExpanded(node.id);
-                              }}
-                              aria-label={isExpanded ? "Collapse group" : "Expand group"}
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="size-4" />
-                              ) : (
-                                <ChevronRight className="size-4" />
-                              )}
-                            </button>
-                          ) : (
-                            <span className="inline-block size-4" />
-                          )}
-
-                          <span className="whitespace-normal wrap-break-word">{node.aipReferenceCode}</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="whitespace-normal wrap-break-word">{node.description}</TableCell>
-                      <TableCell className="whitespace-normal wrap-break-word">{node.implementingOffice ?? "-"}</TableCell>
-                      <TableCell className="text-center">{formatMonth(node.implementationStart)}</TableCell>
-                      <TableCell className="text-center">{formatMonth(node.implementationCompletion)}</TableCell>
-                      <TableCell className="whitespace-normal wrap-break-word">{node.expectedOutputs ?? "-"}</TableCell>
-                      <TableCell className="whitespace-normal wrap-break-word">{node.fundingSource ?? "-"}</TableCell>
-
-                      <TableCell className="text-right font-mono">{formatMoney(amountPS)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatMoney(amountMOOE)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatMoney(amountCO)}</TableCell>
-                      <TableCell className="text-right font-mono font-medium">{formatMoney(amountTotal)}</TableCell>
-
-                      <TableCell className="text-right font-mono">{formatMoney(amountPS / 1000)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatMoney(amountMOOE / 1000)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatMoney(amountCO / 1000)}</TableCell>
-                      <TableCell className="text-right font-mono font-medium">{formatMoney(amountTotal / 1000)}</TableCell>
-
-                      <TableCell className="text-right font-mono">{formatMoney(amountCCAdapt)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatMoney(amountCCMitigate)}</TableCell>
-                      <TableCell>{node.ccTopologyCode ?? "-"}</TableCell>
-                      <TableCell>{node.gadable ? "Yes" : "No"}</TableCell>
-                      <TableCell className="text-right font-mono">{formatMoney(gadAmount)}</TableCell>
+                      <AipPageTableCells
+                        columns={columnVisibility.orderedVisible as AipPageColumnDef[]}
+                        ctx={cellCtx}
+                      />
                     </TableRow>
                   );
                 })}
 
                 {paddingBottom > 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={21} style={{ height: `${paddingBottom}px` }} />
-                  </TableRow>
+                  <AipPageSpacerRow colCount={columnVisibility.visibleCount} height={paddingBottom} />
                 ) : null}
               </TableBody>
             </Table>

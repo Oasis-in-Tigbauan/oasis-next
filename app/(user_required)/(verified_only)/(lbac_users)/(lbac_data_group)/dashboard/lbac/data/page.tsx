@@ -48,15 +48,24 @@ import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
-  TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
+import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
+import {
+  LbacPageGroupRow,
+  LbacPageItemRow,
+  LbacPageSpacerRow,
+  LbacPageTableHeader,
+  LbacPageTotalRow,
+  resolveMainExportColumns,
+  toLbacExportFlatRow,
+  useLbacDataColumnVisibility,
+  type LbacMainExportColumnKey,
+} from "@/lib/lbac/page-display";
 
 import { ExportDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-dialog";
 import { ExportFormsDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-forms-dialog";
@@ -69,8 +78,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const TOTAL_COLS = 58;
 
 export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
@@ -92,6 +99,12 @@ export default function Page() {
   const [exportFormType, setExportFormType] = useState<"lbe-f1" | "form-3" | "form-5" | "lbe-f5" | "form-5a" | null>(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const columnVisibility = useLbacDataColumnVisibility();
+  const visibleExportColumns = useMemo(
+    () => resolveMainExportColumns([...columnVisibility.visibleKeys] as LbacMainExportColumnKey[]),
+    [columnVisibility.visibleKeys],
+  );
 
   const tree = useMemo(() => data?.data?.data ?? [], [data?.data?.data]);
   const allGroups = useMemo(() => collectGroups(tree), [tree]);
@@ -241,6 +254,15 @@ export default function Page() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <ColumnVisibilityPicker
+            groups={columnVisibility.pickerGroups}
+            selected={columnVisibility.visibleKeys}
+            selectedToggleableCount={columnVisibility.selectedToggleableCount}
+            totalToggleableCount={columnVisibility.totalToggleableCount}
+            onToggle={columnVisibility.toggle}
+            onSelectAll={columnVisibility.selectAll}
+            onDeselectAll={columnVisibility.deselectAll}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -325,319 +347,69 @@ export default function Page() {
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-[#FFF2CC] [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
-                <TableRow>
-                  {/* ── Single-col headers (rowSpan=2) ── */}
-                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">MFO/PPA</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">Major Final Output</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">Performance/Output Indicator</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">Target for Budget Year</TableHead>
-                  {/* ── Proposed Budget (5) ── */}
-                  <TableHead colSpan={5} className="text-center border-b">Proposed Budget for the Budget Year</TableHead>
-                  {/* ── Single ── */}
-                  <TableHead rowSpan={2} className="min-w-32 align-middle">Implementing Unit</TableHead>
-                  {/* ── Appropriation (3) ── */}
-                  <TableHead colSpan={3} className="text-center border-b">Appropriation</TableHead>
-                  {/* ── Allotment Released (3) ── */}
-                  <TableHead colSpan={3} className="text-center border-b">Allotment Released</TableHead>
-                  {/* ── Single ── */}
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Balance of Appropriation</TableHead>
-                  {/* ── Obligations Incurred (3) ── */}
-                  <TableHead colSpan={3} className="text-center border-b">Obligations Incurred</TableHead>
-                  {/* ── Singles ── */}
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Unobligated Amount</TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Remarks</TableHead>
-                  {/* ── Obligation cut-off (3) ── */}
-                  <TableHead colSpan={3} className="text-center border-b">Obligation</TableHead>
-                  {/* ── Other singles (8) ── */}
-                  <TableHead rowSpan={2} className="min-w-20 align-middle">Gadable</TableHead>
-                  <TableHead rowSpan={2} className="min-w-24 align-middle">Tagging</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Amount Attributed</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Expense Class</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Account Code</TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
-                    Prior Year Accomplishments
-                  </TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Physical Targets</TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Other Remarks</TableHead>
-                  {/* ── Financial Allocation (5) ── */}
-                  <TableHead colSpan={5} className="text-center border-b">Financial Allocation</TableHead>
-                  {/* ── Actual Financial Performance (5) ── */}
-                  <TableHead colSpan={5} className="text-center border-b">Actual Financial Performance</TableHead>
-                  {/* ── Single ── */}
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Variance (Financial)</TableHead>
-                  {/* ── Physical Targets QR (5) ── */}
-                  <TableHead colSpan={5} className="text-center border-b">Physical Targets (Performance)</TableHead>
-                  {/* ── Actual Physical Performance QR (5) ── */}
-                  <TableHead colSpan={5} className="text-center border-b">Actual Physical Performance</TableHead>
-                  {/* ── QR singles ── */}
-                  <TableHead rowSpan={2} className="min-w-24 align-middle">Variance (Performance)</TableHead>
-                  <TableHead rowSpan={2} className="min-w-24 align-middle">% Accomplishment</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">QR Remarks</TableHead>
-                </TableRow>
-                <TableRow>
-                  {/* Proposed Budget sub-headers */}
-                  <TableHead className="min-w-24">PS</TableHead>
-                  <TableHead className="min-w-24">MOOE</TableHead>
-                  <TableHead className="min-w-24">FE</TableHead>
-                  <TableHead className="min-w-24">CO</TableHead>
-                  <TableHead className="min-w-24">Total</TableHead>
-                  {/* Appropriation sub-headers */}
-                  <TableHead className="min-w-36">Cont./Suppl./Aug.</TableHead>
-                  <TableHead className="min-w-28">Current</TableHead>
-                  <TableHead className="min-w-28">Total</TableHead>
-                  {/* Allotment Released sub-headers */}
-                  <TableHead className="min-w-28">Previous Quarters</TableHead>
-                  <TableHead className="min-w-28">This Quarter</TableHead>
-                  <TableHead className="min-w-28">Total</TableHead>
-                  {/* Obligations Incurred sub-headers */}
-                  <TableHead className="min-w-28">Previous Quarters</TableHead>
-                  <TableHead className="min-w-28">This Quarter</TableHead>
-                  <TableHead className="min-w-28">Total</TableHead>
-                  {/* Obligation (cut-off) sub-headers */}
-                  <TableHead className="min-w-28">Cut-off</TableHead>
-                  <TableHead className="min-w-28">Balance</TableHead>
-                  <TableHead className="min-w-20">%</TableHead>
-                  {/* Financial Allocation sub-headers */}
-                  <TableHead className="min-w-20">Q1</TableHead>
-                  <TableHead className="min-w-20">Q2</TableHead>
-                  <TableHead className="min-w-20">Q3</TableHead>
-                  <TableHead className="min-w-20">Q4</TableHead>
-                  <TableHead className="min-w-20">Total</TableHead>
-                  {/* Actual Financial Performance sub-headers */}
-                  <TableHead className="min-w-20">Q1</TableHead>
-                  <TableHead className="min-w-20">Q2</TableHead>
-                  <TableHead className="min-w-20">Q3</TableHead>
-                  <TableHead className="min-w-20">Q4</TableHead>
-                  <TableHead className="min-w-20">Total</TableHead>
-                  {/* Physical Targets QR sub-headers */}
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
-                  <TableHead className="min-w-20">Total</TableHead>
-                  {/* Actual Physical Performance QR sub-headers */}
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
-                  <TableHead className="min-w-20">Total</TableHead>
-                </TableRow>
+                <LbacPageTableHeader year={currentYear} columns={visibleExportColumns} />
               </TableHeader>
               <TableBody>
                 {paddingTop > 0 && (
-                  <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
-                  </TableRow>
+                  <LbacPageSpacerRow colCount={visibleExportColumns.length} height={paddingTop} />
                 )}
                 {virtualRows.map(vr => {
                   const row = flatRows[vr.index]!;
+                  const exportRow = toLbacExportFlatRow(row);
 
                   if (row.kind === "group") {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     const isSelected = selectedRow?.id === row.id;
                     return (
-                      <TableRow
-                        ref={rowVirtualizer.measureElement}
+                      <LbacPageGroupRow
                         key={row.id}
-                        data-index={vr.index}
-                        className={`cursor-pointer select-none text-white ${isSelected ? "outline outline-2 outline-primary" : ""}`}
-                        style={{ backgroundColor: row.depth === 0 ? "#0B5394" : "#26a69a" }}
+                        row={exportRow as Extract<typeof exportRow, { kind: "group" }>}
+                        columns={visibleExportColumns}
+                        isCollapsed={isCollapsed}
+                        isSelected={isSelected}
+                        onToggleCollapse={() => toggleCollapse(row.id)}
                         onClick={() => handleRowClick(row)}
                         onDoubleClick={() => handleRowDoubleClick(row)}
-                      >
-                        <TableCell />
-                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 font-semibold text-white text-left hover:opacity-80 w-full"
-                            onClick={e => { e.stopPropagation(); toggleCollapse(row.id); }}
-                          >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
-                            <span>{row.data.name}</span>
-                          </button>
-                        </TableCell>
-                        <TableCell colSpan={TOTAL_COLS - 2} />
-                      </TableRow>
+                        measureRef={rowVirtualizer.measureElement}
+                        dataIndex={vr.index}
+                      />
                     );
                   }
 
                   if (row.kind === "group-total") {
-                    const t = row.data;
-                    const label = row.isRoot ? "Grand Total" : "Total";
                     return (
-                      <TableRow
-                        ref={rowVirtualizer.measureElement}
+                      <LbacPageTotalRow
                         key={row.id}
-                        data-index={vr.index}
-                        className="font-bold"
-                        style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
-                      >
-                        <TableCell />
-                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        {/* Proposed Budget */}
-                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetPS)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetMOOE)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetFE)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetCO)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetTotal)}</TableCell>
-                        {/* Implementing Unit */}
-                        <TableCell />
-                        {/* Appropriation */}
-                        <TableCell className="text-right font-mono">{fmt(t.appropriation.contOrSupplementalAugmentation)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.appropriation.current)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.appropriation.total)}</TableCell>
-                        {/* Allotment Released */}
-                        <TableCell className="text-right font-mono">{fmt(t.allotmentReleased.previousQuarters)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.allotmentReleased.thisQuarter)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.allotmentReleased.total)}</TableCell>
-                        {/* Balance of Appropriation */}
-                        <TableCell className="text-right font-mono">{fmt(t.balanceOfAppropriation)}</TableCell>
-                        {/* Obligations */}
-                        <TableCell className="text-right font-mono">{fmt(t.obligations.previousQuarters)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.obligations.thisQuarter)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.obligations.total)}</TableCell>
-                        {/* Unobligated / Remarks */}
-                        <TableCell className="text-right font-mono">{fmt(t.unobligatedAmount)}</TableCell>
-                        <TableCell />
-                        {/* asCutOffMonth */}
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.obligation)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.balance)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.percentage)}</TableCell>
-                        {/* Gadable / Tagging */}
-                        <TableCell />
-                        <TableCell />
-                        {/* Amount Attributed */}
-                        <TableCell className="text-right font-mono">{fmt(t.other.amountAttributed)}</TableCell>
-                        {/* Expense Class / Account Code / text fields */}
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        {/* Financial Allocation */}
-                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q1)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q2)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q3)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.Q4)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.financialAllocation.total)}</TableCell>
-                        {/* Actual Financial Performance */}
-                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q1)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q2)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q3)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.Q4)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.actualFinancialPerformance.total)}</TableCell>
-                        {/* Variance */}
-                        <TableCell className="text-right font-mono">{fmt(t.variance)}</TableCell>
-                        {/* QR text columns (13 empty) */}
-                        <TableCell colSpan={13} />
-                      </TableRow>
+                        row={exportRow as Extract<typeof exportRow, { kind: "group-total" }>}
+                        columns={visibleExportColumns}
+                        measureRef={rowVirtualizer.measureElement}
+                        dataIndex={vr.index}
+                      />
                     );
                   }
 
-                  const item = row.data as LbacItemResponse;
                   const isSelected = selectedRow?.id === row.id;
                   return (
-                    <TableRow
-                      ref={rowVirtualizer.measureElement}
+                    <LbacPageItemRow
                       key={row.id}
-                      data-index={vr.index}
-                      className={`cursor-pointer select-none ${
+                      row={exportRow as Extract<typeof exportRow, { kind: "item" }>}
+                      columns={visibleExportColumns}
+                      rowClassName={
                         isSelected
                           ? "bg-accent"
                           : vr.index % 2 === 1
                             ? "bg-muted hover:bg-muted/50"
                             : ""
-                      }`}
-                      title="Double-click to edit"
+                      }
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
-                    >
-                      <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.mfoPpa}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.majorFinalOutput)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.performanceOutputIndicator)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.targetForBudgetYear)}</TableCell>
-                      {/* Proposed Budget */}
-                      <TableCell className="text-right font-mono">{fmt(item.proposedBudgetPS)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.proposedBudgetMOOE)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.proposedBudgetFE)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.proposedBudgetCO)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.proposedBudgetTotal)}</TableCell>
-                      {/* Implementing Unit */}
-                      <TableCell>{txt(item.implementingUnit?.name)}</TableCell>
-                      {/* Appropriation */}
-                      <TableCell className="text-right font-mono">{fmt(item.appropriation.contOrSupplementalAugmentation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.appropriation.current)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.appropriation.total)}</TableCell>
-                      {/* Allotment Released */}
-                      <TableCell className="text-right font-mono">{fmt(item.allotmentReleased.previousQuarters)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.allotmentReleased.thisQuarter)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.allotmentReleased.total)}</TableCell>
-                      {/* Balance of Appropriation */}
-                      <TableCell className="text-right font-mono">{fmt(item.balanceOfAppropriation)}</TableCell>
-                      {/* Obligations Incurred */}
-                      <TableCell className="text-right font-mono">{fmt(item.obligations.previousQuarters)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.obligations.thisQuarter)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.obligations.total)}</TableCell>
-                      {/* Unobligated / Remarks */}
-                      <TableCell className="text-right font-mono">{fmt(item.unobligatedAmount)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.remarks)}</TableCell>
-                      {/* Obligation cut-off */}
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.obligation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.balance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.percentage)}</TableCell>
-                      {/* Other */}
-                      <TableCell>{item.other.gadable ? "Yes" : "No"}</TableCell>
-                      <TableCell>{txt(item.other.tagging)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.other.amountAttributed)}</TableCell>
-                      <TableCell>{txt(item.other.expenseCode?.accountName)}</TableCell>
-                      <TableCell>{txt(item.other.expenseCode?.accountCode)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.other.priorYearAccomplishments)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.other.physicalTargets)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.other.remarks)}</TableCell>
-                      {/* Financial Allocation */}
-                      <TableCell className="text-right font-mono">{fmt(item.financialAllocation.Q1)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.financialAllocation.Q2)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.financialAllocation.Q3)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.financialAllocation.Q4)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.financialAllocation.total)}</TableCell>
-                      {/* Actual Financial Performance */}
-                      <TableCell className="text-right font-mono">{fmt(item.actualFinancialPerformance.Q1)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.actualFinancialPerformance.Q2)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.actualFinancialPerformance.Q3)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.actualFinancialPerformance.Q4)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.actualFinancialPerformance.total)}</TableCell>
-                      {/* Variance (Financial) */}
-                      <TableCell className="text-right font-mono">{fmt(item.variance)}</TableCell>
-                      {/* Physical Targets QR */}
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q1)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q2)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q3)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.physicalTargets.Q4)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.physicalTargets.total)}</TableCell>
-                      {/* Actual Physical Performance QR */}
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q1)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q2)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q3)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.quarterlyReport.actualPhysicalPerformance.Q4)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.actualPhysicalPerformance.total)}</TableCell>
-                      {/* QR singles */}
-                      <TableCell>{txt(item.quarterlyReport.variance)}</TableCell>
-                      <TableCell>{txt(item.quarterlyReport.accomplishment)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.quarterlyReport.remarks)}</TableCell>
-                    </TableRow>
+                      measureRef={rowVirtualizer.measureElement}
+                      dataIndex={vr.index}
+                    />
                   );
                 })}
                 {paddingBottom > 0 && (
-                  <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
-                  </TableRow>
+                  <LbacPageSpacerRow colCount={visibleExportColumns.length} height={paddingBottom} />
                 )}
               </TableBody>
             </Table>
@@ -1639,17 +1411,6 @@ function flattenVisible(
     }
   }
   return rows;
-}
-
-function fmt(val: string | null | undefined): string {
-  if (!val) return "—";
-  const n = Number(val);
-  if (Number.isNaN(n)) return val;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function txt(val: string | null | undefined): string {
-  return val ?? "—";
 }
 
 function _getUtc8Year(): number {

@@ -13,8 +13,15 @@ import type {
   SupplementalListResponse,
 } from "@/lib/http/client/responses";
 
+import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
+import { useColumnVisibility } from "@/lib/column-visibility";
+import {
+  SUPPLEMENTAL_PAGE_COLUMN_GROUPS,
+  SUPPLEMENTAL_PAGE_COLUMNS,
+  SUPPLEMENTAL_PAGE_STORAGE_KEY,
+} from "@/lib/supplemental/page-columns";
 import { SupplementalFormDialog } from "@/app/(user_required)/(verified_only)/(supplemental_users)/dashboard/supplemental/supplemental-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +35,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const TOTAL_COLS = 7;
-
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<SupplementalListResponse, ApiResponseException>>(
     "/api/supplemental",
@@ -42,6 +47,20 @@ export default function Page() {
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const columnVisibility = useColumnVisibility(
+    SUPPLEMENTAL_PAGE_STORAGE_KEY,
+    SUPPLEMENTAL_PAGE_COLUMNS,
+    SUPPLEMENTAL_PAGE_COLUMN_GROUPS,
+  );
+
+  const orderedColumns = useMemo(
+    () =>
+      columnVisibility.orderedVisible.map(
+        col => SUPPLEMENTAL_PAGE_COLUMNS.find(c => c.key === col.key)!,
+      ),
+    [columnVisibility.orderedVisible],
+  );
 
   const items = data?.data?.data;
   const filteredItems = useMemo(() => {
@@ -136,6 +155,17 @@ export default function Page() {
         >
           <Trash2 />
         </Button>
+        <div className="ml-auto">
+          <ColumnVisibilityPicker
+            groups={columnVisibility.pickerGroups}
+            selected={columnVisibility.visibleKeys}
+            selectedToggleableCount={columnVisibility.selectedToggleableCount}
+            totalToggleableCount={columnVisibility.totalToggleableCount}
+            onToggle={columnVisibility.toggle}
+            onSelectAll={columnVisibility.selectAll}
+            onDeselectAll={columnVisibility.deselectAll}
+          />
+        </div>
       </div>
 
       <div className="border rounded-lg p-2">
@@ -151,19 +181,17 @@ export default function Page() {
             <Table className="w-max min-w-full table-fixed text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
-                  <TableHead className="w-40 min-w-40">Date</TableHead>
-                  <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Supplemental/Augmentation</TableHead>
-                  <TableHead className="w-44 min-w-44">Less: Source of Funds</TableHead>
-                  <TableHead className="w-48 min-w-48">Add: Object of Expenditures</TableHead>
-                  <TableHead className="w-28 min-w-28">Quarter</TableHead>
-                  <TableHead className="w-28 min-w-28">AIP Code</TableHead>
-                  <TableHead className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">AIP Description</TableHead>
+                  {orderedColumns.map(col => (
+                    <TableHead key={col.key} className={col.headerClassName}>
+                      {col.label}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={columnVisibility.visibleCount} style={{ height: `${paddingTop}px` }} />
                   </TableRow>
                 )}
 
@@ -190,24 +218,18 @@ export default function Page() {
                         setEditOpen(true);
                       }}
                     >
-                      <TableCell className="w-40 min-w-40">{formatDate(item.date)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.supplementalOrAugmentation ?? "—"}</TableCell>
-                      <TableCell className="w-44 min-w-44 text-right font-mono">
-                        {item.supplementalType === "less" ? formatMoney(item.amount) : "—"}
-                      </TableCell>
-                      <TableCell className="w-48 min-w-48 text-right font-mono">
-                        {item.supplementalType === "add" ? formatMoney(item.amount) : "—"}
-                      </TableCell>
-                      <TableCell className="w-28 min-w-28">{item.quarter}</TableCell>
-                      <TableCell className="w-28 min-w-28">{item.aipCode?.aipRefCode ?? "—"}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.aipCode?.description ?? "—"}</TableCell>
+                      {orderedColumns.map(col => (
+                        <TableCell key={col.key} className={col.cellClassName}>
+                          {col.renderCell(item)}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   );
                 })}
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={columnVisibility.visibleCount} style={{ height: `${paddingBottom}px` }} />
                   </TableRow>
                 )}
               </TableBody>
@@ -233,23 +255,4 @@ export default function Page() {
       />
     </div>
   );
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-PH", {
-    timeZone: "Asia/Manila",
-    dateStyle: "medium",
-  });
-}
-
-function formatMoney(value: string): string {
-  const parsed = Number(value.replace(/,/g, ""));
-  if (!Number.isFinite(parsed)) {
-    return value;
-  }
-
-  return parsed.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
