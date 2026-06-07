@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
@@ -12,9 +12,17 @@ import {
   EsreListResponse,
 } from "@/lib/http/client/responses";
 
+import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import { Button } from "@/components/ui/button";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
+import { useColumnVisibility } from "@/lib/column-visibility";
+import {
+  ESRE_PAGE_COLUMN_GROUPS,
+  ESRE_PAGE_COLUMNS,
+  ESRE_PAGE_STORAGE_KEY,
+  type EsrePageColumnDef,
+} from "@/lib/esre/page-columns";
 import {
   Table,
   TableBody,
@@ -35,6 +43,20 @@ export default function Page() {
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
+
+  const columnVisibility = useColumnVisibility(
+    ESRE_PAGE_STORAGE_KEY,
+    ESRE_PAGE_COLUMNS,
+    ESRE_PAGE_COLUMN_GROUPS,
+  );
+
+  const orderedColumns = useMemo(
+    () =>
+      columnVisibility.orderedVisible.map(
+        col => ESRE_PAGE_COLUMNS.find(c => c.key === col.key)!,
+      ),
+    [columnVisibility.orderedVisible],
+  );
 
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
@@ -81,28 +103,26 @@ export default function Page() {
         >
           <Trash2 />
         </Button>
+        <div className="ml-auto">
+          <ColumnVisibilityPicker
+            groups={columnVisibility.pickerGroups}
+            selected={columnVisibility.visibleKeys}
+            selectedToggleableCount={columnVisibility.selectedToggleableCount}
+            totalToggleableCount={columnVisibility.totalToggleableCount}
+            onToggle={columnVisibility.toggle}
+            onSelectAll={columnVisibility.selectAll}
+            onDeselectAll={columnVisibility.deselectAll}
+          />
+        </div>
       </div>
 
       <div className="border rounded-lg">
         <Table className="text-sm">
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Check Number</TableHead>
-              <TableHead>Funding Source</TableHead>
-              <TableHead>DV/Payroll No.</TableHead>
-              <TableHead>ORS/BURS No.</TableHead>
-              <TableHead>Expense Class</TableHead>
-              <TableHead>Office</TableHead>
-              <TableHead>Expense Name</TableHead>
-              <TableHead>Account Code</TableHead>
-              <TableHead>Payee</TableHead>
-              <TableHead>Nature of Payment</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Check Status</TableHead>
-              <TableHead>Remarks</TableHead>
-              <TableHead>Expense Type</TableHead>
-              <TableHead>Disbursed</TableHead>
+              {orderedColumns.map(col => (
+                <TableHead key={col.key}>{col.label}</TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -113,6 +133,7 @@ export default function Page() {
                 index={index}
                 selected={selectedItem?.id === item.id}
                 onSelect={() => setSelectedItem(prev => prev?.id === item.id ? null : item)}
+                visibleColumns={orderedColumns}
               />
             ))}
           </TableBody>
@@ -143,11 +164,13 @@ function EsreTableRow({
   index,
   selected,
   onSelect,
+  visibleColumns,
 }: {
   item: EsreItemResponse;
   index: number;
   selected: boolean;
   onSelect: () => void;
+  visibleColumns: EsrePageColumnDef[];
 }) {
   return (
     <TableRow
@@ -161,30 +184,10 @@ function EsreTableRow({
       onClick={onSelect}
       style={{ cursor: "pointer" }}
     >
-      <TableCell>{formatDate(item.date)}</TableCell>
-      <TableCell>{item.checkNumber ?? "—"}</TableCell>
-      <TableCell>{item.fundingSource.name}</TableCell>
-      <TableCell>{item.dvOrPayrollNumber ?? "—"}</TableCell>
-      <TableCell>{item.obr?.requestNumber ?? "—"}</TableCell>
-      <TableCell>{item.obr?.expenseClass.subClassification ?? "—"}</TableCell>
-      <TableCell>{item.obr?.office.name ?? "—"}</TableCell>
-      <TableCell>{item.obr?.expenseClass.accountName ?? "—"}</TableCell>
-      <TableCell>{item.obr?.expenseClass.accountCode ?? "—"}</TableCell>
-      <TableCell>{item.payee}</TableCell>
-      <TableCell>{item.natureOfPayment}</TableCell>
-      <TableCell>{item.amount}</TableCell>
-      <TableCell>{item.checkStatus ?? "—"}</TableCell>
-      <TableCell>{item.remarks ?? "—"}</TableCell>
-      <TableCell>{item.expenseType?.name ?? "—"}</TableCell>
-      <TableCell>{item.disbursed}</TableCell>
+      {visibleColumns.map(col => (
+        <TableCell key={col.key}>{col.renderCell(item)}</TableCell>
+      ))}
     </TableRow>
   );
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-PH", {
-    timeZone: "Asia/Manila",
-    dateStyle: "medium",
-  });
 }
 

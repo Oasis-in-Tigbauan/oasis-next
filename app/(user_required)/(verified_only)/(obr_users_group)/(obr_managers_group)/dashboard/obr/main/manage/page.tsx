@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
@@ -65,6 +65,13 @@ import {
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
+import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
+import { useColumnVisibility } from "@/lib/column-visibility";
+import {
+  OBR_MAIN_MANAGE_PAGE_COLUMN_GROUPS,
+  OBR_MAIN_MANAGE_PAGE_COLUMNS,
+  OBR_MAIN_MANAGE_PAGE_STORAGE_KEY,
+} from "@/lib/obr/page-columns";
 
 type AipRefRow = {
   rowId: string;
@@ -190,6 +197,20 @@ export default function Page() {
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
+  const columnVisibility = useColumnVisibility(
+    OBR_MAIN_MANAGE_PAGE_STORAGE_KEY,
+    OBR_MAIN_MANAGE_PAGE_COLUMNS,
+    OBR_MAIN_MANAGE_PAGE_COLUMN_GROUPS,
+  );
+
+  const orderedColumns = useMemo(
+    () =>
+      columnVisibility.orderedVisible.map(
+        col => OBR_MAIN_MANAGE_PAGE_COLUMNS.find(c => c.key === col.key)!,
+      ),
+    [columnVisibility.orderedVisible],
+  );
+
   const allItems = data?.data?.data ?? [];
 
   const items = searchQuery.trim()
@@ -302,6 +323,17 @@ export default function Page() {
               : selected.obrNumber}
           </Badge>
         )}
+        <div className="ml-auto">
+          <ColumnVisibilityPicker
+            groups={columnVisibility.pickerGroups}
+            selected={columnVisibility.visibleKeys}
+            selectedToggleableCount={columnVisibility.selectedToggleableCount}
+            totalToggleableCount={columnVisibility.totalToggleableCount}
+            onToggle={columnVisibility.toggle}
+            onSelectAll={columnVisibility.selectAll}
+            onDeselectAll={columnVisibility.deselectAll}
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -318,28 +350,17 @@ export default function Page() {
             <Table className="text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
-                  <TableHead className="min-w-32">OBR</TableHead>
-                  <TableHead className="min-w-48">ALOBS</TableHead>
-                  <TableHead className="min-w-28">Date</TableHead>
-                  <TableHead className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words">Payee</TableHead>
-                  <TableHead className="w-[220px] min-w-[220px] max-w-[220px] whitespace-normal break-words">Address</TableHead>
-                  <TableHead className="min-w-44">Responsibility Center</TableHead>
-                  <TableHead className="w-[240px] min-w-[240px] max-w-[240px] whitespace-normal break-words">Expense Name</TableHead>
-                  <TableHead className="min-w-36">Account Code</TableHead>
-                  <TableHead className="min-w-28">PR #</TableHead>
-                  <TableHead className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words">Particulars</TableHead>
-                  <TableHead className="min-w-36 text-right">Obligated</TableHead>
-                  <TableHead className="min-w-36 text-right">PR Amount</TableHead>
-                  <TableHead className="min-w-36 text-right">Disbursed</TableHead>
-                  <TableHead className="min-w-40 text-right">Variance Disbursed</TableHead>
-                  <TableHead className="min-w-36 text-right">VAR OBR VS F4</TableHead>
-                  <TableHead className="min-w-28">Quarter</TableHead>
+                  {orderedColumns.map(col => (
+                    <TableHead key={col.key} className={col.headerClassName}>
+                      {col.label}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={16} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={columnVisibility.visibleCount} style={{ height: `${paddingTop}px` }} />
                   </TableRow>
                 )}
 
@@ -362,29 +383,18 @@ export default function Page() {
                       onClick={() => handleRowClick(item)}
                       onDoubleClick={() => handleRowDoubleClick(item)}
                     >
-                      <TableCell className="font-medium">{item.obrNumber}</TableCell>
-                      <TableCell>{item.alobs}</TableCell>
-                      <TableCell>{formatDate(item.date)}</TableCell>
-                      <TableCell className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words align-top">{item.payee ?? "-"}</TableCell>
-                      <TableCell className="w-[220px] min-w-[220px] max-w-[220px] whitespace-normal break-words align-top">{item.address}</TableCell>
-                      <TableCell>{item.responsibilityCenter.name}</TableCell>
-                      <TableCell className="w-[240px] min-w-[240px] max-w-[240px] whitespace-normal break-words align-top">{item.expenseCode.expenseName}</TableCell>
-                      <TableCell>{item.expenseCode.accountCode ?? "-"}</TableCell>
-                      <TableCell>{item.prNumber || "-"}</TableCell>
-                      <TableCell className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words align-top">{item.particulars}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(item.obligated)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(item.prAmount)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(item.disbursed)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(item.varianceDisbursed)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(item.varObrVsF4)}</TableCell>
-                      <TableCell>Quarter {item.quarter}</TableCell>
+                      {orderedColumns.map(col => (
+                        <TableCell key={col.key} className={col.cellClassName}>
+                          {col.renderCell(item)}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   );
                 })}
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={16} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={columnVisibility.visibleCount} style={{ height: `${paddingBottom}px` }} />
                   </TableRow>
                 )}
               </TableBody>

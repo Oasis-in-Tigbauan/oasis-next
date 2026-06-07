@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -19,11 +19,16 @@ import {
   collectSaaobGroups,
   filterSaaobTreeByQuery,
   flattenSaaobVisible,
-  fmtAmount,
-  fmtPercent,
   type SaaobFlatRow,
-  txt,
 } from "@/lib/saaob/client";
+import {
+  SaaobPageEntryRow,
+  SaaobPageGroupRow,
+  SaaobPageSpacerRow,
+  SaaobPageTableHeader,
+  SaaobPageTotalRow,
+  useSaaobColumnVisibility,
+} from "@/lib/saaob/page-table";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,19 +55,15 @@ import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
-  TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
+import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
 import { ExportDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog";
-
-const TOTAL_COLS = 23;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April",
@@ -106,6 +107,8 @@ export default function Page() {
   const [exportOpen, setExportOpen] = useState(false);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const columnVisibility = useSaaobColumnVisibility("data");
 
   const tree = useMemo(() => data?.data?.data ?? [], [data]);
   const expenseClasses = useMemo(() => expenseClassesData?.data?.data ?? [], [expenseClassesData]);
@@ -296,6 +299,15 @@ export default function Page() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <ColumnVisibilityPicker
+            groups={columnVisibility.pickerGroups}
+            selected={columnVisibility.visibleKeys}
+            selectedToggleableCount={columnVisibility.selectedToggleableCount}
+            totalToggleableCount={columnVisibility.totalToggleableCount}
+            onToggle={columnVisibility.toggle}
+            onSelectAll={columnVisibility.selectAll}
+            onDeselectAll={columnVisibility.deselectAll}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -364,38 +376,12 @@ export default function Page() {
           >
             <Table className="text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background">
-                <TableRow>
-                  <TableHead className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal">Functions/Program/Project/Activity</TableHead>
-                  <TableHead className="min-w-32">Account Code</TableHead>
-                  <TableHead className="min-w-36 text-right">Annual Budget</TableHead>
-                  <TableHead className="min-w-36 text-right">Supplemental/Continuing</TableHead>
-                  <TableHead className="min-w-36 text-right">Appropriation</TableHead>
-                  <TableHead className="min-w-36 text-right">Allotment (Quarterly)</TableHead>
-                  <TableHead className="min-w-32 text-right">Obligation</TableHead>
-                  <TableHead className="min-w-36 text-right">Unobligated Balance</TableHead>
-                  <TableHead className="min-w-28 text-right">Percentage (%)</TableHead>
-                  <TableHead className="min-w-36">Remarks</TableHead>
-                  <TableHead className="min-w-40 text-right">Quarterly Allotment Balance</TableHead>
-                  <TableHead className="min-w-28 text-right">Percentage (%)</TableHead>
-                  <TableHead className="min-w-32 text-right">Disbursed</TableHead>
-                  <TableHead className="min-w-28 text-right">Percentage (%)</TableHead>
-                  <TableHead className="min-w-32 text-right">Variance</TableHead>
-                  <TableHead className="min-w-32 text-right">LBAC Budget</TableHead>
-                  <TableHead className="min-w-32 text-right">Variance Budget</TableHead>
-                  <TableHead className="min-w-32 text-right">LBAC Obligated</TableHead>
-                  <TableHead className="min-w-36 text-right">Variance Obligated</TableHead>
-                  <TableHead className="min-w-40 text-right">Obligation with PRs</TableHead>
-                  <TableHead className="min-w-36 text-right">Unobligated Balance</TableHead>
-                  <TableHead className="min-w-28 text-right">Percentage %</TableHead>
-                  <TableHead className="min-w-28 text-right">PRs</TableHead>
-                </TableRow>
+                <SaaobPageTableHeader visibleColumns={columnVisibility.orderedVisible} />
               </TableHeader>
 
               <TableBody>
                 {paddingTop > 0 && (
-                  <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
-                  </TableRow>
+                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingTop} />
                 )}
 
                 {virtualRows.map(virtualRow => {
@@ -406,73 +392,34 @@ export default function Page() {
                     const isSelected = selectedRow?.id === row.id;
 
                     return (
-                      <TableRow
-                        ref={rowVirtualizer.measureElement}
+                      <SaaobPageGroupRow
                         key={row.id}
-                        data-index={virtualRow.index}
-                        className={`bg-muted/50 cursor-pointer select-none ${isSelected ? "outline outline-2 outline-primary" : ""}`}
+                        visibleColumns={columnVisibility.orderedVisible}
+                        visibleCount={columnVisibility.visibleCount}
+                        name={row.data.name}
+                        depth={row.depth}
+                        isCollapsed={isCollapsed}
+                        isSelected={isSelected}
+                        onToggleCollapse={() => toggleCollapse(row.id)}
                         onClick={() => handleRowClick(row)}
                         onDoubleClick={() => handleRowDoubleClick(row)}
-                      >
-                        <TableCell>
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 font-semibold text-left hover:text-primary w-full"
-                            style={{ paddingLeft: `${row.depth * 14}px` }}
-                            onClick={e => {
-                              e.stopPropagation();
-                              toggleCollapse(row.id);
-                            }}
-                          >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
-                            <span>{row.data.name}</span>
-                          </button>
-                        </TableCell>
-                        <TableCell colSpan={TOTAL_COLS - 1} />
-                      </TableRow>
+                        measureRef={rowVirtualizer.measureElement}
+                        dataIndex={virtualRow.index}
+                      />
                     );
                   }
 
                   if (row.kind === "total") {
-                    const total = row.data;
                     return (
-                      <TableRow
-                        ref={rowVirtualizer.measureElement}
+                      <SaaobPageTotalRow
                         key={row.id}
-                        data-index={virtualRow.index}
-                        style={{ backgroundColor: "#FFF2CC" }}
-                      >
-                        <TableCell
-                          className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words font-bold"
-                          style={{ paddingLeft: `${row.depth * 14 + 4}px` }}
-                        >
-                          Total: {row.groupName}
-                        </TableCell>
-                        <TableCell />
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.annualBudget)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.supplementalOrContinuing)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.appropriation)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.allotment)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.obligation)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.unObligatedBalance)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.percentage)}</TableCell>
-                        <TableCell />
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.quarterlyAllotmentBalance.value)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.quarterlyAllotmentBalance.percentage)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.disbursed.value)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.disbursed.percentage)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.disbursed.variance)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.value)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.variance)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.obligated)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.lbacBudget.varianceObligated)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.obligationWithPRs.value)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.obligationWithPRs.balance)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtPercent(total.other.obligationWithPRs.percentage)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{fmtAmount(total.other.pr)}</TableCell>
-                      </TableRow>
+                        visibleColumns={columnVisibility.orderedVisible}
+                        data={row.data}
+                        groupName={row.groupName}
+                        depth={row.depth}
+                        measureRef={rowVirtualizer.measureElement}
+                        dataIndex={virtualRow.index}
+                      />
                     );
                   }
 
@@ -480,51 +427,26 @@ export default function Page() {
                   const isSelected = selectedRow?.id === row.id;
 
                   return (
-                    <TableRow
-                      ref={rowVirtualizer.measureElement}
+                    <SaaobPageEntryRow
                       key={row.id}
-                      data-index={virtualRow.index}
-                      className={`cursor-pointer select-none ${_qabRowClass(entryItem.other.quarterlyAllotmentBalance.percentage, isSelected)}`}
+                      visibleColumns={columnVisibility.orderedVisible}
+                      data={entryItem}
+                      name={entryItem.name}
+                      accountCode={entryItem.accountCode}
+                      remarks={entryItem.other.remarks}
+                      depth={row.depth}
+                      rowClassName={_qabRowClass(entryItem.other.quarterlyAllotmentBalance.percentage, isSelected)}
+                      measureRef={rowVirtualizer.measureElement}
+                      dataIndex={virtualRow.index}
                       title="Double-click to edit"
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
-                    >
-                      <TableCell
-                        className="w-[460px] min-w-[460px] max-w-[460px] whitespace-normal break-words"
-                        style={{ paddingLeft: `${row.depth * 14 + 4}px` }}
-                      >
-                        {entryItem.name}
-                      </TableCell>
-                      <TableCell>{txt(entryItem.accountCode)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.annualBudget)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.supplementalOrContinuing)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.appropriation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.allotment)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.obligation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.unObligatedBalance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.percentage)}</TableCell>
-                      <TableCell>{txt(entryItem.other.remarks)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.quarterlyAllotmentBalance.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.other.quarterlyAllotmentBalance.percentage)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.disbursed.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.other.disbursed.percentage)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.disbursed.variance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.variance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.obligated)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.lbacBudget.varianceObligated)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.obligationWithPRs.value)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.obligationWithPRs.balance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(entryItem.other.obligationWithPRs.percentage)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtAmount(entryItem.other.pr)}</TableCell>
-                    </TableRow>
+                    />
                   );
                 })}
 
                 {paddingBottom > 0 && (
-                  <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
-                  </TableRow>
+                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingBottom} />
                 )}
               </TableBody>
             </Table>
