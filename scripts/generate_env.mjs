@@ -56,6 +56,7 @@ async function main() {
   const token = utils.token.generatePassword(32, "!#%&()*+,/:;<=>?@[]^`{|}");
   utils.env.write("better.auth.secret", token);
   utils.env.write("better.auth.url", "http://localhost:3000");
+  utils.env.write("next.public.base.url", "http://localhost:3000");
 
   // Database configuration
   const dbPassword = utils.token.generatePassword(32);

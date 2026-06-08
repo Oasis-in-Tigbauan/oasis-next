@@ -3,9 +3,7 @@
 import { useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { FileSpreadsheet, Trash2 } from "lucide-react";
-import { Workbook } from "@cj-tech-master/excelts";
 import useSWR from "swr";
-import { toCurrency } from "to-words";
 
 import { $fetch } from "@/lib/http/client/fetch";
 import type {
@@ -411,281 +409,21 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
   };
 
   const exportPRToExcel = async () => {
-    const prItems = requestItems
-      .map((item, idx) => ({
-        id: idx + 1,
-        unit: item.unit,
-        description: item.itemDescription,
-        quantity: item.quantity.trim() === "" ? "" : Number(item.quantity),
-        unitCost: item.unitCost.trim() === "" ? "" : Number(item.unitCost),
-      }))
-      .filter(i => i.unit || i.description || i.quantity !== "" || i.unitCost !== "");
-
-    const aipEntry = selectedAips[0];
-
-    const findSigner = (id: string) => {
-      if (!signatoryData) return { name: "", title: "" };
-      const all = [...(signatoryData.headOfOffice ?? []), ...(signatoryData.treasurer ?? []), ...(signatoryData.mayor ?? [])];
-      const found = all.find(s => s.id === id);
-      return found ? { name: found.name, title: found.position } : { name: "", title: "" };
-    };
-
-    const prData = {
-      prNo: form.prNumber || "",
-      department: aipEntry?.implementingOffice ?? "",
-      section: "",
-      fpp: "",
-      fund: "",
-      purpose: form.purpose || "",
-      aipDesc: aipEntry?.label ?? "",
-      sourceOfFund: aipEntry?.sourceOfFund ?? "",
-      aipCode: aipEntry?.aipCode ?? "",
-      items: prItems,
-      requestedBy: findSigner(signatories.headOfOfficeId),
-      cashAvailable: findSigner(signatories.treasurerId),
-      approvedBy: findSigner(signatories.approverId),
-    };
-
-    const workbook = new Workbook();
-    const worksheet = workbook.addWorksheet("Purchase Request", { views: [{ showGridLines: true }] });
-
-    worksheet.columns = [
-      { width: 10 },
-      { width: 12 },
-      { width: 42 },
-      { width: 12 },
-      { width: 14 },
-      { width: 16 },
-    ];
-
-    const thinSide = { style: "thin" as const, color: { argb: "000000" } };
-    const thinBorder = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
-
-    const applyBorders = (startRow: number, endRow: number, startCol: number, endCol: number) => {
-      for (let r = startRow; r <= endRow; r++) {
-        for (let c = startCol; c <= endCol; c++) {
-          worksheet.getCell(r, c).border = thinBorder;
-        }
-      }
-    };
-
-    worksheet.mergeCells("A2:F2");
-    const titleCell = worksheet.getCell("A2");
-    titleCell.value = "PURCHASE REQUEST";
-    titleCell.font = { name: "Arial", size: 18, bold: true };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    worksheet.getRow(2).height = 32;
-
-    worksheet.getCell("A4").value = "LGU:   MUNICIPAL GOVERNMENT OF TIGBAUAN";
-    worksheet.getCell("A4").font = { name: "Arial", size: 11, bold: true };
-
-    worksheet.getCell("E4").value = "Fund:";
-    worksheet.getCell("E4").font = { name: "Arial", size: 11 };
-    worksheet.getCell("E4").alignment = { horizontal: "right" };
-
-    worksheet.getCell("F4").value = prData.fund;
-    worksheet.getCell("F4").font = { name: "Arial", size: 11, bold: true, underline: true };
-
-    applyBorders(5, 6, 1, 3);
-    applyBorders(5, 6, 4, 5);
-    applyBorders(5, 6, 6, 6);
-
-    worksheet.mergeCells("A5:C5");
-    worksheet.getCell("A5").value = `Department:  ${prData.department}`;
-    worksheet.getCell("A5").font = { name: "Arial", size: 10 };
-
-    worksheet.mergeCells("A6:C6");
-    worksheet.getCell("A6").value = `Section:       ${prData.section}`;
-    worksheet.getCell("A6").font = { name: "Arial", size: 10 };
-
-    worksheet.getCell("D5").value = "PR No.";
-    worksheet.getCell("D5").font = { name: "Arial", size: 10 };
-    worksheet.getCell("E5").value = prData.prNo;
-    worksheet.getCell("E5").font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFF0000" } };
-
-    worksheet.mergeCells("D6:E6");
-    worksheet.getCell("D6").value = `FPP: ${prData.fpp}`;
-    worksheet.getCell("D6").font = { name: "Arial", size: 10 };
-
-    worksheet.getCell("F5").value = "Date:";
-    worksheet.getCell("F5").font = { name: "Arial", size: 10 };
-
-    const headers = ["Item No.", "Unit", "Item Description", "Quantity", "Unit Cost", "Total Cost"];
-    const headerRow = worksheet.getRow(8);
-    headerRow.height = 22;
-
-    headers.forEach((header, index) => {
-      const cell = headerRow.getCell(index + 1);
-      cell.value = header;
-      cell.font = { name: "Arial", size: 10, bold: true };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
-      cell.border = thinBorder;
-    });
-
-    let currentLine = 9;
-    let grandTotal = 0;
-    prData.items.forEach((item) => {
-      const row = worksheet.getRow(currentLine);
-      row.height = 20;
-
-      row.getCell(1).value = item.id;
-      row.getCell(1).alignment = { horizontal: "center" };
-
-      row.getCell(2).value = item.unit;
-      row.getCell(2).alignment = { horizontal: "center" };
-
-      row.getCell(3).value = item.description;
-      row.getCell(3).alignment = { horizontal: "left" };
-
-      row.getCell(4).value = item.quantity;
-      row.getCell(4).alignment = { horizontal: "center" };
-
-      row.getCell(5).value = item.unitCost;
-      row.getCell(5).numFmt = "#,##0.00";
-      row.getCell(5).alignment = { horizontal: "right" };
-
-      if (typeof item.quantity === "number" && typeof item.unitCost === "number") {
-        const itemTotal = Math.round(item.quantity * item.unitCost * 100) / 100;
-        grandTotal += itemTotal;
-        row.getCell(6).value = { formula: `D${currentLine}*E${currentLine}`, result: itemTotal };
-      } else {
-        row.getCell(6).value = "-";
-      }
-      row.getCell(6).numFmt = "#,##0.00";
-      row.getCell(6).alignment = { horizontal: "right" };
-
-      for (let col = 1; col <= 6; col++) {
-        row.getCell(col).border = thinBorder;
-        row.getCell(col).font = { name: "Arial", size: 10 };
-      }
-      currentLine++;
-    });
-
-    const roundedTotal = Math.round(grandTotal * 100) / 100;
-
-    const totalRow = worksheet.getRow(currentLine);
-    worksheet.mergeCells(`A${currentLine}:E${currentLine}`);
-    totalRow.getCell(1).value = "TOTAL-------";
-    totalRow.getCell(1).font = { name: "Arial", size: 10, bold: true };
-    totalRow.getCell(1).alignment = { horizontal: "right" };
-
-    totalRow.getCell(6).value = { formula: `SUM(F9:F${currentLine - 1})`, result: roundedTotal };
-    totalRow.getCell(6).font = { name: "Arial", size: 10, bold: true };
-    totalRow.getCell(6).numFmt = "#,##0.00";
-    totalRow.getCell(6).alignment = { horizontal: "right" };
-    applyBorders(currentLine, currentLine, 1, 6);
-    currentLine++;
-
-    worksheet.mergeCells(`A${currentLine}:A${currentLine + 2}`);
-    const purposeLbl = worksheet.getCell(`A${currentLine}`);
-    purposeLbl.value = "Purpose:";
-    purposeLbl.font = { name: "Arial", size: 10 };
-    purposeLbl.alignment = { vertical: "top" };
-
-    worksheet.mergeCells(`B${currentLine}:F${currentLine + 2}`);
-    const purposeVal = worksheet.getCell(`B${currentLine}`);
-    purposeVal.value = prData.purpose;
-    purposeVal.font = { name: "Arial", size: 10 };
-    purposeVal.alignment = { vertical: "top", wrapText: true };
-    applyBorders(currentLine, currentLine + 2, 1, 6);
-    currentLine += 3;
-
-    worksheet.getCell(`A${currentLine}`).value = "AIP/PPA:";
-    worksheet.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
-
-    worksheet.mergeCells(`B${currentLine}:F${currentLine}`);
-    worksheet.getCell(`B${currentLine}`).value = `${prData.aipDesc}`;
-    worksheet.getCell(`B${currentLine}`).font = { name: "Arial", size: 9 };
-    applyBorders(currentLine, currentLine, 1, 6);
-    currentLine++;
-
-    worksheet.getCell(`A${currentLine}`).value = "Charges:";
-    worksheet.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
-
-    worksheet.mergeCells(`B${currentLine}:F${currentLine + 1}`);
-    const chargesVal = worksheet.getCell(`B${currentLine}`);
-    chargesVal.value = `${prData.sourceOfFund}\n${prData.aipCode}`;
-    chargesVal.font = { name: "Arial", size: 9 };
-    chargesVal.alignment = { wrapText: true, vertical: "top" };
-    applyBorders(currentLine, currentLine + 1, 1, 6);
-    currentLine += 2;
-
-    worksheet.mergeCells(`A${currentLine}:B${currentLine}`);
-    worksheet.getCell(`A${currentLine}`).value = "Requested by:";
-    worksheet.mergeCells(`C${currentLine}:D${currentLine}`);
-    worksheet.getCell(`C${currentLine}`).value = "Cash Availability:";
-    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
-    worksheet.getCell(`E${currentLine}`).value = "Approved by:";
-
-    for (let col = 1; col <= 6; col++) {
-      worksheet.getCell(currentLine, col).font = { name: "Arial", size: 10, bold: true };
-      worksheet.getCell(currentLine, col).border = {
-        top: thinSide,
-        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
-        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
-      };
-    }
-    currentLine++;
-
-    worksheet.getRow(currentLine).height = 35;
-    for (let col = 1; col <= 6; col++) {
-      worksheet.getCell(currentLine, col).border = {
-        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
-        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
-      };
-    }
-    currentLine++;
-
-    worksheet.mergeCells(`A${currentLine}:B${currentLine}`);
-    worksheet.getCell(`A${currentLine}`).value = prData.requestedBy.name;
-
-    worksheet.mergeCells(`C${currentLine}:D${currentLine}`);
-    worksheet.getCell(`C${currentLine}`).value = prData.cashAvailable.name;
-
-    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
-    worksheet.getCell(`E${currentLine}`).value = prData.approvedBy.name;
-
-    for (let col = 1; col <= 6; col++) {
-      worksheet.getCell(currentLine, col).font = { name: "Arial", size: 10, bold: true };
-      worksheet.getCell(currentLine, col).alignment = { horizontal: "center" };
-      worksheet.getCell(currentLine, col).border = {
-        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
-        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
-      };
-    }
-    currentLine++;
-
-    worksheet.getRow(currentLine).height = 32;
-    worksheet.mergeCells(`A${currentLine}:B${currentLine}`);
-    worksheet.getCell(`A${currentLine}`).value = prData.requestedBy.title;
-
-    worksheet.mergeCells(`C${currentLine}:D${currentLine}`);
-    worksheet.getCell(`C${currentLine}`).value = prData.cashAvailable.title;
-
-    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
-    worksheet.getCell(`E${currentLine}`).value = prData.approvedBy.title;
-
-    for (let col = 1; col <= 6; col++) {
-      worksheet.getCell(currentLine, col).font = { name: "Arial", size: 9 };
-      worksheet.getCell(currentLine, col).alignment = { horizontal: "center", wrapText: true, vertical: "middle" };
-      worksheet.getCell(currentLine, col).border = {
-        bottom: thinSide,
-        left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
-        right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
-      };
+    if (!editItem) {
+      return;
     }
 
-    const dataBuffer = await workbook.xlsx.writeBuffer(); // ArrayBuffer | Uint8Array | Buffer...
-    const arrayBuffer =
-      dataBuffer instanceof ArrayBuffer
-        ? dataBuffer
-        : (dataBuffer as Uint8Array).buffer as ArrayBuffer;
-    const outBlob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(outBlob);
+    const res = await fetch(`/api/forms/purchasing/export/pr?id=${editItem.id}`);
+    if (!res.ok) {
+      alert("Export failed.");
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Purchase_Request_${prData.prNo || Date.now()}.xlsx`;
+    a.download = `Purchase_Request_${editItem.prNumber || Date.now()}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1063,9 +801,11 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         </ScrollArea>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={exportPRToExcel} disabled={submitting}>
-            <FileSpreadsheet className="size-4 mr-2" /> Export PR (.xlsx)
-          </Button>
+          {mode === "edit" && editItem && (
+            <Button type="button" variant="outline" onClick={exportPRToExcel} disabled={submitting}>
+              <FileSpreadsheet className="size-4 mr-2" /> Export PR (.xlsx)
+            </Button>
+          )}
           <DialogClose asChild>
             <Button variant="outline" disabled={submitting}>Cancel</Button>
           </DialogClose>
@@ -1155,230 +895,18 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
 
   const exportPOToExcel = async () => {
     const item = selectedItems[0];
-    if (!item) return;
-
-    const modeOfProcurementName = procurementTypes.find(pt => pt.id === modeOfProcurementId)?.name ?? "";
-
-    const poItems = selectedItems.map((it, idx) => ({
-      id: idx + 1,
-      unit: it.unit,
-      description: it.itemDescription,
-      quantity: it.quantity === "" ? "" : Number(it.quantity),
-      unitCost: it.unitCost === "" ? "" : Number(it.unitCost),
-    }));
-
-    const workbook = new Workbook();
-    const worksheet = workbook.addWorksheet("Purchase Order", { views: [{ showGridLines: true }] });
-
-    worksheet.columns = [
-      { width: 10 },
-      { width: 12 },
-      { width: 42 },
-      { width: 12 },
-      { width: 14 },
-      { width: 16 },
-    ];
-
-    const thinSide = { style: "thin" as const, color: { argb: "000000" } };
-    const thinBorder = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
-
-    const applyBorders = (startRow: number, endRow: number, startCol: number, endCol: number) => {
-      for (let r = startRow; r <= endRow; r++) {
-        for (let c = startCol; c <= endCol; c++) {
-          worksheet.getCell(r, c).border = thinBorder;
-        }
-      }
-    };
-
-    // ── Title section ──────────────────────────────────────────────────────
-    worksheet.mergeCells("A2:F2");
-    const titleCell = worksheet.getCell("A2");
-    titleCell.value = "PURCHASE ORDER";
-    titleCell.font = { name: "Arial", size: 18, bold: true };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    worksheet.getRow(2).height = 32;
-
-    worksheet.mergeCells("A3:F3");
-    const subCell = worksheet.getCell("A3");
-    subCell.value = "Municipal Government of Tigbauan";
-    subCell.font = { name: "Arial", size: 13, bold: true };
-    subCell.alignment = { horizontal: "center", vertical: "middle" };
-    worksheet.getRow(3).height = 24;
-
-    worksheet.mergeCells("A4:F4");
-    const lguCell = worksheet.getCell("A4");
-    lguCell.value = "LGU";
-    lguCell.font = { name: "Arial", size: 11, bold: true };
-    lguCell.alignment = { horizontal: "center", vertical: "middle" };
-    worksheet.getRow(4).height = 20;
-
-    // ── Supplier / PO details (rows 6-9) ───────────────────────────────────
-    const dateStr = item.date || "";
-
-    type FieldRow = { label: string; value: string };
-    const leftFields: FieldRow[] = [
-      { label: "Supplier:", value: supplier },
-      { label: "Address:", value: address },
-      { label: "TIN:", value: tinNumber },
-      { label: "", value: "" },
-    ];
-    const rightFields: FieldRow[] = [
-      { label: "PO No.:", value: purchaseOrderNumber },
-      { label: "Date:", value: dateStr },
-      { label: "Mode of Procurement:", value: modeOfProcurementName },
-      { label: "PR No./s:", value: item.prNumber ?? "" },
-    ];
-
-    for (let i = 0; i < 4; i++) {
-      const r = 6 + i;
-      applyBorders(r, r, 1, 6);
-
-      worksheet.getCell(r, 1).value = leftFields[i].label;
-      worksheet.getCell(r, 1).font = { name: "Arial", size: 10, bold: true };
-      worksheet.mergeCells(`B${r}:C${r}`);
-      worksheet.getCell(r, 2).value = leftFields[i].value;
-      worksheet.getCell(r, 2).font = { name: "Arial", size: 10 };
-
-      worksheet.getCell(r, 4).value = rightFields[i].label;
-      worksheet.getCell(r, 4).font = { name: "Arial", size: 10, bold: true };
-      worksheet.mergeCells(`E${r}:F${r}`);
-      worksheet.getCell(r, 5).value = rightFields[i].value;
-      worksheet.getCell(r, 5).font = {
-        name: "Arial",
-        size: 10,
-        bold: i === 0 || i === 3,
-        color: i === 0 || i === 3 ? { argb: "FFFF0000" } : undefined,
-      };
+    if (!item) {
+      return;
     }
 
-    // ── Salutation ─────────────────────────────────────────────────────────
-    worksheet.mergeCells("A10:F10");
-    worksheet.getCell("A10").value = "Gentlemen:";
-    worksheet.getCell("A10").font = { name: "Arial", size: 10 };
-    worksheet.getRow(10).height = 18;
-
-    worksheet.mergeCells("A11:F11");
-    worksheet.getCell("A11").value =
-      "    Please furnish this Office the following articles subject to the terms and conditions contained herein:";
-    worksheet.getCell("A11").font = { name: "Arial", size: 10 };
-    worksheet.getRow(11).height = 18;
-
-    // ── Delivery details (rows 12-13) ──────────────────────────────────────
-    const deliveryLeft: FieldRow[] = [
-      { label: "Place of Delivery:", value: placeOfDelivery },
-      { label: "Date of Delivery:", value: dateOfDelivery },
-    ];
-    const deliveryRight: FieldRow[] = [
-      { label: "Delivery Term:", value: deliveryTerm },
-      { label: "Payment Term:", value: paymentTerm },
-    ];
-
-    for (let i = 0; i < 2; i++) {
-      const r = 12 + i;
-      applyBorders(r, r, 1, 6);
-
-      worksheet.getCell(r, 1).value = deliveryLeft[i].label;
-      worksheet.getCell(r, 1).font = { name: "Arial", size: 10, bold: true };
-      worksheet.mergeCells(`B${r}:C${r}`);
-      worksheet.getCell(r, 2).value = deliveryLeft[i].value;
-      worksheet.getCell(r, 2).font = { name: "Arial", size: 10 };
-
-      worksheet.getCell(r, 4).value = deliveryRight[i].label;
-      worksheet.getCell(r, 4).font = { name: "Arial", size: 10, bold: true };
-      worksheet.mergeCells(`E${r}:F${r}`);
-      worksheet.getCell(r, 5).value = deliveryRight[i].value;
-      worksheet.getCell(r, 5).font = { name: "Arial", size: 10 };
+    const res = await fetch(`/api/forms/purchasing/export/po?id=${item.id}`);
+    if (!res.ok) {
+      alert("Export failed.");
+      return;
     }
 
-    // ── Separator ──────────────────────────────────────────────────────────
-    applyBorders(14, 14, 1, 6);
-
-    // ── Table header ───────────────────────────────────────────────────────
-    const headers = ["Item No.", "Unit", "Item Description", "Quantity", "Unit Cost", "Total Cost"];
-    const headerRow = worksheet.getRow(15);
-    headerRow.height = 22;
-    headers.forEach((h, i) => {
-      const cell = headerRow.getCell(i + 1);
-      cell.value = h;
-      cell.font = { name: "Arial", size: 10, bold: true };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
-      cell.border = thinBorder;
-    });
-
-    // ── Item rows ──────────────────────────────────────────────────────────
-    let currentLine = 16;
-    let grandTotal = 0;
-    for (const poItem of poItems) {
-      const row = worksheet.getRow(currentLine);
-      row.height = 20;
-      row.getCell(1).value = poItem.id;
-      row.getCell(1).alignment = { horizontal: "center" };
-      row.getCell(2).value = poItem.unit;
-      row.getCell(2).alignment = { horizontal: "center" };
-      row.getCell(3).value = poItem.description;
-      row.getCell(3).alignment = { horizontal: "left" };
-      row.getCell(4).value = poItem.quantity;
-      row.getCell(4).alignment = { horizontal: "center" };
-      row.getCell(5).value = poItem.unitCost;
-      row.getCell(5).numFmt = "#,##0.00";
-      row.getCell(5).alignment = { horizontal: "right" };
-      if (typeof poItem.quantity === "number" && typeof poItem.unitCost === "number") {
-        const itemTotal = Math.round(poItem.quantity * poItem.unitCost * 100) / 100;
-        grandTotal += itemTotal;
-        row.getCell(6).value = { formula: `D${currentLine}*E${currentLine}`, result: itemTotal };
-      } else {
-        row.getCell(6).value = "-";
-      }
-      row.getCell(6).numFmt = "#,##0.00";
-      row.getCell(6).alignment = { horizontal: "right" };
-      for (let c = 1; c <= 6; c++) {
-        row.getCell(c).border = thinBorder;
-        row.getCell(c).font = { name: "Arial", size: 10 };
-      }
-      currentLine++;
-    }
-
-    // ── Separator after items ──────────────────────────────────────────────
-    applyBorders(currentLine, currentLine, 1, 6);
-    currentLine++;
-
-    const roundedTotal = Math.round(grandTotal * 100) / 100;
-
-    // ── SUB-TOTAL row ─────────────────────────────────────────────────────
-    worksheet.mergeCells(`A${currentLine}:E${currentLine}`);
-    worksheet.getCell(currentLine, 1).value = "SUB-TOTAL";
-    worksheet.getCell(currentLine, 1).font = { name: "Arial", size: 10, bold: true };
-    worksheet.getCell(currentLine, 1).alignment = { horizontal: "right" };
-    worksheet.getCell(currentLine, 6).value = roundedTotal;
-    worksheet.getCell(currentLine, 6).numFmt = "#,##0.00";
-    worksheet.getCell(currentLine, 6).font = { name: "Arial", size: 10, bold: true };
-    worksheet.getCell(currentLine, 6).alignment = { horizontal: "right" };
-    applyBorders(currentLine, currentLine, 1, 6);
-    currentLine++;
-
-    // ── Amount in words row ────────────────────────────────────────────────
-    worksheet.mergeCells(`A${currentLine}:D${currentLine}`);
-    worksheet.getCell(currentLine, 1).value = "(TOTAL AMOUNT IN WORDS)";
-    worksheet.getCell(currentLine, 1).font = { name: "Arial", size: 10 };
-    worksheet.getCell(currentLine, 1).alignment = { horizontal: "center" };
-    worksheet.mergeCells(`E${currentLine}:F${currentLine}`);
-    worksheet.getCell(currentLine, 5).value = toCurrency(roundedTotal.toFixed(2), { localeCode: "en-PH" });
-    worksheet.getCell(currentLine, 5).font = { name: "Arial", size: 10, bold: true };
-    worksheet.getCell(currentLine, 5).alignment = { horizontal: "center" };
-    applyBorders(currentLine, currentLine, 1, 6);
-    currentLine++;
-
-    // ── Closing separator ──────────────────────────────────────────────────
-    applyBorders(currentLine, currentLine, 1, 6);
-
-    const dataBuffer = await workbook.xlsx.writeBuffer();
-    const arrayBuffer =
-      dataBuffer instanceof ArrayBuffer
-        ? dataBuffer
-        : (dataBuffer as Uint8Array).buffer as ArrayBuffer;
-    const outBlob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(outBlob);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `Purchase_Order_${item.prNumber || Date.now()}.xlsx`;
