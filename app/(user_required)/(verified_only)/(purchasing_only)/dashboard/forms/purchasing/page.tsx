@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { FileSpreadsheet, Pencil, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -91,13 +91,24 @@ export default function Page() {
     [items, selectedPoItemIds],
   );
 
-  const selectedPoPrNumbers = useMemo(
-    () => Array.from(new Set(selectedPoItems.map(item => item.prNumber))),
+  const selectedItemsHavePo = useMemo(
+    () => selectedPoItems.some(item => item.purchaseOrderNumber?.trim()),
     [selectedPoItems],
   );
 
-  const canCreatePo = selectedPoItems.length > 0 && selectedPoPrNumbers.length === 1;
-  const poSelectionHasMismatch = selectedPoItems.length > 0 && selectedPoPrNumbers.length > 1;
+  const canCreatePo = selectedPoItems.length > 0 && !selectedItemsHavePo;
+
+  const selectedPoNumbers = useMemo(
+    () => Array.from(new Set(
+      selectedPoItems
+        .map(item => item.purchaseOrderNumber)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    )),
+    [selectedPoItems],
+  );
+
+  const canExportPo = selectedPoItems.length > 0 && selectedPoNumbers.length === 1;
+  const poExportHasMismatch = selectedPoItems.length > 0 && selectedPoNumbers.length > 1;
 
   const areAllFilteredSelected =
     filteredItems.length > 0 && filteredItems.every(item => selectedPoItemIds.has(item.id));
@@ -158,9 +169,46 @@ export default function Page() {
           Create a Purchase Order (PO)
         </Button>
 
-        {poSelectionHasMismatch && (
+        {selectedItemsHavePo && (
           <span className="ml-2 text-xs text-destructive">
-            Select only items with the same PR Number for PO creation.
+            Selected items already have a PO assigned. Use Export PO instead.
+          </span>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canExportPo}
+          onClick={async () => {
+            if (!canExportPo) return;
+
+            const item = selectedPoItems[0];
+            if (!item) return;
+
+            const res = await fetch(`/api/forms/purchasing/export/po?id=${item.id}`);
+            if (!res.ok) {
+              alert("Export failed.");
+              return;
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Purchase_Order_${selectedPoNumbers[0] ?? item.id}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          <FileSpreadsheet className="size-4 mr-2" />
+          Export PO (.xlsx)
+        </Button>
+
+        {poExportHasMismatch && (
+          <span className="ml-2 text-xs text-destructive">
+            Select only items with the same PO Number for PO export.
           </span>
         )}
 
