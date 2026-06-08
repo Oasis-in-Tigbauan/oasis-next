@@ -51,6 +51,7 @@ export async function getUserById(id: string): Promise<Success<User> | Failure> 
         activated: user.emailVerified,
         banned: user.banned,
         shadowBanned: user.shadowBanned,
+        twoFactorEnabled: user.twoFactorEnabled,
         officeId: office.id,
         officeName: office.name,
         officePositionId: officePosition.id,
@@ -86,6 +87,7 @@ export async function getUserById(id: string): Promise<Success<User> | Failure> 
         },
       },
       DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: account.shadowBanned,
+      twoFactorEnabled: account.twoFactorEnabled ?? false,
     };
 
     // Write to cache
@@ -129,6 +131,7 @@ export async function getUnactivatedAccounts(): Promise<Result<Array<User>>> {
         activated: user.emailVerified,
         banned: user.banned,
         shadowBanned: user.shadowBanned,
+        twoFactorEnabled: user.twoFactorEnabled,
         officeId: office.id,
         officeName: office.name,
         officePositionId: officePosition.id,
@@ -167,6 +170,7 @@ export async function getUnactivatedAccounts(): Promise<Result<Array<User>>> {
           },
         },
         DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: a.shadowBanned,
+        twoFactorEnabled: a.twoFactorEnabled ?? false,
       }));
 
     return new Success(mapped);
@@ -206,6 +210,7 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
         activated: user.emailVerified,
         banned: user.banned,
         shadowBanned: user.shadowBanned,
+        twoFactorEnabled: user.twoFactorEnabled,
         officeId: office.id,
         officeName: office.name,
         officePositionId: officePosition.id,
@@ -242,6 +247,7 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
         },
       },
       DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: a.shadowBanned,
+      twoFactorEnabled: a.twoFactorEnabled ?? false,
     }));
 
     return new Success(mapped);
@@ -898,6 +904,7 @@ export type User = {
     }
   },
   DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: boolean;
+  twoFactorEnabled: boolean;
 }
 
 export type Invitation = {

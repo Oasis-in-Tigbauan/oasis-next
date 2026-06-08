@@ -43,9 +43,11 @@ export default function SigninPage() {
         return;
       }
 
-      if (data !== null && data !== undefined) {
-        redirect("/auth/check", RedirectType.replace);
+      if ((data as SignInApiResponse | null)?.data?.twoFactorRequired) {
+        redirect("/auth/two-factor", RedirectType.replace);
       }
+
+      redirect("/auth/check", RedirectType.replace);
     }
     finally {
       setIsLoading(false);
@@ -188,4 +190,11 @@ type SigninPageState = {
   email: string;
   password: string;
   rememberMe: boolean;
+};
+
+type SignInApiResponse = {
+  ok: true;
+  data: {
+    twoFactorRequired?: boolean;
+  };
 };

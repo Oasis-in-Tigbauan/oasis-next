@@ -28,13 +28,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await auth.api.signInEmail({
+    const response = await auth.api.signInEmail({
       body: {
         email: body.email,
         password: body.password,
         rememberMe: body.rememberMe ?? false,
       },
     });
+
+    if ("twoFactorRedirect" in response) {
+      return ApiResponseBuilder.create(StatusCodes.Status200Ok)
+        .withBody({ twoFactorRequired: true })
+        .build();
+    }
 
     return ApiResponseBuilder.create(StatusCodes.Status204NoContent).build();
   } catch (e) {
