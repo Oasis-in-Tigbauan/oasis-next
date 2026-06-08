@@ -428,6 +428,13 @@
       "when": 1780300347118,
       "tag": "0060_complex_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1780907773683,
+      "tag": "0061_smiling_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

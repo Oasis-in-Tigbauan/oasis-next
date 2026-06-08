@@ -127,6 +127,7 @@ export const twoFactor = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(false).notNull(),
   },
   (table) => [
     index("twoFactor_secret_idx").on(table.secret),

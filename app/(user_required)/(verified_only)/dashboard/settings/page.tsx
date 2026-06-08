@@ -1,6 +1,7 @@
 "use client";
 
 import PasswordSettingsPanel from "./password-settings-panel";
+import TwoFactorSettingsPanel from "./two-factor-settings-panel";
 import {
   Tabs,
   TabsContent,
@@ -18,10 +19,15 @@ export default function SettingsPage() {
         <Tabs defaultValue="password" className="w-full">
           <TabsList>
             <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsTrigger value="two-factor">Two-Factor Authentication</TabsTrigger>
           </TabsList>
 
           <TabsContent value="password" className="mt-6">
             <PasswordSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="two-factor" className="mt-6">
+            <TwoFactorSettingsPanel />
           </TabsContent>
         </Tabs>
       </div>
