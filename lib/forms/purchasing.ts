@@ -164,8 +164,8 @@ export async function createPurchaseRequest(
  * Creates purchase-order details for a set of purchasing rows.
  *
  * @description
- * Ensures all purchasing rows exist in the caller's office, verifies they share the same PR number,
- * validates mode of procurement when provided, then applies purchase-order fields in one update transaction.
+ * Ensures all purchasing rows exist in the caller's office, validates mode of procurement when provided,
+ * then applies purchase-order fields in one update transaction.
  *
  * @async
  * @function createPurchaseOrder
@@ -192,6 +192,7 @@ export async function createPurchaseOrder(
       .select({
         id: purchasing.id,
         prNumber: purchasing.prNumber,
+        purchaseOrderNumber: purchasing.purchaseOrderNumber,
         requestingOfficeId: purchasing.requestingOfficeId,
       })
       .from(purchasing)
@@ -213,11 +214,10 @@ export async function createPurchaseOrder(
       );
     }
 
-    const prNumbers = new Set(targetRows.map(row => row.prNumber));
-    if (prNumbers.size !== 1) {
+    if (targetRows.some(row => row.purchaseOrderNumber?.trim())) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Purchase order items must share the same PR number.",
+        "One or more selected items already have a purchase order assigned.",
         { payload, userId: user.id },
       );
     }

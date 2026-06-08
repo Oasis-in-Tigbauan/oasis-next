@@ -854,8 +854,8 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
       return;
     }
 
-    if (new Set(selectedItems.map(v => v.prNumber)).size !== 1) {
-      alert("All selected rows must have the same PR Number.");
+    if (selectedItems.some(item => item.purchaseOrderNumber?.trim())) {
+      alert("One or more selected items already have a purchase order assigned.");
       return;
     }
 
@@ -893,29 +893,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
     onOpenChange(false);
   };
 
-  const exportPOToExcel = async () => {
-    const item = selectedItems[0];
-    if (!item) {
-      return;
-    }
-
-    const res = await fetch(`/api/forms/purchasing/export/po?id=${item.id}`);
-    if (!res.ok) {
-      alert("Export failed.");
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Purchase_Order_${item.prNumber || Date.now()}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
@@ -924,7 +901,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
           <DialogDescription>
             {selectedItems.length === 0
               ? "Create a purchase order for selected purchase request items."
-              : `Create a purchase order for ${selectedItems.length} selected item(s), PR Number ${selectedItems[0]!.prNumber}.`}
+              : `Create a purchase order for ${selectedItems.length} selected item(s).`}
           </DialogDescription>
         </DialogHeader>
 
@@ -999,9 +976,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
         </form>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={exportPOToExcel} disabled={submitting || selectedItems.length === 0}>
-            <FileSpreadsheet className="size-4 mr-2" /> Export PO (.xlsx)
-          </Button>
           <DialogClose asChild>
             <Button variant="outline" disabled={submitting}>Cancel</Button>
           </DialogClose>

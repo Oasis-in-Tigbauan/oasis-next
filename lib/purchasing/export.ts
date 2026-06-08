@@ -407,7 +407,7 @@ export async function exportPurchaseOrderToBuffer(
 
     const [sourceItem] = await db
       .select({
-        prNumber: purchasing.prNumber,
+        purchaseOrderNumber: purchasing.purchaseOrderNumber,
         requestingOfficeId: purchasing.requestingOfficeId,
       })
       .from(purchasing)
@@ -418,10 +418,17 @@ export async function exportPurchaseOrderToBuffer(
       return new Failure(ErrorCodes.ResourceNotFound, "Purchase order item not found.");
     }
 
+    if (!sourceItem.purchaseOrderNumber) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Purchase order has not been created for this item.",
+      );
+    }
+
     const allIds = await db
       .select({ id: purchasing.id })
       .from(purchasing)
-      .where(eq(purchasing.prNumber, sourceItem.prNumber))
+      .where(eq(purchasing.purchaseOrderNumber, sourceItem.purchaseOrderNumber))
       .orderBy(purchasing.createdAt);
 
     if (allIds.length === 0) {
@@ -436,6 +443,7 @@ export async function exportPurchaseOrderToBuffer(
       .where(inArray(purchasing.id, ids));
 
     const first = rows[0];
+    const prNumbers = Array.from(new Set(rows.map(row => row.prNumber))).join(", ");
 
     const items: ExportItem[] = rows.map((row, idx) => ({
       id: idx + 1,
@@ -522,7 +530,7 @@ export async function exportPurchaseOrderToBuffer(
       { label: "PO No.:", value: first.purchaseOrderNumber ?? "", bold: true, red: true },
       { label: "Date:", value: poDateStr },
       { label: "Mode of Procurement:", value: modeOfProcurement },
-      { label: "PR No./s:", value: first.prNumber ?? "", bold: true, red: true },
+      { label: "PR No./s:", value: prNumbers, bold: true, red: true },
     ];
 
     for (let i = 0; i < 4; i++) {
