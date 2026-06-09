@@ -13,6 +13,11 @@ import type { FundTypesListResponse } from "@/lib/http/client/responses/FundType
 import type { FundTypeResponse } from "@/lib/http/client/responses/FundTypeResponse";
 import type { InvitationResponse } from "@/lib/http/client/responses/InvitationResponse";
 import type { InvitationListResponse } from "@/lib/http/client/responses/InvitationListResponse";
+import type {
+  LeaveApplicationItem as LeaveApplicationItemResponse,
+  LeaveApplicationListResponse,
+  LeaveApplicationResponse,
+} from "@/lib/http/client/responses/LeaveApplicationListResponse";
 import type { OfficeCodeListResponse } from "@/lib/http/client/responses/OfficeCodeListResponse";
 import type { OfficeCodeResponse } from "@/lib/http/client/responses/OfficeCodeResponse";
 import type { OfficeCodeWithHeadsResponse } from "@/lib/http/client/responses/OfficeCodeWithHeadsResponse";
@@ -24,6 +29,12 @@ import type {
 import type { OfficesExtendedListResponse } from "@/lib/http/client/responses/OfficesExtendedListResponse";
 import type { OfficesListResponse } from "@/lib/http/client/responses/OfficesListResponse";
 import type { PermissionDefinitionResponse } from "@/lib/http/client/responses/PermissionDefinitionResponse";
+import type {
+  PayrollEntryItem as PayrollEntryItemResponse,
+  PayrollItem as PayrollItemResponse,
+  PayrollListResponse,
+  PayrollResponse,
+} from "@/lib/http/client/responses/PayrollListResponse";
 import type { RoleDefinitionResponse } from "@/lib/http/client/responses/RoleDefinitionResponse";
 import type { UnactivatedListResponse } from "@/lib/http/client/responses/UnactivatedListResponse";
 import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib/http/client/responses/ObrRequestSummaryListResponse";
@@ -152,6 +163,9 @@ export type {
   FundTypeResponse,
   InvitationResponse,
   InvitationListResponse,
+  LeaveApplicationItemResponse,
+  LeaveApplicationListResponse,
+  LeaveApplicationResponse,
   OfficeCodeListResponse,
   OfficeCodeResponse,
   OfficeCodeWithHeadsResponse,
@@ -161,6 +175,10 @@ export type {
   OfficesExtendedListResponse,
   OfficesListResponse,
   PermissionDefinitionResponse,
+  PayrollEntryItemResponse,
+  PayrollItemResponse,
+  PayrollListResponse,
+  PayrollResponse,
   RoleDefinitionResponse,
   UnactivatedListResponse,
   ObrRequestSummaryListResponse,

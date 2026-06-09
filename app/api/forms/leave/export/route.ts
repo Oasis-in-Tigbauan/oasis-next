@@ -1,18 +1,11 @@
-import { DateTime } from "luxon";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { session as auth, SessionCode } from "@/lib/auth";
 import {
-  COMMUTATION_OPTIONS,
-  LEAVE_TYPE_OPTIONS,
-  OTHER_PURPOSE_OPTIONS,
-  SICK_LOCATION_OPTIONS,
-  STUDY_PURPOSE_OPTIONS,
-  VACATION_LOCATION_OPTIONS,
   exportLeaveApplicationToPdfBuffer,
   type LeaveApplicationExportPayload,
+  validateLeaveApplicationRules,
 } from "@/lib/forms/leave";
-import { calculateInclusiveLeaveDates } from "@/lib/forms/leave-dates";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import { Failure } from "@/lib/one-of";
@@ -56,6 +49,8 @@ export async function POST(req: NextRequest) {
       workingDays: { type: "string", formatter: "non-empty-string", max: 5 },
       leaveStartDate: { type: "string", formatter: "non-empty-string" },
       commutation: { type: "string", formatter: "non-empty-string" },
+      approvedBy: { type: "string", max: 150 },
+      approvedByPosition: { type: "string", max: 150 },
     },
     requiredProperties: [
       "lastName",
@@ -78,7 +73,7 @@ export async function POST(req: NextRequest) {
       .build();
   }
 
-  const issue = _validateFormRules(body);
+  const issue = validateLeaveApplicationRules(body);
   if (issue) {
     return ApiResponseBuilder
       .createError(StatusCodes.Status400BadRequest, issue)
@@ -103,44 +98,4 @@ export async function POST(req: NextRequest) {
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
-}
-
-function _validateFormRules(body: LeaveApplicationExportPayload): string | null {
-  if (body.leaveTypes.length !== 1 || body.leaveTypes.some(type => !LEAVE_TYPE_OPTIONS.includes(type))) {
-    return "Choose exactly one valid type of leave.";
-  }
-
-  if (body.otherPurposes.some(purpose => !OTHER_PURPOSE_OPTIONS.includes(purpose))) {
-    return "Invalid other purpose selection.";
-  }
-
-  if (body.leaveTypes.includes("other") && !body.otherLeaveDescription?.trim()) {
-    return "Specify the other type of leave.";
-  }
-
-  if (body.vacationLocation && !VACATION_LOCATION_OPTIONS.includes(body.vacationLocation)) {
-    return "Invalid vacation or special privilege leave location.";
-  }
-
-  if (body.sickLocation && !SICK_LOCATION_OPTIONS.includes(body.sickLocation)) {
-    return "Invalid sick leave location.";
-  }
-
-  if (body.studyPurpose && !STUDY_PURPOSE_OPTIONS.includes(body.studyPurpose)) {
-    return "Invalid study leave purpose.";
-  }
-
-  if (!COMMUTATION_OPTIONS.includes(body.commutation)) {
-    return "Invalid commutation selection.";
-  }
-
-  if (!calculateInclusiveLeaveDates(body.leaveStartDate, body.workingDays)) {
-    return "Choose a weekday start date and a whole number of working days greater than zero.";
-  }
-
-  if (!DateTime.fromISO(body.dateOfFiling).isValid) {
-    return "Date of filing must be valid.";
-  }
-
-  return null;
 }
