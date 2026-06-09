@@ -47,7 +47,6 @@ import {
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -798,74 +797,81 @@ export default function Page() {
 
   return (
     <div className="relative flex flex-col p-4">
-      <div className="w-full overflow-x-auto">
-        <Table className="text-sm min-w-max">
-          {vouchers.length === 0 && (
-            <TableCaption>No disbursement vouchers have been created yet.</TableCaption>
-          )}
-          <TableHeader>
-            <TableRow>
-              <TableHead className="whitespace-nowrap">DV #</TableHead>
-              <TableHead className="whitespace-nowrap">Date</TableHead>
-              <TableHead className="whitespace-nowrap">Fund</TableHead>
-              <TableHead className="whitespace-nowrap">Payee</TableHead>
-              <TableHead className="whitespace-nowrap">Address</TableHead>
-              <TableHead className="whitespace-nowrap">Particulars</TableHead>
-              <TableHead className="whitespace-nowrap">Gross Amount</TableHead>
-              <TableHead className="whitespace-nowrap">Vatable Amount</TableHead>
-              <TableHead className="whitespace-nowrap">Tax Type</TableHead>
-              <TableHead className="whitespace-nowrap">Tax</TableHead>
-              <TableHead className="whitespace-nowrap">VAT (5%)</TableHead>
-              <TableHead className="whitespace-nowrap">PT (3%)</TableHead>
-              <TableHead className="whitespace-nowrap">EWT (2%)</TableHead>
-              <TableHead className="whitespace-nowrap">EWT (1%)</TableHead>
-              <TableHead className="whitespace-nowrap">Net Amount</TableHead>
-              <TableHead className="whitespace-nowrap">RC</TableHead>
-              <TableHead className="whitespace-nowrap">Head of Office</TableHead>
-              <TableHead className="whitespace-nowrap">Position</TableHead>
-              <TableHead className="whitespace-nowrap">Payment Approved By</TableHead>
-              <TableHead className="whitespace-nowrap">Position</TableHead>
-              <TableHead className="whitespace-nowrap">Status</TableHead>
-              <TableHead className="whitespace-nowrap">PR #</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {vouchers.map((v, index) => (
-              <TableRow
-                key={v.id}
-                className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
-                onClick={() => handleRowClick(v)}
-              >
-                <TableCell className="font-medium whitespace-nowrap">{v.disbursementVoucherNumber}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatDate(v.createdAt)}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.fundType?.name ?? "—"}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.payee}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.address}</TableCell>
-                <TableCell className="whitespace-nowrap max-w-48 truncate">{v.particulars}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.grossAmount)}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.vatableAmount)}</TableCell>
-                <TableCell className="whitespace-nowrap">
-                  {v.taxType ? (TAX_TYPE_LABELS[v.taxType as TaxType] ?? v.taxType) : "—"}
-                </TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.tax)}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.vat5)}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.pt3)}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt2)}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt1)}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.netAmount)}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.responsibilityCenter.aa}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.signers.headOfOffice.name}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.signers.headOfOffice.position}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.signers.mayor.name}</TableCell>
-                <TableCell className="whitespace-nowrap">{v.signers.mayor.position}</TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <StatusBadge status={v.status} />
-                </TableCell>
-                <TableCell className="whitespace-nowrap">{v.prNumber ?? "—"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="border rounded-lg p-2">
+        {vouchers.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No disbursement vouchers have been created yet.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm min-w-max [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-10 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">DV #</TableHead>
+                  <TableHead className="whitespace-nowrap">Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Fund</TableHead>
+                  <TableHead className="whitespace-nowrap">Payee</TableHead>
+                  <TableHead className="whitespace-nowrap">Address</TableHead>
+                  <TableHead className="whitespace-nowrap">Particulars</TableHead>
+                  <TableHead className="whitespace-nowrap">Gross Amount</TableHead>
+                  <TableHead className="whitespace-nowrap">Vatable Amount</TableHead>
+                  <TableHead className="whitespace-nowrap">Tax Type</TableHead>
+                  <TableHead className="whitespace-nowrap">Tax</TableHead>
+                  <TableHead className="whitespace-nowrap">VAT (5%)</TableHead>
+                  <TableHead className="whitespace-nowrap">PT (3%)</TableHead>
+                  <TableHead className="whitespace-nowrap">EWT (2%)</TableHead>
+                  <TableHead className="whitespace-nowrap">EWT (1%)</TableHead>
+                  <TableHead className="whitespace-nowrap">Net Amount</TableHead>
+                  <TableHead className="whitespace-nowrap">RC</TableHead>
+                  <TableHead className="whitespace-nowrap">Head of Office</TableHead>
+                  <TableHead className="whitespace-nowrap">Position</TableHead>
+                  <TableHead className="whitespace-nowrap">Payment Approved By</TableHead>
+                  <TableHead className="whitespace-nowrap">Position</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">PR #</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vouchers.map((v, index) => (
+                  <TableRow
+                    key={v.id}
+                    className={`cursor-pointer select-none ${
+                      index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""
+                    }`}
+                    onClick={() => handleRowClick(v)}
+                  >
+                    <TableCell className="font-medium whitespace-nowrap">{v.disbursementVoucherNumber}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(v.createdAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.fundType?.name ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.payee}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.address}</TableCell>
+                    <TableCell className="whitespace-nowrap max-w-48 truncate">{v.particulars}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.grossAmount)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.vatableAmount)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {v.taxType ? (TAX_TYPE_LABELS[v.taxType as TaxType] ?? v.taxType) : "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.tax)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.vat5)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.pt3)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt2)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt1)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.netAmount)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.responsibilityCenter.aa}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.signers.headOfOffice.name}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.signers.headOfOffice.position}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.signers.mayor.name}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.signers.mayor.position}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <StatusBadge status={v.status} />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{v.prNumber ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <DetailDialog
