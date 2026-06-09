@@ -1,10 +1,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { PdfPageBuilder } from "@cj-tech-master/excelts/pdf";
+import { eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 
 import { calculateInclusiveLeaveDates, formatInclusiveLeaveDates } from "@/lib/forms/leave-dates";
+import type { User } from "@/lib/accounts";
+import { db } from "@/lib/db";
+import { leaveApplications } from "@/lib/db/schema";
 import { ErrorCodes, Failure, type Result, Success } from "@/lib/one-of";
+import { validatorUtilities } from "@/lib/validators";
 
 export const LEAVE_TYPE_OPTIONS = [
   "vacation",
@@ -54,6 +59,27 @@ export type LeaveApplicationExportPayload = {
   workingDays: string;
   leaveStartDate: string;
   commutation: Commutation;
+  approvedBy?: string;
+  approvedByPosition?: string;
+};
+
+export type LeaveApplicationItem = LeaveApplicationExportPayload & {
+  id: string;
+  refNumber: number;
+  date: string;
+  inclusiveDates: string;
+  requestor: {
+    id: string;
+    name: string;
+    office: {
+      id: string;
+      name: string;
+    };
+    officePosition: {
+      id: string;
+      name: string;
+    };
+  };
 };
 
 const INK = { r: 0, g: 0, b: 0 };
@@ -100,6 +126,325 @@ type TextOptions = {
   italic?: boolean;
   anchor?: "start" | "middle" | "end";
 };
+
+type LeaveApplicationRow = typeof leaveApplications.$inferSelect;
+
+function _mapLeaveApplication(row: LeaveApplicationRow): LeaveApplicationItem {
+  const payload = _rowToPayload(row);
+  const range = calculateInclusiveLeaveDates(payload.leaveStartDate, payload.workingDays);
+
+  return {
+    ...payload,
+    id: row.id,
+    refNumber: row.refNumber,
+    date: DateTime.fromJSDate(row.createdAt, { zone: "UTC" }).setZone("Asia/Manila").toISO()!,
+    inclusiveDates: formatInclusiveLeaveDates(range),
+    requestor: {
+      id: row.requestorId,
+      name: `${row.firstName} ${row.middleName ?? ""} ${row.lastName}`.replace(/\s+/g, " ").trim(),
+      office: {
+        id: row.requestorOfficeId,
+        name: "",
+      },
+      officePosition: {
+        id: row.requestorPositionId,
+        name: row.position,
+      },
+    },
+  };
+}
+
+function _rowToPayload(row: LeaveApplicationRow): LeaveApplicationExportPayload {
+  return {
+    lastName: row.lastName,
+    firstName: row.firstName,
+    middleName: row.middleName ?? undefined,
+    dateOfFiling: row.dateOfFiling,
+    position: row.position,
+    monthlySalary: row.monthlySalary,
+    leaveTypes: row.leaveTypes as LeaveType[],
+    otherLeaveDescription: row.otherLeaveDescription ?? undefined,
+    vacationLocation: row.vacationLocation as VacationLocation | undefined,
+    vacationLocationDetails: row.vacationLocationDetails ?? undefined,
+    sickLocation: row.sickLocation as SickLocation | undefined,
+    illnessDetails: row.illnessDetails ?? undefined,
+    studyPurpose: row.studyPurpose as StudyPurpose | undefined,
+    otherPurposes: row.otherPurposes as OtherPurpose[],
+    workingDays: row.workingDays,
+    leaveStartDate: row.leaveStartDate,
+    commutation: row.commutation,
+    approvedBy: row.approvedBy ?? undefined,
+    approvedByPosition: row.approvedByPosition ?? undefined,
+  };
+}
+
+/**
+ * Validates cross-field leave application rules after shape validation.
+ *
+ * @description
+ * Checks that option arrays contain supported values, exactly one leave type is selected,
+ * dependent descriptions are present when required, dates are parseable, and inclusive
+ * leave dates can be calculated.
+ *
+ * @function validateLeaveApplicationRules
+ * @param {LeaveApplicationExportPayload} body - Leave application payload to validate.
+ * @returns {string | null} A validation issue string, or null when the payload is valid.
+ */
+export function validateLeaveApplicationRules(body: LeaveApplicationExportPayload): string | null {
+  if (body.leaveTypes.length !== 1 || body.leaveTypes.some(type => !LEAVE_TYPE_OPTIONS.includes(type))) {
+    return "Choose exactly one valid type of leave.";
+  }
+
+  if (body.otherPurposes.some(purpose => !OTHER_PURPOSE_OPTIONS.includes(purpose))) {
+    return "Invalid other purpose selection.";
+  }
+
+  if (body.leaveTypes.includes("other") && !body.otherLeaveDescription?.trim()) {
+    return "Specify the other type of leave.";
+  }
+
+  if (body.vacationLocation && !VACATION_LOCATION_OPTIONS.includes(body.vacationLocation)) {
+    return "Invalid vacation or special privilege leave location.";
+  }
+
+  if (body.sickLocation && !SICK_LOCATION_OPTIONS.includes(body.sickLocation)) {
+    return "Invalid sick leave location.";
+  }
+
+  if (body.studyPurpose && !STUDY_PURPOSE_OPTIONS.includes(body.studyPurpose)) {
+    return "Invalid study leave purpose.";
+  }
+
+  if (!COMMUTATION_OPTIONS.includes(body.commutation)) {
+    return "Invalid commutation selection.";
+  }
+
+  if (!calculateInclusiveLeaveDates(body.leaveStartDate, body.workingDays)) {
+    return "Choose a weekday start date and a whole number of working days greater than zero.";
+  }
+
+  if (!DateTime.fromISO(body.dateOfFiling).isValid) {
+    return "Date of filing must be valid.";
+  }
+
+  return null;
+}
+
+/**
+ * Fetches all saved leave applications.
+ *
+ * @description
+ * Reads persisted leave application data used by the management table and maps each
+ * row back to the same typed payload used for PDF export.
+ *
+ * @async
+ * @function getAllLeaveApplications
+ * @returns {Promise<Result<LeaveApplicationItem[]>>} Saved leave applications on success, or a failure result.
+ */
+export async function getAllLeaveApplications(): Promise<Result<LeaveApplicationItem[]>> {
+  try {
+    const rows = await db
+      .select()
+      .from(leaveApplications)
+      .orderBy(leaveApplications.refNumber);
+
+    return new Success(rows.map(_mapLeaveApplication));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to retrieve leave applications.", {}, e);
+  }
+}
+
+/**
+ * Fetches one saved leave application by ID.
+ *
+ * @description
+ * Returns a not-found failure when the supplied ID does not match a persisted
+ * leave application.
+ *
+ * @async
+ * @function getLeaveApplicationById
+ * @param {string} id - Leave application UUID.
+ * @returns {Promise<Result<LeaveApplicationItem>>} Leave application on success, or a failure result.
+ */
+export async function getLeaveApplicationById(id: string): Promise<Result<LeaveApplicationItem>> {
+  try {
+    const row = await _fetchLeaveApplicationById(id);
+    if (!row) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Leave application not found.", { id });
+    }
+
+    return new Success(_mapLeaveApplication(row));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to retrieve leave application.", { id }, e);
+  }
+}
+
+/**
+ * Creates a saved leave application.
+ *
+ * @description
+ * Validates form rules, snapshots the requestor office and position, and persists
+ * the same data used by the printable leave PDF.
+ *
+ * @async
+ * @function createLeaveApplication
+ * @param {LeaveApplicationExportPayload} payload - Leave application fields.
+ * @param {User} user - Authenticated user creating the record.
+ * @returns {Promise<Result<LeaveApplicationItem>>} Created leave application on success, or a failure result.
+ */
+export async function createLeaveApplication(
+  payload: LeaveApplicationExportPayload,
+  user: User,
+): Promise<Result<LeaveApplicationItem>> {
+  try {
+    const issue = validateLeaveApplicationRules(payload);
+    if (issue) {
+      return new Failure(ErrorCodes.ValidationFailure, issue, { payload });
+    }
+
+    if (!validatorUtilities.isExisty(user.office.id) || !validatorUtilities.isExisty(user.office.role.id)) {
+      return new Failure(ErrorCodes.ValidationFailure, "Requestor must be assigned to an office and position.", { userId: user.id });
+    }
+
+    const values = {
+      ..._payloadToValues(payload),
+      requestorId: user.id,
+      requestorOfficeId: user.office.id,
+      requestorPositionId: user.office.role.id,
+    } as typeof leaveApplications.$inferInsert;
+
+    const [inserted] = await db
+      .insert(leaveApplications)
+      .values(values)
+      .returning({ id: leaveApplications.id });
+
+    if (!inserted) {
+      return new Failure(ErrorCodes.Fatal, "Failed to insert leave application.", { payload });
+    }
+
+    const row = await _fetchLeaveApplicationById(inserted.id);
+    if (!row) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Leave application not found after creation.", { id: inserted.id });
+    }
+
+    return new Success(_mapLeaveApplication(row));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to create leave application.", { payload, userId: user.id }, e);
+  }
+}
+
+/**
+ * Updates a saved leave application by ID.
+ *
+ * @description
+ * Merges the partial payload onto the existing row, validates the resulting data,
+ * and persists only supplied fields. Requestor ownership fields are not editable.
+ *
+ * @async
+ * @function updateLeaveApplication
+ * @param {string} id - Leave application UUID.
+ * @param {Partial<LeaveApplicationExportPayload>} payload - Fields to update.
+ * @param {User} user - Authenticated user performing the update.
+ * @returns {Promise<Result<LeaveApplicationItem>>} Updated leave application on success, or a failure result.
+ */
+export async function updateLeaveApplication(
+  id: string,
+  payload: Partial<LeaveApplicationExportPayload>,
+  user: User,
+): Promise<Result<LeaveApplicationItem>> {
+  try {
+    const existing = await _fetchLeaveApplicationById(id);
+    if (!existing) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Leave application not found.", { id });
+    }
+
+    const merged: LeaveApplicationExportPayload = {
+      ..._rowToPayload(existing),
+      ...payload,
+    };
+    const issue = validateLeaveApplicationRules(merged);
+    if (issue) {
+      return new Failure(ErrorCodes.ValidationFailure, issue, { id, payload });
+    }
+
+    await db
+      .update(leaveApplications)
+      .set(_payloadToValues(merged))
+      .where(eq(leaveApplications.id, id));
+
+    const updated = await _fetchLeaveApplicationById(id);
+    if (!updated) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Leave application not found after update.", { id });
+    }
+
+    return new Success(_mapLeaveApplication(updated));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to update leave application.", { id, payload, userId: user.id }, e);
+  }
+}
+
+/**
+ * Deletes a saved leave application by ID.
+ *
+ * @description
+ * Permanently removes a leave application. Returns a not-found failure when no
+ * matching row exists.
+ *
+ * @async
+ * @function deleteLeaveApplication
+ * @param {string} id - Leave application UUID.
+ * @returns {Promise<Result<null>>} Null on success, or a failure result.
+ */
+export async function deleteLeaveApplication(id: string): Promise<Result<null>> {
+  try {
+    const [deleted] = await db
+      .delete(leaveApplications)
+      .where(eq(leaveApplications.id, id))
+      .returning({ id: leaveApplications.id });
+
+    if (!deleted) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Leave application not found.", { id });
+    }
+
+    return new Success(null);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Failed to delete leave application.", { id }, e);
+  }
+}
+
+function _payloadToValues(payload: LeaveApplicationExportPayload): Partial<typeof leaveApplications.$inferInsert> {
+  return {
+    lastName: payload.lastName,
+    firstName: payload.firstName,
+    middleName: payload.middleName || null,
+    dateOfFiling: payload.dateOfFiling,
+    position: payload.position,
+    monthlySalary: payload.monthlySalary,
+    leaveTypes: payload.leaveTypes,
+    otherLeaveDescription: payload.otherLeaveDescription || null,
+    vacationLocation: payload.vacationLocation || null,
+    vacationLocationDetails: payload.vacationLocationDetails || null,
+    sickLocation: payload.sickLocation || null,
+    illnessDetails: payload.illnessDetails || null,
+    studyPurpose: payload.studyPurpose || null,
+    otherPurposes: payload.otherPurposes,
+    workingDays: payload.workingDays,
+    leaveStartDate: payload.leaveStartDate,
+    commutation: payload.commutation,
+    approvedBy: payload.approvedBy || null,
+    approvedByPosition: payload.approvedByPosition || null,
+  };
+}
+
+async function _fetchLeaveApplicationById(id: string): Promise<LeaveApplicationRow | null> {
+  const [row] = await db
+    .select()
+    .from(leaveApplications)
+    .where(eq(leaveApplications.id, id))
+    .limit(1);
+
+  return row ?? null;
+}
 
 /**
  * Generates a printable Annex A Application for Leave PDF.
