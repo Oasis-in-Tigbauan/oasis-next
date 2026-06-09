@@ -46,7 +46,6 @@ import {
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -512,40 +511,63 @@ export default function Page() {
   const requests = listData.data.data;
 
   return (
-    <div className="relative flex flex-col gap-4 p-6">
-      <Table className="text-sm">
-        {requests.length === 0 && (
-          <TableCaption>No OBR requests found.</TableCaption>
+    <div className="flex flex-col gap-2 p-4 pt-0 w-full">
+      {canCreate && (
+        <div className="flex items-center gap-1 p-2 border rounded-lg w-full">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setCreateOpen(true)}
+          >
+            <PlusIcon className="size-3" />
+            New
+          </Button>
+        </div>
+      )}
+
+      <div className="border rounded-lg p-2">
+        {requests.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No OBR requests found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-10 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead>Request No.</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Payee</TableHead>
+                  <TableHead>Office Address</TableHead>
+                  <TableHead className="text-right">Items</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {requests.map((req, index) => (
+                  <TableRow
+                    key={req.id}
+                    className={`cursor-pointer select-none ${
+                      index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""
+                    }`}
+                    onClick={() => handleRowClick(req.id)}
+                  >
+                    <TableCell className="font-medium">{req.requestNumber}</TableCell>
+                    <TableCell className="capitalize">{req.type}</TableCell>
+                    <TableCell>{req.payee}</TableCell>
+                    <TableCell>{req.officeAddress}</TableCell>
+                    <TableCell className="text-right">{req.requestItemsCount}</TableCell>
+                    <TableCell>
+                      <ApprovalStatusBadge status={req.approvalStatus} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
-        <TableHeader>
-          <TableRow>
-            <TableHead>Request No.</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Payee</TableHead>
-            <TableHead>Office Address</TableHead>
-            <TableHead className="text-right">Items</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {requests.map((req, index) => (
-            <TableRow
-              key={req.id}
-              className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
-              onClick={() => handleRowClick(req.id)}
-            >
-              <TableCell className="font-medium">{req.requestNumber}</TableCell>
-              <TableCell className="capitalize">{req.type}</TableCell>
-              <TableCell>{req.payee}</TableCell>
-              <TableCell>{req.officeAddress}</TableCell>
-              <TableCell className="text-right">{req.requestItemsCount}</TableCell>
-              <TableCell>
-                <ApprovalStatusBadge status={req.approvalStatus} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      </div>
 
       {selectedId && (
         <RequestDetailDialog
@@ -556,21 +578,11 @@ export default function Page() {
       )}
 
       {canCreate && (
-        <>
-          <Button
-            className="fixed bottom-6 right-6 size-14 rounded-full shadow-lg"
-            size="icon"
-            onClick={() => setCreateOpen(true)}
-            aria-label="Create OBR Request"
-          >
-            <PlusIcon className="size-6" />
-          </Button>
-          <CreateRequestDialog
-            open={createOpen}
-            onOpenChange={setCreateOpen}
-            onSuccess={() => mutateList()}
-          />
-        </>
+        <CreateRequestDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onSuccess={() => mutateList()}
+        />
       )}
     </div>
   );
