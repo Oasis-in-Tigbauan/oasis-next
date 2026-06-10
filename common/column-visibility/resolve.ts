@@ -1,4 +1,4 @@
-import type { PageColumnDef } from "./types";
+import type { PageColumnDef } from "@/common/column-visibility/types";
 
 export function resolveVisibleColumns<K extends string>(
   selected: ReadonlySet<string> | null | undefined,

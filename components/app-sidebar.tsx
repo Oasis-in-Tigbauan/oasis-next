@@ -206,7 +206,7 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
         <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
           <div className="w-[48px]">
             <Image
-              src={process.env.NEXT_PUBLIC_PROJECT_ORG_SEAL as string}
+              src="/assets/tigbauan-seal.png"
               alt="Organization logo"
               width={32}
               height={32}
@@ -216,7 +216,7 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <p className="text-wrap text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
-              {process.env.NEXT_PUBLIC_PROJECT_ORG_NAME as string}
+              Municipality of Tigbauan
             </p>
           </div>
         </div>

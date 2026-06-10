@@ -34,8 +34,6 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS}
       SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
-      NEXT_PUBLIC_PROJECT_ORG_NAME: ${NEXT_PUBLIC_PROJECT_ORG_NAME}
-      NEXT_PUBLIC_PROJECT_ORG_SEAL: ${NEXT_PUBLIC_PROJECT_ORG_SEAL}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
       REDIS_URL: redis://cache:6379
@@ -45,3 +43,10 @@ services:
         condition: service_healthy
       cache:
         condition: service_healthy
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    command: tunnel run --token ${CLOUDFLARED_TOKEN}

@@ -33,7 +33,7 @@ export {
   type LbacQuarterlyExportFlatRow,
   type LbacExportCellValue,
   type HeaderMergeRange,
-} from "@/lib/lbac/export-layout";
+} from "@/common/lbac/export-layout";
 export {
   COLL_PERF_EXPORT_COLUMNS,
   COLL_PERF_EXPORT_COLUMN_GROUPS,
@@ -58,7 +58,7 @@ export {
   type CollPerfExportColDef,
   type CollPerfExportFlatRow,
   type CollPerfExportCellValue,
-} from "@/lib/lbac/coll-perf-export-layout";
+} from "@/common/lbac/coll-perf-export-layout";
 export {
   LBAC_FORM3_EXPORT_COLUMNS,
   LBAC_FORM5_EXPORT_COLUMNS,
@@ -93,4 +93,4 @@ export {
   type LbacForm5AExportColDef,
   type LbacFormExportFlatRow,
   type LbacFormsCellValue,
-} from "@/lib/lbac/forms-export-layout";
+} from "@/common/lbac/forms-export-layout";

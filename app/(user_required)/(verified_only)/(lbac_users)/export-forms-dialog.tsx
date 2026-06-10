@@ -24,8 +24,8 @@ import {
   type LbacForm5AExportColumnKey,
   type LbacForm5ExportColumnKey,
   type LbacFormExportFlatRow,
-} from "@/lib/lbac/client";
-import { LBAC_GROUP_DEPTH_CHILD_COLOR, LBAC_GROUP_DEPTH_ROOT_COLOR, LBAC_TOTAL_CHILD_COLOR, LBAC_TOTAL_ROOT_COLOR } from "@/lib/lbac/export-layout";
+} from "@/common/lbac/client";
+import { LBAC_GROUP_DEPTH_CHILD_COLOR, LBAC_GROUP_DEPTH_ROOT_COLOR, LBAC_TOTAL_CHILD_COLOR, LBAC_TOTAL_ROOT_COLOR } from "@/common/lbac/export-layout";
 import { $fetch } from "@/lib/http/client/fetch";
 import type {
   AroOfficeListResponse,

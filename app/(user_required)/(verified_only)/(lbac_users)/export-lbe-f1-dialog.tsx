@@ -13,7 +13,7 @@ import {
   getLbeF1Title,
   LBE_F1_ARO_TYPES,
   type LbeF1AroType,
-} from "@/lib/lbac/client";
+} from "@/common/lbac/client";
 import { $fetch } from "@/lib/http/client/fetch";
 import type {
   AroOfficeListResponse,
