@@ -11,7 +11,7 @@ import {
   amountToWords,
   buildChargesString,
   type ObrFormSignerBlock,
-} from "@/lib/obr/form-export-layout";
+} from "@/common/obr/form-export-layout";
 import {
   aipReferences,
   esre,

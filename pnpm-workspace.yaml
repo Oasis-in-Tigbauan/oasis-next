@@ -4,6 +4,3 @@ allowBuilds:
   msw: true
   sharp: true
   unrs-resolver: true
-
-overrides:
-  "better-auth>kysely": "0.28.17"

@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   AIP_PAGE_COLUMN_GROUPS,
   AIP_PAGE_COLUMNS,
@@ -11,7 +11,7 @@ import {
   getAipPageCellValue,
   type AipPageCellContext,
   type AipPageColumnDef,
-} from "@/lib/aip/page-columns";
+} from "@/common/aip/page-columns";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import {

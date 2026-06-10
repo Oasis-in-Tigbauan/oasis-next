@@ -6,7 +6,7 @@ import type {
   CollPerfItemResponse,
   CollPerfMonthlyData,
 } from "@/lib/http/client/responses";
-import type { HeaderMergeRange } from "@/lib/lbac/export-layout";
+import type { HeaderMergeRange } from "@/common/lbac/export-layout";
 import * as casts from "@/lib/types/casts";
 
 // ============================================================

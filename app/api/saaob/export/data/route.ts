@@ -5,7 +5,7 @@ import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import * as saaob from "@/lib/saaob";
-import { parseSaaobExportColumns } from "@/lib/saaob/client";
+import { parseSaaobExportColumns } from "@/common/saaob/client";
 import { Failure } from "@/lib/one-of";
 
 export async function GET(req: NextRequest) {

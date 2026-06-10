@@ -21,14 +21,14 @@ import {
   flattenSaaobSummaryVisible,
   type SaaobSummaryFlatRow,
   type SaaobTreeNode,
-} from "@/lib/saaob/client";
+} from "@/common/saaob/client";
 import {
   SaaobPageAggregateRow,
   SaaobPageGroupRow,
   SaaobPageSpacerRow,
   SaaobPageTableHeader,
   useSaaobColumnVisibility,
-} from "@/lib/saaob/page-table";
+} from "@/common/saaob/page-table";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

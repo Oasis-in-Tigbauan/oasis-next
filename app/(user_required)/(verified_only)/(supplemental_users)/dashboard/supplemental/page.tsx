@@ -16,12 +16,12 @@ import type {
 import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   SUPPLEMENTAL_PAGE_COLUMN_GROUPS,
   SUPPLEMENTAL_PAGE_COLUMNS,
   SUPPLEMENTAL_PAGE_STORAGE_KEY,
-} from "@/lib/supplemental/page-columns";
+} from "@/common/supplemental/page-columns";
 import { SupplementalFormDialog } from "@/app/(user_required)/(verified_only)/(supplemental_users)/dashboard/supplemental/supplemental-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -3,8 +3,8 @@
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import { useColumnVisibility } from "@/lib/column-visibility";
-import { fmtAmount, fmtPercent, txt } from "@/lib/saaob/client";
+import { useColumnVisibility } from "@/common/column-visibility";
+import { fmtAmount, fmtPercent, txt } from "@/common/saaob/client";
 import {
   getSaaobPageCellDisplay,
   SAAOB_PAGE_COLUMN_GROUPS,
@@ -14,7 +14,7 @@ import {
   type SaaobPageColumnDef,
   type SaaobPageColumnKey,
   type SaaobPageId,
-} from "@/lib/saaob/page-columns";
+} from "@/common/saaob/page-columns";
 
 import {
   TableCell,
