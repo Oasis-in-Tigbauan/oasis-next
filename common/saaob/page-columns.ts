@@ -1,4 +1,4 @@
-import type { PageColumnDef, PageColumnGroup } from "@/lib/column-visibility";
+import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility";
 
 export type SaaobPageId = "data" | "office" | "statistics" | "accounts-summary";
 

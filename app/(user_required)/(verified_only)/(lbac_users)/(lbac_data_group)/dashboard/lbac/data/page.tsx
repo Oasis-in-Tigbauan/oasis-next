@@ -65,7 +65,7 @@ import {
   toLbacExportFlatRow,
   useLbacDataColumnVisibility,
   type LbacMainExportColumnKey,
-} from "@/lib/lbac/page-display";
+} from "@/common/lbac/page-display";
 
 import { ExportDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-dialog";
 import { ExportFormsDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-forms-dialog";

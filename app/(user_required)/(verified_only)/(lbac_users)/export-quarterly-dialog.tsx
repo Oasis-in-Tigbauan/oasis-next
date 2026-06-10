@@ -8,7 +8,7 @@ import {
   LBAC_QUARTERLY_EXPORT_COLUMNS,
   type LbacQuarterlyExportColDef,
   type LbacQuarterlyExportColumnKey,
-} from "@/lib/lbac/client";
+} from "@/common/lbac/client";
 import type { LbacQuarterlyGroupResponse } from "@/lib/http/client/responses";
 
 import {

@@ -66,12 +66,12 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   OBR_MAIN_MANAGE_PAGE_COLUMN_GROUPS,
   OBR_MAIN_MANAGE_PAGE_COLUMNS,
   OBR_MAIN_MANAGE_PAGE_STORAGE_KEY,
-} from "@/lib/obr/page-columns";
+} from "@/common/obr/page-columns";
 
 type AipRefRow = {
   rowId: string;

@@ -8,7 +8,7 @@ import {
   COLL_PERF_EXPORT_COLUMNS,
   type CollPerfExportColDef,
   type CollPerfExportColumnKey,
-} from "@/lib/lbac/client";
+} from "@/common/lbac/client";
 import type { CollPerfGroupResponse } from "@/lib/http/client/responses";
 
 import { CollPerfExportPreviewTable } from "@/app/(user_required)/(verified_only)/(lbac_users)/coll-perf-export-preview-table";

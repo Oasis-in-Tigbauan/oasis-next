@@ -15,14 +15,14 @@ import {
   filterSaaobSummaryTreeByQuery,
   flattenSaaobSummaryVisible,
   type SaaobSummaryFlatRow,
-} from "@/lib/saaob/client";
+} from "@/common/saaob/client";
 import {
   SaaobPageAggregateRow,
   SaaobPageGroupRow,
   SaaobPageSpacerRow,
   SaaobPageTableHeader,
   useSaaobColumnVisibility,
-} from "@/lib/saaob/page-table";
+} from "@/common/saaob/page-table";
 
 import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import { Input } from "@/components/ui/input";

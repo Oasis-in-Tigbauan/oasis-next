@@ -23,7 +23,7 @@ import {
   type LbacQuarterlyExportColDef,
   type LbacQuarterlyExportColumnKey,
   type LbacQuarterlyExportFlatRow,
-} from "@/lib/lbac/export-layout";
+} from "@/common/lbac/export-layout";
 import {
   buildCollPerfHeaderLayout,
   COLL_PERF_GROUP_DEPTH_CHILD_COLOR,
@@ -36,7 +36,7 @@ import {
   type CollPerfExportColDef,
   type CollPerfExportColumnKey,
   type CollPerfExportFlatRow,
-} from "@/lib/lbac/coll-perf-export-layout";
+} from "@/common/lbac/coll-perf-export-layout";
 import {
   LBAC_FORM3_EXPORT_COLUMNS,
   LBAC_FORM5A_EXPORT_COLUMNS,
@@ -48,7 +48,7 @@ import {
   getLbeF1FormNo,
   getLbeF1Title,
   type LbeF1AroType,
-} from "@/lib/lbac/forms-export-layout";
+} from "@/common/lbac/forms-export-layout";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
@@ -3884,7 +3884,7 @@ function _applyHeaderMerges(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   headerStartRow: number,
-  merges: import("@/lib/lbac/export-layout").HeaderMergeRange[],
+  merges: import("@/common/lbac/export-layout").HeaderMergeRange[],
 ) {
   for (const m of merges) {
     const row = headerStartRow + (m.row - 1);
@@ -3901,7 +3901,7 @@ function _writeLbacHeaderRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
-  layout: { row1: string[]; row2: string[]; merges: import("@/lib/lbac/export-layout").HeaderMergeRange[] },
+  layout: { row1: string[]; row2: string[]; merges: import("@/common/lbac/export-layout").HeaderMergeRange[] },
 ) {
   const r1 = ws.getRow(row);
   layout.row1.forEach((label, idx) => {
@@ -5100,7 +5100,7 @@ function _writeCollPerfHeaderRows(
     row1: string[];
     row2: string[];
     row3: string[];
-    merges: import("@/lib/lbac/export-layout").HeaderMergeRange[];
+    merges: import("@/common/lbac/export-layout").HeaderMergeRange[];
   },
 ) {
   const writeRow = (rowIndex: number, labels: string[], height: number) => {

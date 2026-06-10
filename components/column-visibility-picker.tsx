@@ -2,7 +2,7 @@
 
 import { Columns3 } from "lucide-react";
 
-import type { PageColumnDef, PageColumnGroup } from "@/lib/column-visibility";
+import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

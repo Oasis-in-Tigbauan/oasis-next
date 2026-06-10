@@ -16,13 +16,13 @@ import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import { Button } from "@/components/ui/button";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   ESRE_PAGE_COLUMN_GROUPS,
   ESRE_PAGE_COLUMNS,
   ESRE_PAGE_STORAGE_KEY,
   type EsrePageColumnDef,
-} from "@/lib/esre/page-columns";
+} from "@/common/esre/page-columns";
 import {
   Table,
   TableBody,

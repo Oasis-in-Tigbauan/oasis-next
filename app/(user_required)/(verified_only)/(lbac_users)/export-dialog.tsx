@@ -8,7 +8,7 @@ import {
   LBAC_MAIN_EXPORT_COLUMNS,
   type LbacMainExportColDef,
   type LbacMainExportColumnKey,
-} from "@/lib/lbac/client";
+} from "@/common/lbac/client";
 import type { LbacGroupResponse } from "@/lib/http/client/responses";
 
 import {
