@@ -47,6 +47,7 @@ async function main() {
   utils.env.write("better.auth.secret", token);
 
   await utils.env.ask("Your Base URL", "better.auth.url", "http://localhost:3000");
+  await utils.env.ask("Your cloudflared token", "cloudflared.token");
 
   // Database configuration
   const dbPassword = utils.token.generatePassword(32);

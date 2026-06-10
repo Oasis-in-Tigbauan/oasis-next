@@ -43,3 +43,10 @@ services:
         condition: service_healthy
       cache:
         condition: service_healthy
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    command: tunnel run --token ${CLOUDFLARED_TOKEN}
