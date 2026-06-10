@@ -27,7 +27,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -112,47 +111,54 @@ export default function Page() {
 
   return (
     <div className="relative flex w-full flex-col overflow-x-hidden p-4">
-      <div className="w-full overflow-x-auto">
-        <Table className="text-sm min-w-max">
-          {items.length === 0 && (
-            <TableCaption>No created OBR items found.</TableCaption>
-          )}
-          <TableHeader>
-            <TableRow>
-              <TableHead>OBR Reference No.</TableHead>
-              <TableHead>Disbursement Voucher Reference No.</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Payee</TableHead>
-              <TableHead>Particulars</TableHead>
-              <TableHead className="text-right">Total Amount</TableHead>
-              <TableHead>Requesting Official</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item, index) => (
-              <TableRow
-                key={item.id}
-                className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
-                onClick={() => handleRowClick(item)}
-              >
-                <TableCell className="font-medium">{item.obrRefNumber}</TableCell>
-                <TableCell className="font-medium">{item.dvRefNumber ?? "—"}</TableCell>
-                <TableCell>{formatDate(item.date)}</TableCell>
-                <TableCell>{item.payee}</TableCell>
-                <TableCell className="max-w-[24rem] truncate" title={item.particulars}>
-                  {item.particulars}
-                </TableCell>
-                <TableCell className="text-right font-mono">{formatCurrency(item.overallAmount)}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span>{item.requestingOfficial.name}</span>
-                    <span className="text-xs text-muted-foreground">{item.requestingOfficial.position}</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="border rounded-lg p-2">
+        {items.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No created OBR items found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm min-w-max [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-10 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead>OBR Reference No.</TableHead>
+                  <TableHead>Disbursement Voucher Reference No.</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Payee</TableHead>
+                  <TableHead>Particulars</TableHead>
+                  <TableHead className="text-right">Total Amount</TableHead>
+                  <TableHead>Requesting Official</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item, index) => (
+                  <TableRow
+                    key={item.id}
+                    className={`cursor-pointer select-none ${
+                      index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""
+                    }`}
+                    onClick={() => handleRowClick(item)}
+                  >
+                    <TableCell className="font-medium">{item.obrRefNumber}</TableCell>
+                    <TableCell className="font-medium">{item.dvRefNumber ?? "—"}</TableCell>
+                    <TableCell>{formatDate(item.date)}</TableCell>
+                    <TableCell>{item.payee}</TableCell>
+                    <TableCell className="max-w-[24rem] truncate" title={item.particulars}>
+                      {item.particulars}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">{formatCurrency(item.overallAmount)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{item.requestingOfficial.name}</span>
+                        <span className="text-xs text-muted-foreground">{item.requestingOfficial.position}</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <ObrItemDetailDialog item={selected} open={open} onOpenChange={handleOpenChange} />
