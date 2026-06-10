@@ -14,7 +14,7 @@ import {
   quarterEndingLabel,
   resolveCollPerfExportColumns,
   type CollPerfExportColumnKey,
-} from "@/lib/lbac/client";
+} from "@/common/lbac/client";
 import type { CollPerfGroupResponse } from "@/lib/http/client/responses";
 
 import Typography from "@/components/typography";

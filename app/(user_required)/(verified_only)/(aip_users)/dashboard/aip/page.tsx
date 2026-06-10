@@ -20,8 +20,8 @@ import {
   AipPageTableCells,
   AipPageTableHeader,
   useAipColumnVisibility,
-} from "@/lib/aip/page-display";
-import type { AipPageColumnDef } from "@/lib/aip/page-columns";
+} from "@/common/aip/page-display";
+import type { AipPageColumnDef } from "@/common/aip/page-columns";
 
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";

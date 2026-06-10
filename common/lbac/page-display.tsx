@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   buildMainDataHeaderLayout,
   formatMainCellForPreview,
@@ -19,7 +19,7 @@ import {
   type LbacMainExportColDef,
   type LbacMainExportColumnKey,
   type LbacMainExportFlatRow,
-} from "@/lib/lbac/export-layout";
+} from "@/common/lbac/export-layout";
 import type { LbacGroupResponse, LbacGroupTotals, LbacItemResponse } from "@/lib/http/client/responses";
 
 import {
