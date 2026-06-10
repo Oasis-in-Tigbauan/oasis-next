@@ -156,7 +156,7 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: FundTypeResponse) => 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="ml-auto">
+        <Button className="ml-auto">
           <Plus />
           Add a new Fund Type
         </Button>

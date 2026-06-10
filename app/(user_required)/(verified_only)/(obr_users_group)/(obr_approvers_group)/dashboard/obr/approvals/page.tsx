@@ -13,6 +13,7 @@ import type {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -36,7 +37,6 @@ import {
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -85,6 +85,7 @@ export default function Page() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<Set<string>>(new Set());
 
   const handleRowClick = useCallback((id: string) => {
     setSelectedId(id);
@@ -100,42 +101,109 @@ export default function Page() {
   }
 
   const requests = listData.data.data;
+  const hasSelection = selectedRequestIds.size > 0;
 
   return (
-    <div className="relative flex flex-col p-4">
-      <Table className="text-sm">
-        {requests.length === 0 && (
-          <TableCaption>No requests pending your approval.</TableCaption>
+    <div className="flex flex-col gap-2 p-4 pt-0 w-full">
+      <div className="flex items-center gap-1 p-2 border rounded-lg w-full">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs text-green-700 hover:text-green-700 dark:text-green-400 dark:hover:text-green-400"
+          disabled={!hasSelection}
+        >
+          Approved
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs text-destructive hover:text-destructive"
+          disabled={!hasSelection}
+        >
+          Binned
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs text-blue-700 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-400"
+          disabled={!hasSelection}
+        >
+          Pending
+        </Button>
+      </div>
+
+      <div className="border rounded-lg p-2">
+        {requests.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No requests pending your approval.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-10 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
+                <TableRow>
+                  <TableHead className="w-10 min-w-10" />
+                  <TableHead>Request No.</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Payee</TableHead>
+                  <TableHead>Office Address</TableHead>
+                  <TableHead className="text-right">Items</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {requests.map((req, index) => {
+                  const isSelected = selectedRequestIds.has(req.id);
+                  return (
+                    <TableRow
+                      key={req.id}
+                      className={`cursor-pointer select-none ${
+                        isSelected
+                          ? "bg-accent"
+                          : index % 2 === 1
+                            ? "bg-muted hover:bg-muted/50"
+                            : ""
+                      }`}
+                      onClick={() => handleRowClick(req.id)}
+                    >
+                      <TableCell
+                        className="p-0"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-center py-2">
+                          <Checkbox
+                            aria-label={`Select request ${req.requestNumber}`}
+                            checked={isSelected}
+                            onCheckedChange={checked => {
+                              setSelectedRequestIds(prev => {
+                                const next = new Set(prev);
+                                if (checked === true) {
+                                  next.add(req.id);
+                                } else {
+                                  next.delete(req.id);
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{req.requestNumber}</TableCell>
+                      <TableCell className="capitalize">{req.type}</TableCell>
+                      <TableCell>{req.payee}</TableCell>
+                      <TableCell>{req.officeAddress}</TableCell>
+                      <TableCell className="text-right">{req.requestItemsCount}</TableCell>
+                      <TableCell>
+                        <ApprovalStatusBadge status={req.approvalStatus} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
-        <TableHeader>
-          <TableRow>
-            <TableHead>Request No.</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Payee</TableHead>
-            <TableHead>Office Address</TableHead>
-            <TableHead className="text-right">Items</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {requests.map((req, index) => (
-            <TableRow
-              key={req.id}
-              className={`cursor-pointer ${index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
-              onClick={() => handleRowClick(req.id)}
-            >
-              <TableCell className="font-medium">{req.requestNumber}</TableCell>
-              <TableCell className="capitalize">{req.type}</TableCell>
-              <TableCell>{req.payee}</TableCell>
-              <TableCell>{req.officeAddress}</TableCell>
-              <TableCell className="text-right">{req.requestItemsCount}</TableCell>
-              <TableCell>
-                <ApprovalStatusBadge status={req.approvalStatus} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      </div>
 
       {selectedId && (
         <ApprovalDetailDialog
@@ -144,7 +212,15 @@ export default function Page() {
           onOpenChange={open => {
             setDetailOpen(open);
           }}
-          onActionSuccess={() => mutateList()}
+          onActionSuccess={() => {
+            setSelectedRequestIds(prev => {
+              if (!selectedId) return prev;
+              const next = new Set(prev);
+              next.delete(selectedId);
+              return next;
+            });
+            mutateList();
+          }}
         />
       )}
     </div>

@@ -161,7 +161,7 @@ function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeRespons
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="ml-auto">
+        <Button className="ml-auto">
           <Plus />
           Add a new Expense Type
         </Button>

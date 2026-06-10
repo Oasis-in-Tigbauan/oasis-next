@@ -40,11 +40,13 @@ export default function DashboardHomeCard({
     <>
       <div className="flex items-center justify-center gap-2.5">
         <div className={cn("shrink-0 rounded-lg p-2", tone.box)}>
-          <Icon className={cn("size-5", tone.icon)} />
+          <Icon className={cn("size-8", tone.icon)} />
         </div>
-        <h3 className="font-semibold text-[#022551]">{title}</h3>
+        <div className="text-left">
+          <h3 className="font-semibold text-[#022551]">{title}</h3>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>   
       </div>
-      <p className="text-sm text-muted-foreground">{description}</p>
     </>
   );
 
