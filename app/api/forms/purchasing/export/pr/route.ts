@@ -5,7 +5,7 @@ import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { Failure } from "@/lib/one-of";
-import { exportPurchaseRequestToBuffer } from "@/lib/purchasing/export";
+import { exportPurchaseRequestToBuffer } from "@/lib/forms/purchasing";
 import { validatorUtilities } from "@/lib/validators";
 
 export async function GET(req: NextRequest) {

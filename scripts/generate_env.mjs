@@ -42,21 +42,12 @@ async function main() {
     throw new Error("Sentry Auth Token is required.");
   }
 
-  const orgName = await utils.env.ask("Your Organization Name", "next.public.project.org.name");
-  if (!orgName) {
-    throw new Error("Organization Name is required.");
-  }
-
-  const orgLogo = await utils.env.ask("Your Organization Logo Path", "next.public.project.org.seal");
-  if (!orgLogo) {
-    throw new Error("Organization Logo is required.");
-  }
-
   // Token generation for authentication
   const token = utils.token.generatePassword(32, "!#%&()*+,/:;<=>?@[]^`{|}");
   utils.env.write("better.auth.secret", token);
-  utils.env.write("better.auth.url", "http://localhost:3000");
-  utils.env.write("next.public.base.url", "http://localhost:3000");
+
+  await utils.env.ask("Your Base URL", "better.auth.url", "http://localhost:3000");
+  await utils.env.ask("Your cloudflared token", "cloudflared.token");
 
   // Database configuration
   const dbPassword = utils.token.generatePassword(32);

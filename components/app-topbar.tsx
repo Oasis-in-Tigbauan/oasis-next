@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import NotificationBell from "@/components/notification-bell";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 type RouteMeta = {
   section: string;
@@ -70,6 +71,7 @@ const routeMetaList: Array<{
 
 export default function AppTopbar() {
   const pathname = usePathname();
+  const isDashboardHome = pathname === "/dashboard";
 
   const meta = useMemo<RouteMeta>(() => {
     const matchedRoute = routeMetaList.find(({ matcher }) =>
@@ -84,7 +86,10 @@ export default function AppTopbar() {
   }, [pathname]);
 
   return (
-    <header className="sticky top-0 z-20 shrink-0 border-b mb-4 border-[#D8E2EC] bg-white/92 backdrop-blur supports-backdrop-filter:bg-white/84">
+    <header className={cn(
+      "sticky top-0 z-20 shrink-0 border-b border-[#D8E2EC] bg-white/92 backdrop-blur supports-backdrop-filter:bg-white/84",
+      !isDashboardHome && "mb-4",
+    )}>
       <div className="flex h-16 items-center gap-3 px-4 md:px-6">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="size-8 rounded-md border border-[#D8E2EC] bg-white text-[#52657A] shadow-none hover:bg-[#F7FAFC] hover:text-[#022551]" />

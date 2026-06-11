@@ -20,7 +20,7 @@ import {
   filterSaaobTreeByQuery,
   flattenSaaobVisible,
   type SaaobFlatRow,
-} from "@/lib/saaob/client";
+} from "@/common/saaob/client";
 import {
   SaaobPageEntryRow,
   SaaobPageGroupRow,
@@ -28,7 +28,7 @@ import {
   SaaobPageTableHeader,
   SaaobPageTotalRow,
   useSaaobColumnVisibility,
-} from "@/lib/saaob/page-table";
+} from "@/common/saaob/page-table";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

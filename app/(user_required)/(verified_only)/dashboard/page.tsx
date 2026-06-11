@@ -1,17 +1,15 @@
 "use client";
 
 import {
-  Banknote,
-  FileText,
-  Globe,
-  HandHeart,
-  Map,
-  Siren,
-  UserPlus,
-  Users,
+  CalendarDays,
+  Car,
+  PlugZap,
+  ShoppingBasket,
+  ShoppingCart,
 } from "lucide-react";
 import useSWR from "swr";
 
+import * as permissions from "@/lib/db/permissions";
 import { $fetch } from "@/lib/http/client/fetch";
 import {
   ApiResponseException,
@@ -25,12 +23,13 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 
-type HomeCard = {
+type HomeCardDefinition = {
   title: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   iconTone: DashboardHomeIconTone;
-  href?: string;
+  href: string;
+  isVisible: (permissionSet: Set<permissions.Permissions>) => boolean;
 };
 
 export default function Page() {
@@ -48,15 +47,17 @@ export default function Page() {
   }
 
   const roleName = data.data.data.office.role.name;
+  const permissionSet = new Set(data.data.data.office.role.permissions);
+  const visibleCards = homeCardDefinitions.filter((card) => card.isVisible(permissionSet));
 
   return (
-    <div className="relative flex min-h-[calc(100svh-4rem)] flex-1 flex-col -mt-8">
+    <div className="relative flex h-[calc(100svh-4rem-1px)] min-h-0 shrink-0 flex-col overflow-hidden">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[url('/assets/bg-gray-waves.png')] bg-cover bg-center bg-no-repeat"
       />
       <div className="relative z-10 flex flex-1 flex-col gap-6 p-4 pt-4 md:p-6">
-        <section className="mx-auto w-full max-w-5xl space-y-3 mt-4">
+        <section className="mx-auto mt-4 w-full max-w-5xl space-y-6">
           <div className="flex flex-col gap-1 text-center">
             <Typography variant="h2" className="text-[#022551]">Welcome {roleName}!</Typography>
             <Typography variant="p" className="text-muted-foreground">
@@ -65,72 +66,67 @@ export default function Page() {
           </div>
 
           <DashboardNotifications />
-        </section>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {homeCards.map((card) => (
-            <DashboardHomeCard
-              key={card.title}
-              title={card.title}
-              description={card.description}
-              icon={card.icon}
-              iconTone={card.iconTone}
-              href={card.href}
-            />
-          ))}
-        </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleCards.map((card) => (
+              <DashboardHomeCard
+                key={card.title}
+                title={card.title}
+                description={card.description}
+                icon={card.icon}
+                iconTone={card.iconTone}
+                href={card.href}
+              />
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
 }
 
-const homeCards: HomeCard[] = [
+const homeCardDefinitions: HomeCardDefinition[] = [
   {
-    title: "DV",
-    description: "Review and authorize departmental fiscal requests.",
-    icon: Banknote,
+    title: "Leave Application",
+    description: "Leave requests & approvals",
+    icon: CalendarDays,
     iconTone: "primary",
+    href: "/dashboard/forms/leave",
+    isVisible: () => true,
   },
   {
-    title: "OBR",
-    description: "Oversee urban development and infrastructure projects.",
-    icon: Map,
+    title: "PR/PO Form",
+    description: "Purchase requisitions & orders",
+    icon: ShoppingBasket,
     iconTone: "accent",
+    href: "/dashboard/forms/purchasing",
+    isVisible: (permissionSet) => permissionSet.has(permissions.PURCHASING_REQUEST_MANAGE),
   },
   {
-    title: "DV-ELEC",
-    description: "Coordinate with local leaders and resident initiatives.",
-    icon: HandHeart,
+    title: "PPMP",
+    description: "Project procurement planning",
+    icon: ShoppingCart,
     iconTone: "primary",
+    href: "/dashboard/forms/ppmp",
+    isVisible: (permissionSet) => permissionSet.has(permissions.PPMP_READ),
   },
   {
-    title: "DV-ENGR",
-    description: "Monitor public safety and crisis response protocols.",
-    icon: Siren,
+    title: "DV-Elec",
+    description: "Electricity disbursement vouchers",
+    icon: PlugZap,
     iconTone: "accent",
+    href: "/dashboard/forms/elec",
+    isVisible: (permissionSet) => permissionSet.has(permissions.OBR_DISBURSEMENT_CREATE),
   },
   {
-    title: "PR",
-    description: "Prepare agendas and record minutes for council sessions.",
-    icon: Users,
-    iconTone: "accent",
-  },
-  {
-    title: "Travel/Order",
-    description: "Audit municipal bylaws and legislative updates.",
-    icon: FileText,
+    title: "Travel Orders",
+    description: "Travel requests & itineraries",
+    icon: Car,
     iconTone: "primary",
-  },
-  {
-    title: "Pass",
-    description: "Manage department hiring and personnel adjustments.",
-    icon: UserPlus,
-    iconTone: "accent",
-  },
-  {
-    title: "Leave",
-    description: "Review press releases and media inquiries.",
-    icon: Globe,
-    iconTone: "primary",
+    href: "/dashboard/forms/travel-order",
+    isVisible: (permissionSet) =>
+      permissionSet.has(permissions.TRAVEL_READ)
+      || permissionSet.has(permissions.TRAVEL_WRITE)
+      || permissionSet.has(permissions.TRAVEL_APPROVER),
   },
 ];

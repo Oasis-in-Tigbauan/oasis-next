@@ -20,8 +20,8 @@ import {
   AipPageTableCells,
   AipPageTableHeader,
   useAipColumnVisibility,
-} from "@/lib/aip/page-display";
-import type { AipPageColumnDef } from "@/lib/aip/page-columns";
+} from "@/common/aip/page-display";
+import type { AipPageColumnDef } from "@/common/aip/page-columns";
 
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
@@ -74,7 +74,7 @@ function flattenVisibleRows(
 }
 
 export default function Page() {
-  const { data, error, isLoading, isValidating, mutate } = useSWR<
+  const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<AipListResponse, ApiResponseException>
   >("/api/aip", $fetch);
 
@@ -438,10 +438,6 @@ export default function Page() {
       </div>
 
       <div className="border rounded-lg p-2">
-        {isValidating ? (
-          <div className="px-2 py-1 text-xs text-muted-foreground">Refreshing...</div>
-        ) : null}
-
         {roots.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
             No AIP references found.

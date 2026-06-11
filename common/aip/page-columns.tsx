@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { AipNodeResponse } from "@/lib/http/client/responses";
-import type { PageColumnDef, PageColumnGroup } from "@/lib/column-visibility";
+import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility";
 
 export const AIP_PAGE_STORAGE_KEY = "aip";
 

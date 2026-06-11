@@ -66,12 +66,12 @@ import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
 import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   OBR_MAIN_MANAGE_PAGE_COLUMN_GROUPS,
   OBR_MAIN_MANAGE_PAGE_COLUMNS,
   OBR_MAIN_MANAGE_PAGE_STORAGE_KEY,
-} from "@/lib/obr/page-columns";
+} from "@/common/obr/page-columns";
 
 type AipRefRow = {
   rowId: string;
@@ -347,8 +347,8 @@ export default function Page() {
             ref={tableScrollRef}
             className="h-[calc(100vh-11rem)] overflow-auto [&_div[data-slot=table-container]]:overflow-visible"
           >
-            <Table className="text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
-              <TableHeader className="sticky top-0 z-10 bg-background">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-10 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
                   {orderedColumns.map(col => (
                     <TableHead key={col.key} className={col.headerClassName}>
