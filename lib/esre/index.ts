@@ -375,10 +375,18 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
         ...(validatorUtilities.isNotEmpty(payload.natureOfPayment) ? { natureOfPayment: payload.natureOfPayment } : {}),
         ...(payload.amount !== undefined ? { amount: casts.castToDecimal(payload.amount) } : {}),
         ...(validatorUtilities.isUuid(payload.fundingSourceId) ? { fundingSourceId: payload.fundingSourceId } : {}),
-        ...(validatorUtilities.isUuid(payload.expenseTypeId) ? { expenseTypeId: payload.expenseTypeId } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.remarks) ? { remarks: payload.remarks } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? { dvOrPayrollNumber: payload.dvOrPayrollNumber } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.checkNumber) ? { checkNumber: payload.checkNumber } : {}),
+        ...(typeof payload.expenseTypeId !== "undefined"
+          ? { expenseTypeId: validatorUtilities.isUuid(payload.expenseTypeId) ? payload.expenseTypeId : null }
+          : {}),
+        ...(typeof payload.remarks !== "undefined"
+          ? { remarks: validatorUtilities.isNotEmpty(payload.remarks) ? payload.remarks : null }
+          : {}),
+        ...(typeof payload.dvOrPayrollNumber !== "undefined"
+          ? { dvOrPayrollNumber: validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? payload.dvOrPayrollNumber : null }
+          : {}),
+        ...(typeof payload.checkNumber !== "undefined"
+          ? { checkNumber: validatorUtilities.isNotEmpty(payload.checkNumber) ? payload.checkNumber : null }
+          : {}),
         ...(typeof payload.checkStatus !== "undefined" ? { checkStatus: payload.checkStatus } : {}),
         ...(obrItemUpdate !== undefined ? obrItemUpdate : {}),
         ...(saaobUpdate !== undefined ? saaobUpdate : {}),
@@ -623,12 +631,12 @@ type UpdateEsrePayload = {
   amount?: string;
   fundingSourceId?: string;
   checkStatus?: CheckStatusType | null;
-  remarks?: string;
+  remarks?: string | null;
   obrId?: string | null;
-  expenseTypeId?: string;
+  expenseTypeId?: string | null;
   saaobId?: string | null;
-  dvOrPayrollNumber?: string;
-  checkNumber?: string;
+  dvOrPayrollNumber?: string | null;
+  checkNumber?: string | null;
 };
 
 type EsreItem = {

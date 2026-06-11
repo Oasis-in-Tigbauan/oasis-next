@@ -221,7 +221,10 @@ export default function Page() {
         editItem={selectedItem ?? undefined}
         open={editOpen}
         onOpenChange={setEditOpen}
-        onSuccess={() => mutate()}
+        onSuccess={() => {
+          setSelectedItem(null);
+          mutate();
+        }}
       />
     </div>
   );
