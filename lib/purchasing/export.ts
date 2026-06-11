@@ -1,4 +1,6 @@
 import { Buffer } from "buffer";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/lib/db";
@@ -22,6 +24,43 @@ type ExportSignatory = {
   name: string;
   title: string;
 };
+
+type ExcelWorkbookWithImages = {
+  addImage: (image: { buffer: Buffer; extension: "png" }) => number;
+};
+
+type ExcelWorksheetWithImages = {
+  addImage: (
+    imageId: number,
+    range: {
+      tl: { col: number; row: number };
+      ext: { width: number; height: number };
+    },
+  ) => void;
+};
+
+async function addTigbauanSeal(
+  workbook: ExcelWorkbookWithImages,
+  worksheet: ExcelWorksheetWithImages,
+  col: number,
+  row: number,
+  size = 64,
+): Promise<void> {
+  try {
+    const seal = await readFile(path.join(process.cwd(), "public", "assets", "tigbauan-seal.png"));
+    const imageId = workbook.addImage({ buffer: seal, extension: "png" });
+    worksheet.addImage(imageId, {
+      tl: { col, row },
+      ext: { width: size, height: size },
+    });
+  } catch {
+    // Keep exports available if the optional seal asset is missing in an environment.
+  }
+}
+
+function formatFundType(value: Optional<string>): string {
+  return value?.replace(/\s+\d[\d.-]*$/u, "").trim() ?? "";
+}
 
 export async function exportPurchaseRequestToBuffer(
   options: ExportPurchaseOptions,
@@ -157,6 +196,7 @@ export async function exportPurchaseRequestToBuffer(
     titleCell.font = { name: "Arial", size: 18, bold: true };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     ws.getRow(2).height = 32;
+    await addTigbauanSeal(wb, ws, 5.1, 0.45, 48);
 
     ws.getCell("A4").value = "LGU:   MUNICIPAL GOVERNMENT OF TIGBAUAN";
     ws.getCell("A4").font = { name: "Arial", size: 11, bold: true };
@@ -164,7 +204,7 @@ export async function exportPurchaseRequestToBuffer(
     ws.getCell("E4").value = "Fund:";
     ws.getCell("E4").font = { name: "Arial", size: 11 };
     ws.getCell("E4").alignment = { horizontal: "right" };
-    ws.getCell("F4").value = firstAip[0]?.sourceOfFund ?? "";
+    ws.getCell("F4").value = formatFundType(firstAip[0]?.sourceOfFund);
     ws.getCell("F4").font = { name: "Arial", size: 11, bold: true, underline: true };
 
     applyBorders(5, 6, 1, 3);
@@ -512,6 +552,7 @@ export async function exportPurchaseOrderToBuffer(
     lguCell.font = { name: "Arial", size: 11, bold: true };
     lguCell.alignment = { horizontal: "center", vertical: "middle" };
     ws.getRow(4).height = 20;
+    await addTigbauanSeal(wb, ws, 0.9, 1.05, 64);
 
     // ── Separator ──────────────────────────────────────────────────────────
     applyBorders(5, 5, 1, 6);

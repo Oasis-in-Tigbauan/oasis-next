@@ -19,6 +19,7 @@ export type DomainEvent =
     payload: ObrRequestMovementPayload & {
       status: "pending" | "approved" | "binned";
       overallStatus: "pending" | "approved" | "binned" | "mixed";
+      nextApproverPositionIds: string[];
     };
   }
   | {

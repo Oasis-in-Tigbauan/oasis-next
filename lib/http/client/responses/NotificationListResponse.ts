@@ -1,3 +1,5 @@
+import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+
 export type NotificationItemResponse = {
   id: string;
   scope: string;
@@ -9,7 +11,9 @@ export type NotificationItemResponse = {
   createdAt: string;
 };
 
-export type NotificationListResponse = {
+export type NotificationListPayload = {
   unreadCount: number;
   items: NotificationItemResponse[];
 };
+
+export type NotificationListResponse = GenericOkResponse<NotificationListPayload>;

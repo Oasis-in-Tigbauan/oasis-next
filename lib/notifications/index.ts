@@ -155,10 +155,16 @@ export async function notifyObrApprovalMovement(
   args: ObrRequestMovementArgs & {
     status: "pending" | "approved" | "binned";
     overallStatus: "pending" | "approved" | "binned" | "mixed";
+    nextApproverPositionIds: string[];
   },
 ): Promise<Result<null>> {
   const officeRecipientsResult = await getObrOfficeRecipients(args.officeId);
   if (officeRecipientsResult instanceof Failure) return officeRecipientsResult;
+
+  const nextApproverRecipientsResult = args.status === "approved"
+    ? await getUsersByPositionIds(args.nextApproverPositionIds)
+    : new Success<string[]>([]);
+  if (nextApproverRecipientsResult instanceof Failure) return nextApproverRecipientsResult;
 
   const statusLabel = args.status === "binned" ? "binned" : args.status;
   const finalLine = args.overallStatus === "approved"
@@ -167,16 +173,28 @@ export async function notifyObrApprovalMovement(
       ? "The request requires your attention."
       : "The request is still moving through approval.";
 
-  return createNotifications(
-    officeRecipientsResult.value.map((userId) => ({
-      userId,
-      scope: "obr.request",
-      entityId: args.requestId,
-      title: `OBR request ${statusLabel}`,
-      message: `${args.actorName} updated request ${args.requestNumber}. ${finalLine}`,
-      href: "/dashboard/obr/requests",
-    })),
-  );
+  const officeNotifications: NotificationInsert[] = officeRecipientsResult.value.map((userId) => ({
+    userId,
+    scope: "obr.request",
+    entityId: args.requestId,
+    title: `OBR request ${statusLabel}`,
+    message: `${args.actorName} updated request ${args.requestNumber}. ${finalLine}`,
+    href: "/dashboard/obr/requests",
+  }));
+
+  const nextApproverNotifications: NotificationInsert[] = nextApproverRecipientsResult.value.map((userId) => ({
+    userId,
+    scope: "obr.request",
+    entityId: args.requestId,
+    title: "OBR request awaiting your review",
+    message: `${args.actorName} approved request ${args.requestNumber}. It is now pending your approval.`,
+    href: "/dashboard/obr/approvals",
+  }));
+
+  return createNotifications([
+    ...officeNotifications,
+    ...nextApproverNotifications,
+  ]);
 }
 
 export async function notifyObrRequestDisbursementCreated(

@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { DateTime } from "luxon";
 import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -192,12 +193,15 @@ export default function PayrollPage() {
         { method: "DELETE" },
       );
       if (res.error) {
-        alert("Failed to delete payroll. Please try again.");
+        toast.error("Payroll was not deleted", {
+          description: "Please refresh the list and try again.",
+        });
         return;
       }
       setSelectedItem(null);
       setDeleteOpen(false);
       mutate();
+      toast.success("Payroll deleted");
     } finally {
       setIsDeleting(false);
     }
@@ -209,7 +213,9 @@ export default function PayrollPage() {
     try {
       const response = await fetch(`/api/forms/payroll/${selectedItem.id}/export`);
       if (!response.ok) {
-        alert("Failed to export payroll. Please try again.");
+        toast.error("Payroll export failed", {
+          description: "Please refresh the record and try again.",
+        });
         return;
       }
 
@@ -223,6 +229,7 @@ export default function PayrollPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(downloadUrl);
+      toast.success("Payroll workbook is ready");
     } finally {
       setIsExporting(false);
     }

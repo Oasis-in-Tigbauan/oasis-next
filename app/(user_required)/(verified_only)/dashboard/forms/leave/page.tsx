@@ -3,6 +3,7 @@
 import { useId, useMemo, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { DateTime } from "luxon";
 import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -191,12 +192,15 @@ export default function LeaveApplicationPage() {
         { method: "DELETE" },
       );
       if (res.error) {
-        alert("Failed to delete leave application. Please try again.");
+        toast.error("Leave application was not deleted", {
+          description: "Please refresh the list and try again.",
+        });
         return;
       }
       setSelectedItem(null);
       setDeleteOpen(false);
       mutate();
+      toast.success("Leave application deleted");
     } finally {
       setIsDeleting(false);
     }
@@ -214,7 +218,9 @@ export default function LeaveApplicationPage() {
       if (!response.ok) {
         const body = await response.json().catch(() => null) as { details?: string | { message?: string } } | null;
         const details = body?.details;
-        alert(typeof details === "string" ? details : details?.message ?? "Unable to export the leave application.");
+        toast.error("Leave export failed", {
+          description: typeof details === "string" ? details : details?.message ?? "Unable to export the leave application.",
+        });
         return;
       }
 
@@ -228,6 +234,7 @@ export default function LeaveApplicationPage() {
       link.click();
       link.remove();
       URL.revokeObjectURL(downloadUrl);
+      toast.success("Leave PDF is ready");
     } finally {
       setIsExporting(false);
     }

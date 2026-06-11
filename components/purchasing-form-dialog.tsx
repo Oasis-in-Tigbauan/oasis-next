@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { FileSpreadsheet, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -306,17 +307,17 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         .filter(item => item.unit || item.description || item.quantity || item.unitCost);
 
       if (!form.prNumber.trim()) {
-        alert("PR Number is required.");
+        toast.warning("PR number is required");
         return;
       }
 
       if (!form.purpose.trim()) {
-        alert("Purpose is required.");
+        toast.warning("Purpose is required");
         return;
       }
 
       if (normalizedRequestItems.length === 0) {
-        alert("At least one item is required.");
+        toast.warning("Add at least one item");
         return;
       }
 
@@ -324,17 +325,17 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         !item.unit || !item.description || !item.quantity || !item.unitCost,
       );
       if (incompleteIndex >= 0) {
-        alert(`Complete all item fields for row ${incompleteIndex + 1}.`);
+        toast.warning(`Complete all item fields for row ${incompleteIndex + 1}`);
         return;
       }
 
       if (selectedAipPayload.length === 0) {
-        alert("At least one AIP link is required.");
+        toast.warning("Select at least one AIP link");
         return;
       }
 
       if (!signatories.headOfOfficeId || !signatories.treasurerId || !signatories.approverId) {
-        alert("Please select all signatories.");
+        toast.warning("Select all signatories");
         return;
       }
 
@@ -358,18 +359,21 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
       setSubmitting(false);
 
       if (result.error) {
-        alert((result.error as ApiResponseException).message ?? "Failed to create purchase request.");
+        toast.error("Purchase request was not created", {
+          description: (result.error as ApiResponseException).message ?? "Please review the form and try again.",
+        });
         return;
       }
 
       onSuccess();
       onOpenChange(false);
       resetDialogState();
+      toast.success("Purchase request created");
       return;
     }
 
     if (!editItem) {
-      alert("No selected purchase request item to update.");
+      toast.warning("Select a purchase request to update");
       return;
     }
 
@@ -399,13 +403,16 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     setSubmitting(false);
 
     if (result.error) {
-      alert((result.error as ApiResponseException).message ?? "Failed to update purchase request.");
+      toast.error("Purchase request was not updated", {
+        description: (result.error as ApiResponseException).message ?? "Please review the form and try again.",
+      });
       return;
     }
 
     onSuccess();
     onOpenChange(false);
     resetDialogState();
+    toast.success("Purchase request updated");
   };
 
   const exportPRToExcel = async () => {
@@ -415,7 +422,9 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
 
     const res = await fetch(`/api/forms/purchasing/export/pr?id=${editItem.id}`);
     if (!res.ok) {
-      alert("Export failed.");
+      toast.error("PR export failed", {
+        description: "Please refresh the request and try again.",
+      });
       return;
     }
 
@@ -428,6 +437,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    toast.success("PR workbook is ready");
   };
 
   return (
@@ -850,17 +860,17 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
     e.preventDefault();
 
     if (selectedItems.length === 0) {
-      alert("Select at least one purchase request item first.");
+      toast.warning("Select at least one purchase request item first");
       return;
     }
 
     if (selectedItems.some(item => item.purchaseOrderNumber?.trim())) {
-      alert("One or more selected items already have a purchase order assigned.");
+      toast.warning("Some selected items already have a purchase order");
       return;
     }
 
     if (!supplier.trim() || !address.trim() || !purchaseOrderNumber.trim()) {
-      alert("Supplier, address, and PO # are required.");
+      toast.warning("Supplier, address, and PO number are required");
       return;
     }
 
@@ -885,12 +895,15 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
     setSubmitting(false);
 
     if (result.error) {
-      alert((result.error as ApiResponseException).message ?? "Failed to create purchase order.");
+      toast.error("Purchase order was not created", {
+        description: (result.error as ApiResponseException).message ?? "Please review the form and try again.",
+      });
       return;
     }
 
     onSuccess();
     onOpenChange(false);
+    toast.success("Purchase order created");
   };
 
   return (
