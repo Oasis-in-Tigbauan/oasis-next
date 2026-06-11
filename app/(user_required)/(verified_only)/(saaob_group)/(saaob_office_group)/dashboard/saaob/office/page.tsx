@@ -14,7 +14,7 @@ import type {
 import {
   filterSaaobTreeByQuery,
   flattenSaaobVisible,
-} from "@/lib/saaob/client";
+} from "@/common/saaob/client";
 import {
   SaaobPageEntryRow,
   SaaobPageGroupRow,
@@ -22,7 +22,7 @@ import {
   SaaobPageTableHeader,
   SaaobPageTotalRow,
   useSaaobColumnVisibility,
-} from "@/lib/saaob/page-table";
+} from "@/common/saaob/page-table";
 
 import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
 import { ExportDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog";

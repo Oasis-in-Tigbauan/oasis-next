@@ -5,7 +5,7 @@ import { session as auth, SessionCode } from "@/lib/auth";
 import * as permission from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import * as lbac from "@/lib/lbac";
-import { parseLbacQuarterlyExportColumns } from "@/lib/lbac/client";
+import { parseLbacQuarterlyExportColumns } from "@/common/lbac/client";
 import { Failure } from "@/lib/one-of";
 
 export async function GET(req: NextRequest) {

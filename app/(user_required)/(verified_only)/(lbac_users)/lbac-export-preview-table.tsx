@@ -20,7 +20,7 @@ import {
   resolveQuarterlyExportColumns,
   type LbacMainExportColumnKey,
   type LbacQuarterlyExportColumnKey,
-} from "@/lib/lbac/export-layout";
+} from "@/common/lbac/export-layout";
 import type {
   LbacGroupResponse,
   LbacQuarterlyGroupResponse,

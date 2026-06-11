@@ -18,13 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
-import { useColumnVisibility } from "@/lib/column-visibility";
+import { useColumnVisibility } from "@/common/column-visibility";
 import {
   ESRE_PAGE_COLUMN_GROUPS,
   ESRE_PAGE_COLUMNS,
   ESRE_PAGE_STORAGE_KEY,
   type EsrePageColumnDef,
-} from "@/lib/esre/page-columns";
+} from "@/common/esre/page-columns";
 import {
   Table,
   TableBody,
@@ -150,52 +150,62 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="border rounded-lg">
-        <Table className="text-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10 text-center">
-                <Checkbox
-                  aria-label="Select all ESRE rows for cheque printing"
-                  checked={areAllSelected}
-                  onCheckedChange={checked => {
-                    const shouldSelect = checked === true;
-                    setSelectedChequeItemIds(shouldSelect
-                      ? new Set(items.map(item => item.id))
-                      : new Set());
-                  }}
-                />
-              </TableHead>
-              {orderedColumns.map(col => (
-                <TableHead key={col.key}>{col.label}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item, index) => (
-              <EsreTableRow
-                key={item.id}
-                item={item}
-                index={index}
-                selected={selectedItem?.id === item.id}
-                selectedForCheque={selectedChequeItemIds.has(item.id)}
-                onSelect={() => setSelectedItem(prev => prev?.id === item.id ? null : item)}
-                onToggleChequeSelection={(checked) => {
-                  setSelectedChequeItemIds(prev => {
-                    const next = new Set(prev);
-                    if (checked) {
-                      next.add(item.id);
-                    } else {
-                      next.delete(item.id);
-                    }
-                    return next;
-                  });
-                }}
-                visibleColumns={orderedColumns}
-              />
-            ))}
-          </TableBody>
-        </Table>
+      <div className="border rounded-lg p-2">
+        {items.length === 0 ? (
+          <div className="px-2 py-10 text-center text-sm text-muted-foreground">
+            No ESRE records found.
+          </div>
+        ) : (
+          <div className="h-[calc(100vh-11rem)] overflow-auto **:data-[slot=table-container]:overflow-visible">
+            <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
+              <TableHeader className="sticky top-0 z-20 [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
+                <TableRow>
+                  <TableHead className="w-10 min-w-10 text-center">
+                    <Checkbox
+                      aria-label="Select all ESRE rows for cheque printing"
+                      checked={areAllSelected}
+                      onCheckedChange={checked => {
+                        const shouldSelect = checked === true;
+                        setSelectedChequeItemIds(shouldSelect
+                          ? new Set(items.map(item => item.id))
+                          : new Set());
+                      }}
+                    />
+                  </TableHead>
+                  {orderedColumns.map(col => (
+                    <TableHead key={col.key} className={col.headerClassName}>
+                      {col.label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item, index) => (
+                  <EsreTableRow
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    selected={selectedItem?.id === item.id}
+                    selectedForCheque={selectedChequeItemIds.has(item.id)}
+                    onSelect={() => setSelectedItem(prev => prev?.id === item.id ? null : item)}
+                    onToggleChequeSelection={(checked) => {
+                      setSelectedChequeItemIds(prev => {
+                        const next = new Set(prev);
+                        if (checked) {
+                          next.add(item.id);
+                        } else {
+                          next.delete(item.id);
+                        }
+                        return next;
+                      });
+                    }}
+                    visibleColumns={orderedColumns}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <EsreFormDialog
@@ -236,15 +246,14 @@ function EsreTableRow({
 }) {
   return (
     <TableRow
-      className={
+      className={`cursor-pointer select-none ${
         selected
           ? "bg-accent"
           : index % 2 === 1
             ? "bg-muted hover:bg-muted/50"
-            : undefined
-      }
+            : ""
+      }`}
       onClick={onSelect}
-      style={{ cursor: "pointer" }}
     >
       <TableCell
         className="w-10 text-center"
@@ -257,7 +266,9 @@ function EsreTableRow({
         />
       </TableCell>
       {visibleColumns.map(col => (
-        <TableCell key={col.key}>{col.renderCell(item)}</TableCell>
+        <TableCell key={col.key} className={col.cellClassName}>
+          {col.renderCell(item)}
+        </TableCell>
       ))}
     </TableRow>
   );

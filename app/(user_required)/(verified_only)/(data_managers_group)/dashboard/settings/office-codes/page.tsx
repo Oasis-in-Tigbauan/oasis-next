@@ -179,7 +179,7 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="ml-auto">
+        <Button className="ml-auto">
           <Plus />
           Add a new Office Code
         </Button>

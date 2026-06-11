@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
-import type { PageColumnDef, PageColumnGroup } from "./types";
+import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility/types";
 import {
   defaultVisibleKeys,
   resolveVisibleColumns,

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { ObrMainDataItemResponse } from "@/lib/http/client/responses";
-import type { PageColumnDef, PageColumnGroup } from "@/lib/column-visibility";
+import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility";
 
 export const OBR_MAIN_MANAGE_PAGE_STORAGE_KEY = "obr.main.manage";
 

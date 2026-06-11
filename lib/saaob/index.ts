@@ -4,7 +4,7 @@ import { Decimal } from "decimal.js";
 
 import * as templateBucket from "@/lib/buckets/templates";
 import type { TemplateBucketItem } from "@/lib/buckets/templates";
-import { SAAOB_EXPORT_COLUMNS, type SaaobExportColumnKey } from "@/lib/saaob/client";
+import { SAAOB_EXPORT_COLUMNS, type SaaobExportColumnKey } from "@/common/saaob/client";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";

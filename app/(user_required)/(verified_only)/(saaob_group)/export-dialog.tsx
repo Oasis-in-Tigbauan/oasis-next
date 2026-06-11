@@ -11,7 +11,7 @@ import {
   flattenSaaobVisible,
   fmtAmount,
   fmtPercent,
-} from "@/lib/saaob/client";
+} from "@/common/saaob/client";
 import type {
   SaaobGroupResponse,
   SaaobEntryResponse,

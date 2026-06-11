@@ -19,7 +19,7 @@ import type {
 import {
   collectSaaobStatisticGroups,
   type SaaobStatisticFlatRow,
-} from "@/lib/saaob/client";
+} from "@/common/saaob/client";
 
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";

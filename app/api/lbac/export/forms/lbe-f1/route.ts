@@ -6,7 +6,7 @@ import * as permission from "@/lib/db/permissions";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
 import * as lbac from "@/lib/lbac";
-import { LBE_F1_ARO_TYPES } from "@/lib/lbac/client";
+import { LBE_F1_ARO_TYPES } from "@/common/lbac/client";
 import { Failure } from "@/lib/one-of";
 import { validator, validatorUtilities } from "@/lib/validators";
 
