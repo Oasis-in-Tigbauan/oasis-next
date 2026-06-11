@@ -39,6 +39,21 @@ function htmlResponse(html: string, status = 200): NextResponse {
   });
 }
 
+function formatChequeAmountWords(words: string, amount: string): string {
+  const cents = amount.split(".")[1]?.padEnd(2, "0").slice(0, 2) ?? "00";
+  const trimmedWords = words
+    .replace(/\s+ONLY$/iu, "")
+    .replace(/\s+AND\s+ZERO\s+CENTAVOS$/iu, "")
+    .replace(/\s+AND\s+00\/100$/iu, "")
+    .trim();
+
+  if (cents === "00") {
+    return `${trimmedWords} ONLY`;
+  }
+
+  return `${trimmedWords} ONLY`;
+}
+
 function renderChequePage(data: esreService.EsreChequePrintData): string {
   const today = new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
@@ -46,6 +61,8 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
     day: "2-digit",
     year: "numeric",
   }).format(data.printedAt);
+  const dateDigits = today.replace(/\D/gu, "").split("").join("   ");
+  const amountWords = formatChequeAmountWords(data.amountWords, data.amount);
 
   return `<!doctype html>
 <html lang="en">
@@ -100,75 +117,76 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
       background: white;
       overflow: hidden;
       box-shadow: 0 12px 40px rgb(15 23 42 / 18%);
+      outline: 1px dashed #cbd5e1;
     }
 
     .payee {
       position: absolute;
-      left: 2.88in;
-      top: 0.74in;
-      width: 2.5in;
-      font-size: 13pt;
+      left: 3.1in;
+      top: 0.58in;
+      width: 2.55in;
+      font-size: 12pt;
       font-weight: 700;
       letter-spacing: 0.01em;
       text-transform: uppercase;
-      line-height: 1.1;
+      line-height: 1.08;
     }
 
     .amount-words {
       position: absolute;
-      left: 2.88in;
-      top: 1.16in;
-      width: 3.4in;
-      font-size: 11pt;
+      left: 3.08in;
+      top: 0.99in;
+      width: 3.08in;
+      font-size: 10.5pt;
       font-weight: 700;
       text-transform: uppercase;
-      line-height: 1.25;
+      line-height: 1.18;
     }
 
     .date {
       position: absolute;
-      right: 0.58in;
+      left: 6.46in;
       top: 0.78in;
-      width: 1.6in;
+      width: 1.45in;
       text-align: center;
       font-size: 11pt;
-      letter-spacing: 0.28em;
+      letter-spacing: 0;
       white-space: nowrap;
     }
 
     .check-number {
       position: absolute;
-      right: 0.62in;
-      top: 0.5in;
-      width: 1.4in;
+      left: 6.55in;
+      top: 0.45in;
+      width: 1.32in;
       text-align: center;
       font-size: 9pt;
-      letter-spacing: 0.08em;
-      color: #4b5563;
+      letter-spacing: 0.04em;
+      color: #111827;
     }
 
     .amount {
       position: absolute;
-      right: 0.72in;
-      top: 1.34in;
-      width: 1.55in;
+      left: 6.48in;
+      top: 1.22in;
+      width: 1.42in;
       text-align: right;
-      font-size: 13pt;
+      font-size: 12pt;
       font-weight: 700;
     }
 
     .treasurer {
       position: absolute;
-      left: 3.55in;
-      bottom: 0.54in;
+      left: 3.58in;
+      top: 2.47in;
       width: 1.75in;
       text-align: center;
     }
 
     .mayor {
       position: absolute;
-      right: 0.74in;
-      bottom: 0.54in;
+      left: 5.95in;
+      top: 2.6in;
       width: 1.9in;
       text-align: center;
     }
@@ -186,15 +204,6 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
       line-height: 1.05;
     }
 
-    .meta {
-      position: absolute;
-      left: 0.18in;
-      bottom: 0.12in;
-      font-family: Arial, sans-serif;
-      font-size: 7pt;
-      color: #6b7280;
-    }
-
     @media print {
       body {
         background: white;
@@ -207,6 +216,7 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
       .sheet {
         margin: 0;
         box-shadow: none;
+        outline: none;
       }
     }
   </style>
@@ -219,8 +229,8 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
   <main class="sheet" aria-label="Cheque print layout">
     <div class="check-number">${escapeHtml(data.checkNumber ?? "")}</div>
     <div class="payee">${escapeHtml(data.payee)}</div>
-    <div class="amount-words">${escapeHtml(data.amountWords)}</div>
-    <div class="date">${escapeHtml(today.replaceAll("/", "  "))}</div>
+    <div class="amount-words">${escapeHtml(amountWords)}</div>
+    <div class="date">${escapeHtml(dateDigits)}</div>
     <div class="amount">${escapeHtml(data.amountFormatted)}</div>
     <div class="treasurer">
       <div class="signatory-name">ELMA G. TIONSAY</div>
@@ -230,7 +240,6 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
       <div class="signatory-name">VIRGILIO T. TERUEL</div>
       <div class="signatory-title">Municipal Mayor</div>
     </div>
-    <div class="meta">Generated from ESRE IDs: ${escapeHtml(data.itemIds.join(", "))}</div>
   </main>
   <script>
     window.addEventListener("load", () => {
