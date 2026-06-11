@@ -1,23 +1,27 @@
 "use client";
 
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
-import Typography from "@/components/typography";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 export default function DeadHamster() {
   return (
-    <div className="p-4 pt-0 w-full">
-      <Avatar className="lg:h-100 lg:w-100 md:h-50 md:w-50 sm:h-25 sm:w-25 ml-auto mr-auto mt-8 mb-8">
-        <AvatarImage
-          src="/assets/dead.jpg"
-          alt="Dead Hamster."
-          className="grayscale"
-        />
-      </Avatar>
-      <Typography variant="h1" className="text-center mb-6">Oops. Somewhat it didn&apos;t worked.</Typography>
-      <Typography variant="h4" className="text-center">
-        We&apos;re figuring something out. It&apos;s already been logged and reported to the developers.<br />
-        You can try again later.
-      </Typography>
+    <div className="flex min-h-[55vh] w-full items-center justify-center p-6">
+      <section className="w-full max-w-xl rounded-lg border border-[#D8E2EC] bg-[#FBFCFE] px-7 py-8 text-center shadow-sm">
+        <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-full bg-[#FFF3D6] text-[#9A6510]">
+          <AlertTriangle className="size-5" />
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#122033]">This view could not load</h1>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#52657A]">
+          The request failed before the page could finish loading. Try again, or return to the previous page if the problem continues.
+        </p>
+        <div className="mt-6 flex justify-center">
+          <Button type="button" variant="outline" onClick={() => window.location.reload()}>
+            <RefreshCw className="size-4" />
+            Retry
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
