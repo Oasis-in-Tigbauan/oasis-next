@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { $fetch } from "@/lib/http/client/fetch";
 import {
   ApiResponseException,
+  AssignableRolesListResponse,
   BetterFetchResponse,
   InvitationListResponse,
   InvitationResponse,
@@ -103,7 +104,8 @@ export default function Invitations() {
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
                   <TableHead className="min-w-64 text-center">Email</TableHead>
-                  <TableHead className="min-w-48 text-center">Office Position</TableHead>
+                  <TableHead className="min-w-48 text-center">Office</TableHead>
+                  <TableHead className="min-w-48 text-center">Position/Role</TableHead>
                   <TableHead className="min-w-28 text-center">Status</TableHead>
                   <TableHead className="min-w-28 text-center">Action</TableHead>
                 </TableRow>
@@ -180,11 +182,14 @@ function Row({
         index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
       )}
     >
-      <TableCell className="font-medium whitespace-normal wrap-break-word">
+      <TableCell className="font-medium text-center whitespace-normal wrap-break-word">
         {data.email}
       </TableCell>
-      <TableCell className="whitespace-normal wrap-break-word">
-        {data.officeName}
+      <TableCell className="whitespace-normal text-center wrap-break-word">
+        {data.office.name}
+      </TableCell>
+      <TableCell className="whitespace-normal text-center wrap-break-word">
+        {data.office.role.name}
       </TableCell>
       <TableCell className="text-center">
         <Badge
@@ -218,10 +223,49 @@ function Row({
   );
 }
 
+function PositionSelector({ officeId, value, setValue }: { officeId: string, value: string, setValue: (v: string) => void }) {
+  const { data, error, isLoading } = useSWR<BetterFetchResponse<AssignableRolesListResponse, ApiResponseException>>(
+    officeId ? `/api/management/offices/positions?oId=${officeId}` : null, $fetch);
+
+  return (
+    <FieldGroup className="mt-4">
+      <Field>
+        <Label htmlFor="office-position">Position</Label>
+        <Select
+          disabled={isLoading || error || data?.error || !officeId}
+          value={value}
+          onValueChange={e => setValue(e)}
+          required
+        >
+          <SelectTrigger id="office-position">
+            {
+              isLoading ? (
+                <SelectValue placeholder="Loading" />
+              ) : (
+                <SelectValue placeholder="Select an Office Position" />
+              )
+            }
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {
+                (data?.data?.data || []).map((pos, index) => (
+                  <SelectItem key={index} value={pos.id}>{pos.name}</SelectItem>
+                ))
+              }
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+    </FieldGroup>
+  );
+}
+
 function InvitationForm({ handleInvite }: { handleInvite: (invitation: InvitationResponse) => void }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [office, setOffice] = useState("");
+  const [officePosition, setOfficePosition] = useState("");
 
   const { data, error, isLoading } = useSWR<BetterFetchResponse<OfficesListResponse, ApiResponseException>>(
     "/api/management/offices", $fetch);
@@ -234,6 +278,10 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
     setOffice(id);
   };
 
+  const handleSelectOfficePosition = (id: string) => {
+    setOfficePosition(id);
+  };
+
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -242,6 +290,7 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
       body: {
         email,
         officeId: office,
+        officePositionId: officePosition,
       },
     });
 
@@ -257,6 +306,7 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
       // Clear values
       setEmail("");
       setOffice("");
+      setOfficePosition("");
 
       // Remove values
       setOpen(false);
@@ -266,8 +316,19 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
     alert("Failed to send invitation. Try again later.");
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+
+    // If the dialog is closing, wipe the state clean
+    if (!isOpen) {
+      setEmail("");
+      setOffice("");
+      setOfficePosition("");
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus />
@@ -325,6 +386,15 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
               </Select>
             </Field>
           </FieldGroup>
+          {
+            office && (
+              <PositionSelector
+                officeId={office}
+                value={officePosition}
+                setValue={(v) => handleSelectOfficePosition(v)}
+              />
+            )
+          }
           <DialogFooter className="mt-4">
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>

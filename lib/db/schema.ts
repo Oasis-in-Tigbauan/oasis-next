@@ -168,6 +168,9 @@ export const invitations = pgTable("invitations", {
   officeId: text("office_id")
     .references(() => office.id)
     .notNull(),
+  officePositionId: text("office_position_id")
+    .references(() => officePosition.id)
+    .notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .$onUpdate(() => /* @__PURE__ */ new Date())

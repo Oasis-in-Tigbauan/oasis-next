@@ -46,8 +46,9 @@ export async function POST(req: NextRequest) {
     properties: {
       email: { type: "string", formatter: "email" },
       officeId: { type: "string", formatter: "uuid" },
+      officePositionId: { type: "string", formatter: "uuid" },
     },
-    requiredProperties: ["email", "officeId"],
+    requiredProperties: ["email", "officeId", "officePositionId"],
     allowUnvalidatedProperties: false,
   });
   if (!validate.ok) {
@@ -57,7 +58,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Create invitation
-  const invitation = await accounts.createNewInvitation(body.email, body.officeId);
+  const invitation = await accounts.createNewInvitation({
+    email: body.email,
+    officeId: body.officeId,
+    officePositionId: body.officePositionId,
+  });
   return oneOf(invitation).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
@@ -67,4 +72,5 @@ export async function POST(req: NextRequest) {
 type InvitationRequest = {
   email: string;
   officeId: string;
+  officePositionId: string;
 }

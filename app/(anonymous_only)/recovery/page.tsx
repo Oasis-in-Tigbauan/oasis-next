@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import React, { type SyntheticEvent, useMemo, useState } from "react";
+import { type SyntheticEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import Template from "@/common/auth/template";
 
 export default function RecoveryPage() {
   const searchParams = useSearchParams();
@@ -174,43 +174,6 @@ export default function RecoveryPage() {
         </div>
       </div>
     </Template>
-  );
-}
-
-function Template({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="grid min-h-svh overflow-x-auto bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
-      <section className="flex min-h-svh flex-col px-6 py-6 sm:px-10 lg:px-14">
-        <header className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
-            <Image
-              src="/assets/tigbauan-seal.png"
-              alt="Organization Seal"
-              width={34}
-              height={34}
-              priority
-            />
-          </div>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight">Oasis Next</p>
-            <p className="text-xs text-muted-foreground">Municipality of Tigbauan</p>
-          </div>
-        </header>
-
-        {children}
-      </section>
-
-      <section className="relative hidden min-h-svh shrink-0 lg:block">
-        <Image
-          src="/assets/company-banner.svg"
-          alt="Municipal operations banner"
-          loading="eager"
-          width={672}
-          height={878}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      </section>
-    </main>
   );
 }
 

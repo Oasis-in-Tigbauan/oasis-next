@@ -20,9 +20,6 @@ export async function GET(req: NextRequest) {
         .withBody({
           id: success.id,
           token: success.token,
-          officeId: success.officeId,
-          officeName: success.officeName,
-          assignablePositions: success.assignablePositions,
         })
         .build();
     },
