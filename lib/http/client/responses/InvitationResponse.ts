@@ -3,8 +3,14 @@ import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkRes
 type Response = {
   id: string;
   email: string;
-  officeId: string;
-  officeName: string;
+  office: {
+    id: string;
+    name: string;
+    role: {
+      id: string;
+      name: string;
+    }
+  }
   errors?: object;
 };
 

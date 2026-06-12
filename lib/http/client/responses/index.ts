@@ -1,6 +1,8 @@
 import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
 import type { AroOfficeListResponse, AroOfficeItem } from "@/lib/http/client/responses/AroOfficeListResponse";
 import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
+import type { AssignableRolesListResponse } from "@/lib/http/client/responses/AssignableRolesListResponse";
+import type { CreateAccountTypeResponse } from "@/lib/http/client/responses/CreateAccountTypeResponse";
 import type { EsreListResponse, EsreItem as EsreItemResponse } from "@/lib/http/client/responses/EsreListResponse";
 import type { ExpenseClassByOfficeCodeListResponse } from "@/lib/http/client/responses/ExpenseClassByOfficeCodeListResponse";
 import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseClassResponse";
@@ -150,6 +152,8 @@ export type {
   AroOfficeListResponse,
   AroOfficeItem,
   ApiResponseException,
+  AssignableRolesListResponse,
+  CreateAccountTypeResponse,
   EsreListResponse,
   EsreItemResponse,
   ExpenseClassByOfficeCodeListResponse,

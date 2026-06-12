@@ -5,9 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { cacheManager } from "@/lib/cache";
 import { db } from "@/lib/db";
+import { generatePassword } from "@/lib/generators/password-generator";
 import { office, officePosition, user } from "@/lib/db/schema";
 import * as permissions from "@/lib/db/permissions";
-import * as utils from "@/scripts/utils.mjs";
 
 async function enroller(flags: Set<string>) {
   // Create office and roles first
@@ -32,8 +32,9 @@ async function enroller(flags: Set<string>) {
     if (!enrollerUser) {
       console.log("Creating account...");
 
-      const password = utils.token.generatePassword(16);
+      const password = await generatePassword(16);
       const admin = await auth.api.signUpEmail({
+        returnHeaders: false,
         body: {
           name: "internal system",
           email: "sys@laboratories-internal.local",

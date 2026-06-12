@@ -4,16 +4,16 @@ import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { generatePassword } from "@/lib/generators/password-generator";
 import * as office from "@/lib/office";
 import { type Permissions } from "@/lib/db/permissions";
 import * as validators from "@/lib/validators/utilities";
 import { oneOf } from "@/lib/one-of";
 import { user } from "@/lib/db/schema";
-import * as utils from "@/scripts/utils.mjs";
 
 // Random name generation
 const firstNames = [
-  "Alexander", "Dmitry", "Sergei", "Andrei", "Alexei", "Ivan", "Mikhail", 
+  "Alexander", "Dmitry", "Sergei", "Andrei", "Alexei", "Ivan", "Mikhail",
   "Nikolai", "Vladimir", "Pavel", "Boris", "Yuri", "Oleg", "Igor", "Maxim",
   "Anton", "Denis", "Evgeny", "Konstantin", "Leonid", "Viktor", "Roman",
   "Elena", "Olga", "Natalia", "Irina", "Tatiana", "Svetlana", "Anastasia",
@@ -116,8 +116,9 @@ async function handleCreateAccount(opts: Record<string, string | boolean>) {
   const enabled = opts["--enabled"] as boolean;
 
   // Create the account via
-  const password = utils.token.generatePassword(16);
+  const password = await generatePassword(16, false);
   const newUser = await auth.api.signUpEmail({
+    returnHeaders: false,
     body: {
       name,
       email,
@@ -163,7 +164,7 @@ async function handleCreateOffice(opts: Record<string, string | boolean>) {
 
   const newOffice = await office.createOffice(opts["--name"] as string);
   let officeId = null;
-  
+
   oneOf(newOffice)
     .match(
       s => {
@@ -216,7 +217,7 @@ async function handleCreateRole(opts: Record<string, string | boolean>) {
 
   const newOffice = await office.addRole(officeId, name, permissions);
   let roleId = null;
-  
+
   oneOf(newOffice)
     .match(
       s => {

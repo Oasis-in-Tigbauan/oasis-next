@@ -1,20 +1,24 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
+import { Copy, MoreHorizontal, Plus } from "lucide-react";
+import { type InputEvent, type SubmitEvent, useState } from "react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
 import {
   AccountsListResponse,
   ApiResponseException,
+  AssignableRolesListResponse,
+  BetterFetchResponse,
+  CreateAccountTypeResponse,
+  OfficesListResponse,
   UserResponse,
-  BetterFetchResponse, OfficesListResponse,
 } from "@/lib/http/client/responses";
-import type { User } from "@/lib/accounts";
+import type { CreateAccountType, User } from "@/lib/accounts";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import DeadHamster from "@/components/dead-hamster";
 import {
   Dialog, DialogClose,
@@ -31,8 +35,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldGroup } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loading from "@/components/loading";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -76,6 +82,18 @@ export default function UsersPage() {
     }
   };
 
+  const handleAppendUser = (user: User) => {
+    if (data?.data && Array.isArray(data.data.data)) {
+      mutate({
+        data: {
+          ok: true,
+          data: [...data.data.data, user],
+        },
+        error: undefined,
+      }).catch(console.error);
+    }
+  };
+
   if (isLoading) {
     return (<Loading />);
   }
@@ -88,6 +106,9 @@ export default function UsersPage() {
 
   return (
     <div className="p-4 pt-0 w-full">
+      <div className="w-full flex gap-4 mb-4">
+        <CreateUserDialog onUserCreated={handleAppendUser} />
+      </div>
       <div className="border rounded-lg p-2">
         {users.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
@@ -342,6 +363,298 @@ function ChangeRoleDialog({ user, mutateFn }: { user: User, mutateFn: (id: strin
                   <Button type="submit">Update</Button>
                 </DialogFooter>
               </form>
+            )
+        }
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PositionSelector({
+  officeId,
+  value,
+  setValue,
+}: {
+  officeId: string;
+  value: string;
+  setValue: (v: string) => void;
+}) {
+  const { data, error, isLoading } = useSWR<BetterFetchResponse<AssignableRolesListResponse, ApiResponseException>>(
+    officeId ? `/api/management/offices/positions?oId=${officeId}` : null,
+    $fetch,
+  );
+
+  return (
+    <FieldGroup className="mt-4">
+      <Field>
+        <Label htmlFor="office-position">Position</Label>
+        <Select
+          disabled={isLoading || !!error || !!data?.error || !officeId}
+          value={value}
+          onValueChange={setValue}
+          required
+        >
+          <SelectTrigger id="office-position">
+            {
+              isLoading ? (
+                <SelectValue placeholder="Loading" />
+              ) : (
+                <SelectValue placeholder="Select an Office Position" />
+              )
+            }
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {
+                (data?.data?.data || []).map((pos, index) => (
+                  <SelectItem key={index} value={pos.id}>{pos.name}</SelectItem>
+                ))
+              }
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+    </FieldGroup>
+  );
+}
+
+function CreateUserDialog({ onUserCreated }: { onUserCreated: (user: User) => void }) {
+  const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<"form" | "success">("form");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [office, setOffice] = useState("");
+  const [officePosition, setOfficePosition] = useState("");
+  const [activated, setActivated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdAccount, setCreatedAccount] = useState<CreateAccountType | null>(null);
+
+  const { data, error, isLoading } = useSWR<BetterFetchResponse<OfficesListResponse, ApiResponseException>>(
+    "/api/management/offices",
+    $fetch,
+  );
+
+  const resetForm = () => {
+    setPhase("form");
+    setFullName("");
+    setEmail("");
+    setOffice("");
+    setOfficePosition("");
+    setActivated(false);
+    setCreatedAccount(null);
+    setIsSubmitting(false);
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+
+    if (!isOpen) {
+      resetForm();
+    }
+  };
+
+  const handleSelectOffice = (id: string) => {
+    setOffice(id);
+    setOfficePosition("");
+  };
+
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const result = await $fetch<CreateAccountTypeResponse, ApiResponseException>(
+      "/api/management/credentials/users",
+      {
+        method: "POST",
+        body: {
+          fullName,
+          email,
+          officeId: office,
+          officePositionId: officePosition,
+          activated,
+        },
+      },
+    );
+
+    if (result.error || !result.data?.data) {
+      alert("Failed to create user. Try again later.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { password, ...user } = result.data.data;
+    onUserCreated(user);
+    setCreatedAccount({ ...user, password });
+    setPhase("success");
+    setIsSubmitting(false);
+  };
+
+  const copyPassword = async () => {
+    if (!createdAccount?.password) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdAccount.password);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus />
+          Create User
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        {
+          phase === "success" && createdAccount
+            ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>User Created</DialogTitle>
+                  <DialogDescription>
+                    Share the generated password with the user. It will not be shown again.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Full Name: </span>
+                    {createdAccount.fullName}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Email: </span>
+                    {createdAccount.email}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Office: </span>
+                    {createdAccount.office.name}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Position: </span>
+                    {createdAccount.office.role.name}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">Password: </span>
+                    <code className="flex-1 rounded bg-muted px-2 py-1 font-mono text-xs break-all">
+                      {createdAccount.password}
+                    </code>
+                    <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={copyPassword}>
+                      <Copy className="h-4 w-4" />
+                      <span className="sr-only">Copy password</span>
+                    </Button>
+                  </div>
+                </div>
+                <DialogFooter className="mt-4">
+                  <DialogClose asChild>
+                    <Button>Done</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </>
+            )
+            : (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Create User</DialogTitle>
+                  <DialogDescription>
+                    Create a new user account by specifying their details and office assignment.
+                  </DialogDescription>
+                </DialogHeader>
+                {
+                  data?.error || error
+                    ? (
+                      <div>
+                        <Typography variant="p">Unable to load offices. Try again later.</Typography>
+                      </div>
+                    )
+                    : (
+                      <form onSubmit={handleSubmit}>
+                        <FieldGroup>
+                          <Field>
+                            <Label htmlFor="full-name">Full Name</Label>
+                            <Input
+                              id="full-name"
+                              type="text"
+                              placeholder="Example: Juan Dela Cruz"
+                              value={fullName}
+                              onInput={(e: InputEvent<HTMLInputElement>) => setFullName(e.currentTarget.value)}
+                              required
+                            />
+                          </Field>
+                        </FieldGroup>
+                        <FieldGroup className="mt-4">
+                          <Field>
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                              id="email"
+                              type="email"
+                              placeholder="Example: example@gmail.com"
+                              value={email}
+                              onInput={(e: InputEvent<HTMLInputElement>) => setEmail(e.currentTarget.value)}
+                              required
+                            />
+                          </Field>
+                        </FieldGroup>
+                        <FieldGroup className="mt-4">
+                          <Field>
+                            <Label htmlFor="create-office">Office</Label>
+                            <Select
+                              disabled={isLoading || !!error || !!data?.error}
+                              value={office}
+                              onValueChange={handleSelectOffice}
+                              required
+                            >
+                              <SelectTrigger id="create-office">
+                                {
+                                  isLoading ? (
+                                    <SelectValue placeholder="Loading" />
+                                  ) : (
+                                    <SelectValue placeholder="Select an Office" />
+                                  )
+                                }
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  {
+                                    (data?.data?.data || []).map((officeItem, index) => (
+                                      <SelectItem key={index} value={officeItem.id}>{officeItem.name}</SelectItem>
+                                    ))
+                                  }
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                        </FieldGroup>
+                        {
+                          office && (
+                            <PositionSelector
+                              officeId={office}
+                              value={officePosition}
+                              setValue={setOfficePosition}
+                            />
+                          )
+                        }
+                        <FieldGroup className="mt-4">
+                          <Field orientation="horizontal">
+                            <Checkbox
+                              id="activated"
+                              checked={activated}
+                              onCheckedChange={checked => setActivated(checked === true)}
+                            />
+                            <Label htmlFor="activated">Activate account immediately</Label>
+                          </Field>
+                        </FieldGroup>
+                        <DialogFooter className="mt-4">
+                          <DialogClose asChild>
+                            <Button variant="outline" type="button">Cancel</Button>
+                          </DialogClose>
+                          <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? (<Spinner />) : "Create"}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    )
+                }
+              </>
             )
         }
       </DialogContent>

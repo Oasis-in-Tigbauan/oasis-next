@@ -21,24 +21,16 @@ export async function POST(request: NextRequest) {
         type: "string",
         formatter: "non-empty-string",
       },
-      email: {
-        type: "string",
-        formatter: "email",
-      },
       password: {
         type: "string",
         formatter: "strong-password",
-      },
-      positionId: {
-        type: "string",
-        formatter: "uuid",
       },
       token: {
         type: "string",
         formatter: "non-empty-string",
       },
     },
-    requiredProperties: ["fullName", "email", "password", "positionId", "token"],
+    requiredProperties: ["fullName", "password", "token"],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
@@ -57,8 +49,6 @@ export async function POST(request: NextRequest) {
 
 type EnrollmentRequirements = {
     fullName: string;
-    email: string;
-    password: string;
-    positionId: string;
     token: string;
+    password: string;
 }

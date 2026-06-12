@@ -1,9 +1,9 @@
+import { twoFactor } from "better-auth/plugins";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { headers } from "next/headers";
 import { nextCookies } from "better-auth/next-js";
 import * as Sentry from "@sentry/nextjs";
-import { twoFactor } from "better-auth/plugins";
 
 import { db } from "@/lib/db";
 import { getUserById, type User } from "@/lib/accounts";
@@ -22,7 +22,7 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    autoSignIn: true,
+    autoSignIn: false,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, token }) => {
       void mailer.send({

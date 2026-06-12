@@ -1,12 +1,13 @@
-import { and, eq, gt, not } from "drizzle-orm";
-import * as crypto from "node:crypto";
+import { and, count, eq, gt, not } from "drizzle-orm";
 import { DateTime } from "luxon";
 import * as Sentry from "@sentry/nextjs";
+import { v4 as uuidv4 } from "uuid";
 
 import { auth } from "@/lib/auth";
 import { cacheManager } from "@/lib/cache";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, type Result, Success, unwrap } from "@/lib/one-of";
+import { generatePassword } from "@/lib/generators/password-generator";
 import { InvitationEmailHtml } from "@/lib/mailer/templates/InvitationMail";
 import { invitations, office, officePosition, user } from "@/lib/db/schema";
 import { Permissions } from "@/lib/db/permissions";
@@ -262,8 +263,7 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
  * Validates the input `email` and `officeId`, ensures the target office exists, generates a time-limited token,
  * inserts the invitation record, and sends an email containing the enrollment URL and expiration time.
  *
- * @param email - Recipient email address. Must be a valid email format.
- * @param officeId - Target office identifier. Must be a valid UUID.
+ * @param {CreateInvitationPayload} payload - Contains the information of the user to be invited.
  * @returns A `Result` containing the created invitation payload on success, or a failure describing why it could not be
  *          created.
  *
@@ -273,19 +273,15 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
  *   the whole operation.
  * - Unexpected errors are wrapped in a fatal failure result.
  */
-export async function createNewInvitation(email: string, officeId: string): Promise<Result<SentInvitation>> {
+export async function createNewInvitation(payload: CreateInvitationPayload): Promise<Result<SentInvitation>> {
   try {
-    if (!validatorUtilities.isUuid(officeId) || !validatorUtilities.isEmail(email)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid email or office ID.", { email, officeId });
-    }
-
     // Check if that user with that email is already invited before.
     const [existingInvitation] = await db
       .select({
         id: invitations.id,
       })
       .from(invitations)
-      .where(eq(invitations.email, email.toLowerCase()))
+      .where(eq(invitations.email, payload.email.toLowerCase()))
       .limit(1);
     if (existingInvitation) {
       return new Failure(
@@ -298,7 +294,7 @@ export async function createNewInvitation(email: string, officeId: string): Prom
     const [existingUser] = await db
       .select({ id: user.id })
       .from(user)
-      .where(eq(user.email, email))
+      .where(eq(user.email, payload.email))
       .limit(1);
     if (existingUser) {
       return new Failure(
@@ -313,17 +309,33 @@ export async function createNewInvitation(email: string, officeId: string): Prom
       .from(office)
       .where(
         and(
-          eq(office.id, officeId),
+          eq(office.id, payload.officeId),
           not(eq(office.name, "Cardinal Administrators")),
         ),
       )
       .limit(1);
     if (!targetOffice) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { email, officeId });
+      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { payload });
+    }
+
+    // Check if the office position exists
+    const [targetOfficePosition] = await db
+      .select({ id: officePosition.id, name: officePosition.name })
+      .from(officePosition)
+      .where(
+        and(
+          eq(officePosition.id, payload.officePositionId),
+          eq(officePosition.officeId, targetOffice.id),
+          not(eq(officePosition.name, "Heathcliff")),
+          not(eq(officePosition.name, "Default Users Group")),
+        ),
+      );
+    if (!targetOfficePosition) {
+      return new Failure(ErrorCodes.ResourceNotFound, "Office Position not found.", { payload });
     }
 
     // Issue a new invitation.
-    const token = generateInvitationToken();
+    const token = uuidv4();
 
     // Expire the token after 24 hours.
     const expiresAt = DateTime.utc().plus({ hours: 24 }).toJSDate();
@@ -332,10 +344,11 @@ export async function createNewInvitation(email: string, officeId: string): Prom
     const [result] = await db
       .insert(invitations)
       .values({
-        email,
+        email: payload.email,
         token,
         validUntil: expiresAt,
         officeId: targetOffice.id,
+        officePositionId: targetOfficePosition.id,
       })
       .returning();
 
@@ -360,8 +373,14 @@ export async function createNewInvitation(email: string, officeId: string): Prom
     return new Success({
       id: result.id,
       email: result.email,
-      officeId: result.officeId,
-      officeName: targetOffice.name,
+      office: {
+        id: targetOffice.id,
+        name: targetOffice.name,
+        role: {
+          id: targetOfficePosition.id,
+          name: targetOfficePosition.name,
+        },
+      },
       ...(error
         ? { errors: { message: "Failed to send the email. This issue has been reported." } }
         : {}
@@ -464,15 +483,31 @@ export async function getActiveInvitations(): Promise<Result<Array<Invitation>>>
         email: invitations.email,
         officeId: invitations.officeId,
         officeName: office.name,
+        officePositionId: officePosition.id,
+        officePositionName: officePosition.name,
       })
       .from(invitations)
       .leftJoin(office, eq(office.id, invitations.officeId))
+      .leftJoin(officePosition, eq(officePosition.id, invitations.officePositionId))
       .where(and(
         eq(invitations.consumed, false),
         gt(invitations.validUntil, now),
       ));
 
-    return new Success(list as Array<Invitation>);
+    const r = list.map(x => ({
+      id: x.id,
+      email: x.email,
+      office: {
+        id: x.officeId,
+        name: x.officeName!,
+        role: {
+          id: x.officePositionId!,
+          name: x.officePositionName!,
+        },
+      },
+    } satisfies Invitation));
+
+    return new Success(r);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "An exception occurred during invitations lookup.", {}, e);
   }
@@ -515,6 +550,95 @@ export async function revokeInvitation(id: string): Promise<Success<null> | Fail
 }
 
 /**
+ * Creates an account.
+ *
+ * This method is for administrators where they can create accounts without going through the enrollment flows.
+ *
+ * @param {CreateAccountPayload} payload Account information
+ * @returns {Promise<Result<CreateAccountType>>} A {@link Success} containing the user information along with its password
+ *                                               or a {@link Failure} describing why the account creation failed.
+ *
+ * @example
+ * const res = await createAccount({
+ *   fullName: "Kirigaya Kazuto",
+ *   email: "kitigaya.kazuto@email.com",
+ *   officeId: "00000000-0000-0000-0000-000000000000",
+ *   officePositionId: "00000000-0000-0000-0000-000000000000"
+ *   activated: false,
+ * }); // res are Success<CreateAccountType> or Failure
+ */
+export async function createAccount(payload: CreateAccountPayload): Promise<Result<CreateAccountType>> {
+  try {
+    // Validate email.
+    const [userAccountsWithEmail] = await db
+      .select({ count: count(user.id) })
+      .from(user)
+      .where(eq(user.email, payload.email));
+    if ((userAccountsWithEmail?.count ?? 0) > 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "Email is already been used.", { payload });
+    }
+
+    // Validate office
+    const [userOffice] = await db
+      .select({ id: office.id, name: office.name })
+      .from(office)
+      .where(
+        and(
+          eq(office.id, payload.officeId),
+          not(eq(office.name, "Cardinal Administrators")),
+        ),
+      )
+      .limit(1);
+    if (!userOffice) {
+      return new Failure(ErrorCodes.ValidationFailure, "Office doesn't exist!", { payload });
+    }
+
+    const [userPosition] = await db
+      .select({ id: officePosition.id, name: officePosition.name })
+      .from(officePosition)
+      .where(
+        and(
+          eq(officePosition.id, payload.officePositionId),
+          eq(officePosition.officeId, userOffice.id),
+          not(eq(officePosition.name, "Heathcliff")),
+        ),
+      )
+      .limit(1);
+    if (!userPosition) {
+      return new Failure(ErrorCodes.ValidationFailure, "Office Position doesn't exist!", { payload });
+    }
+
+    // Create the account
+    const password = await generatePassword(16, false);
+    const account = await auth.api.signUpEmail({
+      returnHeaders: false,
+      asResponse: true,
+      body: {
+        name: payload.fullName,
+        email: payload.email,
+        password,
+        officeId: userOffice.id,
+        officePositionId: userPosition.id,
+      },
+    });
+
+    const uRes = await account.json();
+
+    if (payload.activated) {
+      await db
+        .update(user)
+        .set({ emailVerified: true })
+        .where(eq(user.id, uRes.user.id));
+    }
+
+    const u = await unwrap(getUserById(uRes.user.id));
+    return new Success({ ...u, password });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create an account due to an exception.", { payload }, e);
+  }
+}
+
+/**
  * Validates and resolves an invitation token to determine whether enrollment is allowed.
  *
  * Performs:
@@ -546,13 +670,12 @@ export async function getEligibility(token: string): Promise<Result<EligibilityR
       token: invitations.token,
       validUntil: invitations.validUntil,
       consumed: invitations.consumed,
-      officeId: office.id,
-      officeName: office.name,
+      officeId: invitations.officeId,
+      officePositionId: invitations.officePositionId,
       email: invitations.email,
     })
     .from(invitations)
     .where(eq(invitations.token, token))
-    .limit(1)
     .leftJoin(office, eq(office.id, invitations.officeId));
   if (!invitation) {
     return new Failure(ErrorCodes.ResourceNotFound, "No such token found.");
@@ -573,18 +696,12 @@ export async function getEligibility(token: string): Promise<Result<EligibilityR
     });
   }
 
-  const assignablePositions = await db
-    .select({ id: officePosition.id, name: officePosition.name })
-    .from(officePosition)
-    .where(eq(officePosition.officeId, invitation.officeId!));
-
   return new Success({
     id: invitation.id,
     token: invitation.token,
     officeId: invitation.officeId,
-    officeName: invitation.officeName,
+    officePositionId: invitation.officePositionId,
     email: invitation.email,
-    assignablePositions,
   });
 }
 
@@ -609,34 +726,26 @@ export async function enroll(payload: EnrollmentRequirements): Promise<Result<{ 
   try {
     // Check eligibility.
     const result = await unwrap(getEligibility(payload.token));
-
-    // Compare if the email is the same as the invitation email
-    if (result.email !== payload.email) {
-      return new Failure(ErrorCodes.ValidationFailure, "Email does not match the invitation email.");
-    }
-
-    // Get the position
-    const [position] = await db
-      .select({ id: officePosition.id })
-      .from(officePosition)
-      .where(and(eq(officePosition.id, payload.positionId), eq(officePosition.officeId, result.officeId!)))
-      .limit(1);
-    if (!position) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Invalid position.");
-    }
-
     await auth.api.signUpEmail({
       body: {
         name: payload.fullName,
-        email: payload.email,
+        email: result.email,
         password: payload.password,
-        officeId: result.officeId!,
-        officePositionId: position.id,
+        officeId: result.officeId,
+        officePositionId: result.officePositionId,
       },
     });
 
     // After enrollment, we need to consume the token.
     await db.update(invitations).set({ consumed: true }).where(eq(invitations.id, result.id));
+
+    // We need to authenticate the user to mimic the autoSignIn behaviour.
+    await auth.api.signInEmail({
+      body: {
+        email: result.email,
+        password: payload.password,
+      },
+    });
 
     return new Success({ ok: true });
   } catch (e) {
@@ -825,68 +934,6 @@ export async function rejectUser(id: string): Promise<Result<User>> {
   }
 }
 
-/**
- * Generates an invitation token suitable for use as a one-time code.
- *
- * The token is built from a fixed number of cryptographically-random bytes, composed of a mix of
- * lowercase letters, uppercase letters, and digits. The counts of each character class are derived
- * from random values and then the resulting bytes are shuffled to avoid predictable grouping.
- *
- * Security notes:
- * - Uses cryptographically secure randomness.
- * - Returns an ASCII string with a fixed length.
- * - Treat as a secret; store/transport it accordingly (e.g., hash at rest if appropriate).
- *
- * @returns {string} A fixed-length ASCII invitation token containing lowercase letters, uppercase letters, and digits
- *                   in randomized order.
- */
-function generateInvitationToken(): string {
-  // Allocate 32 bytes of memory for token
-  const bytes = Buffer.alloc(128);
-
-  // Number generation
-  const r32 = () => crypto.randomInt(8, 1 << 5);
-
-  let a = r32();
-  let b = r32();
-
-  let point = 0;
-
-  // Generate
-  a = (a ^ (a >> 3)) & 63;
-  for (let ai = 0; ai < a; ai++) {
-    bytes[point] = crypto.randomInt(0x61, 0x7b);
-    point++;
-  }
-
-  b = (b ^ (b >> 3)) & 63;
-  for (let bi = 0; bi < b; bi++) {
-    bytes[point] = crypto.randomInt(0x41, 0x5b);
-    point++;
-  }
-
-  const c = (128 - ((a + b) << 0)) >> 0;
-  for (let ci = 0; ci < c; ci++) {
-    bytes[point] = crypto.randomInt(0x30, 0x3a);
-    point++;
-  }
-
-  // Shuffle bytes
-  const random = new Uint8Array(128);
-  crypto.getRandomValues(random);
-
-  for (let i = bytes.length - 1; i > 0; i--) {
-    // 0 <= j <= i
-    const j = crypto.randomInt(0, i + 1);
-
-    // Swap elements
-    [bytes[i], bytes[j]] = [bytes[j], bytes[i]];
-  }
-
-  // Produce final string
-  return Buffer.from(bytes).toString("ascii");
-}
-
 export type User = {
   id: string;
   fullName: string;
@@ -910,8 +957,14 @@ export type User = {
 export type Invitation = {
   id: string;
   email: string;
-  officeId: string;
-  officeName: string;
+  office: {
+    id: string;
+    name: string;
+    role: {
+      id: string;
+      name: string;
+    }
+  }
 }
 
 export type SentInvitation = {
@@ -921,22 +974,30 @@ export type SentInvitation = {
 export type EligibilityResult = {
   id: string;
   token: string;
-  officeId: string | null;
-  officeName: string | null;
+  officeId: string;
+  officePositionId: string;
   email: string;
-  assignablePositions: Array<{ id: string; name: string }>;
 }
 
 export type EnrollmentRequirements = {
   fullName: string;
-  email: string;
   password: string;
-  positionId: string;
   token: string;
 }
 
 export type CreateAccountPayload = {
   fullName: string;
+  email: string;
+  officeId: string;
+  officePositionId: string;
+  activated: boolean;
+}
+
+export type CreateAccountType = {
+  password: string;
+} & User;
+
+export type CreateInvitationPayload = {
   email: string;
   officeId: string;
   officePositionId: string;
