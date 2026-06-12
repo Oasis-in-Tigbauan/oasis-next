@@ -2129,7 +2129,7 @@ export async function exportMainDataToBuffer(
  * Exports LBAC quarterly report data for the given year/quarter to an XLSX buffer.
  *
  * @description
- * Calls {@link getAllQuarterlyReports} with year/quarter, then builds a formatted Excel workbook.
+ * Calls {@link getAllQuarterlyReports} with year/quarter (and optional office scope), then builds a formatted Excel workbook.
  * Header/footer templates under {@link LBAC_QUARTERLY_TEMPLATE_IDENTIFIER} are included when present.
  *
  * @async
@@ -2141,7 +2141,11 @@ export async function exportQuarterlyToBuffer(
   options: LbacQuarterlyExportOptions,
 ): Promise<Result<Buffer>> {
   try {
-    const dataResult = await getAllQuarterlyReports(options.year, options.quarter);
+    const dataResult = await getAllQuarterlyReports(
+      options.year,
+      options.quarter,
+      options.restrictToOfficeId,
+    );
     if (dataResult instanceof Failure) return dataResult;
 
     const [headerResult, footerResult] = await Promise.all([
@@ -6680,6 +6684,7 @@ export interface LbacQuarterlyExportOptions {
   year: number;
   quarter: number;
   columns: LbacQuarterlyExportColumnKey[];
+  restrictToOfficeId?: string;
 }
 
 export interface LbeFOneExportOptions {
