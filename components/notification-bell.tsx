@@ -26,7 +26,7 @@ export default function NotificationBell() {
     $fetch,
   );
 
-  const notifications = data?.data;
+  const notifications = data?.data?.data;
   const unreadCount = notifications?.unreadCount ?? 0;
   const items = notifications?.items ?? [];
 

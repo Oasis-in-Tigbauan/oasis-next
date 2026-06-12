@@ -4,6 +4,7 @@ import { Decimal } from "decimal.js";
 import * as casts from "@/lib/types/casts";
 import { db } from "@/lib/db";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
+import { amountToWords, formatAmountWithoutCurrency } from "@/common/obr/form-export-layout";
 import {
   esre,
   expenseClasses,
@@ -374,10 +375,18 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
         ...(validatorUtilities.isNotEmpty(payload.natureOfPayment) ? { natureOfPayment: payload.natureOfPayment } : {}),
         ...(payload.amount !== undefined ? { amount: casts.castToDecimal(payload.amount) } : {}),
         ...(validatorUtilities.isUuid(payload.fundingSourceId) ? { fundingSourceId: payload.fundingSourceId } : {}),
-        ...(validatorUtilities.isUuid(payload.expenseTypeId) ? { expenseTypeId: payload.expenseTypeId } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.remarks) ? { remarks: payload.remarks } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? { dvOrPayrollNumber: payload.dvOrPayrollNumber } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.checkNumber) ? { checkNumber: payload.checkNumber } : {}),
+        ...(typeof payload.expenseTypeId !== "undefined"
+          ? { expenseTypeId: validatorUtilities.isUuid(payload.expenseTypeId) ? payload.expenseTypeId : null }
+          : {}),
+        ...(typeof payload.remarks !== "undefined"
+          ? { remarks: validatorUtilities.isNotEmpty(payload.remarks) ? payload.remarks : null }
+          : {}),
+        ...(typeof payload.dvOrPayrollNumber !== "undefined"
+          ? { dvOrPayrollNumber: validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? payload.dvOrPayrollNumber : null }
+          : {}),
+        ...(typeof payload.checkNumber !== "undefined"
+          ? { checkNumber: validatorUtilities.isNotEmpty(payload.checkNumber) ? payload.checkNumber : null }
+          : {}),
         ...(typeof payload.checkStatus !== "undefined" ? { checkStatus: payload.checkStatus } : {}),
         ...(obrItemUpdate !== undefined ? obrItemUpdate : {}),
         ...(saaobUpdate !== undefined ? saaobUpdate : {}),
@@ -416,6 +425,70 @@ export async function remove(id: string): Promise<Result<void>> {
     return new Success(undefined);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to remove ESRE item.", { id }, e);
+  }
+}
+
+/**
+ * Builds print data for a cheque from selected ESRE rows.
+ *
+ * @description
+ * Fetches the selected ESRE rows, validates that they all exist and belong to one payee, then computes the summed
+ * cheque amount and amount-in-words value. The returned object is intended for the cheque print route.
+ *
+ * @async
+ * @function getChequePrintData
+ * @param {string[]} ids - ESRE row identifiers selected for cheque printing.
+ * @returns {Promise<Result<EsreChequePrintData>>} Cheque print data on success, or a failure result on validation/error.
+ *
+ * @remarks
+ * - Multiple selected ESRE rows are allowed, but a single cheque can only have one payee.
+ * - Monetary values remain string-backed and are summed through Decimal.
+ */
+export async function getChequePrintData(ids: string[]): Promise<Result<EsreChequePrintData>> {
+  try {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "Select at least one ESRE item to print a cheque.");
+    }
+
+    const rows = await db
+      .select({
+        id: esre.id,
+        payee: esre.payee,
+        amount: esre.amount,
+        checkNumber: esre.checkNumber,
+      })
+      .from(esre)
+      .where(inArray(esre.id, uniqueIds));
+
+    if (rows.length !== uniqueIds.length) {
+      return new Failure(ErrorCodes.ResourceNotFound, "One or more selected ESRE items were not found.", { ids });
+    }
+
+    const payees = [...new Set(rows.map(row => row.payee?.trim() ?? "").filter(Boolean))];
+    if (payees.length !== 1) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "Selected ESRE items must have the same payee to print one cheque.",
+        { payees },
+      );
+    }
+
+    const total = rows.reduce((sum, row) => sum.plus(new Decimal(row.amount)), new Decimal(0));
+    const totalText = total.toFixed(2);
+
+    return new Success({
+      payee: payees[0],
+      amount: totalText,
+      amountFormatted: formatAmountWithoutCurrency(totalText),
+      amountWords: amountToWords(totalText).toUpperCase(),
+      checkNumber: rows.find(row => row.checkNumber?.trim())?.checkNumber?.trim() ?? null,
+      selectedCount: rows.length,
+      itemIds: uniqueIds,
+      printedAt: new Date(),
+    });
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to build ESRE cheque print data.", { ids }, e);
   }
 }
 
@@ -558,12 +631,12 @@ type UpdateEsrePayload = {
   amount?: string;
   fundingSourceId?: string;
   checkStatus?: CheckStatusType | null;
-  remarks?: string;
+  remarks?: string | null;
   obrId?: string | null;
-  expenseTypeId?: string;
+  expenseTypeId?: string | null;
   saaobId?: string | null;
-  dvOrPayrollNumber?: string;
-  checkNumber?: string;
+  dvOrPayrollNumber?: string | null;
+  checkNumber?: string | null;
 };
 
 type EsreItem = {
@@ -603,4 +676,15 @@ type EsreItem = {
     };
   }>;
   disbursed: string;
+};
+
+export type EsreChequePrintData = {
+  payee: string;
+  amount: string;
+  amountFormatted: string;
+  amountWords: string;
+  checkNumber: string | null;
+  selectedCount: number;
+  itemIds: string[];
+  printedAt: Date;
 };

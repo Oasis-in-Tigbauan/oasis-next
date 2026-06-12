@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -202,8 +203,17 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    const targetEditItem = mode === "edit" ? editItem : undefined;
+
+    if (mode === "edit" && !targetEditItem) {
+      toast.error("Select an ESRE entry to update.");
+      return;
+    }
+
     if (!form.payee.trim() || !form.natureOfPayment.trim() || !form.amount.trim() || !form.fundingSourceId) {
-      alert("Payee, Nature of Payment, Amount, and Funding Source are required.");
+      toast.error("Complete the required ESRE fields", {
+        description: "Payee, nature of payment, amount, and funding source are required.",
+      });
       return;
     }
 
@@ -228,32 +238,40 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
       });
       setSubmitting(false);
       if (res.error) {
-        alert((res.error as ApiResponseException).message ?? "Failed to create entry. Please try again.");
+        toast.error("ESRE entry was not created", {
+          description: (res.error as ApiResponseException).message ?? "Please check the form and try again.",
+        });
         return;
       }
+      toast.success("ESRE entry created");
     } else {
+      if (!targetEditItem) return;
+
       const payload: Record<string, unknown> = {
         payee: form.payee.trim(),
         natureOfPayment: form.natureOfPayment.trim(),
         amount: form.amount.trim(),
         fundingSourceId: form.fundingSourceId,
         checkStatus: form.checkStatus || null,
-        ...(form.checkNumber.trim() ? { checkNumber: form.checkNumber.trim() } : {}),
-        ...(form.remarks.trim() ? { remarks: form.remarks.trim() } : {}),
+        checkNumber: form.checkNumber.trim() || null,
+        remarks: form.remarks.trim() || null,
         obrId: selectedObr ? selectedObr.id : null,
         saaobId: selectedSaaob ? selectedSaaob.id : null,
-        ...(form.expenseTypeId ? { expenseTypeId: form.expenseTypeId } : {}),
+        expenseTypeId: form.expenseTypeId || null,
       };
 
-      const res = await $fetch<unknown, ApiResponseException>(`/api/esre/${editItem!.id}`, {
+      const res = await $fetch<unknown, ApiResponseException>(`/api/esre/${targetEditItem.id}`, {
         method: "PATCH",
         body: payload,
       });
       setSubmitting(false);
       if (res.error) {
-        alert((res.error as ApiResponseException).message ?? "Failed to update entry. Please try again.");
+        toast.error("ESRE entry was not updated", {
+          description: (res.error as ApiResponseException).message ?? "Please check the form and try again.",
+        });
         return;
       }
+      toast.success("ESRE entry updated");
     }
 
     onSuccess();
@@ -564,4 +582,3 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
     </Dialog>
   );
 }
-

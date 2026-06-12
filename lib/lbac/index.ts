@@ -1,4 +1,4 @@
-﻿import { and, asc, eq, ilike, inArray, or } from "drizzle-orm";
+﻿import { and, asc, eq, ilike, inArray, not, or } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
 
@@ -66,11 +66,30 @@ import {
   lbacStatementOfExpenditures,
   obrMainAipReferences,
   obrMainData,
+  office,
   officeCodes,
   saaobEntries,
   supplemental,
 } from "@/lib/db/schema";
 import { type User } from "@/lib/accounts";
+import { LBAC_DATA_READ, LBAC_DATA_WRITE, type Permissions } from "@/lib/db/permissions";
+
+const CARDINAL_ADMINISTRATORS_OFFICE_NAME = "Cardinal Administrators";
+
+/**
+ * Resolves whether LBAC data should be restricted to the user's office.
+ *
+ * @param {Permissions[]} permissions - The user's role permissions.
+ * @param {string} userOfficeId - The user's office ID.
+ * @returns {string | undefined} The office ID to restrict by, or undefined for full access.
+ */
+export function resolveLbacOfficeRestriction(
+  permissions: Permissions[],
+  userOfficeId: string,
+): string | undefined {
+  const hasFullAccess = permissions.includes(LBAC_DATA_READ) && permissions.includes(LBAC_DATA_WRITE);
+  return hasFullAccess ? undefined : userOfficeId;
+}
 
 export const LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER = "lbac.main-data";
 export const LBAC_QUARTERLY_TEMPLATE_IDENTIFIER = "lbac.quarterly";
@@ -207,12 +226,22 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
  * @returns {Promise<Result<LbacGroupObject[]>>} A result containing the full LBAC group/item tree on success,
  *                                               or a failure result on error.
  */
-export async function getAllItems(year?: number, quarter?: number): Promise<Result<LbacGroupObject[]>> {
+export async function getAllItems(
+  year?: number,
+  quarter?: number,
+  restrictToOfficeId?: string,
+): Promise<Result<LbacGroupObject[]>> {
   try {
     const resolvedYear = year ?? _getCurrentYearUtc8();
     const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
 
-    const [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
+    let [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
+
+    if (restrictToOfficeId) {
+      groups = _filterGroupsByOffice(groups, restrictToOfficeId);
+      const groupIds = new Set(groups.map((g) => g.id));
+      items = items.filter((i) => groupIds.has(i.parentId));
+    }
 
     const reportIds = items.map((i) => i.quarterlyReportId);
     const aipRefIds = [
@@ -255,15 +284,25 @@ export async function getAllItems(year?: number, quarter?: number): Promise<Resu
  * @returns {Promise<Result<LbacQuarterlyGroupObject[]>>} A result containing the quarterly report tree on success,
  *                                                        or a failure result on error.
  */
-export async function getAllQuarterlyReports(year?: number, quarter?: number): Promise<Result<LbacQuarterlyGroupObject[]>> {
+export async function getAllQuarterlyReports(
+  year?: number,
+  quarter?: number,
+  restrictToOfficeId?: string,
+): Promise<Result<LbacQuarterlyGroupObject[]>> {
   try {
     const resolvedYear = year ?? _getCurrentYearUtc8();
     const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
 
-    const [groups, items] = await Promise.all([
+    let [groups, items] = await Promise.all([
       _fetchGroups(),
       _fetchItems(),
     ]);
+
+    if (restrictToOfficeId) {
+      groups = _filterGroupsByOffice(groups, restrictToOfficeId);
+      const groupIds = new Set(groups.map((g) => g.id));
+      items = items.filter((i) => groupIds.has(i.parentId));
+    }
 
     const reportIds = items.map((i) => i.quarterlyReportId);
     const aipRefIds = [
@@ -303,12 +342,22 @@ export async function getAllQuarterlyReports(year?: number, quarter?: number): P
  * @returns {Promise<Result<LbacViewerGroupObject[]>>} A result containing the viewer group/item tree on success,
  *                                                    or a failure result on error.
  */
-export async function getAllViewerItems(year?: number, quarter?: number): Promise<Result<LbacViewerGroupObject[]>> {
+export async function getAllViewerItems(
+  year?: number,
+  quarter?: number,
+  restrictToOfficeId?: string,
+): Promise<Result<LbacViewerGroupObject[]>> {
   try {
     const resolvedYear = year ?? _getCurrentYearUtc8();
     const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
 
-    const [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
+    let [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
+
+    if (restrictToOfficeId) {
+      groups = _filterGroupsByOffice(groups, restrictToOfficeId);
+      const groupIds = new Set(groups.map((g) => g.id));
+      items = items.filter((i) => groupIds.has(i.parentId));
+    }
 
     const reportIds = items.map((i) => i.quarterlyReportId);
     const aipRefIds = [
@@ -342,6 +391,33 @@ export async function getAllViewerItems(year?: number, quarter?: number): Promis
     return new Success(tree);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC viewer items.", {}, e);
+  }
+}
+
+/**
+ * Returns offices that can be assigned to LBAC groups.
+ *
+ * @description
+ * Excludes the protected Cardinal Administrators office from the result set.
+ *
+ * @async
+ * @function getLbacAssignableOffices
+ * @returns {Promise<Result<LbacAssignableOffice[]>>} Assignable offices on success, or a failure result on error.
+ */
+export async function getLbacAssignableOffices(): Promise<Result<LbacAssignableOffice[]>> {
+  try {
+    const offices = await db
+      .select({
+        id: office.id,
+        name: office.name,
+      })
+      .from(office)
+      .where(not(eq(office.name, CARDINAL_ADMINISTRATORS_OFFICE_NAME)))
+      .orderBy(asc(office.name));
+
+    return new Success(offices);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC assignable offices.", {}, e);
   }
 }
 
@@ -514,10 +590,18 @@ export async function createLbacGroup(
       }
     }
 
+    if (payload.officeId) {
+      const officeValidation = await _validateLbacGroupOfficeId(payload.officeId);
+      if (officeValidation instanceof Failure) {
+        return officeValidation;
+      }
+    }
+
     const [newGroup] = await db.insert(lbacGroups).values({
       name: payload.name,
       aipRefCode: payload.aipRefCode ?? null,
       implementingUnitId: payload.implementingUnitId ?? null,
+      officeId: payload.officeId ?? null,
       parentId: groupId ?? null,
       authorId: user.id,
     }).returning({ id: lbacGroups.id });
@@ -662,12 +746,34 @@ export async function updateLbacItem(
 export async function updateLbacQuarterlyReport(
   lbacId: string,
   payload: UpdateLbacQuarterlyPayload,
+  restrictToOfficeId?: string,
 ): Promise<Result<LbacQuarterlyObject>> {
   try {
-    const [item] = await db.select({ id: lbacItems.id, quarterlyReportId: lbacItems.quarterlyReportId })
+    const [item] = await db.select({
+      id: lbacItems.id,
+      quarterlyReportId: lbacItems.quarterlyReportId,
+      parentId: lbacItems.parentId,
+    })
       .from(lbacItems).where(eq(lbacItems.id, lbacId)).limit(1);
     if (!item) {
       return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacId });
+    }
+
+    if (restrictToOfficeId) {
+      const groups = await _fetchGroups();
+      const groupsById = new Map(groups.map((g) => [g.id, g]));
+      const effectiveOfficeId = _resolveEffectiveOfficeId(
+        item.parentId,
+        groupsById,
+        new Map(),
+      );
+      if (effectiveOfficeId !== restrictToOfficeId) {
+        return new Failure(
+          ErrorCodes.InsufficientPermissions,
+          "You do not have access to update this item's quarterly report.",
+          { lbacId, restrictToOfficeId },
+        );
+      }
     }
 
     const updateValues: Record<string, unknown> = {};
@@ -752,10 +858,18 @@ export async function updateLbacGroup(
       }
     }
 
+    if (payload.officeId) {
+      const officeValidation = await _validateLbacGroupOfficeId(payload.officeId);
+      if (officeValidation instanceof Failure) {
+        return officeValidation;
+      }
+    }
+
     const updateValues: Record<string, unknown> = {};
     if (payload.name !== undefined) updateValues.name = payload.name;
     if (payload.aipRefCode !== undefined) updateValues.aipRefCode = payload.aipRefCode;
     if (payload.implementingUnitId !== undefined) updateValues.implementingUnitId = payload.implementingUnitId;
+    if (payload.officeId !== undefined) updateValues.officeId = payload.officeId;
 
     if (Object.keys(updateValues).length > 0) {
       await db.update(lbacGroups).set(updateValues).where(eq(lbacGroups.id, lbacGroupId));
@@ -2739,6 +2853,97 @@ function _obrSumBefore(obrAmounts: ObrAipEntry[], aipRefId: string, before: Date
 }
 
 /**
+ * Resolves the effective office ID for a group by walking up the parent chain.
+ *
+ * @param {string} groupId - The group ID to resolve.
+ * @param {LbacGroupRow[]} groups - All group rows.
+ * @param {Map<string, string | null>} [cache] - Memoization cache for resolved office IDs.
+ * @returns {string | null} The effective office ID, or null when none is assigned.
+ */
+function _resolveEffectiveOfficeId(
+  groupId: string,
+  groupsById: Map<string, LbacGroupRow>,
+  cache: Map<string, string | null>,
+): string | null {
+  if (cache.has(groupId)) {
+    return cache.get(groupId)!;
+  }
+
+  const group = groupsById.get(groupId);
+  if (!group) {
+    cache.set(groupId, null);
+    return null;
+  }
+
+  if (group.officeId) {
+    cache.set(groupId, group.officeId);
+    return group.officeId;
+  }
+
+  if (group.parentId) {
+    const resolved = _resolveEffectiveOfficeId(group.parentId, groupsById, cache);
+    cache.set(groupId, resolved);
+    return resolved;
+  }
+
+  cache.set(groupId, null);
+  return null;
+}
+
+/**
+ * Filters groups to those whose effective office ID matches the target office.
+ * Groups whose parents were filtered out are promoted to root nodes.
+ *
+ * @param {LbacGroupRow[]} groups - All group rows.
+ * @param {string} officeId - The office ID to filter by.
+ * @returns {LbacGroupRow[]} Filtered group rows.
+ */
+function _filterGroupsByOffice(groups: LbacGroupRow[], officeId: string): LbacGroupRow[] {
+  const groupsById = new Map(groups.map((g) => [g.id, g]));
+  const cache = new Map<string, string | null>();
+  const matchingIds = new Set<string>();
+
+  for (const group of groups) {
+    const effectiveOfficeId = _resolveEffectiveOfficeId(group.id, groupsById, cache);
+    if (effectiveOfficeId === officeId) {
+      matchingIds.add(group.id);
+    }
+  }
+
+  return groups
+    .filter((g) => matchingIds.has(g.id))
+    .map((g) => ({
+      ...g,
+      parentId: g.parentId && matchingIds.has(g.parentId) ? g.parentId : null,
+    }));
+}
+
+/**
+ * Validates that an office ID exists and is assignable to an LBAC group.
+ *
+ * @async
+ * @param {string} officeId - The office ID to validate.
+ * @returns {Promise<Result<null>>} Success when valid, or a failure result on error.
+ */
+async function _validateLbacGroupOfficeId(officeId: string): Promise<Result<null>> {
+  const [officeRow] = await db
+    .select({ id: office.id, name: office.name })
+    .from(office)
+    .where(eq(office.id, officeId))
+    .limit(1);
+
+  if (!officeRow) {
+    return new Failure(ErrorCodes.ValidationFailure, "The specified office does not exist.", { officeId });
+  }
+
+  if (officeRow.name === CARDINAL_ADMINISTRATORS_OFFICE_NAME) {
+    return new Failure(ErrorCodes.ValidationFailure, "Asuna is on different game, Kirito.", { officeId });
+  }
+
+  return new Success(null);
+}
+
+/**
  * Fetches all lbac_groups rows with left-joined aipReferences and officeCodes.
  *
  * @async
@@ -2755,10 +2960,13 @@ async function _fetchGroups(): Promise<LbacGroupRow[]> {
       aipDescription: aipReferences.description,
       implementingUnitId: officeCodes.id,
       implementingUnitName: officeCodes.aa,
+      officeId: office.id,
+      officeName: office.name,
     })
     .from(lbacGroups)
     .leftJoin(aipReferences, eq(aipReferences.id, lbacGroups.aipRefCode))
     .leftJoin(officeCodes, eq(officeCodes.id, lbacGroups.implementingUnitId))
+    .leftJoin(office, eq(office.id, lbacGroups.officeId))
     .orderBy(asc(lbacGroups.createdAt));
 }
 
@@ -3271,6 +3479,9 @@ function _buildBaseLbacGroupObject(group: LbacGroupRow): BaseLbacGroupObject {
       : null,
     implementingUnit: group.implementingUnitId
       ? { id: group.implementingUnitId, name: group.implementingUnitName! }
+      : null,
+    office: group.officeId
+      ? { id: group.officeId, name: group.officeName! }
       : null,
   } satisfies BaseLbacGroupObject;
 }
@@ -5937,6 +6148,10 @@ export type BaseLbacGroupObject = {
     id: string;
     name: string;
   } | null;
+  office: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type LbacObject = {
@@ -6148,6 +6363,12 @@ export type CreateLbacGroupPayload = {
   aipRefCode?: string | null;
   name: string;
   implementingUnitId?: string | null;
+  officeId?: string | null;
+};
+
+export type LbacAssignableOffice = {
+  id: string;
+  name: string;
 };
 
 export type CreateLbacItemPayload = {
@@ -6246,6 +6467,8 @@ type LbacGroupRow = {
   aipDescription: string | null;
   implementingUnitId: string | null;
   implementingUnitName: string | null;
+  officeId: string | null;
+  officeName: string | null;
 };
 
 type LbacItemRow = {

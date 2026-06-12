@@ -18,7 +18,7 @@ export default function DashboardNotifications() {
     $fetch,
   );
 
-  const notifications = data?.data;
+  const notifications = data?.data?.data;
   const items = notifications?.items ?? [];
 
   const markRead = async (id: string) => {

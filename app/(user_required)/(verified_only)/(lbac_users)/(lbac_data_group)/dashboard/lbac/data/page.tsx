@@ -16,6 +16,7 @@ import type {
   LbacGroupResponse,
   LbacGroupTotals,
   LbacItemResponse,
+  LbacOfficesListResponse,
   OfficeCodeListResponse,
   SaaobSearchResponse,
   SaaobSearchGroup,
@@ -109,14 +110,14 @@ export default function Page() {
   const tree = useMemo(() => data?.data?.data ?? [], [data?.data?.data]);
   const allGroups = useMemo(() => collectGroups(tree), [tree]);
 
-  const matchingGroupIds = useMemo(
-    () => (searchQuery.trim() ? collectMatchingGroupIds(tree, searchQuery) : new Set<string>()),
+  const searchVisibility = useMemo(
+    () => (searchQuery.trim() ? computeSearchVisibility(tree, searchQuery) : null),
     [tree, searchQuery],
   );
 
   const flatRows = useMemo(
-    () => flattenVisible(tree, collapsed, 0, searchQuery, matchingGroupIds),
-    [tree, collapsed, searchQuery, matchingGroupIds],
+    () => flattenVisible(tree, collapsed, 0, searchVisibility),
+    [tree, collapsed, searchVisibility],
   );
 
   // eslint-disable-next-line
@@ -194,7 +195,7 @@ export default function Page() {
           <Search className="absolute left-2 size-3.5 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-7 h-8 w-56 text-xs"
-            placeholder="Search AIP, MFO, output…"
+            placeholder="Search groups, AIP, MFO, output…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -595,6 +596,9 @@ function GroupFormDialog({
   const [implementingUnitId, setImplementingUnitId] = useState<string>(
     editGroup?.implementingUnit?.id ?? "",
   );
+  const [officeId, setOfficeId] = useState<string>(
+    editGroup?.office?.id ?? "",
+  );
   const [parentId, setParentId] = useState<string>(defaultParentId ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -603,6 +607,11 @@ function GroupFormDialog({
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
   >("/api/management/data/office-codes", $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
+
+  const { data: officesData } = useSWR<
+    BetterFetchResponse<LbacOfficesListResponse, ApiResponseException>
+  >("/api/lbac/offices", $fetch);
+  const offices = officesData?.data?.data ?? [];
 
   const handleSave = async () => {
     if (submitting) return;
@@ -613,6 +622,11 @@ function GroupFormDialog({
       const body: Record<string, unknown> = { name: name.trim() };
       if (aipRef) body.aipRefCode = aipRef.id;
       if (implementingUnitId) body.implementingUnitId = implementingUnitId;
+      if (mode === "edit") {
+        body.officeId = officeId || null;
+      } else if (officeId) {
+        body.officeId = officeId;
+      }
 
       let res: Response;
       if (mode === "add") {
@@ -684,6 +698,25 @@ function GroupFormDialog({
                   <SelectItem value="__none__">None</SelectItem>
                   {officeCodes.map(oc => (
                     <SelectItem key={oc.id} value={oc.id}>{oc.aa}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1 w-full">
+              <Label htmlFor={`${baseId}-office`}>Office</Label>
+              <Select
+                value={officeId || "__none__"}
+                onValueChange={v => setOfficeId(v === "__none__" ? "" : v)}
+                disabled={submitting}
+              >
+                <SelectTrigger id={`${baseId}-office`}>
+                  <SelectValue placeholder="Select office…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {offices.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1334,42 +1367,85 @@ function collectGroups(
   return result;
 }
 
-/** Returns a set of group IDs that contain at least one matching descendant item. */
-function collectMatchingGroupIds(
+type SearchVisibility = {
+  /** Group IDs on the path to a match (ancestors + matching groups). */
+  visibleGroupIds: Set<string>;
+  /** Group IDs that matched directly — their entire subtree is shown. */
+  fullSubtreeGroupIds: Set<string>;
+  /** Item IDs that matched directly. */
+  visibleItemIds: Set<string>;
+};
+
+/** Computes which groups and items should be visible for a search query. */
+function computeSearchVisibility(
   nodes: (LbacGroupResponse | LbacItemResponse)[],
   query: string,
-): Set<string> {
-  const matched = new Set<string>();
-  function walk(nodes2: (LbacGroupResponse | LbacItemResponse)[], ancestors: string[]): boolean {
-    let anyMatch = false;
+): SearchVisibility {
+  const visibleGroupIds = new Set<string>();
+  const fullSubtreeGroupIds = new Set<string>();
+  const visibleItemIds = new Set<string>();
+
+  function addAncestors(ancestors: string[]) {
+    for (const id of ancestors) visibleGroupIds.add(id);
+  }
+
+  function addDescendantGroups(group: LbacGroupResponse) {
+    visibleGroupIds.add(group.id);
+    for (const child of group.children) {
+      if (child.type === 6767) {
+        addDescendantGroups(child as LbacGroupResponse);
+      }
+    }
+  }
+
+  function walk(
+    nodes2: (LbacGroupResponse | LbacItemResponse)[],
+    ancestors: string[],
+  ): boolean {
+    let subtreeHasMatch = false;
+
     for (const node of nodes2) {
       if (node.type === 6767) {
-        const g = node as LbacGroupResponse;
-        const childMatch = walk(g.children, [...ancestors, g.id]);
-        if (childMatch) {
-          matched.add(g.id);
-          for (const a of ancestors) matched.add(a);
-          anyMatch = true;
+        const group = node as LbacGroupResponse;
+        const selfMatch = groupMatchesQuery(group, query);
+        const childHasMatch = walk(group.children, [...ancestors, group.id]);
+
+        if (selfMatch) {
+          fullSubtreeGroupIds.add(group.id);
+          addDescendantGroups(group);
+          addAncestors(ancestors);
+          subtreeHasMatch = true;
+        } else if (childHasMatch) {
+          visibleGroupIds.add(group.id);
+          addAncestors(ancestors);
+          subtreeHasMatch = true;
         }
       } else {
         const item = node as LbacItemResponse;
-        const q = query.toLowerCase();
-        const hits =
-          item.aipRefCode?.aipReferenceCode.toLowerCase().includes(q) ||
-          item.mfoPpa.toLowerCase().includes(q) ||
-          item.majorFinalOutput?.toLowerCase().includes(q) ||
-          item.performanceOutputIndicator?.toLowerCase().includes(q) ||
-          item.targetForBudgetYear?.toLowerCase().includes(q);
-        if (hits) {
-          for (const a of ancestors) matched.add(a);
-          anyMatch = true;
+        if (itemMatchesQuery(item, query)) {
+          visibleItemIds.add(item.id);
+          addAncestors(ancestors);
+          subtreeHasMatch = true;
         }
       }
     }
-    return anyMatch;
+
+    return subtreeHasMatch;
   }
+
   walk(nodes, []);
-  return matched;
+  return { visibleGroupIds, fullSubtreeGroupIds, visibleItemIds };
+}
+
+function groupMatchesQuery(group: LbacGroupResponse, query: string): boolean {
+  const q = query.toLowerCase();
+  return (
+    group.name.toLowerCase().includes(q) ||
+    (group.aipRefCode?.aipReferenceCode.toLowerCase().includes(q) ?? false) ||
+    (group.aipRefCode?.description.toLowerCase().includes(q) ?? false) ||
+    (group.implementingUnit?.name.toLowerCase().includes(q) ?? false) ||
+    (group.office?.name.toLowerCase().includes(q) ?? false)
+  );
 }
 
 function itemMatchesQuery(item: LbacItemResponse, query: string): boolean {
@@ -1387,26 +1463,35 @@ function flattenVisible(
   nodes: (LbacGroupResponse | LbacItemResponse)[],
   collapsed: Set<string>,
   depth: number,
-  query: string,
-  matchingGroupIds: Set<string>,
+  searchVisibility: SearchVisibility | null,
+  showAllDescendants = false,
 ): FlatRow[] {
   const rows: FlatRow[] = [];
-  const filtering = query.trim().length > 0;
+  const filtering = searchVisibility !== null;
 
   for (const node of nodes) {
     if (node.type === 6767) {
       const group = node as LbacGroupResponse;
-      if (filtering && !matchingGroupIds.has(group.id)) continue;
+      if (filtering && !searchVisibility.visibleGroupIds.has(group.id)) continue;
+
+      const includeAllChildren = showAllDescendants
+        || (searchVisibility?.fullSubtreeGroupIds.has(group.id) ?? false);
+
       rows.push({ kind: "group", id: group.id, depth, data: group });
-      // When filtering, ignore collapsed state so matches are always visible
       const shouldExpand = filtering || !collapsed.has(group.id);
       if (shouldExpand) {
-        rows.push(...flattenVisible(group.children, collapsed, depth + 1, query, matchingGroupIds));
+        rows.push(...flattenVisible(
+          group.children,
+          collapsed,
+          depth + 1,
+          searchVisibility,
+          includeAllChildren,
+        ));
         rows.push({ kind: "group-total", id: `total-${group.id}`, depth, groupId: group.id, data: group.totals, isRoot: depth === 0 });
       }
     } else {
       const item = node as LbacItemResponse;
-      if (filtering && !itemMatchesQuery(item, query)) continue;
+      if (filtering && !showAllDescendants && !searchVisibility.visibleItemIds.has(item.id)) continue;
       rows.push({ kind: "item", id: item.id, depth, data: item, groupId: "" });
     }
   }
