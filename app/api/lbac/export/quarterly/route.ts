@@ -53,7 +53,12 @@ export async function GET(req: NextRequest) {
       .build();
   }
 
-  const result = await lbac.exportQuarterlyToBuffer({ year, quarter, columns });
+  const restrictToOfficeId = lbac.resolveLbacOfficeRestriction(
+    session.user!.office.role.permissions,
+    session.user!.office.id,
+  );
+
+  const result = await lbac.exportQuarterlyToBuffer({ year, quarter, columns, restrictToOfficeId });
   if (result instanceof Failure) {
     return ApiResponseBuilder.createFromFailure(result).build();
   }
