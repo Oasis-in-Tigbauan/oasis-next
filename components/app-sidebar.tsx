@@ -153,6 +153,7 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
 
   const officeFormItems: SidebarItem[] = [
     { title: "Leave Application", href: "/dashboard/forms/leave", icon: CalendarDays },
+    { title: "Payroll", href: "/dashboard/forms/payroll", icon: PhilippinePeso },
     hasPermission(permissions.PURCHASING_REQUEST_MANAGE) ? { title: "PR/PO Form", href: "/dashboard/forms/purchasing", icon: ShoppingBasket } : null,
     hasPermission(permissions.PPMP_READ) ? { title: "PPMP", href: "/dashboard/forms/ppmp", icon: ShoppingCart } : null,
     hasPermission(permissions.OBR_DISBURSEMENT_CREATE) ? { title: "DV-Elec", href: "/dashboard/forms/elec", icon: PlugZap } : null,

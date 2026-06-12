@@ -63,7 +63,7 @@ const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS
  *
  * @remarks
  * - Requests with more than four items are treated as advanced requests.
- * - Basic requests require an office-head approver and a budget-officer approver.
+ * - Basic requests require a budget-officer approver.
  * - Advanced requests additionally require a higher-level approver.
  * - Responsibility centers and expense codes are validated before the transaction is committed.
  */
@@ -82,12 +82,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
       })
       .from(officePosition);
 
-    const headPosition = positions.find(
-      p =>
-        p.officeId === user.office.id &&
-        p.permissions.includes(permissions.OFFICE_HEAD),
-    );
-
     const budgetOfficerPosition = positions.find(p =>
       p.permissions.includes(permissions.OBR_APPROVER_BASIC_HIGH_WRITE),
     );
@@ -97,14 +91,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         p.permissions.includes(permissions.OBR_APPROVER_ADVANCED_WRITE),
       ).slice(0, 1)
       : [];
-
-    if (!headPosition) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "User does not have a head position in the office.",
-        { req, userId: user.id },
-      );
-    }
 
     if (!budgetOfficerPosition) {
       return new Failure(
@@ -189,7 +175,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
 
       // Approvers
       const signerIds = [
-        headPosition.id,
         budgetOfficerPosition.id,
         ...higherUpSigners.map(s => s.id),
       ];
@@ -255,7 +240,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         name: user.fullName,
       },
       approvers: [
-        headPosition,
         budgetOfficerPosition,
         ...higherUpSigners,
       ].map(p => ({
@@ -275,7 +259,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         officeId: user.office.id,
         actorName: user.fullName,
         approverPositionIds: [
-          headPosition.id,
           budgetOfficerPosition.id,
           ...higherUpSigners.map((position) => position.id),
         ],
@@ -394,15 +377,21 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       .select({
         requestNumber: obrRequests.requestNumber,
         officeId: obrRequests.originatingOfficeId,
-        approvers: sql<({ status: ApprovalState })[]>`COALESCE(
+        approvers: sql<({ status: ApprovalState; positionId: string })[]>`COALESCE(
           (
             SELECT json_agg(
               json_build_object(
-                'status', ${obrRequestApprovers.status}
+                'status', ${obrRequestApprovers.status},
+                'positionId', ${obrRequestApprovers.positionId}
               )
             )
             FROM ${obrRequestApprovers}
             WHERE ${obrRequestApprovers.requestId} = ${entryId}
+              AND NOT EXISTS (
+                SELECT 1 FROM ${officePosition}
+                WHERE ${officePosition.id} = ${obrRequestApprovers.positionId}
+                  AND ${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions})
+              )
           ),
           '[]'::json
         )`,
@@ -421,6 +410,9 @@ export async function setApproverState(entryId: string, user: User, status: "pen
           actorName: user.fullName,
           status,
           overallStatus: getSummaryOfStates(requestSummary.approvers),
+          nextApproverPositionIds: requestSummary.approvers
+            .filter((approver) => approver.status === "pending")
+            .map((approver) => approver.positionId),
         },
       });
     }
@@ -1134,6 +1126,11 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
           )
           FROM ${obrRequestApprovers}
           WHERE ${obrRequestApprovers.requestId} = ${obrRequestId}
+            AND NOT EXISTS (
+              SELECT 1 FROM ${officePosition}
+              WHERE ${officePosition.id} = ${obrRequestApprovers.positionId}
+                AND ${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions})
+            )
         )`,
       })
       .from(obrRequests)
@@ -1146,15 +1143,12 @@ export async function createDisbursementVoucher(obrRequestId: string, payload: A
       );
     }
 
-    // Find the head user
-    const headUserList = result.approvers
-      .filter(u => u.status === "approved")
-      .map(u => u.actorUserId as string);
-    const headUser = await findOfficeHead(headUserList);
+    // Resolve the requesting office head separately from the approval chain.
+    const headUser = await findOfficeHeadByOffice(result.originatingOfficeId);
     if (!headUser) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "No such office head found on this request. This may be an error.",
+        "No office head found for this request's originating office. This may be an error.",
         { obrRequestId, payload, userId: actor.id, requestObject: result },
       );
     }
@@ -1973,15 +1967,11 @@ export async function createObrItem(requestId: string, user: User): Promise<Resu
       return new Failure(ErrorCodes.ValidationFailure, "Invalid request.", { requestId, stateSummary });
     }
 
-    const officeHead = await findOfficeHead(
-      request.approvers
-        .filter(i => i.signer?.id)
-        .map(i => i.signer!.id),
-    );
+    const officeHead = await findOfficeHeadByOffice(request.office.id);
     if (!officeHead) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "No valid office head. This may be an error.",
+        "No valid office head found for this request's originating office. This may be an error.",
         { reqId: request.id },
       );
     }
@@ -3180,53 +3170,28 @@ async function tryGetValidSignerForDisbursement(userId: string): Promise<{ id: s
   }
 }
 
-/**
- * Attempts to find an eligible office-head signer from a list of user identifiers.
- *
- * @description
- * Looks up the provided signer users with their assigned office-position permissions, then returns the first signer
- * whose position has the required disbursement approval permission. Duplicate signer identifiers are ignored before
- * lookup.
- *
- * On success, returns the matching signer identity. If no eligible signer is found, or if an unexpected error occurs,
- * returns `null` instead of throwing.
- *
- * @async
- * @function findOfficeHead
- * @param {string[]} signers - User identifiers to search for an eligible office-head signer.
- * @returns {Promise<{ id: string; name: string } | null>} The matching signer identity when found, or `null` otherwise.
- *
- * @remarks
- * - Duplicate signer identifiers are de-duplicated before querying.
- * - Returns the first signer with the required disbursement approval permission.
- * - Unexpected errors are captured internally and do not propagate to the caller.
- */
-async function findOfficeHead(signers: string[]): Promise<{ id: string; name: string; positionName: string; } | null> {
+async function findOfficeHeadByOffice(officeId: string): Promise<{ id: string; name: string; positionName: string; } | null> {
   try {
-    // Find the information from all signers.
-    const allSigners = new Set(signers);
-    const signerResult = await db
+    const [officeHead] = await db
       .select({
         id: user.id,
         name: user.name,
         positionName: officePosition.name,
-        permissions: officePosition.permissions,
       })
       .from(user)
       .innerJoin(officePosition, eq(officePosition.id, user.officePositionId))
-      .where(inArray(user.id, [...allSigners]));
+      .where(and(
+        eq(user.officeId, officeId),
+        eq(user.emailVerified, true),
+        eq(user.banned, false),
+        eq(user.shadowBanned, false),
+        sql`${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions})`,
+      ))
+      .limit(1);
 
-    for (const user of signerResult) {
-      if (user.permissions?.includes(permissions.OFFICE_HEAD)) {
-        return { id: user.id, name: user.name, positionName: user.positionName! };
-      }
-    }
-
-    return null;
+    return officeHead ?? null;
   } catch (e) {
-    // Report the log. It's not intended to be returned.
-    void new Failure(
-      ErrorCodes.Fatal, "Unable to find the office head.", { signers }, e);
+    void new Failure(ErrorCodes.Fatal, "Unable to find office head by office.", { officeId }, e);
     return null;
   }
 }
@@ -3340,7 +3305,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
       ),
 
     db
-      .select({ id: officePosition.id, name: officePosition.name })
+      .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
       .from(officePosition)
       .where(
         inArray(
@@ -3359,6 +3324,10 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
   const ecMap = new Map(expenseCodes.map(e => [e.id, e]));
   const uMap = new Map(users.map(u => [u.id, u]));
   const pMap = new Map(positions.map(p => [p.id, p]));
+  const visibleApprovers = result.approvers.filter((approver) => {
+    const position = pMap.get(approver.positionId);
+    return !position?.permissions?.includes(permissions.OFFICE_HEAD);
+  });
 
   // Map
   return {
@@ -3393,7 +3362,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
         name: rcMap.get(i.responsibilityCenterId)!.aa,
       },
     })),
-    approvers: result.approvers.map(a => ({
+    approvers: visibleApprovers.map(a => ({
       status: a.status,
       reason: a.reason,
       position: {
@@ -3456,6 +3425,8 @@ async function _getAllObrRequestAsSummaries(filter: SQL) {
         )`.as("approvers"),
     })
     .from(obrRequestApprovers)
+    .innerJoin(officePosition, eq(officePosition.id, obrRequestApprovers.positionId))
+    .where(sql`NOT (${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions}))`)
     .groupBy(obrRequestApprovers.requestId)
     .as("request_approvers_subquery");
 
@@ -3823,8 +3794,25 @@ async function _copyTemplateRows(
 
     const newImageId = destWorkbook.addImage(srcImageData);
     const srcRange = imageModel.range;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const adjustedRange: any = {
+    const srcExt = srcRange.ext as Optional<{ width: number; height: number }>;
+    const squareSize = srcExt
+      ? Math.min(srcExt.width, srcExt.height)
+      : 52;
+
+    const adjustedRange: {
+      tl: {
+        nativeCol: number;
+        nativeColOff: number;
+        nativeRow: number;
+        nativeRowOff: number;
+      };
+      editAs: string;
+      ext: {
+        width: number;
+        height: number;
+      };
+      hyperlinks?: unknown;
+    } = {
       tl: {
         nativeCol: srcRange.tl.nativeCol,
         nativeColOff: srcRange.tl.nativeColOff,
@@ -3832,17 +3820,12 @@ async function _copyTemplateRows(
         nativeRowOff: srcRange.tl.nativeRowOff,
       },
       editAs: srcRange.editAs,
+      ext: {
+        width: squareSize,
+        height: squareSize,
+      },
     };
 
-    if (srcRange.br) {
-      adjustedRange.br = {
-        nativeCol: srcRange.br.nativeCol,
-        nativeColOff: srcRange.br.nativeColOff,
-        nativeRow: srcRange.br.nativeRow + rowOffset,
-        nativeRowOff: srcRange.br.nativeRowOff,
-      };
-    }
-    if (srcRange.ext) adjustedRange.ext = srcRange.ext;
     if (srcRange.hyperlinks) adjustedRange.hyperlinks = srcRange.hyperlinks;
 
     destWorksheet.addImage(newImageId, adjustedRange);

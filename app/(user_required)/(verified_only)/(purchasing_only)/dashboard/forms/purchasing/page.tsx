@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { FileSpreadsheet, Pencil, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -46,6 +47,8 @@ export default function Page() {
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [createPoOpen, setCreatePoOpen] = useState(false);
+  const [isExportingPr, setIsExportingPr] = useState(false);
+  const [isExportingPo, setIsExportingPo] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   const items = useMemo(() => data?.data?.data ?? [], [data?.data?.data]);
@@ -98,6 +101,19 @@ export default function Page() {
 
   const canCreatePo = selectedPoItems.length > 0 && !selectedItemsHavePo;
 
+  const selectedPrNumbers = useMemo(
+    () => Array.from(new Set(
+      selectedPoItems
+        .map(item => item.prNumber)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    )),
+    [selectedPoItems],
+  );
+
+  const prExportItem = selectedItem ?? (selectedPrNumbers.length === 1 ? selectedPoItems[0] : null);
+  const canExportPr = Boolean(prExportItem);
+  const prExportHasMismatch = !selectedItem && selectedPoItems.length > 0 && selectedPrNumbers.length > 1;
+
   const selectedPoNumbers = useMemo(
     () => Array.from(new Set(
       selectedPoItems
@@ -126,6 +142,60 @@ export default function Page() {
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
   const paddingBottom =
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+
+  const downloadWorkbook = async (url: string, fallbackFilename: string) => {
+    const res = await fetch(url);
+    if (!res.ok) {
+      toast.error("Export failed", {
+        description: "Please refresh the record and try again.",
+      });
+      return;
+    }
+
+    const blob = await res.blob();
+    const contentDisposition = res.headers.get("content-disposition");
+    const filename = contentDisposition?.match(/filename="?([^"]+)"?/i)?.[1] ?? fallbackFilename;
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+    toast.success("Workbook is ready");
+  };
+
+  const handleExportPr = async () => {
+    if (!prExportItem || isExportingPr) return;
+
+    setIsExportingPr(true);
+    try {
+      await downloadWorkbook(
+        `/api/forms/purchasing/export/pr?id=${prExportItem.id}`,
+        `Purchase_Request_${prExportItem.prNumber ?? prExportItem.id}.xlsx`,
+      );
+    } finally {
+      setIsExportingPr(false);
+    }
+  };
+
+  const handleExportPo = async () => {
+    if (!canExportPo || isExportingPo) return;
+
+    const item = selectedPoItems[0];
+    if (!item) return;
+
+    setIsExportingPo(true);
+    try {
+      await downloadWorkbook(
+        `/api/forms/purchasing/export/po?id=${item.id}`,
+        `Purchase_Order_${selectedPoNumbers[0] ?? item.id}.xlsx`,
+      );
+    } finally {
+      setIsExportingPo(false);
+    }
+  };
 
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
@@ -171,39 +241,34 @@ export default function Page() {
 
         {selectedItemsHavePo && (
           <span className="ml-2 text-xs text-destructive">
-            Selected items already have a PO assigned. Use Export PO instead.
+            Selected items already have a PO assigned.
           </span>
         )}
 
         <Button
           variant="outline"
           size="sm"
-          disabled={!canExportPo}
-          onClick={async () => {
-            if (!canExportPo) return;
-
-            const item = selectedPoItems[0];
-            if (!item) return;
-
-            const res = await fetch(`/api/forms/purchasing/export/po?id=${item.id}`);
-            if (!res.ok) {
-              alert("Export failed.");
-              return;
-            }
-
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `Purchase_Order_${selectedPoNumbers[0] ?? item.id}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-          }}
+          disabled={!canExportPr || isExportingPr}
+          onClick={handleExportPr}
         >
           <FileSpreadsheet className="size-4 mr-2" />
-          Export PO (.xlsx)
+          {isExportingPr ? "Exporting PR..." : "Export PR (.xlsx)"}
+        </Button>
+
+        {prExportHasMismatch && (
+          <span className="ml-2 text-xs text-destructive">
+            Select one PR Number for PR export.
+          </span>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canExportPo || isExportingPo}
+          onClick={handleExportPo}
+        >
+          <FileSpreadsheet className="size-4 mr-2" />
+          {isExportingPo ? "Exporting PO..." : "Export PO (.xlsx)"}
         </Button>
 
         {poExportHasMismatch && (
@@ -241,7 +306,9 @@ export default function Page() {
             });
 
             if (result.error) {
-              alert((result.error as ApiResponseException).message ?? "Failed to delete purchase request item.");
+              toast.error("Purchase request was not deleted", {
+                description: (result.error as ApiResponseException).message ?? "Please refresh the list and try again.",
+              });
               return;
             }
 
@@ -252,6 +319,7 @@ export default function Page() {
             });
             setSelectedItem(null);
             mutate();
+            toast.success("Purchase request deleted");
           }}
         >
           <Trash2 />

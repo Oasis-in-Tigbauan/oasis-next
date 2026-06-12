@@ -11,6 +11,7 @@ type UpdateLbacGroupBody = {
   name?: string;
   aipRefCode?: string | null;
   implementingUnitId?: string | null;
+  officeId?: string | null;
 };
 
 export async function PATCH(
@@ -40,6 +41,7 @@ export async function PATCH(
       name: { type: "string", formatter: "non-empty-string" },
       aipRefCode: { type: "string", formatter: "uuid" },
       implementingUnitId: { type: "string", formatter: "uuid" },
+      officeId: { type: "string", formatter: "uuid" },
     },
     requiredProperties: [],
     allowUnvalidatedProperties: false,

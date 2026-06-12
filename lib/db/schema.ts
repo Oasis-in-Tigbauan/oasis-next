@@ -759,6 +759,8 @@ export const lbacGroups = pgTable("lbac_groups", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  officeId: text("office_id")
+    .references(() => office.id),
 }, table => [
   foreignKey({
     columns: [table.parentId],
@@ -1274,6 +1276,7 @@ export const ppmp = pgTable("ppmp", {
 
 export const travelOrderStatusEnum = pgEnum("travel_order_status", ["co-hr", "filed", "missing", "cancelled"]);
 export const travelOrderCategoryEnum = pgEnum("travel_order_category", ["official", "personal"]);
+export const leaveCommutationEnum = pgEnum("leave_commutation", ["not-requested", "requested"]);
 
 export const travelOrders = pgTable("travel_orders", {
   id: text("id")
@@ -1306,6 +1309,102 @@ export const travelOrders = pgTable("travel_orders", {
     .references(() => user.id),
   approverPositionId: text("approver_office_position")
     .references(() => officePosition.id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const leaveApplications = pgTable("leave_applications", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  refNumber: serial("ref_number").notNull().unique(),
+  lastName: text("last_name").notNull(),
+  firstName: text("first_name").notNull(),
+  middleName: text("middle_name"),
+  dateOfFiling: text("date_of_filing").notNull(),
+  position: text("position").notNull(),
+  monthlySalary: decimal("monthly_salary").notNull(),
+  leaveTypes: text("leave_types").array().notNull(),
+  otherLeaveDescription: text("other_leave_description"),
+  vacationLocation: text("vacation_location"),
+  vacationLocationDetails: text("vacation_location_details"),
+  sickLocation: text("sick_location"),
+  illnessDetails: text("illness_details"),
+  studyPurpose: text("study_purpose"),
+  otherPurposes: text("other_purposes").array().notNull(),
+  workingDays: text("working_days").notNull(),
+  leaveStartDate: text("leave_start_date").notNull(),
+  commutation: leaveCommutationEnum("commutation").notNull(),
+  approvedBy: text("approved_by"),
+  approvedByPosition: text("approved_by_position"),
+
+  requestorId: text("requestor_id")
+    .references(() => user.id)
+    .notNull(),
+  requestorOfficeId: text("requestor_office_id")
+    .references(() => office.id)
+    .notNull(),
+  requestorPositionId: text("requestor_office_position")
+    .references(() => officePosition.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const payrolls = pgTable("payrolls", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  payrollNo: text("payroll_no").notNull().unique(),
+  payrollMonth: text("payroll_month").notNull(),
+  purpose: text("purpose").notNull(),
+  periodCovered: text("period_covered").notNull(),
+  lgu: text("lgu").notNull(),
+  fund: text("fund").notNull(),
+  sheetNumber: integer("sheet_number").default(1).notNull(),
+  totalSheets: integer("total_sheets").default(1).notNull(),
+  authorizedOfficial: text("authorized_official").notNull(),
+  headOfAccounting: text("head_of_accounting").notNull(),
+  headOfTreasury: text("head_of_treasury").notNull(),
+  localChiefExecutive: text("local_chief_executive").notNull(),
+  disbursingOfficer: text("disbursing_officer").notNull(),
+  cafaoNo: text("cafao_no"),
+  cafaoDate: text("cafao_date"),
+  createdById: text("created_by_id")
+    .references(() => user.id)
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const payrollEntries = pgTable("payroll_entries", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => uuidv7()),
+
+  payrollId: text("payroll_id")
+    .references(() => payrolls.id)
+    .notNull(),
+  serialNo: integer("serial_no").notNull(),
+  name: text("name").notNull(),
+  position: text("position").notNull(),
+  idNo: text("id_no"),
+  amount: decimal("amount").notNull(),
+  signatureNo: integer("signature_no").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -14,6 +15,7 @@ import {
 
 import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import { useColumnVisibility } from "@/common/column-visibility";
@@ -40,6 +42,7 @@ export default function Page() {
   );
 
   const [selectedItem, setSelectedItem] = useState<EsreItemResponse | null>(null);
+  const [selectedChequeItemIds, setSelectedChequeItemIds] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
@@ -62,6 +65,19 @@ export default function Page() {
   if (error || data?.error) return <DeadHamster />;
 
   const items = data?.data?.data ?? [];
+  const selectedChequeItems = items.filter(item => selectedChequeItemIds.has(item.id));
+  const selectedChequeTotal = selectedChequeItems.reduce((sum, item) => {
+    const parsed = Number.parseFloat(item.amount.replaceAll(",", ""));
+    return Number.isFinite(parsed) ? sum + parsed : sum;
+  }, 0);
+  const areAllSelected = items.length > 0 && items.every(item => selectedChequeItemIds.has(item.id));
+
+  const printCheque = () => {
+    if (selectedChequeItems.length === 0) return;
+
+    const ids = selectedChequeItems.map(item => item.id).join(",");
+    window.open(`/api/esre/cheque?ids=${encodeURIComponent(ids)}`, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="flex flex-col gap-2 p-4 pt-0 w-full">
@@ -94,14 +110,32 @@ export default function Page() {
             if (!confirmed) return;
             const res = await $fetch<unknown, ApiResponseException>(`/api/esre/${selectedItem.id}`, { method: "DELETE" });
             if (res.error) {
-              alert((res.error as ApiResponseException).message ?? "Failed to delete entry. Please try again.");
+              toast.error("ESRE entry was not deleted", {
+                description: (res.error as ApiResponseException).message ?? "Please refresh the list and try again.",
+              });
               return;
             }
             setSelectedItem(null);
             mutate();
+            toast.success("ESRE entry deleted");
           }}
         >
           <Trash2 />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={selectedChequeItems.length === 0}
+          onClick={printCheque}
+        >
+          <Printer className="size-4 mr-2" />
+          Print Cheque
+          {selectedChequeItems.length > 0
+            ? ` (${selectedChequeItems.length} / ${selectedChequeTotal.toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })})`
+            : ""}
         </Button>
         <div className="ml-auto">
           <ColumnVisibilityPicker
@@ -126,6 +160,18 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
                 <TableRow>
+                  <TableHead className="w-10 min-w-10 text-center">
+                    <Checkbox
+                      aria-label="Select all ESRE rows for cheque printing"
+                      checked={areAllSelected}
+                      onCheckedChange={checked => {
+                        const shouldSelect = checked === true;
+                        setSelectedChequeItemIds(shouldSelect
+                          ? new Set(items.map(item => item.id))
+                          : new Set());
+                      }}
+                    />
+                  </TableHead>
                   {orderedColumns.map(col => (
                     <TableHead key={col.key} className={col.headerClassName}>
                       {col.label}
@@ -140,7 +186,19 @@ export default function Page() {
                     item={item}
                     index={index}
                     selected={selectedItem?.id === item.id}
+                    selectedForCheque={selectedChequeItemIds.has(item.id)}
                     onSelect={() => setSelectedItem(prev => prev?.id === item.id ? null : item)}
+                    onToggleChequeSelection={(checked) => {
+                      setSelectedChequeItemIds(prev => {
+                        const next = new Set(prev);
+                        if (checked) {
+                          next.add(item.id);
+                        } else {
+                          next.delete(item.id);
+                        }
+                        return next;
+                      });
+                    }}
                     visibleColumns={orderedColumns}
                   />
                 ))}
@@ -163,7 +221,10 @@ export default function Page() {
         editItem={selectedItem ?? undefined}
         open={editOpen}
         onOpenChange={setEditOpen}
-        onSuccess={() => mutate()}
+        onSuccess={() => {
+          setSelectedItem(null);
+          mutate();
+        }}
       />
     </div>
   );
@@ -173,13 +234,17 @@ function EsreTableRow({
   item,
   index,
   selected,
+  selectedForCheque,
   onSelect,
+  onToggleChequeSelection,
   visibleColumns,
 }: {
   item: EsreItemResponse;
   index: number;
   selected: boolean;
+  selectedForCheque: boolean;
   onSelect: () => void;
+  onToggleChequeSelection: (checked: boolean) => void;
   visibleColumns: EsrePageColumnDef[];
 }) {
   return (
@@ -193,6 +258,16 @@ function EsreTableRow({
       }`}
       onClick={onSelect}
     >
+      <TableCell
+        className="w-10 text-center"
+        onClick={e => e.stopPropagation()}
+      >
+        <Checkbox
+          aria-label={`Select ESRE row for ${item.payee}`}
+          checked={selectedForCheque}
+          onCheckedChange={checked => onToggleChequeSelection(checked === true)}
+        />
+      </TableCell>
       {visibleColumns.map(col => (
         <TableCell key={col.key} className={col.cellClassName}>
           {col.renderCell(item)}

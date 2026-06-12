@@ -131,10 +131,10 @@ type PatchEsreRequest = {
   amount?: string;
   fundingSourceId?: string;
   checkStatus?: "ON HOLD" | "FOR RELEASE" | "PAID" | "CANCELLED" | null;
-  remarks?: string;
+  remarks?: string | null;
   obrId?: string | null;
-  expenseTypeId?: string;
+  expenseTypeId?: string | null;
   saaobId?: string | null;
-  dvOrPayrollNumber?: string;
-  checkNumber?: string;
+  dvOrPayrollNumber?: string | null;
+  checkNumber?: string | null;
 };
