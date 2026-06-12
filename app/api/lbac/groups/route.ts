@@ -12,6 +12,7 @@ type CreateLbacGroupBody = {
   groupId?: string;
   aipRefCode?: string | null;
   implementingUnitId?: string | null;
+  officeId?: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
       groupId: { type: "string", formatter: "uuid" },
       aipRefCode: { type: "string", formatter: "uuid" },
       implementingUnitId: { type: "string", formatter: "uuid" },
+      officeId: { type: "string", formatter: "uuid" },
     },
     requiredProperties: ["name"],
     allowUnvalidatedProperties: false,

@@ -759,6 +759,8 @@ export const lbacGroups = pgTable("lbac_groups", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  officeId: text("office_id")
+    .references(() => office.id),
 }, table => [
   foreignKey({
     columns: [table.parentId],
