@@ -37,7 +37,12 @@ export async function GET(req: NextRequest) {
     quarter = parsedQuarter;
   }
 
-  const result = await lbac.getAllQuarterlyReports(year, quarter);
+  const restrictToOfficeId = lbac.resolveLbacOfficeRestriction(
+    session.user!.office.role.permissions,
+    session.user!.office.id,
+  );
+
+  const result = await lbac.getAllQuarterlyReports(year, quarter, restrictToOfficeId);
   return oneOf(result).match(
     (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     (e) => ApiResponseBuilder.createFromFailure(e).build(),

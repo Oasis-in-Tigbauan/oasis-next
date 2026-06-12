@@ -11,6 +11,11 @@ export type LbacImplementingUnit = {
   name: string;
 };
 
+export type LbacOffice = {
+  id: string;
+  name: string;
+};
+
 export type LbacItemResponse = {
   id: string;
   /** LbacObjectType.Item = 6768 */
@@ -170,8 +175,11 @@ export type LbacGroupResponse = {
   name: string;
   aipRefCode: LbacAipRef | null;
   implementingUnit: LbacImplementingUnit | null;
+  office: LbacOffice | null;
   children: (LbacGroupResponse | LbacItemResponse)[];
   totals: LbacGroupTotals;
 };
 
 export type LbacDataResponse = GenericOkResponse<LbacGroupResponse[]>;
+
+export type LbacOfficesListResponse = GenericOkResponse<LbacOffice[]>;

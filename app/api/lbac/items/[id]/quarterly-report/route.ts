@@ -70,7 +70,12 @@ export async function PATCH(
     return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validate.errors!).build();
   }
 
-  const result = await lbac.updateLbacQuarterlyReport(id, body);
+  const restrictToOfficeId = lbac.resolveLbacOfficeRestriction(
+    session.user!.office.role.permissions,
+    session.user!.office.id,
+  );
+
+  const result = await lbac.updateLbacQuarterlyReport(id, body, restrictToOfficeId);
   return oneOf(result).match(
     (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     (e) => ApiResponseBuilder.createFromFailure(e).build(),

@@ -16,6 +16,7 @@ import type {
   LbacGroupResponse,
   LbacGroupTotals,
   LbacItemResponse,
+  LbacOfficesListResponse,
   OfficeCodeListResponse,
   SaaobSearchResponse,
   SaaobSearchGroup,
@@ -595,6 +596,9 @@ function GroupFormDialog({
   const [implementingUnitId, setImplementingUnitId] = useState<string>(
     editGroup?.implementingUnit?.id ?? "",
   );
+  const [officeId, setOfficeId] = useState<string>(
+    editGroup?.office?.id ?? "",
+  );
   const [parentId, setParentId] = useState<string>(defaultParentId ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -603,6 +607,11 @@ function GroupFormDialog({
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
   >("/api/management/data/office-codes", $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
+
+  const { data: officesData } = useSWR<
+    BetterFetchResponse<LbacOfficesListResponse, ApiResponseException>
+  >("/api/lbac/offices", $fetch);
+  const offices = officesData?.data?.data ?? [];
 
   const handleSave = async () => {
     if (submitting) return;
@@ -613,6 +622,11 @@ function GroupFormDialog({
       const body: Record<string, unknown> = { name: name.trim() };
       if (aipRef) body.aipRefCode = aipRef.id;
       if (implementingUnitId) body.implementingUnitId = implementingUnitId;
+      if (mode === "edit") {
+        body.officeId = officeId || null;
+      } else if (officeId) {
+        body.officeId = officeId;
+      }
 
       let res: Response;
       if (mode === "add") {
@@ -684,6 +698,25 @@ function GroupFormDialog({
                   <SelectItem value="__none__">None</SelectItem>
                   {officeCodes.map(oc => (
                     <SelectItem key={oc.id} value={oc.id}>{oc.aa}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1 w-full">
+              <Label htmlFor={`${baseId}-office`}>Office</Label>
+              <Select
+                value={officeId || "__none__"}
+                onValueChange={v => setOfficeId(v === "__none__" ? "" : v)}
+                disabled={submitting}
+              >
+                <SelectTrigger id={`${baseId}-office`}>
+                  <SelectValue placeholder="Select office…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {offices.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

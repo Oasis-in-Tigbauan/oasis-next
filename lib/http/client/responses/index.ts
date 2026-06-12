@@ -59,7 +59,7 @@ import type {
 } from "@/lib/http/client/responses/AipListResponse";
 import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/responses/AipSearchResponse";
 import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
-import type { LbacDataResponse, LbacGroupResponse, LbacGroupTotals, LbacItemResponse, LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
+import type { LbacDataResponse, LbacGroupResponse, LbacGroupTotals, LbacItemResponse, LbacAipRef, LbacImplementingUnit, LbacOffice, LbacOfficesListResponse } from "@/lib/http/client/responses/LbacDataResponse";
 import type {
   PpmpDataResponse,
   PpmpMajorGroupResponse,
@@ -215,6 +215,8 @@ export type {
   LbacItemResponse,
   LbacAipRef,
   LbacImplementingUnit,
+  LbacOffice,
+  LbacOfficesListResponse,
   PpmpDataResponse,
   PpmpMajorGroupResponse,
   PpmpMinorGroupResponse,
