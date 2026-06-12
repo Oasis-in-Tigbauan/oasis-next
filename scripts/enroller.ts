@@ -132,8 +132,6 @@ async function checkOrCreateEnrollerRole() {
           permissions.APPROVALS_ACCOUNT_WRITE,
           permissions.APPROVALS_INVITATION_READ,
           permissions.APPROVALS_INVITATION_WRITE,
-          permissions.DATA_TYPES_MANAGE_READ,
-          permissions.DATA_TYPES_MANAGE_WRITE,
         ],
       })
       .returning();

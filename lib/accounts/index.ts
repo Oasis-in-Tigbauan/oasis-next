@@ -524,7 +524,7 @@ export async function revokeInvitation(id: string): Promise<Success<null> | Fail
  * - Retrieval of office positions assignable for the invitation's office.
  *
  * @param {string} token Invitation token to validate.
- * @returns {Promise<Result<EligibilityResult>} A {@link Success} containing invitation and office context and
+ * @returns {Promise<Result<EligibilityResult>>} A {@link Success} containing invitation and office context and
  *                                              assignable positions, or a {@link Failure} describing why the token is
  *                                              invalid/expired/consumed/not found.
  *
@@ -933,4 +933,11 @@ export type EnrollmentRequirements = {
   password: string;
   positionId: string;
   token: string;
+}
+
+export type CreateAccountPayload = {
+  fullName: string;
+  email: string;
+  officeId: string;
+  officePositionId: string;
 }
