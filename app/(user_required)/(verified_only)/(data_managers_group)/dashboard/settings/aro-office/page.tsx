@@ -35,7 +35,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { validatorUtilities } from "@/lib/validators";
 
 type AROUser = {
   id: string;
@@ -291,7 +290,7 @@ function ARORow({
       ...prev,
       [key]: key === "name" || key === "code" || key === "description"
         ? value
-        : (!validatorUtilities.isNotEmpty(value) ? undefined : value),
+        : (!((value?.trim() ?? "").length > 0) ? undefined : value),
     }));
   };
 
