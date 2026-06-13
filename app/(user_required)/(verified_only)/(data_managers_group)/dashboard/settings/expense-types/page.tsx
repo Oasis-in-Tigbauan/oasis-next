@@ -37,7 +37,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { validatorUtilities } from "@/lib/validators";
 
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ExpenseTypeListResponse, ApiResponseException>>(
@@ -126,7 +125,7 @@ function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeRespons
   const handleInput = (key: keyof ExpenseTypePayload, value: string) => {
     setPayload(prev => ({
       ...prev,
-      [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
     }));
   };
 
@@ -231,7 +230,7 @@ function ExpenseTypeRow({
     setPayload(prev => {
       return {
         ...prev,
-        [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+        [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
       };
     });
   };

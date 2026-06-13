@@ -46,7 +46,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { validatorUtilities } from "@/lib/validators";
 
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>>(
@@ -142,7 +141,7 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
   const handleInput = (key: keyof OfficeCodePayload, value: string) => {
     setPayload(prev => ({
       ...prev,
-      [key]: key !== "aa" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      [key]: key !== "aa" && !((value?.trim() ?? "").length > 0) ? undefined : value,
     }));
   };
 
@@ -311,7 +310,7 @@ function OfficeCodeRow({
     setPayload(prev => {
       return {
         ...prev,
-        [key]: key !== "aa" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+        [key]: key !== "aa" && !((value?.trim() ?? "").length > 0) ? undefined : value,
       };
     });
   };

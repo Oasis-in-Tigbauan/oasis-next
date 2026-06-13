@@ -39,7 +39,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { validatorUtilities } from "@/lib/validators";
 
 type ExpenseClassItem = ExpenseClassListResponse["data"][number];
 
@@ -190,7 +189,7 @@ function CreateExpenseClassDialog({
   const handleInput = (key: keyof Omit<ExpenseClassPayload, "allowedOfficeCodeIds">, value: string) => {
     setPayload(prev => ({
       ...prev,
-      [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      [key]: key !== "accountName" && !((value?.trim() ?? "").length > 0) ? undefined : value,
     }));
   };
 
@@ -407,7 +406,7 @@ function ExpenseClassRow({
   const handleInput = (key: keyof Omit<ExpenseClassPayload, "allowedOfficeCodeIds">, value: string) => {
     setPayload(prev => ({
       ...prev,
-      [key]: key !== "accountName" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      [key]: key !== "accountName" && !((value?.trim() ?? "").length > 0) ? undefined : value,
     }));
   };
 
