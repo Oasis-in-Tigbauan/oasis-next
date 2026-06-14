@@ -172,7 +172,7 @@ export default function SigninPage() {
         </div>
       </section>
 
-      <section className="relative hidden min-h-svh max-h-svh shrink-0 lg:block">
+      <section className="relative hidden h-svh min-h-svh max-h-svh shrink-0 lg:block">
         <Image
           src="/assets/company-banner.svg"
           alt="Municipal operations banner"
