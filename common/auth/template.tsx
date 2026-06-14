@@ -5,9 +5,9 @@ import type { ReactNode } from "react";
 
 export default function Template({ children }: { children: ReactNode }) {
   return (
-    <main className="grid min-h-svh overflow-x-auto bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
-      <section className="flex min-h-svh flex-col px-6 py-6 sm:px-10 lg:px-14">
-        <header className="flex items-center gap-3">
+    <main className="grid h-svh min-h-svh overflow-hidden bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
+      <section className="flex h-svh min-h-0 flex-col overflow-hidden px-6 py-6 sm:px-10 lg:px-14">
+        <header className="flex shrink-0 items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
             <Image
               src="/assets/tigbauan-seal.png"
@@ -23,10 +23,12 @@ export default function Template({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {children}
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          {children}
+        </div>
       </section>
 
-      <section className="relative hidden min-h-svh shrink-0 lg:block">
+      <section className="relative hidden h-svh min-h-svh max-h-svh shrink-0 lg:block">
         <Image
           src="/assets/company-banner.svg"
           alt="Municipal operations banner"
