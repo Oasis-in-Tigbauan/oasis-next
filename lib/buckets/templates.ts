@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { templateBucket } from "@/lib/db/schema";
 import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 
-const STORAGE_DIR = path.join(os.homedir(), ".oasis-bucket", "bucket");
+const STORAGE_DIR = process.env.BUCKET_ROOT || path.join(os.homedir(), ".oasis-bucket", "bucket");
 
 /**
  * Uploads a new template file and records it in the template bucket.

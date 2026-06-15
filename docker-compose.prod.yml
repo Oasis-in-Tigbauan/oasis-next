@@ -32,6 +32,8 @@ services:
       args:
         - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
     restart: unless-stopped
+    volumes:
+      - ./.data/app:/app/.data
     environment:
       RESEND_API_KEY: ${RESEND_API_KEY}
       RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS}
