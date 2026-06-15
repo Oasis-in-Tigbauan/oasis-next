@@ -4103,7 +4103,7 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getCell(explanationStart, explanationLeftStartCol).value = voucher.particulars;
   ws.getCell(explanationStart, explanationLeftStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
   ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountEndCol);
-  ws.getCell(explanationStart, explanationAmountStartCol).value = `\u20b1    ${_formatNumber(withholdings.netAmount)}`;
+  ws.getCell(explanationStart, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
   ws.getCell(explanationStart, explanationAmountStartCol).font = { bold: true, size: 13 };
   ws.getCell(explanationStart, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
   for (let rr = explanationStart; rr <= explanationStart + explanationRows; rr++) {
@@ -4329,7 +4329,7 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
   ws.getCell(row, explanationLeftStartCol).value = "Amount Due";
   ws.getCell(row, explanationLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, explanationAmountStartCol).value = `\u20b1    ${_formatNumber(withholdings.netAmount)}`;
+  ws.getCell(row, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
   ws.getCell(row, explanationAmountStartCol).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
   ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
   _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
