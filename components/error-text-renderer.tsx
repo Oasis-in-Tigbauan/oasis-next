@@ -2,10 +2,8 @@
 
 import type { ComponentProps } from "react";
 
-import { isExisty } from "@/lib/validators/utilities";
-
 export default function ErrorTextRenderer({ message, ...props }: ErrorTextRendererProps) {
-  if (!isExisty(message)) {
+  if (message !== null && message !== undefined && typeof message !== "object") {
     return <p {...props}>Unknown exception occurred.</p>;
   }
 
