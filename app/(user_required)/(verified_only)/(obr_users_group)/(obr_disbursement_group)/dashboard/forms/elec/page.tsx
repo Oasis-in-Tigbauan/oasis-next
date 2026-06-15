@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -47,6 +47,7 @@ export default function Page() {
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   const items = useMemo(() => data?.data?.data ?? [], [data?.data?.data]);
@@ -81,6 +82,38 @@ export default function Page() {
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
   const paddingBottom =
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+
+  const handleExport = useCallback(async () => {
+    if (!selectedItem) return;
+
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/obr/disbursements/${selectedItem.dv.id}/export`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        alert(extractErrorMessage(payload, "Failed to export voucher. Please try again."));
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
+      const filename = filenameMatch?.[1] ?? `disbursement-voucher-${selectedItem.dv.id}.xlsx`;
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("An unexpected error occurred while exporting. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedItem]);
 
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
@@ -152,6 +185,16 @@ export default function Page() {
           }}
         >
           <Trash2 />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Export selected DV"
+          disabled={!selectedItem || exporting}
+          onClick={() => void handleExport()}
+        >
+          <Download />
         </Button>
       </div>
 
@@ -279,4 +322,23 @@ function fmtMoney(value: string): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") return fallback;
+
+  const data = payload as {
+    error?: { message?: unknown };
+    message?: unknown;
+    errors?: unknown;
+  };
+
+  if (typeof data.error?.message === "string") return data.error.message;
+  if (typeof data.message === "string") return data.message;
+  if (Array.isArray(data.errors)) {
+    const messages = data.errors.filter((value): value is string => typeof value === "string");
+    if (messages.length > 0) return messages.join(" ");
+  }
+
+  return fallback;
 }
