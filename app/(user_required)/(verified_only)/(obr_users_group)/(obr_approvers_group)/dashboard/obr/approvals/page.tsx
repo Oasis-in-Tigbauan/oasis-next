@@ -268,8 +268,41 @@ function ApprovalDetailDialog({
   >(open ? `/api/obr/requests/${id}` : null, $fetch);
 
   const detail = data?.data?.data;
+  const canEdit = !!detail && !detail.promoted;
 
   const [actionOpen, setActionOpen] = useState(false);
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [itemEdits, setItemEdits] = useState<Record<string, { particulars: string; amount: string }>>({});
+
+  const getItemEdit = (itemId: string, particulars: string, amount: string) =>
+    itemEdits[itemId] ?? { particulars, amount };
+
+  const saveItemEdit = async (itemId: string) => {
+    const edit = itemEdits[itemId];
+    if (!edit) return;
+    setSavingItemId(itemId);
+    const res = await $fetch<unknown, ApiResponseException>(
+      `/api/obr/requests/${id}/items/${itemId}`,
+      {
+        method: "PATCH",
+        body: {
+          particulars: edit.particulars.trim(),
+          amount: edit.amount.trim(),
+        },
+      },
+    );
+    setSavingItemId(null);
+    if (res.error) {
+      alert(res.error.message ?? "Failed to update request item.");
+      return;
+    }
+    setItemEdits(prev => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    mutate();
+  };
 
   const formatAmount = (amount: string) => {
     const num = parseFloat(amount);
@@ -379,20 +412,57 @@ function ApprovalDetailDialog({
                         <TableHead>Account Code</TableHead>
                         <TableHead>Responsibility Center</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
+                        {canEdit && <TableHead className="w-24">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detail.requestItems.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{item.particulars}</TableCell>
-                          <TableCell>{item.expenseCode.name}</TableCell>
-                          <TableCell>{item.expenseCode.accountCode ?? "—"}</TableCell>
-                          <TableCell>{item.responsibilityCenter.name}</TableCell>
-                          <TableCell className="text-right font-mono">
-                            {formatAmount(item.amount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {detail.requestItems.map((item) => {
+                        const edit = getItemEdit(item.id, item.particulars, item.amount);
+                        const isDirty = !!itemEdits[item.id];
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              {canEdit ? (
+                                <Input
+                                  value={edit.particulars}
+                                  onChange={e => setItemEdits(prev => ({
+                                    ...prev,
+                                    [item.id]: { ...edit, particulars: e.target.value },
+                                  }))}
+                                />
+                              ) : item.particulars}
+                            </TableCell>
+                            <TableCell>{item.expenseCode.name}</TableCell>
+                            <TableCell>{item.expenseCode.accountCode ?? "—"}</TableCell>
+                            <TableCell>{item.responsibilityCenter.name}</TableCell>
+                            <TableCell className="text-right font-mono">
+                              {canEdit ? (
+                                <Input
+                                  className="text-right font-mono"
+                                  value={edit.amount}
+                                  onChange={e => setItemEdits(prev => ({
+                                    ...prev,
+                                    [item.id]: { ...edit, amount: e.target.value },
+                                  }))}
+                                />
+                              ) : formatAmount(item.amount)}
+                            </TableCell>
+                            {canEdit && (
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!isDirty || savingItemId === item.id}
+                                  onClick={() => saveItemEdit(item.id)}
+                                >
+                                  {savingItemId === item.id ? "Saving…" : "Save"}
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -446,7 +516,7 @@ function ApprovalDetailDialog({
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
             </DialogClose>
-            {detail && (
+            {detail && !detail.promoted && (
               <Button onClick={() => setActionOpen(true)}>
                 Submit Decision
               </Button>

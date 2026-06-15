@@ -92,15 +92,19 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
     hasAnyPermission(permissions.OBR_REQUEST_READ, permissions.OBR_REQUEST_CREATE)
       ? { title: "Requests", href: "/dashboard/obr/requests" }
       : null,
+    hasPermission(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)
+      ? { title: "Approvals", href: "/dashboard/obr/approvals" }
+      : null,
     hasAnyPermission(
-      permissions.OBR_APPROVER_BASIC_READ,
-      permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
-      permissions.OBR_APPROVER_ADVANCED_READ,
-      permissions.OBR_APPROVER_BASIC_WRITE,
-      permissions.OBR_APPROVER_ADVANCED_WRITE,
-    ) ? { title: "Approvals", href: "/dashboard/obr/approvals" } : null,
-    hasPermission(permissions.OBR_DISBURSEMENT_CREATE)
-      ? { title: "Disbursements", href: "/dashboard/obr/disbursement/manage" }
+      permissions.OBR_DISBURSEMENT_CREATE,
+      permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
+    )
+      ? {
+        title: "Disbursements",
+        href: hasPermission(permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE)
+          ? "/dashboard/obr/disbursement/approvals"
+          : "/dashboard/obr/disbursement/manage",
+      }
       : null,
     hasPermission(permissions.OBR_APPROVER_BASIC_READ)
       ? { title: "OBR Items", href: "/dashboard/obr/management/manage" }

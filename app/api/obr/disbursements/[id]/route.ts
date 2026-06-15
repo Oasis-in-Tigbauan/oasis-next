@@ -14,7 +14,8 @@ export async function PATCH(
 ) {
   const session = await auth.verify([
     permission.OBR_DISBURSEMENT_CREATE,
-  ]);
+    permission.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
+  ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
@@ -37,6 +38,8 @@ export async function PATCH(
 
   const validate = await validator.validate<UpdatePayload>(body, {
     properties: {
+      particulars: { type: "string", formatter: "non-empty-string" },
+      grossAmount: { type: "string", formatter: "decimal" },
       vatableAmount: { type: "string", formatter: "decimal" },
       taxType: {
         type: "string",
@@ -89,6 +92,8 @@ export async function PATCH(
 }
 
 type UpdatePayload = {
+  particulars?: Optional<string>;
+  grossAmount?: Optional<string>;
   vatableAmount: Optional<string>;
   taxType: Optional<"vat-g" | "vat-s" | "nvat-g" | "nvat-s">;
   fundTypeId: Optional<string>;

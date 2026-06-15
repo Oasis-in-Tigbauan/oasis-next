@@ -29,9 +29,8 @@ export default function BreadcrumbComponent() {
     if (pathname === "/dashboard/obr") return "OBR: Dashboard";
     if (pathname === "/dashboard/obr/requests") return "OBR: Requests";
     if (pathname === "/dashboard/obr/approvals") return "OBR: Approvals";
-    if (pathname === "/dashboard/obr/disbursement") return "OBR: Disbursement";
+    if (pathname === "/dashboard/obr/disbursement/approvals") return "OBR: Disbursement Approvals";
     if (pathname === "/dashboard/obr/disbursement/manage") return "OBR: Manage Disbursements";
-    if (pathname === "/dashboard/obr/management") return "OBR: Create OBR Items";
     if (pathname === "/dashboard/obr/management/manage") return "OBR: Manage OBR Items";
     if (pathname === "/dashboard/obr/main/create") return "OBR: Create OBR from Requests";
     if (pathname === "/dashboard/obr/main/manage") return "OBR: Manage OBR Main Data";

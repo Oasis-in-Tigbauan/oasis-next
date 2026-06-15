@@ -44,10 +44,8 @@ export async function PATCH(
   { params }: RouteContext<"/api/obr/requests/[id]">,
 ) {
   const session = await auth.verify([
-    permission.OBR_APPROVER_BASIC_WRITE,
     permission.OBR_APPROVER_BASIC_HIGH_WRITE,
-    permission.OBR_APPROVER_ADVANCED_WRITE,
-  ], "or");
+  ]);
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }

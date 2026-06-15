@@ -76,17 +76,6 @@ const STATUS_OPTIONS: DisbursementStatus[] = [
   "PAID",
 ];
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
-
 function formatCurrency(value: string | null): string {
   if (!value) return "—";
 
@@ -115,6 +104,21 @@ function formatCurrency(value: string | null): string {
   const sign = isNegative && !roundedIsZero ? "-" : "";
 
   return `${sign}${intWithGrouping}.${fractionalPart}`;
+}
+
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function displayText(value: string | null | undefined): string {
+  return value ?? "—";
 }
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -650,35 +654,35 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field>
                       <Label>Head of Office</Label>
-                      <Input readOnly value={voucher.signers.headOfOffice.name} />
+                      <Input readOnly value={displayText(voucher.signers.headOfOffice.name)} />
                     </Field>
                     <Field>
                       <Label>Position</Label>
-                      <Input readOnly value={voucher.signers.headOfOffice.position} />
+                      <Input readOnly value={displayText(voucher.signers.headOfOffice.position)} />
                     </Field>
                     <Field>
                       <Label>Payment Approved By</Label>
-                      <Input readOnly value={voucher.signers.mayor.name} />
+                      <Input readOnly value={displayText(voucher.signers.mayor.name)} />
                     </Field>
                     <Field>
                       <Label>Position</Label>
-                      <Input readOnly value={voucher.signers.mayor.position} />
+                      <Input readOnly value={displayText(voucher.signers.mayor.position)} />
                     </Field>
                     <Field>
                       <Label>Accountant</Label>
-                      <Input readOnly value={voucher.signers.accountant.name} />
+                      <Input readOnly value={displayText(voucher.signers.accountant.name)} />
                     </Field>
                     <Field>
                       <Label>Position</Label>
-                      <Input readOnly value={voucher.signers.accountant.position} />
+                      <Input readOnly value={displayText(voucher.signers.accountant.position)} />
                     </Field>
                     <Field>
                       <Label>Treasurer</Label>
-                      <Input readOnly value={voucher.signers.treasurer.name} />
+                      <Input readOnly value={displayText(voucher.signers.treasurer.name)} />
                     </Field>
                     <Field>
                       <Label>Position</Label>
-                      <Input readOnly value={voucher.signers.treasurer.position} />
+                      <Input readOnly value={displayText(voucher.signers.treasurer.position)} />
                     </Field>
                   </div>
                 </div>
@@ -858,10 +862,10 @@ export default function Page() {
                     <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt1)}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.netAmount)}</TableCell>
                     <TableCell className="whitespace-nowrap">{v.responsibilityCenter.aa}</TableCell>
-                    <TableCell className="whitespace-nowrap">{v.signers.headOfOffice.name}</TableCell>
-                    <TableCell className="whitespace-nowrap">{v.signers.headOfOffice.position}</TableCell>
-                    <TableCell className="whitespace-nowrap">{v.signers.mayor.name}</TableCell>
-                    <TableCell className="whitespace-nowrap">{v.signers.mayor.position}</TableCell>
+                    <TableCell className="whitespace-nowrap">{displayText(v.signers.headOfOffice.name)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{displayText(v.signers.headOfOffice.position)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{displayText(v.signers.mayor.name)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{displayText(v.signers.mayor.position)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <StatusBadge status={v.status} />
                     </TableCell>

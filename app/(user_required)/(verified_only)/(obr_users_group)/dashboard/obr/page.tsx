@@ -50,6 +50,11 @@ export default function Page() {
         {
           menuItems.map(item => {
             const Icon = item.icon;
+            const canShowPrimary = !item.primaryRequired
+              || item.primaryRequired.some(required => permissionSet.has(required));
+            const canShowSecondary = !!item.secondaryHref
+              && (!item.secondaryRequired
+                || item.secondaryRequired.some(required => permissionSet.has(required)));
 
             return (
               <Card key={item.title} className="justify-between">
@@ -68,15 +73,17 @@ export default function Page() {
                   <Badge variant="secondary">Available</Badge>
                 </CardContent>
                 <CardFooter className="flex flex-row gap-2">
-                  <Button asChild className="grow">
-                    <Link href={item.href}>
-                      {item.primaryLabel ?? "Go to page"}
-                      <ArrowRight className="size-4" />
-                    </Link>
-                  </Button>
-                  {item.secondaryHref && (
-                    <Button asChild variant="outline" className="grow">
-                      <Link href={item.secondaryHref}>
+                  {canShowPrimary && (
+                    <Button asChild className="grow">
+                      <Link href={item.href}>
+                        {item.primaryLabel ?? "Go to page"}
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                  )}
+                  {canShowSecondary && (
+                    <Button asChild variant={canShowPrimary ? "outline" : "default"} className="grow">
+                      <Link href={item.secondaryHref!}>
                         {item.secondaryLabel ?? item.secondaryHref}
                         <ArrowRight className="size-4" />
                       </Link>
@@ -122,32 +129,33 @@ const allMenuItems: Array<MenuItem> = [
     href: "/dashboard/obr/approvals",
     icon: BadgeCheck,
     required: [
-      permissions.OBR_APPROVER_BASIC_READ,
-      permissions.OBR_APPROVER_BASIC_WRITE,
-      permissions.OBR_APPROVER_ADVANCED_READ,
-      permissions.OBR_APPROVER_ADVANCED_WRITE,
       permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
     ],
   },
   {
     title: "Disbursements",
-    description: "Create and maintain disbursement vouchers from approved requests.",
-    href: "/dashboard/obr/disbursement",
-    primaryLabel: "Create",
+    description: "Review pending disbursement vouchers or manage existing records.",
+    href: "/dashboard/obr/disbursement/approvals",
+    primaryLabel: "Approvals",
     secondaryHref: "/dashboard/obr/disbursement/manage",
     secondaryLabel: "Manage",
     icon: Wallet,
     required: [
+      permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
+      permissions.OBR_DISBURSEMENT_CREATE,
+    ],
+    primaryRequired: [
+      permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
+    ],
+    secondaryRequired: [
       permissions.OBR_DISBURSEMENT_CREATE,
     ],
   },
   {
     title: "Management",
-    description: "Open OBR office-only and worksheet management tools.",
-    href: "/dashboard/obr/management",
-    primaryLabel: "Create",
-    secondaryHref: "/dashboard/obr/management/manage",
-    secondaryLabel: "Manage",
+    description: "View existing OBR items.",
+    href: "/dashboard/obr/management/manage",
+    primaryLabel: "Manage",
     icon: FolderCog,
     required: [
       permissions.OBR_APPROVER_BASIC_READ,
@@ -175,4 +183,6 @@ type MenuItem = {
   secondaryLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
   required: permissions.Permissions[];
+  primaryRequired?: permissions.Permissions[];
+  secondaryRequired?: permissions.Permissions[];
 }

@@ -12,6 +12,7 @@ export default async function ObrUsersGroupLayout({ children }: { children: Reac
     permissions.OBR_APPROVER_ADVANCED_READ,
     permissions.OBR_REQUEST_READ,
     permissions.OBR_DISBURSEMENT_CREATE,
+    permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
   ], "or");
 
   // Redirect back to the dashboard if not verified.

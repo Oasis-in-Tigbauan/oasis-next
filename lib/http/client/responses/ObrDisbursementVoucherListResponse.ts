@@ -25,10 +25,10 @@ export type ObrDisbursementVoucherItem = {
     aa: string;
   };
   signers: {
-    accountant: { id: string; name: string; position: string };
-    treasurer: { id: string; name: string; position: string };
-    mayor: { id: string; name: string; position: string };
-    headOfOffice: { id: string; name: string; position: string };
+    accountant: { id: string | null; name: string | null; position: string | null };
+    treasurer: { id: string | null; name: string | null; position: string | null };
+    mayor: { id: string | null; name: string | null; position: string | null };
+    headOfOffice: { id: string | null; name: string | null; position: string | null };
   };
   fundType: {
     id: string;
