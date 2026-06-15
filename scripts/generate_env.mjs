@@ -51,12 +51,12 @@ async function main() {
 
   // Turnstile
   const turnstileSiteKey = await utils.env.ask("Your Cloudflare Turnstile Site Key", "next.public.turnstile.site.key");
-  if (!utils.str.isEmpty(turnstileSiteKey)) {
+  if (utils.str.isEmpty(turnstileSiteKey)) {
     throw new Error("Cloudflare Turnstile Site Key is required.");
   }
 
   const turnstileSecretKey = await utils.env.ask("Your Cloudflare Turnstile Secret Key", "cloudflare.turnstile.secret.key");
-  if (!utils.str.isEmpty(turnstileSecretKey)) {
+  if (utils.str.isEmpty(turnstileSecretKey)) {
     throw new Error("Cloudflare Turnstile Secret Key is required.");
   }
 
