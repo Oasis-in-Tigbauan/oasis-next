@@ -37,7 +37,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { validatorUtilities } from "@/lib/validators";
 
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>>(
@@ -121,7 +120,7 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeRespon
   const handleInput = (key: keyof ProcurementTypePayload, value: string) => {
     setPayload(prev => ({
       ...prev,
-      [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+      [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
     }));
   };
 
@@ -226,7 +225,7 @@ function ProcurementTypeRow({
     setPayload(prev => {
       return {
         ...prev,
-        [key]: key !== "name" && !validatorUtilities.isNotEmpty(value) ? undefined : value,
+        [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
       };
     });
   };

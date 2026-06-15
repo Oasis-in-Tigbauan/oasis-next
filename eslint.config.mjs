@@ -37,9 +37,6 @@ const eslintConfig = defineConfig([
 
       // Optional: Enforces double quotes for JSX attributes specifically
       "jsx-quotes": ["error", "prefer-double"],
-
-      // Disable the rule for linebreak-style to avoid issues on different operating systems
-      "linebreak-style": 0,
     },
   },
 ]);
