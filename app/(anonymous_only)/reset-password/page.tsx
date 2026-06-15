@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { type SyntheticEvent, useState } from "react";
+import { type SyntheticEvent, useState, useRef } from "react";
 import { Mail } from "lucide-react";
+import { Turnstile, TurnstileInstance } from "@marsidev/react-turnstile";
 
 import { $fetch } from "@/lib/http/client/fetch";
 
@@ -12,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function SigninPage() {
+  const turnstileComponent = useRef<TurnstileInstance | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -28,21 +31,44 @@ export default function SigninPage() {
 
     setIsLoading(true);
     setErrorMessage(null);
+
     try {
+      const widget = turnstileComponent.current;
+      if (!widget) {
+        setIsLoading(false);
+        setErrorMessage("Turnstile is not loaded. Please refresh the page and try again.");
+
+        return;
+      }
+
+      if (widget.isExpired()) {
+        setIsLoading(false);
+        setErrorMessage("Turnstile expired. Please refresh and try again.");
+
+        return;
+      }
+
       const { data, error } = await $fetch<{ data: { message: string }}>("/api/auth/request-reset-password", {
         method: "POST",
-        body: credentials,
+        body: {
+          ...credentials,
+          token: widget.getResponse(),
+        },
       });
 
       if (error) {
         setSuccessMessage(null);
         setErrorMessage("Invalid request. Check if the email is correct.");
+
+        widget.reset();
         return;
       }
 
       if (data !== null && data !== undefined) {
         setErrorMessage(null);
         setSuccessMessage(data.data.message);
+
+        widget.reset();
       }
     }
     finally {
@@ -114,6 +140,13 @@ export default function SigninPage() {
                       />
                     </div>
                   </Field>
+
+                  <div className="gap-3">
+                    <Turnstile
+                      ref={turnstileComponent}
+                      siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    />
+                  </div>
 
                   <Button className="h-10 w-full" disabled={isLoading}>
                     {isLoading && <Spinner />}

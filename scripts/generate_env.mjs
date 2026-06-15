@@ -49,6 +49,17 @@ async function main() {
   await utils.env.ask("Your Base URL", "better.auth.url", "http://localhost:3000");
   await utils.env.ask("Your cloudflared token", "cloudflared.token");
 
+  // Turnstile
+  const turnstileSiteKey = await utils.env.ask("Your Cloudflare Turnstile Site Key", "next.public.turnstile.site.key");
+  if (!utils.str.isEmpty(turnstileSiteKey)) {
+    throw new Error("Cloudflare Turnstile Site Key is required.");
+  }
+
+  const turnstileSecretKey = await utils.env.ask("Your Cloudflare Turnstile Secret Key", "cloudflare.turnstile.secret.key");
+  if (!utils.str.isEmpty(turnstileSecretKey)) {
+    throw new Error("Cloudflare Turnstile Secret Key is required.");
+  }
+
   // Database configuration
   const dbPassword = utils.token.generatePassword(32);
   utils.env.write("postgres.password", dbPassword);

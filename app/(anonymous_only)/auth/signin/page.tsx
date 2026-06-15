@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { redirect, RedirectType } from "next/navigation";
-import { type SyntheticEvent, useState } from "react";
+import { type SyntheticEvent, useRef, useState } from "react";
 import { LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -13,8 +13,11 @@ import { Field, FieldContent, FieldGroup, FieldLabel } from "@/components/ui/fie
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
+import { Turnstile, TurnstileInstance } from "@marsidev/react-turnstile";
 
 export default function SigninPage() {
+  const turnstileComponent = useRef<TurnstileInstance | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<SigninPageState>({
@@ -32,18 +35,41 @@ export default function SigninPage() {
 
     setIsLoading(true);
     setErrorMessage(null);
+
     try {
+      const widget = turnstileComponent.current;
+      if (!widget) {
+        setIsLoading(false);
+        setErrorMessage("Turnstile is not loaded. Please refresh the page and try again.");
+
+        return;
+      }
+
+      if (widget.isExpired()) {
+        setIsLoading(false);
+        setErrorMessage("Turnstile expired. Please refresh and try again.");
+
+        return;
+      }
+
       const { data, error } = await $fetch("/api/auth/sign-in", {
         method: "POST",
-        body: credentials,
+        body: {
+          ...credentials,
+          token: widget.getResponse(),
+        },
       });
 
       if (error) {
         setErrorMessage("The email or password you entered is incorrect.");
+        widget.reset();
+
         return;
       }
 
       if ((data as SignInApiResponse | null)?.data?.twoFactorRequired) {
+        widget.reset();
+
         redirect("/auth/two-factor", RedirectType.replace);
       }
 
@@ -152,6 +178,13 @@ export default function SigninPage() {
                         </FieldLabel>
                       </FieldContent>
                     </Field>
+                  </div>
+
+                  <div className="gap-3 w-full">
+                    <Turnstile
+                      ref={turnstileComponent}
+                      siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    />
                   </div>
 
                   <Button className="h-10 w-full" disabled={isLoading}>

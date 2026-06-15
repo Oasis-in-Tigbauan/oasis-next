@@ -24,7 +24,7 @@ export default function SignoutPage() {
         <header className="flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
             <Image
-              src={process.env.NEXT_PUBLIC_PROJECT_ORG_SEAL as string}
+              src="/assets/tigbauan-seal.png"
               alt="Organization Seal"
               width={34}
               height={34}
@@ -33,7 +33,7 @@ export default function SignoutPage() {
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight">Oasis Next</p>
-            <p className="text-xs text-muted-foreground">{process.env.NEXT_PUBLIC_PROJECT_ORG_NAME}</p>
+            <p className="text-xs text-muted-foreground">Municipality of Tigbauan</p>
           </div>
         </header>
 

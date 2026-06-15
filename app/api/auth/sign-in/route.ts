@@ -4,6 +4,8 @@ import * as Sentry from "@sentry/nextjs";
 import { auth } from "@/lib/auth";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
+import * as turnstile from "@/lib/turnstile";
+import { oneOf } from "@/lib/one-of";
 import { validator } from "@/lib/validators";
 
 export async function POST(req: NextRequest) {
@@ -18,6 +20,7 @@ export async function POST(req: NextRequest) {
       email: { type: "string", formatter: "email" },
       password: { type: "string", formatter: "non-empty-string" },
       rememberMe: { type: "boolean" },
+      token: { type: "string", formatter: "non-empty-string" },
     },
     requiredProperties: ["email", "password"],
     allowUnvalidatedProperties: false,
@@ -28,6 +31,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Verify turnstile
+    const turnstileRawResult = await turnstile.validate(body.token);
+    const turnstileResult = oneOf(turnstileRawResult).match(
+      s => s,
+      () => false,
+    );
+
+    if (!turnstileResult) {
+      return ApiResponseBuilder
+        .createError(StatusCodes.Status401Unauthorized, "Invalid Token!")
+        .build();
+    }
+
     const response = await auth.api.signInEmail({
       body: {
         email: body.email,
@@ -55,4 +71,5 @@ type SignInRequest = {
     email: string;
     password: string;
     rememberMe?: boolean;
+    token: string;
 }

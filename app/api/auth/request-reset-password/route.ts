@@ -4,7 +4,9 @@ import * as Sentry from "@sentry/nextjs";
 import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
 import { auth } from "@/lib/auth";
 import { tryParseJson } from "@/lib/http/RequestUtilities";
+import * as turnstile from "@/lib/turnstile";
 import { validator } from "@/lib/validators";
+import { oneOf } from "@/lib/one-of";
 
 export async function POST(req: NextRequest) {
   // Reset password
@@ -18,6 +20,7 @@ export async function POST(req: NextRequest) {
   const validation = await validator.validate<ResetPasswordRequest>(body, {
     properties: {
       email: { type: "string", formatter: "email" },
+      token: { type: "string", formatter: "non-empty-string" },
     },
     requiredProperties: ["email"],
     allowUnvalidatedProperties: false,
@@ -29,6 +32,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const turnstileRawResult = await turnstile.validate(body.token);
+    const turnstileResult = oneOf(turnstileRawResult).match(
+      s => s,
+      () => false,
+    );
+
+    if (!turnstileResult) {
+      return ApiResponseBuilder
+        .createError(StatusCodes.Status400BadRequest, "Invalid Token!")
+        .build();
+    }
+
     const result = await auth.api.requestPasswordReset({
       body: {
         email: body.email,
@@ -50,4 +65,5 @@ export async function POST(req: NextRequest) {
 
 type ResetPasswordRequest = {
   email: string;
+  token: string;
 }
