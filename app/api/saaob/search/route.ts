@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     permission.LBAC_DATA_READ,
     permission.SUPPLEMENTAL_READ,
     permission.SAAOB_DATA_READ,
+    permission.SAAOB_OFFICE_READ,
   ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
@@ -22,7 +23,9 @@ export async function GET(req: NextRequest) {
     return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "A non-empty query parameter is required.").build();
   }
 
-  const result = await saaob.searchItems(query);
+  const hasDataRead = session.user!.office.role.permissions.includes(permission.SAAOB_DATA_READ);
+  const officeId = hasDataRead ? undefined : session.user!.office.id;
+  const result = await saaob.searchItems(query, officeId);
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),

@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MonthPicker } from "@/components/ui/month-picker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -225,6 +226,55 @@ export default function Page() {
           Major Group
         </Button>
 
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          disabled={selectedRow?.kind !== "major"}
+          onClick={() => {
+            if (selectedRow?.kind !== "major") return;
+            openAddMinor(selectedRow.id);
+          }}
+        >
+          <Plus className="size-3" />
+          Minor Group
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          disabled={selectedRow?.kind !== "minor"}
+          onClick={() => {
+            if (selectedRow?.kind !== "minor") return;
+            openAddProject(selectedRow.id);
+          }}
+        >
+          <Plus className="size-3" />
+          Project Group
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          disabled={selectedRow?.kind !== "minor" && selectedRow?.kind !== "project"}
+          onClick={() => {
+            if (selectedRow?.kind === "minor") {
+              openAddItemUnderMinor(selectedRow.id);
+            } else if (selectedRow?.kind === "project") {
+              openAddItemUnderProject(selectedRow.id);
+            }
+          }}
+        >
+          <Plus className="size-3" />
+          Plan Item
+        </Button>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
         <Button
           variant="outline"
           size="icon-sm"
@@ -341,10 +391,7 @@ export default function Page() {
                         }}
                       >
                         <TableCell className="font-semibold">Source of Funds</TableCell>
-                        <TableCell className="font-semibold">{txt(row.data.saaob.name)}</TableCell>
-                        <TableCell colSpan={8} />
-                        <TableCell />
-                        <TableCell className="text-right">
+                        <TableCell className="font-semibold">
                           <div className="inline-flex items-center gap-1">
                             <Button
                               variant="ghost"
@@ -357,19 +404,12 @@ export default function Page() {
                             >
                               {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Add Minor Group"
-                              onClick={e => {
-                                e.stopPropagation();
-                                openAddMinor(row.id);
-                              }}
-                            >
-                              <Plus className="size-3" />
-                            </Button>
+                            {txt(row.data.saaob.name)}
                           </div>
                         </TableCell>
+                        <TableCell colSpan={8} />
+                        <TableCell />
+                        <TableCell />
                       </TableRow>
                     );
                   }
@@ -389,10 +429,7 @@ export default function Page() {
                         }}
                       >
                         <TableCell className="font-semibold">{txt(row.data.lbac.aipRefCode)}</TableCell>
-                        <TableCell className="font-semibold">{txt(row.data.lbac.name)}</TableCell>
-                        <TableCell colSpan={8} />
-                        <TableCell />
-                        <TableCell className="text-right">
+                        <TableCell className="font-semibold">
                           <div className="inline-flex items-center gap-1">
                             <Button
                               variant="ghost"
@@ -405,30 +442,12 @@ export default function Page() {
                             >
                               {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Add Project Group"
-                              onClick={e => {
-                                e.stopPropagation();
-                                openAddProject(row.id);
-                              }}
-                            >
-                              <Plus className="size-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Add Plan Item"
-                              onClick={e => {
-                                e.stopPropagation();
-                                openAddItemUnderMinor(row.id);
-                              }}
-                            >
-                              <Plus className="size-3" />
-                            </Button>
+                            {txt(row.data.lbac.name)}
                           </div>
                         </TableCell>
+                        <TableCell colSpan={8} />
+                        <TableCell />
+                        <TableCell />
                       </TableRow>
                     );
                   }
@@ -448,10 +467,7 @@ export default function Page() {
                         }}
                       >
                         <TableCell className="font-semibold">PPA/Training Title</TableCell>
-                        <TableCell className="font-semibold">{txt(row.data.title)}</TableCell>
-                        <TableCell colSpan={8} />
-                        <TableCell />
-                        <TableCell className="text-right">
+                        <TableCell className="font-semibold">
                           <div className="inline-flex items-center gap-1">
                             <Button
                               variant="ghost"
@@ -464,19 +480,12 @@ export default function Page() {
                             >
                               {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Add Plan Item"
-                              onClick={e => {
-                                e.stopPropagation();
-                                openAddItemUnderProject(row.id);
-                              }}
-                            >
-                              <Plus className="size-3" />
-                            </Button>
+                            {txt(row.data.title)}
                           </div>
                         </TableCell>
+                        <TableCell colSpan={8} />
+                        <TableCell />
+                        <TableCell />
                       </TableRow>
                     );
                   }
@@ -689,7 +698,7 @@ function MajorGroupDialog({
           <DialogDescription>Major group source of funds configuration.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-2">
           <Label>Source of Funds (SAAOB)</Label>
           <SaaobSearchCombobox value={saaob} onChange={setSaaob} disabled={submitting} />
         </div>
@@ -771,7 +780,7 @@ function MinorGroupDialog({
           <DialogTitle>{mode === "add" ? "Create Minor Group" : "Edit Minor Group"}</DialogTitle>
           <DialogDescription>Minor group maps to a linked LBAC item.</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           {mode === "add" && (
             <div className="flex flex-col gap-1">
               <Label>Parent Major Group</Label>
@@ -866,7 +875,7 @@ function ProjectGroupDialog({
           <DialogTitle>{mode === "add" ? "Create Project Group" : "Edit Project Group"}</DialogTitle>
           <DialogDescription>Project groups hold plan items under a minor group.</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           {mode === "add" && (
             <div className="flex flex-col gap-1">
               <Label>Parent Minor Group</Label>
@@ -1019,7 +1028,7 @@ function PlanItemDialog({
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] min-w-[75%]">
+      <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{mode === "add" ? "Create Plan Item" : "Edit Plan Item"}</DialogTitle>
           <DialogDescription>Fill in PPMP plan item details.</DialogDescription>
@@ -1130,31 +1139,28 @@ function PlanItemDialog({
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-start`}>Start of Procurement Activity</Label>
-              <Input
+              <MonthPicker
                 id={`${baseId}-start`}
-                type="month"
                 value={startMonth}
-                onChange={e => setStartMonth(e.target.value)}
+                onChange={setStartMonth}
                 disabled={submitting}
               />
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-end`}>End of Procurement Activity</Label>
-              <Input
+              <MonthPicker
                 id={`${baseId}-end`}
-                type="month"
                 value={endMonth}
-                onChange={e => setEndMonth(e.target.value)}
+                onChange={setEndMonth}
                 disabled={submitting}
               />
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-delivery`}>Expected Delivery/Implementation Period</Label>
-              <Input
+              <MonthPicker
                 id={`${baseId}-delivery`}
-                type="month"
                 value={deliveryMonth}
-                onChange={e => setDeliveryMonth(e.target.value)}
+                onChange={setDeliveryMonth}
                 disabled={submitting}
               />
             </div>
@@ -1291,7 +1297,7 @@ function MoveDialog({
           <DialogDescription>Choose the new parent destination.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           {row.kind === "item" && (
             <div className="flex flex-col gap-1">
               <Label>Target Parent Type</Label>
@@ -1360,17 +1366,22 @@ function SaaobSearchCombobox({
   const results = data?.data?.data ?? [];
 
   return (
-    <div className="relative flex flex-1 flex-col gap-1">
+    <div className="relative flex w-full min-w-0 flex-col gap-1">
       <Input
         placeholder="Search SAAOB entry..."
         value={open ? query : (value ? value.name : "")}
         disabled={disabled}
+        className="truncate"
+        title={!open && value ? value.name : undefined}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={e => setQuery(e.target.value)}
       />
       {open && (
-        <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+        <div
+          className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+          onMouseDown={event => event.preventDefault()}
+        >
           {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>}
           {!isLoading && query.length < 2 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
@@ -1458,17 +1469,22 @@ function LbacSearchCombobox({
   const results = data?.data?.data ?? [];
 
   return (
-    <div className="relative flex flex-1 flex-col gap-1">
+    <div className="relative flex w-full min-w-0 flex-col gap-1">
       <Input
         placeholder="Search LBAC item..."
         value={open ? query : (value ? value.name : "")}
         disabled={disabled}
+        className="truncate"
+        title={!open && value ? value.name : undefined}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={e => setQuery(e.target.value)}
       />
       {open && (
-        <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+        <div
+          className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+          onMouseDown={event => event.preventDefault()}
+        >
           {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>}
           {!isLoading && query.length < 2 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
