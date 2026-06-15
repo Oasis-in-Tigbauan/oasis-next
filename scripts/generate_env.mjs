@@ -113,7 +113,7 @@ async function main() {
 
     // Start the schema migration
     console.log("Running migrations...");
-    await utils.process.spawnAsync(pnpmPath, ["run", "db:migrate"], {
+    await utils.process.spawnAsync("pnpm", ["run", "db:migrate"], {
       cwd: path.join(__dirname, "../"),
       shell: true,
     });
@@ -122,7 +122,7 @@ async function main() {
 
     // Seed
     console.log("Running seed...");
-    await utils.process.spawnAsync(pnpmPath, ["run", "db:seed"], {
+    await utils.process.spawnAsync("pnpm", ["run", "db:seed"], {
       cwd: path.join(__dirname, "../"),
       shell: true,
     });
