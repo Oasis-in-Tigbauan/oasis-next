@@ -224,6 +224,29 @@ export function filterUpdatedFields(
   return JSON.parse(JSON.stringify(result)) as Record<string, any>;
 }
 
+/**
+ * Attempts to read and validate an uploaded image file.
+ *
+ * @description
+ * Validates that the provided value is a {@link File}, checks that its size does not exceed the configured maximum,
+ * reads the file into a byte array, and verifies the image metadata. Only PNG and JPEG images are accepted.
+ *
+ * On success, returns the image bytes and detected format. If the value is not a file, exceeds the size limit, uses an
+ * unsupported format, or cannot be read, returns `null`.
+ *
+ * @async
+ * @function tryReadImage
+ * @param {File} value - Uploaded file to read and validate as an image.
+ * @param {TryReadImageOptions} [options={ maxSize: MAX_IMAGE_BYTES }] - Image-reading options, including maximum
+ *                                                                       allowed file size.
+ * @returns {Promise<{ data: Uint8Array; format: "png" | "jpeg" } | null>} The validated image data and format, or
+ *                                                                         `null` when invalid.
+ *
+ * @remarks
+ * - Only PNG and JPEG images are accepted.
+ * - File size is checked before reading the full file buffer.
+ * - Unexpected image parsing errors are captured and converted to `null`.
+ */
 export async function tryReadImage(
   value: File,
   options: TryReadImageOptions = { maxSize: MAX_IMAGE_BYTES },

@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 }
 
 type EnrollmentRequirements = {
-    fullName: string;
-    token: string;
-    password: string;
+  fullName: string;
+  token: string;
+  password: string;
 }
