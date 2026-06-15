@@ -86,6 +86,8 @@ export default function Page() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRequestIds, setSelectedRequestIds] = useState<Set<string>>(new Set());
+  const [bulkApproveOpen, setBulkApproveOpen] = useState(false);
+  const [bulkDeclineOpen, setBulkDeclineOpen] = useState(false);
 
   const handleRowClick = useCallback((id: string) => {
     setSelectedId(id);
@@ -111,24 +113,18 @@ export default function Page() {
           size="sm"
           className="h-7 text-xs text-green-700 hover:text-green-700 dark:text-green-400 dark:hover:text-green-400"
           disabled={!hasSelection}
+          onClick={() => setBulkApproveOpen(true)}
         >
-          Approved
+          Bulk Approve
         </Button>
         <Button
           variant="outline"
           size="sm"
           className="h-7 text-xs text-destructive hover:text-destructive"
           disabled={!hasSelection}
+          onClick={() => setBulkDeclineOpen(true)}
         >
-          Binned
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs text-blue-700 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-400"
-          disabled={!hasSelection}
-        >
-          Pending
+          Bulk Decline/Bin
         </Button>
       </div>
 
@@ -223,6 +219,33 @@ export default function Page() {
           }}
         />
       )}
+
+      <BulkApproveDialog
+        open={bulkApproveOpen}
+        onOpenChange={setBulkApproveOpen}
+        selectedIds={[...selectedRequestIds]}
+        onSuccess={succeededIds => {
+          setSelectedRequestIds(prev => {
+            const next = new Set(prev);
+            succeededIds.forEach(id => next.delete(id));
+            return next;
+          });
+          mutateList();
+        }}
+      />
+      <BulkDeclineDialog
+        open={bulkDeclineOpen}
+        onOpenChange={setBulkDeclineOpen}
+        selectedIds={[...selectedRequestIds]}
+        onSuccess={succeededIds => {
+          setSelectedRequestIds(prev => {
+            const next = new Set(prev);
+            succeededIds.forEach(id => next.delete(id));
+            return next;
+          });
+          mutateList();
+        }}
+      />
     </div>
   );
 }
@@ -445,6 +468,243 @@ function ApprovalDetailDialog({
         />
       )}
     </>
+  );
+}
+
+// --- Bulk Action Helpers ---
+
+async function submitBulkApproverState(
+  selectedIds: string[],
+  status: "approved" | "binned",
+  reason?: string,
+): Promise<{ succeededIds: string[]; failedCount: number }> {
+  const results = await Promise.allSettled(
+    selectedIds.map(async id => {
+      const body: Record<string, string> = { status };
+      if (reason?.trim()) body.reason = reason.trim();
+
+      const res = await fetch(`/api/obr/requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error("failed");
+      return id;
+    }),
+  );
+
+  const succeededIds: string[] = [];
+  let failedCount = 0;
+
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      succeededIds.push(result.value);
+    } else {
+      failedCount += 1;
+    }
+  }
+
+  return { succeededIds, failedCount };
+}
+
+// --- Bulk Approve Dialog ---
+
+function BulkApproveDialog({
+  open,
+  onOpenChange,
+  selectedIds,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedIds: string[];
+  onSuccess: (succeededIds: string[]) => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const count = selectedIds.length;
+
+  const handleClose = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setError(null);
+    }
+    onOpenChange(nextOpen);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { succeededIds, failedCount } = await submitBulkApproverState(
+        selectedIds,
+        "approved",
+      );
+
+      if (succeededIds.length > 0) {
+        onSuccess(succeededIds);
+      }
+
+      if (failedCount > 0) {
+        setError(
+          `${failedCount} request(s) could not be processed. They remain selected.`,
+        );
+        return;
+      }
+
+      onOpenChange(false);
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Bulk Approve Requests</DialogTitle>
+          <DialogDescription>
+            You are about to approve <strong>{count}</strong> request
+            {count === 1 ? "" : "s"}. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <Typography variant="small" className="text-destructive">
+            {error}
+          </Typography>
+        )}
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            className="text-green-700 hover:text-green-700 dark:text-green-400 dark:hover:text-green-400"
+            onClick={handleSubmit}
+            disabled={submitting || count === 0}
+          >
+            {submitting ? "Approving…" : `Approve ${count} Request${count === 1 ? "" : "s"}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- Bulk Decline Dialog ---
+
+function BulkDeclineDialog({
+  open,
+  onOpenChange,
+  selectedIds,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedIds: string[];
+  onSuccess: (succeededIds: string[]) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const count = selectedIds.length;
+
+  const handleClose = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setReason("");
+      setError(null);
+    }
+    onOpenChange(nextOpen);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { succeededIds, failedCount } = await submitBulkApproverState(
+        selectedIds,
+        "binned",
+        reason,
+      );
+
+      if (succeededIds.length > 0) {
+        onSuccess(succeededIds);
+      }
+
+      if (failedCount > 0) {
+        setError(
+          `${failedCount} request(s) could not be processed. They remain selected.`,
+        );
+        return;
+      }
+
+      onOpenChange(false);
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Bulk Decline/Bin Requests</DialogTitle>
+          <DialogDescription>
+            You are about to decline/bin <strong>{count}</strong> request
+            {count === 1 ? "" : "s"}. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 py-2">
+          <FieldGroup>
+            <Field>
+              <Label>
+                Reason{" "}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                placeholder="Enter decline reason…"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                disabled={submitting}
+              />
+            </Field>
+          </FieldGroup>
+
+          {error && (
+            <Typography variant="small" className="text-destructive">
+              {error}
+            </Typography>
+          )}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            variant="destructive"
+            onClick={handleSubmit}
+            disabled={submitting || count === 0}
+          >
+            {submitting
+              ? "Declining…"
+              : `Decline/Bin ${count} Request${count === 1 ? "" : "s"}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

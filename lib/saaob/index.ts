@@ -624,11 +624,29 @@ export async function getAllByOffice(officeId: string): Promise<Result<SaaobElem
  * @async
  * @function searchItems
  * @param {string} query - Case-insensitive search term (partial match).
+ * @param {string} [officeId] - When provided, only groups and entries assigned to this office are searched.
  * @returns {Promise<Result<SaaobSearchResult>>} Pruned tree of matching results.
  */
-export async function searchItems(query: string): Promise<Result<SaaobSearchResult>> {
+export async function searchItems(query: string, officeId?: string): Promise<Result<SaaobSearchResult>> {
   try {
-    const [allGroups, allEntries] = await Promise.all([_fetchAllGroups(), _fetchAllEntries()]);
+    const allGroupsRaw = await _fetchAllGroups();
+
+    let allGroups = allGroupsRaw;
+    if (officeId) {
+      const officeRoots = allGroupsRaw.filter(g => g.officeId === officeId);
+      if (officeRoots.length === 0) return new Success([]);
+
+      const relevantGroupIds = new Set<string>(officeRoots.map(g => g.id));
+      for (const root of officeRoots) {
+        for (const desc of _collectDescendantGroupIds(root.id, allGroupsRaw)) {
+          relevantGroupIds.add(desc);
+        }
+      }
+
+      allGroups = allGroupsRaw.filter(g => relevantGroupIds.has(g.id));
+    }
+
+    const allEntries = await _fetchAllEntries(officeId ? allGroups.map(g => g.id) : undefined);
 
     const lowerQuery = query.toLowerCase();
     const matchedGroupIds = new Set(allGroups.filter(g => g.name.toLowerCase().includes(lowerQuery)).map(g => g.id));
@@ -718,8 +736,10 @@ export async function searchItems(query: string): Promise<Result<SaaobSearchResu
       };
     };
 
+    const filteredGroupIdSet = new Set(allGroups.map(g => g.id));
     const rootGroupsToInclude = allGroups.filter(
-      g => g.parentId === null && (pathGroupIds.has(g.id) || expandedGroupIds.has(g.id)),
+      g => (!g.parentId || !filteredGroupIdSet.has(g.parentId)) &&
+        (pathGroupIds.has(g.id) || expandedGroupIds.has(g.id)),
     );
 
     return new Success(rootGroupsToInclude.map(rg => buildPrunedGroup(rg)));

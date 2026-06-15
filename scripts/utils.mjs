@@ -29,11 +29,10 @@ const LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
 const NUMBERS = "0123456789";
 
 /**
- * Special characters
- * @see https://owasp.org/www-community/password-special-characters
+ * Special characters (Not really)
  * @type {string}
  */
-const SPECIAL_CHARACTERS = "-._~";
+const SPECIAL_CHARACTERS = "A0B1C2D3E4F5G6H7I8J9KaLbMcNdOePfQgRhSiTjUkVlWmXnYoZpqrstuvwxyz";
 
 export const prompt = {
   /**
@@ -405,8 +404,7 @@ function checkPasswordComplexity(password) {
 
   return (password.match(/[a-z]/g) ?? []).length >= 2 // At least there are 2 lowercase characters
         && (password.match(/[A-Z]/g) ?? []).length >= 2 // At least there are 2 uppercase characters
-        && (password.match(/[0-9]/g) ?? []).length >= 2 // At least there should be 2 numbers
-        && (password.match(/[!"#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]/g) ?? []).length >= 2; // 2 Symbols.
+        && (password.match(/[0-9]/g) ?? []).length >= 2; // At least there should be 2 numbers
 }
 
 /**
