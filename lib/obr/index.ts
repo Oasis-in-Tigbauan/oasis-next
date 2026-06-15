@@ -3977,7 +3977,7 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   // Extra columns used only by electric-detail rows inside EXPLANATION.
   ws.getColumn(10).width = 12;
-  ws.getColumn(11).width = 4;
+  ws.getColumn(11).width = 11;
   ws.getColumn(12).width = 13;
   ws.getColumn(13).width = 14;
   ws.getColumn(14).width = 13;
@@ -3985,8 +3985,8 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   const isElecLayout = elecData.length > 0;
   const explanationLeftStartCol = 1;
-  const explanationLeftEndCol = isElecLayout ? 13 : 7;
-  const explanationAmountStartCol = isElecLayout ? 14 : 8;
+  const explanationLeftEndCol = isElecLayout ? 12 : 7;
+  const explanationAmountStartCol = isElecLayout ? 13 : 8;
   const explanationAmountEndCol = isElecLayout ? 15 : 9;
 
   const headerLeftStartCol = 1;
@@ -4014,7 +4014,7 @@ async function _buildDisbursementVoucherExcelBuffer(
     row = await _copyTemplateRows(headerWb, ws, row);
   }
 
-  // DV number row — appears above the DISBURSEMENT VOUCHER title, right-aligned, red
+  // DV number row - appears above the DISBURSEMENT VOUCHER title, right-aligned, red
   ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
   ws.getCell(row, headerRightStartCol).value = voucher.disbursementVoucherNumber;
@@ -4036,7 +4036,7 @@ async function _buildDisbursementVoucherExcelBuffer(
   // Mode of Payment + DV No.
   ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
-  ws.getCell(row, headerLeftStartCol).value = "Mode of Payment:      ☐ Check      ☐ Cash      ☐ Others";
+  ws.getCell(row, headerLeftStartCol).value = "Mode of Payment:      \u2610 Check      \u2610 Cash      \u2610 Others";
   ws.getCell(row, headerRightStartCol).value = `DV No.: ${voucher.disbursementVoucherNumber}`;
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
@@ -4103,7 +4103,7 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getCell(explanationStart, explanationLeftStartCol).value = voucher.particulars;
   ws.getCell(explanationStart, explanationLeftStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
   ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountEndCol);
-  ws.getCell(explanationStart, explanationAmountStartCol).value = _formatNumber(withholdings.netAmount);
+  ws.getCell(explanationStart, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
   ws.getCell(explanationStart, explanationAmountStartCol).font = { bold: true, size: 13 };
   ws.getCell(explanationStart, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
   for (let rr = explanationStart; rr <= explanationStart + explanationRows; rr++) {
@@ -4168,7 +4168,7 @@ async function _buildDisbursementVoucherExcelBuffer(
       evat: clamp(Math.round(maxEvatLen + 3), 10, 15),
       net: clamp(Math.round(maxNetLen + 4), 14, 24),
     };
-    const targetWidthBudget = 118;
+    const targetWidthBudget = 104;
     const totalDesired = Object.values(desiredWidths).reduce((acc, value) => acc + value, 0);
     const widthScale = totalDesired > 0 ? targetWidthBudget / totalDesired : 1;
 
@@ -4182,10 +4182,6 @@ async function _buildDisbursementVoucherExcelBuffer(
       evat: clamp(Math.round(desiredWidths.evat * widthScale), 9, 15),
       net: clamp(Math.round(desiredWidths.net * widthScale), 14, 24),
     };
-
-    // Apply proportional widths only for the electric-detail area columns.
-    const col12Width = Math.max(8, Math.round(scaled.net * 0.5));
-    const col13Width = Math.max(8, scaled.net - col12Width);
 
     const col5Width = Math.max(9, Math.round(scaled.billing * 0.20));
     const col2Adjusted = Math.max(9, Math.round(scaled.billing * 0.35));
@@ -4202,9 +4198,9 @@ async function _buildDisbursementVoucherExcelBuffer(
     ws.getColumn(9).width = scaled.vatable;
     ws.getColumn(10).width = scaled.vat;
     ws.getColumn(11).width = scaled.evat;
-    ws.getColumn(12).width = col12Width + col13Width;
-    ws.getColumn(13).width = 4;
-    ws.getColumn(14).width = 13;
+    ws.getColumn(12).width = scaled.net;
+    ws.getColumn(13).width = 5;
+    ws.getColumn(14).width = 14;
     ws.getColumn(15).width = 14;
 
     const billingCombinedWidth = col2Adjusted + col3Adjusted + col4Adjusted + col5Width;
@@ -4229,7 +4225,7 @@ async function _buildDisbursementVoucherExcelBuffer(
     ws.getCell(row, evatCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     ws.getCell(row, netStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     _applyDisbursementBorder(ws, row, 2, 12, "center");
-    _applyDisbursementBorder(ws, row, 14, 15, "right");
+    _applyDisbursementBorder(ws, row, 13, 15, "right");
     for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = { bold: true };
     ws.getCell(row, netStartCol).font = { bold: true };
     ws.getRow(row).height = 30;
@@ -4270,7 +4266,7 @@ async function _buildDisbursementVoucherExcelBuffer(
       ws.getCell(row, evatCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
       ws.getCell(row, netStartCol).alignment = { horizontal: "right", vertical: "middle" };
       _applyDisbursementBorder(ws, row, 2, 12);
-      _applyDisbursementBorder(ws, row, 14, 15, "right");
+      _applyDisbursementBorder(ws, row, 13, 15, "right");
       ws.getRow(row).height = rowHeight;
 
       totalGross = totalGross.add(itemGross);
@@ -4291,7 +4287,7 @@ async function _buildDisbursementVoucherExcelBuffer(
     ws.getCell(row, netStartCol).value = _formatNumber(totalNet);
     ws.getCell(row, netStartCol).alignment = { horizontal: "right", vertical: "middle" };
     _applyDisbursementBorder(ws, row, 2, 12);
-    _applyDisbursementBorder(ws, row, 14, 15, "right");
+    _applyDisbursementBorder(ws, row, 13, 15, "right");
     for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = { bold: true };
     ws.getCell(row, netStartCol).font = { bold: true };
     ws.getRow(row).height = 30;
@@ -4333,7 +4329,7 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
   ws.getCell(row, explanationLeftStartCol).value = "Amount Due";
   ws.getCell(row, explanationLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, explanationAmountStartCol).value = _formatNumber(withholdings.netAmount);
+  ws.getCell(row, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
   ws.getCell(row, explanationAmountStartCol).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
   ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
   _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
@@ -4352,15 +4348,15 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "☑ Allotment obligated for the purpose as indicated above";
-  ws.getCell(row, signerRightStartCol).value = "☑ Funds Available";
+  ws.getCell(row, signerLeftStartCol).value = "\u2611 Allotment obligated for the purpose as indicated above";
+  ws.getCell(row, signerRightStartCol).value = "\u2611 Funds Available";
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "☑ Supporting documents complete";
+  ws.getCell(row, signerLeftStartCol).value = "\u2610 Supporting documents complete";
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
