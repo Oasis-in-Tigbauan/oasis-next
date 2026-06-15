@@ -6,10 +6,8 @@ import * as permissions from "@/lib/db/permissions";
 
 export default async function ObeApproversGroupLayout({ children }: { children: ReactNode }) {
   const session = await auth.verify([
-    permissions.OBR_APPROVER_BASIC_READ,
     permissions.OBR_APPROVER_BASIC_HIGH_WRITE,
-    permissions.OBR_APPROVER_ADVANCED_READ,
-  ], "or");
+  ]);
 
   // Redirect back to the dashboard if not verified.
   if (session.redirectTo) {

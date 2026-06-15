@@ -469,6 +469,7 @@ export const obrRequests = pgTable("obr_requests", {
   obrNumber: text("obr_number"),
   prNumber: text("pr_number"),
   type: obrRequestType("request_type").notNull(),
+  withCheque: boolean("with_cheque").default(true).notNull(),
 
   publisherId: text("publisher_id")
     .references(() => user.id)
@@ -564,28 +565,29 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
 
   // Signers
   headUserId: text("head_user_id")
-    .references(() => user.id)
-    .notNull(),
-  headUserName: text("head_name").notNull(),
-  headUserPositionName: text("head_position_name").notNull(),
+    .references(() => user.id),
+  headUserName: text("head_name"),
+  headUserPositionName: text("head_position_name"),
 
   accountantId: text("accountant_user_id")
-    .references(() => user.id)
+    .references(() => user.id),
+  accountantName: text("accountant_name"),
+  accountantPositionName: text("accountant_position_name"),
+  accountantSigningStatus: obrRequestSigningStatus("accountant_signing_status")
+    .default("pending")
     .notNull(),
-  accountantName: text("accountant_name").notNull(),
-  accountantPositionName: text("accountant_position_name").notNull(),
+  accountantReason: text("accountant_reason"),
+  accountantActedAt: timestamp("accountant_acted_at", { withTimezone: true, mode: "date" }),
 
   treasurerId: text("treasurer_user_id")
-    .references(() => user.id)
-    .notNull(),
-  treasurerName: text("treasurer_name").notNull(),
-  treasurerPositionName: text("treasurer_position_name").notNull(),
+    .references(() => user.id),
+  treasurerName: text("treasurer_name"),
+  treasurerPositionName: text("treasurer_position_name"),
 
   mayorId: text("mayor_id")
-    .references(() => user.id)
-    .notNull(),
-  mayorName: text("mayor_name").notNull(),
-  mayorPositionName: text("mayor_position_name").notNull(),
+    .references(() => user.id),
+  mayorName: text("mayor_name"),
+  mayorPositionName: text("mayor_position_name"),
 
   fundTypeId: text("fund_type_id")
     .references(() => fundTypes.id),

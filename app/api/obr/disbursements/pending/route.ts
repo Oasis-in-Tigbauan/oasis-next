@@ -6,15 +6,14 @@ import { oneOf } from "@/lib/one-of";
 
 export async function GET() {
   const session = await auth.verify([
-    permission.OBR_APPROVER_BASIC_READ,
+    permission.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
   ]);
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
-  // Get the list of the requests
-  const users = await obr.listAllValidForObrCreate(session.user!);
-  return oneOf(users).match(
+  const result = await obr.listPendingDisbursementsForAccountant(session.user!);
+  return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
   );
