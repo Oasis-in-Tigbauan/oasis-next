@@ -65,15 +65,14 @@ Additionally, you will need to have certain API Keys:
    pnpm run enroller -- --enable
    ```
 
+   In the enroller account, you can create offices, setup roles, set permissions, invite people to the
+   organization and even create accounts without requiring to go thru the whole enrollment process.
+
    > [!IMPORTANT]
    > You need to disable the enroller account via `pnpm run enroller -- --disable` after inviting people
    > to join the organization on production environments. You won't like that someone have access to the
-   > enroller account and have malicious actors come in!
-
-   > [!NOTE]
-   > You don't need to create an enroller account for testing. You may need this to test enrollment flows.
-   > However, it is faster to use the `account-tool` (Accessible via `pnpm run account-tool`) to create
-   > accounts, offices and positions.
+   > enroller account and have malicious actors come in! OR you can keep this enabled as long as the password
+   > is changed frequently and have 2FA enabled.
 
 5. Start the project!
    ```sh
