@@ -81,6 +81,6 @@
     "typescript": "^6.0.3"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": "eslint --max-warnings=0"
+    "*.{ts,tsx,js,jsx}": "eslint --no-warn-ignored --max-warnings=0"
   }
 }
