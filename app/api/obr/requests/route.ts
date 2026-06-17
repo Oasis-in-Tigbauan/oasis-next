@@ -50,14 +50,6 @@ export async function POST(req: NextRequest) {
       officeAddress: { type: "string", formatter: "non-empty-string" },
       obrNumber: { type: "string", formatter: "non-empty-string" },
       prNumber: { type: "string", formatter: "non-empty-string" },
-      withCheque: {
-        type: "boolean",
-        formatterFn: async v => {
-          if (typeof v === "undefined") return { ok: true };
-          if (typeof v !== "boolean") return { ok: false, error: "withCheque must be a boolean." };
-          return { ok: true };
-        },
-      },
       requestItems: {
         type: "object",
         formatterFn: async o => {
@@ -105,7 +97,6 @@ type CreateNewRequestType = {
   officeAddress: string;
   obrNumber?: string;
   prNumber?: string;
-  withCheque?: boolean;
   requestItems: Array<{
     responsibilityCenterId: string;
     expenseCodeId: string;

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
+import { v7 as uuidv7 } from "uuid";
 
 import * as templateBucket from "@/lib/buckets/templates";
 import * as casts from "@/lib/types/casts";
@@ -66,10 +67,12 @@ const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS
  * - Basic requests require a budget-officer approver.
  * - Advanced requests additionally require a higher-level approver.
  * - Responsibility centers and expense codes are validated before the transaction is committed.
+ * - Responsibility centers and expense codes are validated before the transaction is committed.
+ * - Requests always wait until a disbursement is created before entering the approval queue.
  */
 export async function createRequest(req: CreateNewRequestType, user: User): Promise<Result<ObrRequestType>> {
   try {
-    const withCheque = req.withCheque ?? true;
+    const submittedForApproval = false;
 
     // Check if the request is basic or advanced
     const isAdvanced = req.requestItems.length > 4;
@@ -181,7 +184,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
           payee: req.payee,
           officeAddress: req.officeAddress,
           originatingOfficeId: user.office.id,
-          withCheque,
+          submittedForApproval,
           ...(validatorUtilities.isNotEmpty(req.obrNumber) && {
             obrNumber: req.obrNumber,
           }),
@@ -216,29 +219,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         )
         .returning();
 
-      if (withCheque) {
-        let nextDvSequence = await _getNextDisbursementVoucherSequence(tx);
-        for (const item of insertedItems) {
-          const dvNumber = String(nextDvSequence);
-          nextDvSequence += 1;
-
-          await tx.insert(obrDisbursementVouchers).values({
-            disbursementVoucherNumber: dvNumber,
-            payee: request.payee,
-            address: request.officeAddress,
-            particulars: item.particulars,
-            grossAmount: item.amount,
-            responsibilityCenterId: item.responsibilityCenterId,
-            requestId: request.id,
-            requestItemId: item.id,
-            disbursedBy: user.id,
-            status: "PREPARATION",
-            accountantSigningStatus: "pending",
-            ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
-          });
-        }
-      }
-
       // Map items (no extra DB calls)
       const items = insertedItems.map(i => ({
         id: i.id,
@@ -268,7 +248,8 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
       officeAddress: transaction.officeAddress,
       obrNumber: transaction.obrNumber,
       prNumber: transaction.prNumber,
-      withCheque: transaction.withCheque,
+      submittedForApproval: transaction.submittedForApproval,
+      disbursementApproved: false,
       promoted: false,
       requestItems: transaction.items,
       requestItemsCount: transaction.items.length,
@@ -288,17 +269,6 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         signedAt: null,
       })),
     } satisfies ObrRequestType;
-
-    await publishEvent({
-      type: "obr.request.submitted",
-      payload: {
-        requestId: createdRequest.id,
-        requestNumber: createdRequest.requestNumber,
-        officeId: user.office.id,
-        actorName: user.fullName,
-        approverPositionIds: approverPositions.map((position) => position.id),
-      },
-    });
 
     return new Success(createdRequest);
   } catch (e) {
@@ -328,9 +298,11 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
  *                                            failure result on error.
  *
  * @remarks
- * - Requires one of the configured OBR approval write permissions.
+ * - Requires the budget officer approval write permission.
  * - The user's position must be assigned as a signer for the request.
  * - Already-signed approver entries cannot be changed.
+ * - On budget officer approval, autofills the originating office basic approver and, for advanced requests, the vice
+ *   mayor (first user with advanced write permission) using their own user records rather than the acting user.
  */
 export async function setApproverState(entryId: string, user: User, status: "pending" | "approved" | "binned", reason?: string): Promise<Result<ApproverObject>> {
   try {
@@ -414,18 +386,28 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       ? allPositions.find(p => p.permissions.includes(permissions.OBR_APPROVER_ADVANCED_WRITE))
       : undefined;
 
-    const autoFillPositionIds = [
-      basicWritePosition?.id,
-      advancedWritePosition?.id,
-    ].filter((id): id is string => validatorUtilities.isNotEmpty(id));
+    const [basicWriteSigner, advancedWriteSigner] = await Promise.all([
+      basicWritePosition
+        ? findFirstUserWithApprovalPermission(
+          permissions.OBR_APPROVER_BASIC_WRITE,
+          requestRow.originatingOfficeId,
+        )
+        : Promise.resolve(null),
+      advancedWritePosition
+        ? findFirstUserWithApprovalPermission(permissions.OBR_APPROVER_ADVANCED_WRITE)
+        : Promise.resolve(null),
+    ]);
+
+    const autoFillEntries = [
+      basicWritePosition && basicWriteSigner
+        ? { positionId: basicWritePosition.id, actedUserId: basicWriteSigner.id }
+        : null,
+      advancedWritePosition && advancedWriteSigner
+        ? { positionId: advancedWritePosition.id, actedUserId: advancedWriteSigner.id }
+        : null,
+    ].filter((entry): entry is { positionId: string; actedUserId: string } => entry !== null);
 
     const actedAt = DateTime.utc().toJSDate();
-    const autoFillPayload = {
-      actedUserId: user.id,
-      actedAt,
-      status,
-      ...(validatorUtilities.isNotEmpty(reason) ? { reason } : {}),
-    };
 
     const [result] = await db.transaction(async tx => {
       const [updated] = await tx
@@ -440,16 +422,23 @@ export async function setApproverState(entryId: string, user: User, status: "pen
         .returning();
       if (!updated) throw new Error("Unable to set approver state");
 
-      if (autoFillPositionIds.length > 0) {
-        await tx
-          .update(obrRequestApprovers)
-          .set(autoFillPayload)
-          .where(
-            and(
-              eq(obrRequestApprovers.requestId, entryId),
-              inArray(obrRequestApprovers.positionId, autoFillPositionIds),
-            ),
-          );
+      if (autoFillEntries.length > 0) {
+        for (const entry of autoFillEntries) {
+          await tx
+            .update(obrRequestApprovers)
+            .set({
+              actedUserId: entry.actedUserId,
+              actedAt,
+              status,
+              ...(validatorUtilities.isNotEmpty(reason) ? { reason } : {}),
+            })
+            .where(
+              and(
+                eq(obrRequestApprovers.requestId, entryId),
+                eq(obrRequestApprovers.positionId, entry.positionId),
+              ),
+            );
+        }
       }
 
       return [updated];
@@ -557,6 +546,7 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
     const all = await _getAllObrRequestAsSummaries(
       and(
         validate.officeLimited ? eq(obrRequests.originatingOfficeId, user.office.id) : undefined,
+        !validate.officeLimited ? eq(obrRequests.submittedForApproval, true) : undefined,
         validate.positionId
           ? sql`EXISTS (
                 SELECT 1 FROM ${obrRequestApprovers}
@@ -622,6 +612,14 @@ export async function updateObrRequestItem(
       return new Failure(
         ErrorCodes.ValidationFailure,
         "This request has already been promoted and can no longer be edited.",
+        { requestId, itemId },
+      );
+    }
+
+    if (await _hasApprovedDisbursementForRequest(requestId)) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "The disbursement for this request has already been approved and can no longer be edited.",
         { requestId, itemId },
       );
     }
@@ -735,11 +733,11 @@ export async function updateObrRequestItem(
  * @async
  * @function listPendingDisbursementsForAccountant
  * @param {User} user - User attempting to list pending disbursements.
- * @returns {Promise<Result<PendingDisbursementForAccountant[]>>} Pending disbursements on success.
+ * @returns {Promise<Result<PendingDisbursementBatchForAccountant[]>>} Pending disbursement batches on success.
  */
 export async function listPendingDisbursementsForAccountant(
   user: User,
-): Promise<Result<PendingDisbursementForAccountant[]>> {
+): Promise<Result<PendingDisbursementBatchForAccountant[]>> {
   try {
     const validate = await isAccountantValidForDisbursement(user);
     if (validate?.error) {
@@ -755,10 +753,14 @@ export async function listPendingDisbursementsForAccountant(
       .select({
         id: obrDisbursementVouchers.id,
         disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+        disbursementBatchId: obrDisbursementVouchers.disbursementBatchId,
         createdAt: obrDisbursementVouchers.createdAt,
         payee: obrDisbursementVouchers.payee,
         address: obrDisbursementVouchers.address,
         particulars: obrDisbursementVouchers.particulars,
+        explanation: obrDisbursementVouchers.explanation,
+        isOneForAll: obrDisbursementVouchers.isOneForAll,
+        withCheque: obrDisbursementVouchers.withCheque,
         grossAmount: obrDisbursementVouchers.grossAmount,
         vatableAmount: obrDisbursementVouchers.vatableAmount,
         taxType: obrDisbursementVouchers.taxType,
@@ -770,27 +772,40 @@ export async function listPendingDisbursementsForAccountant(
         prNumber: obrDisbursementVouchers.prNumber,
         responsibilityCenterId: officeCodes.id,
         responsibilityCenterAA: officeCodes.aa,
-        requestId: obrRequests.id,
+        requestId: obrDisbursementVouchers.requestId,
         requestNumber: obrRequests.requestNumber,
         requestItemId: obrRequestItems.id,
         requestItemParticulars: obrRequestItems.particulars,
         requestItemAmount: obrRequestItems.amount,
       })
       .from(obrDisbursementVouchers)
-      .innerJoin(obrRequests, eq(obrRequests.id, obrDisbursementVouchers.requestId))
-      .innerJoin(obrRequestItems, eq(obrRequestItems.id, obrDisbursementVouchers.requestItemId))
+      .leftJoin(obrRequests, eq(obrRequests.id, obrDisbursementVouchers.requestId))
+      .leftJoin(obrRequestItems, eq(obrRequestItems.id, obrDisbursementVouchers.requestItemId))
       .innerJoin(officeCodes, eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId))
       .leftJoin(fundTypes, eq(fundTypes.id, obrDisbursementVouchers.fundTypeId))
-      .where(eq(obrDisbursementVouchers.accountantSigningStatus, "pending"))
+      .where(
+        and(
+          eq(obrDisbursementVouchers.accountantSigningStatus, "pending"),
+          or(
+            isNull(obrDisbursementVouchers.requestId),
+            eq(obrRequests.submittedForApproval, true),
+          ),
+        ),
+      )
       .orderBy(desc(obrDisbursementVouchers.createdAt));
 
-    return new Success(rows.map(row => ({
+    type PendingRow = typeof rows[number];
+
+    const mapRow = (row: PendingRow): PendingDisbursementForAccountant => ({
       id: row.id,
       disbursementVoucherNumber: row.disbursementVoucherNumber,
       createdAt: row.createdAt,
       payee: row.payee,
       address: row.address,
       particulars: row.particulars,
+      explanation: validatorUtilities.isNotEmpty(row.explanation) ? row.explanation : null,
+      isOneForAll: row.isOneForAll,
+      withCheque: row.withCheque,
       grossAmount: validatorUtilities.isNotEmpty(row.grossAmount) ? row.grossAmount! : null,
       vatableAmount: validatorUtilities.isNotEmpty(row.vatableAmount) ? row.vatableAmount! : null,
       taxType: row.taxType ?? null,
@@ -807,40 +822,264 @@ export async function listPendingDisbursementsForAccountant(
       fundType: validatorUtilities.isNotEmpty(row.fundTypeId)
         ? { id: row.fundTypeId!, name: row.fundTypeName!, description: row.fundTypeDescription! }
         : null,
-      request: {
-        id: row.requestId,
-        requestNumber: row.requestNumber,
-      },
-      requestItem: {
-        id: row.requestItemId,
-        particulars: row.requestItemParticulars,
-        amount: row.requestItemAmount,
-      },
+      request: row.requestId
+        ? { id: row.requestId, requestNumber: row.requestNumber! }
+        : null,
+      requestItem: row.requestItemId
+        ? {
+          id: row.requestItemId,
+          particulars: row.requestItemParticulars!,
+          amount: row.requestItemAmount!,
+        }
+        : {
+          id: row.id,
+          particulars: row.particulars,
+          amount: row.grossAmount ?? "0",
+        },
       prNumber: validatorUtilities.isNotEmpty(row.prNumber) ? row.prNumber : null,
-    } satisfies PendingDisbursementForAccountant)));
+    });
+
+    const grouped = new Map<string, PendingDisbursementBatchForAccountant>();
+    for (const row of rows) {
+      const groupKey = row.requestId ?? row.disbursementBatchId;
+      const item = mapRow(row);
+      const existing = grouped.get(groupKey);
+      if (existing) {
+        existing.items.push(item);
+        existing.itemCount += 1;
+        if (validatorUtilities.isNotEmpty(item.grossAmount)) {
+          existing.totalGrossAmount = casts.castFromDecimal(existing.totalGrossAmount)
+            .add(casts.castFromDecimal(item.grossAmount!))
+            .toString();
+        }
+      } else {
+        grouped.set(groupKey, {
+          batchId: row.disbursementBatchId,
+          requestId: row.requestId,
+          requestNumber: row.requestNumber,
+          isHeadless: !row.requestId,
+          payee: row.payee,
+          address: row.address,
+          isOneForAll: row.isOneForAll,
+          withCheque: row.withCheque,
+          accountantSigningStatus: row.accountantSigningStatus,
+          totalGrossAmount: validatorUtilities.isNotEmpty(item.grossAmount) ? item.grossAmount! : "0",
+          itemCount: 1,
+          items: [item],
+          requestItems: [],
+        });
+      }
+    }
+
+    const batches = [...grouped.values()];
+    const oneForAllRequestIds = [
+      ...new Set(
+        batches
+          .filter(batch => batch.isOneForAll && validatorUtilities.isNotEmpty(batch.requestId))
+          .map(batch => batch.requestId!),
+      ),
+    ];
+
+    if (oneForAllRequestIds.length > 0) {
+      const requestItemRows = await db
+        .select({
+          id: obrRequestItems.id,
+          requestId: obrRequestItems.requestId,
+          particulars: obrRequestItems.particulars,
+          amount: obrRequestItems.amount,
+          responsibilityCenter: officeCodes.aa,
+          expenseName: expenseClasses.accountName,
+        })
+        .from(obrRequestItems)
+        .innerJoin(officeCodes, eq(officeCodes.id, obrRequestItems.responsibilityCenterId))
+        .innerJoin(expenseClasses, eq(expenseClasses.id, obrRequestItems.expenseCodeId))
+        .where(inArray(obrRequestItems.requestId, oneForAllRequestIds));
+
+      const requestItemsByRequestId = new Map<string, Array<{
+        id: string;
+        particulars: string;
+        amount: string;
+        responsibilityCenter: string;
+        expenseName: string;
+      }>>();
+
+      for (const requestItem of requestItemRows) {
+        const existing = requestItemsByRequestId.get(requestItem.requestId) ?? [];
+        existing.push({
+          id: requestItem.id,
+          particulars: requestItem.particulars,
+          amount: requestItem.amount,
+          responsibilityCenter: requestItem.responsibilityCenter,
+          expenseName: requestItem.expenseName,
+        });
+        requestItemsByRequestId.set(requestItem.requestId, existing);
+      }
+
+      for (const batch of batches) {
+        if (batch.isOneForAll && batch.requestId) {
+          batch.requestItems = requestItemsByRequestId.get(batch.requestId) ?? [];
+        }
+      }
+    }
+
+    return new Success(batches);
   } catch (e) {
     return new Failure(ErrorCodes.Fatal, "Unable to list pending disbursements.", { userId: user.id }, e);
   }
 }
 
 /**
- * Updates the accountant approval state for a disbursement voucher.
+ * Updates the accountant approval state for all disbursement vouchers on an OBR request.
  *
  * @description
- * Allows an accountant to approve or reject a disbursement voucher. On approval, auto-fills mayor, treasurer, and
- * office-head signer slots, then attempts to promote the parent request to OBR main data and ESRE when all conditions
- * are met.
+ * Allows an accountant to approve or reject every disbursement voucher linked to a request in one action. On approval,
+ * auto-fills mayor, treasurer, and office-head signer slots on each voucher, then attempts to promote the parent
+ * request to OBR main data and ESRE when all conditions are met.
  *
- * On success, wraps the updated disbursement voucher in a {@link Success}. On permission or validation failure,
+ * On success, wraps the updated disbursement vouchers in a {@link Success}. On permission or validation failure,
  * returns a {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
  *
  * @async
- * @function approveDisbursement
- * @param {string} dvId - Identifier of the disbursement voucher.
+ * @function approveDisbursementsForRequest
+ * @param {string} requestId - Identifier of the parent OBR request.
  * @param {User} user - Accountant user performing the approval action.
- * @param {"pending" | "approved" | "binned"} status - Approval status to apply.
+ * @param {"pending" | "approved" | "binned"} status - Approval status to apply to all vouchers on the request.
  * @param {string} [reason] - Optional reason for the decision.
- * @returns {Promise<Result<ObrDisbursementVoucher>>} Updated disbursement voucher on success.
+ * @returns {Promise<Result<ObrDisbursementVoucher[]>>} Updated disbursement vouchers on success.
+ */
+export async function approveDisbursementsForRequest(
+  requestId: string,
+  user: User,
+  status: "pending" | "approved" | "binned",
+  reason?: string,
+): Promise<Result<ObrDisbursementVoucher[]>> {
+  try {
+    const validate = await isAccountantValidForDisbursement(user);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to approve the disbursement vouchers.",
+        { requestId, userId: user.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const [requestRow] = await db
+      .select({
+        id: obrRequests.id,
+        originatingOfficeId: obrRequests.originatingOfficeId,
+        submittedForApproval: obrRequests.submittedForApproval,
+      })
+      .from(obrRequests)
+      .where(eq(obrRequests.id, requestId))
+      .limit(1);
+    if (!requestRow) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+    }
+    if (!requestRow.submittedForApproval) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "This request has not been submitted for approval yet.",
+        { requestId },
+      );
+    }
+
+    const vouchers = await db
+      .select({
+        id: obrDisbursementVouchers.id,
+        accountantSigningStatus: obrDisbursementVouchers.accountantSigningStatus,
+        fundTypeId: obrDisbursementVouchers.fundTypeId,
+        headUserId: obrDisbursementVouchers.headUserId,
+      })
+      .from(obrDisbursementVouchers)
+      .where(eq(obrDisbursementVouchers.requestId, requestId));
+
+    if (vouchers.length === 0) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "No disbursement vouchers found for this request.",
+        { requestId },
+      );
+    }
+
+    if (vouchers.some(v => v.accountantSigningStatus !== "pending")) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "One or more disbursement vouchers on this request have already been reviewed.",
+        { requestId },
+      );
+    }
+
+    if (status === "approved" && vouchers.some(v => !validatorUtilities.isNotEmpty(v.fundTypeId))) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "A funding source must be assigned to every disbursement voucher before approving.",
+        { requestId },
+      );
+    }
+
+    const mayorSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE);
+    const treasurerSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE);
+    const headSigner = vouchers[0]?.headUserId
+      ? null
+      : await findOfficeHeadByOffice(requestRow.originatingOfficeId);
+
+    const actedAt = DateTime.utc().toJSDate();
+
+    await db.transaction(async tx => {
+      for (const voucher of vouchers) {
+        const updatePayload: Record<string, unknown> = {
+          accountantSigningStatus: status,
+          accountantReason: validatorUtilities.isNotEmpty(reason) ? reason : null,
+          accountantActedAt: actedAt,
+          accountantId: user.id,
+          accountantName: user.fullName,
+          accountantPositionName: user.office.role.name,
+        };
+
+        if (status === "approved") {
+          if (mayorSigner) {
+            updatePayload.mayorId = mayorSigner.id;
+            updatePayload.mayorName = mayorSigner.name;
+            updatePayload.mayorPositionName = mayorSigner.positionName;
+          }
+          if (treasurerSigner) {
+            updatePayload.treasurerId = treasurerSigner.id;
+            updatePayload.treasurerName = treasurerSigner.name;
+            updatePayload.treasurerPositionName = treasurerSigner.positionName;
+          }
+          if (headSigner) {
+            updatePayload.headUserId = headSigner.id;
+            updatePayload.headUserName = headSigner.name;
+            updatePayload.headUserPositionName = headSigner.positionName;
+          }
+        }
+
+        await tx
+          .update(obrDisbursementVouchers)
+          .set(updatePayload)
+          .where(eq(obrDisbursementVouchers.id, voucher.id));
+      }
+    });
+
+    if (status === "approved") {
+      await checkAndPromoteRequest(requestId);
+    }
+
+    const updated: ObrDisbursementVoucher[] = [];
+    for (const voucher of vouchers) {
+      const dv = await _getDisbursementVoucherById(voucher.id);
+      if (dv) updated.push(dv);
+    }
+
+    return new Success(updated);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to approve disbursements.", { requestId, userId: user.id }, e);
+  }
+}
+
+/**
+ * @deprecated Use {@link approveDisbursementsForRequest} instead. The `dvId` parameter is treated as `requestId`.
  */
 export async function approveDisbursement(
   dvId: string,
@@ -848,108 +1087,678 @@ export async function approveDisbursement(
   status: "pending" | "approved" | "binned",
   reason?: string,
 ): Promise<Result<ObrDisbursementVoucher>> {
+  const result = await approveDisbursementsForRequest(dvId, user, status, reason);
+  if (result instanceof Failure) return result;
+  const first = result.value[0];
+  if (!first) {
+    return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated disbursement voucher.", { dvId });
+  }
+  return new Success(first);
+}
+
+/**
+ * Updates the accountant approval state for all standalone disbursement vouchers in a batch.
+ *
+ * @description
+ * Allows an accountant to approve or reject every headless disbursement voucher in a batch. On approval, auto-fills
+ * signer slots and creates ESRE records with cheque numbers when `withCheque` is enabled on the vouchers.
+ *
+ * On success, wraps the updated disbursement vouchers in a {@link Success}. On permission or validation failure,
+ * returns a {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function approveDisbursementsForBatch
+ * @param {string} batchId - Identifier grouping standalone disbursement vouchers.
+ * @param {User} user - Accountant user performing the approval action.
+ * @param {"pending" | "approved" | "binned"} status - Approval status to apply to all vouchers in the batch.
+ * @param {string} [reason] - Optional reason for the decision.
+ * @returns {Promise<Result<ObrDisbursementVoucher[]>>} Updated disbursement vouchers on success.
+ */
+export async function approveDisbursementsForBatch(
+  batchId: string,
+  user: User,
+  status: "pending" | "approved" | "binned",
+  reason?: string,
+): Promise<Result<ObrDisbursementVoucher[]>> {
   try {
     const validate = await isAccountantValidForDisbursement(user);
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to approve the disbursement voucher.",
-        { dvId, userId: user.id },
+        "Unable to approve the disbursement vouchers.",
+        { batchId, userId: user.id },
         validate.stack ? validate.stack : undefined,
       );
     }
 
-    const [voucher] = await db
+    const vouchers = await db
       .select({
         id: obrDisbursementVouchers.id,
-        requestId: obrDisbursementVouchers.requestId,
         accountantSigningStatus: obrDisbursementVouchers.accountantSigningStatus,
         fundTypeId: obrDisbursementVouchers.fundTypeId,
         headUserId: obrDisbursementVouchers.headUserId,
+        disbursedBy: obrDisbursementVouchers.disbursedBy,
       })
       .from(obrDisbursementVouchers)
-      .where(eq(obrDisbursementVouchers.id, dvId))
-      .limit(1);
-    if (!voucher) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such disbursement voucher found.", { dvId });
+      .where(
+        and(
+          eq(obrDisbursementVouchers.disbursementBatchId, batchId),
+          isNull(obrDisbursementVouchers.requestId),
+        ),
+      );
+
+    if (vouchers.length === 0) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such standalone disbursement batch found.", { batchId });
     }
 
-    if (voucher.accountantSigningStatus !== "pending") {
+    if (vouchers.some(v => v.accountantSigningStatus !== "pending")) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "This disbursement voucher has already been reviewed.",
-        { dvId },
+        "One or more disbursement vouchers in this batch have already been reviewed.",
+        { batchId },
       );
     }
 
-    if (status === "approved" && !validatorUtilities.isNotEmpty(voucher.fundTypeId)) {
+    if (status === "approved" && vouchers.some(v => !validatorUtilities.isNotEmpty(v.fundTypeId))) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "A funding source must be assigned before approving this disbursement.",
-        { dvId },
+        "A funding source must be assigned to every disbursement voucher before approving.",
+        { batchId },
       );
     }
 
-    const [requestRow] = await db
-      .select({ originatingOfficeId: obrRequests.originatingOfficeId })
-      .from(obrRequests)
-      .where(eq(obrRequests.id, voucher.requestId))
+    const [disburser] = await db
+      .select({ officeId: userSchema.officeId })
+      .from(userSchema)
+      .where(eq(userSchema.id, vouchers[0]!.disbursedBy))
       .limit(1);
 
     const mayorSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE);
     const treasurerSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE);
-    const headSigner = voucher.headUserId
+    const headSigner = vouchers[0]?.headUserId
       ? null
-      : (requestRow ? await findOfficeHeadByOffice(requestRow.originatingOfficeId) : null);
+      : (disburser ? await findOfficeHeadByOffice(disburser.officeId) : null);
 
     const actedAt = DateTime.utc().toJSDate();
 
     await db.transaction(async tx => {
-      const updatePayload: Record<string, unknown> = {
-        accountantSigningStatus: status,
-        accountantReason: validatorUtilities.isNotEmpty(reason) ? reason : null,
-        accountantActedAt: actedAt,
-        accountantId: user.id,
-        accountantName: user.fullName,
-        accountantPositionName: user.office.role.name,
-      };
+      for (const voucher of vouchers) {
+        const updatePayload: Record<string, unknown> = {
+          accountantSigningStatus: status,
+          accountantReason: validatorUtilities.isNotEmpty(reason) ? reason : null,
+          accountantActedAt: actedAt,
+          accountantId: user.id,
+          accountantName: user.fullName,
+          accountantPositionName: user.office.role.name,
+        };
 
-      if (status === "approved") {
-        if (mayorSigner) {
-          updatePayload.mayorId = mayorSigner.id;
-          updatePayload.mayorName = mayorSigner.name;
-          updatePayload.mayorPositionName = mayorSigner.positionName;
+        if (status === "approved") {
+          if (mayorSigner) {
+            updatePayload.mayorId = mayorSigner.id;
+            updatePayload.mayorName = mayorSigner.name;
+            updatePayload.mayorPositionName = mayorSigner.positionName;
+          }
+          if (treasurerSigner) {
+            updatePayload.treasurerId = treasurerSigner.id;
+            updatePayload.treasurerName = treasurerSigner.name;
+            updatePayload.treasurerPositionName = treasurerSigner.positionName;
+          }
+          if (headSigner) {
+            updatePayload.headUserId = headSigner.id;
+            updatePayload.headUserName = headSigner.name;
+            updatePayload.headUserPositionName = headSigner.positionName;
+          }
         }
-        if (treasurerSigner) {
-          updatePayload.treasurerId = treasurerSigner.id;
-          updatePayload.treasurerName = treasurerSigner.name;
-          updatePayload.treasurerPositionName = treasurerSigner.positionName;
-        }
-        if (headSigner) {
-          updatePayload.headUserId = headSigner.id;
-          updatePayload.headUserName = headSigner.name;
-          updatePayload.headUserPositionName = headSigner.positionName;
-        }
+
+        await tx
+          .update(obrDisbursementVouchers)
+          .set(updatePayload)
+          .where(eq(obrDisbursementVouchers.id, voucher.id));
       }
 
-      await tx
-        .update(obrDisbursementVouchers)
-        .set(updatePayload)
-        .where(eq(obrDisbursementVouchers.id, dvId));
+      if (status === "approved") {
+        await _createEsreForStandaloneBatch(batchId, tx);
+      }
     });
 
-    if (status === "approved") {
-      await checkAndPromoteRequest(voucher.requestId);
-    }
-
-    const updated = await _getDisbursementVoucherById(dvId);
-    if (!updated) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated disbursement voucher.", { dvId });
+    const updated: ObrDisbursementVoucher[] = [];
+    for (const voucher of vouchers) {
+      const dv = await _getDisbursementVoucherById(voucher.id);
+      if (dv) updated.push(dv);
     }
 
     return new Success(updated);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to approve disbursement.", { dvId, userId: user.id }, e);
+    return new Failure(ErrorCodes.Fatal, "Unable to approve standalone disbursements.", { batchId, userId: user.id }, e);
+  }
+}
+
+/**
+ * Creates disbursement vouchers for an OBR request and submits the request for approval.
+ *
+ * @description
+ * Validates that the request requires cheque disbursement, has not yet been submitted for approval, and that every
+ * supplied request item belongs to the request. Creates one disbursement voucher row per request item, optionally
+ * sharing a single DV number when `oneForAll` is enabled, then marks the request as submitted for approval and
+ * publishes the submission event.
+ *
+ * On success, wraps the created disbursement vouchers in a {@link Success}. On validation failure, returns a
+ * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function createDisbursement
+ * @param {string} requestId - Identifier of the OBR request to disburse.
+ * @param {CreateDisbursementPayload} input - Disbursement creation options and per-item explanations.
+ * @param {User} actor - User creating the disbursement vouchers.
+ * @returns {Promise<Result<ObrDisbursementVoucher[]>>} Created disbursement vouchers on success.
+ *
+ * @remarks
+ * - Only requests with `submittedForApproval = false` are eligible.
+ * - When `oneForAll` is true, creates a single disbursement voucher and one ESRE on approval.
+ * - When `oneForAll` is false, creates one voucher per request item with a shared DV base and `-N` suffixes.
+ * - `withCheque` is stored on each created voucher and controls ESRE cheque-number assignment on approval.
+ */
+export async function createDisbursement(
+  requestId: string,
+  input: CreateDisbursementPayload,
+  actor: User,
+): Promise<Result<ObrDisbursementVoucher[]>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to create disbursement vouchers.",
+        { requestId, userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const withCheque = input.withCheque ?? true;
+
+    const [request] = await db
+      .select({
+        id: obrRequests.id,
+        requestNumber: obrRequests.requestNumber,
+        payee: obrRequests.payee,
+        officeAddress: obrRequests.officeAddress,
+        prNumber: obrRequests.prNumber,
+        submittedForApproval: obrRequests.submittedForApproval,
+        originatingOfficeId: obrRequests.originatingOfficeId,
+      })
+      .from(obrRequests)
+      .where(eq(obrRequests.id, requestId))
+      .limit(1);
+
+    if (!request) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+    }
+    if (request.originatingOfficeId !== actor.office.id) {
+      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+    }
+    if (request.submittedForApproval) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "A disbursement has already been created for this request.",
+        { requestId },
+      );
+    }
+
+    const requestItems = await db
+      .select({
+        id: obrRequestItems.id,
+        particulars: obrRequestItems.particulars,
+        amount: obrRequestItems.amount,
+        responsibilityCenterId: obrRequestItems.responsibilityCenterId,
+      })
+      .from(obrRequestItems)
+      .where(eq(obrRequestItems.requestId, requestId));
+
+    if (requestItems.length === 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "This request has no line items.", { requestId });
+    }
+
+    const itemIdSet = new Set(requestItems.map(i => i.id));
+
+    if (input.oneForAll) {
+      if (!validatorUtilities.isNotEmpty(input.particulars)) {
+        return new Failure(ErrorCodes.ValidationFailure, "Particulars are required.", { requestId });
+      }
+      if (!validatorUtilities.isNotEmpty(input.explanation)) {
+        return new Failure(ErrorCodes.ValidationFailure, "An explanation is required.", { requestId });
+      }
+      if (!validatorUtilities.isNumber(input.grossAmount, false, false)) {
+        return new Failure(ErrorCodes.ValidationFailure, "A valid gross amount is required.", { requestId });
+      }
+      const oneForAllTaxType = parseTaxType(input.taxType);
+      if (validatorUtilities.isNotEmpty(input.taxType) && !oneForAllTaxType) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid tax type.", { requestId });
+      }
+      if (validatorUtilities.isExisty(input.vatableAmount) && !validatorUtilities.isNumber(input.vatableAmount, false, false)) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid vatable amount.", { requestId });
+      }
+    } else {
+      if (input.items.length !== requestItems.length) {
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          "An entry is required for every request item.",
+          { requestId },
+        );
+      }
+      for (const entry of input.items) {
+        if (!itemIdSet.has(entry.requestItemId)) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "One or more request items do not belong to this request.",
+            { requestId, requestItemId: entry.requestItemId },
+          );
+        }
+        if (!validatorUtilities.isNotEmpty(entry.explanation)) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "Each disbursement item requires an explanation.",
+            { requestId, requestItemId: entry.requestItemId },
+          );
+        }
+        const entryTaxType = parseTaxType(entry.taxType);
+        if (validatorUtilities.isNotEmpty(entry.taxType) && !entryTaxType) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "Invalid tax type.",
+            { requestId, requestItemId: entry.requestItemId },
+          );
+        }
+        if (validatorUtilities.isExisty(entry.vatableAmount) && !validatorUtilities.isNumber(entry.vatableAmount, false, false)) {
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            "Invalid vatable amount.",
+            { requestId, requestItemId: entry.requestItemId },
+          );
+        }
+      }
+    }
+
+    const itemPayloadById = new Map(input.items.map(i => [i.requestItemId, i]));
+    const createdIds: string[] = [];
+    const batchId = uuidv7();
+
+    const approverPositions = await db
+      .select({ positionId: obrRequestApprovers.positionId })
+      .from(obrRequestApprovers)
+      .where(eq(obrRequestApprovers.requestId, requestId));
+
+    await db.transaction(async tx => {
+      const baseSequence = await _getNextDisbursementVoucherSequence(tx);
+      const baseDvNumber = String(baseSequence);
+
+      if (input.oneForAll) {
+        const oneForAllTaxType = parseTaxType(input.taxType);
+        const [created] = await tx
+          .insert(obrDisbursementVouchers)
+          .values({
+            disbursementVoucherNumber: baseDvNumber,
+            payee: request.payee,
+            address: request.officeAddress,
+            particulars: input.particulars!,
+            explanation: input.explanation!,
+            isOneForAll: true,
+            withCheque,
+            disbursementBatchId: batchId,
+            grossAmount: casts.castToDecimal(input.grossAmount!),
+            ...(oneForAllTaxType ? { taxType: oneForAllTaxType } : {}),
+            ...(validatorUtilities.isNumber(input.vatableAmount, false, false)
+              ? { vatableAmount: casts.castToDecimal(input.vatableAmount!) }
+              : {}),
+            responsibilityCenterId: requestItems[0]!.responsibilityCenterId,
+            requestId: request.id,
+            disbursedBy: actor.id,
+            status: "PREPARATION",
+            accountantSigningStatus: "pending",
+            ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
+          })
+          .returning({ id: obrDisbursementVouchers.id });
+
+        createdIds.push(created!.id);
+      } else {
+        const isMulti = requestItems.length > 1;
+
+        for (let idx = 0; idx < requestItems.length; idx++) {
+          const item = requestItems[idx]!;
+          const entry = itemPayloadById.get(item.id)!;
+          const dvNumber = isMulti ? `${baseDvNumber}-${idx + 1}` : baseDvNumber;
+          const entryTaxType = parseTaxType(entry.taxType);
+
+          const [created] = await tx
+            .insert(obrDisbursementVouchers)
+            .values({
+              disbursementVoucherNumber: dvNumber,
+              payee: request.payee,
+              address: request.officeAddress,
+              particulars: item.particulars,
+              explanation: entry.explanation,
+              isOneForAll: false,
+              withCheque,
+              disbursementBatchId: batchId,
+              grossAmount: item.amount,
+              ...(entryTaxType ? { taxType: entryTaxType } : {}),
+              ...(validatorUtilities.isNumber(entry.vatableAmount, false, false)
+                ? { vatableAmount: casts.castToDecimal(entry.vatableAmount!) }
+                : {}),
+              responsibilityCenterId: item.responsibilityCenterId,
+              requestId: request.id,
+              requestItemId: item.id,
+              disbursedBy: actor.id,
+              status: "PREPARATION",
+              accountantSigningStatus: "pending",
+              ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
+            })
+            .returning({ id: obrDisbursementVouchers.id });
+
+          createdIds.push(created!.id);
+        }
+      }
+
+      await tx
+        .update(obrRequests)
+        .set({ submittedForApproval: true })
+        .where(eq(obrRequests.id, requestId));
+    });
+
+    await publishEvent({
+      type: "obr.request.submitted",
+      payload: {
+        requestId: request.id,
+        requestNumber: request.requestNumber,
+        officeId: request.originatingOfficeId,
+        actorName: actor.fullName,
+        approverPositionIds: approverPositions.map(p => p.positionId),
+      },
+    });
+
+    const createdVouchers: ObrDisbursementVoucher[] = [];
+    for (const id of createdIds) {
+      const dv = await _getDisbursementVoucherById(id);
+      if (dv) createdVouchers.push(dv);
+    }
+
+    return new Success(createdVouchers);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create disbursement.", { requestId, userId: actor.id }, e);
+  }
+}
+
+/**
+ * Creates standalone disbursement vouchers that are not linked to an OBR request.
+ *
+ * @description
+ * Validates disbursement write access, then creates one or more disbursement voucher rows from user-supplied
+ * explanations and amounts. When multiple explanations are provided, DV numbers use a shared base with `-N`
+ * suffixes; a single explanation uses the base number without a suffix. Standalone disbursements enter the
+ * accountant approval queue immediately.
+ *
+ * On success, wraps the created disbursement vouchers in a {@link Success}. On validation failure, returns a
+ * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function createStandaloneDisbursement
+ * @param {CreateStandaloneDisbursementPayload} input - Standalone disbursement header fields and line items.
+ * @param {User} actor - User creating the disbursement vouchers.
+ * @returns {Promise<Result<ObrDisbursementVoucher[]>>} Created disbursement vouchers on success.
+ *
+ * @remarks
+ * - `withCheque` controls whether ESRE rows receive auto-assigned cheque numbers on accountant approval.
+ * - Multiple line items share one DV sequence base with `-1`, `-2`, … suffixes.
+ */
+export async function createStandaloneDisbursement(
+  input: CreateStandaloneDisbursementPayload,
+  actor: User,
+): Promise<Result<ObrDisbursementVoucher[]>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to create standalone disbursement vouchers.",
+        { userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    if (!validatorUtilities.isNotEmpty(input.payee)) {
+      return new Failure(ErrorCodes.ValidationFailure, "Payee is required.", { userId: actor.id });
+    }
+    if (!validatorUtilities.isNotEmpty(input.officeAddress)) {
+      return new Failure(ErrorCodes.ValidationFailure, "Office address is required.", { userId: actor.id });
+    }
+    if (!validatorUtilities.isUuid(input.responsibilityCenterId)) {
+      return new Failure(ErrorCodes.ValidationFailure, "A valid responsibility center is required.", { userId: actor.id });
+    }
+    if (input.items.length === 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "At least one explanation line is required.", { userId: actor.id });
+    }
+
+    for (const item of input.items) {
+      if (!validatorUtilities.isNotEmpty(item.particulars)) {
+        return new Failure(ErrorCodes.ValidationFailure, "Each line requires particulars.", { userId: actor.id });
+      }
+      if (!validatorUtilities.isNotEmpty(item.explanation)) {
+        return new Failure(ErrorCodes.ValidationFailure, "Each line requires an explanation.", { userId: actor.id });
+      }
+      if (!validatorUtilities.isNumber(item.grossAmount, false, false)) {
+        return new Failure(ErrorCodes.ValidationFailure, "Each line requires a valid gross amount.", { userId: actor.id });
+      }
+      const itemTaxType = parseTaxType(item.taxType);
+      if (validatorUtilities.isNotEmpty(item.taxType) && !itemTaxType) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid tax type.", { userId: actor.id });
+      }
+      if (validatorUtilities.isExisty(item.vatableAmount) && !validatorUtilities.isNumber(item.vatableAmount, false, false)) {
+        return new Failure(ErrorCodes.ValidationFailure, "Invalid vatable amount.", { userId: actor.id });
+      }
+    }
+
+    const [rc] = await db
+      .select({ id: officeCodes.id })
+      .from(officeCodes)
+      .where(eq(officeCodes.id, input.responsibilityCenterId))
+      .limit(1);
+    if (!rc) {
+      return new Failure(ErrorCodes.ValidationFailure, "Invalid responsibility center.", { userId: actor.id });
+    }
+
+    const withCheque = input.withCheque ?? true;
+    const batchId = uuidv7();
+    const createdIds: string[] = [];
+    const isMulti = input.items.length > 1;
+
+    await db.transaction(async tx => {
+      const baseSequence = await _getNextDisbursementVoucherSequence(tx);
+      const baseDvNumber = String(baseSequence);
+
+      for (let idx = 0; idx < input.items.length; idx++) {
+        const item = input.items[idx]!;
+        const dvNumber = isMulti ? `${baseDvNumber}-${idx + 1}` : baseDvNumber;
+        const itemTaxType = parseTaxType(item.taxType);
+
+        const [created] = await tx
+          .insert(obrDisbursementVouchers)
+          .values({
+            disbursementVoucherNumber: dvNumber,
+            payee: input.payee!,
+            address: input.officeAddress,
+            particulars: item.particulars,
+            explanation: item.explanation,
+            isOneForAll: false,
+            withCheque,
+            disbursementBatchId: batchId,
+            grossAmount: casts.castToDecimal(item.grossAmount),
+            ...(itemTaxType ? { taxType: itemTaxType } : {}),
+            ...(validatorUtilities.isNumber(item.vatableAmount, false, false)
+              ? { vatableAmount: casts.castToDecimal(item.vatableAmount!) }
+              : {}),
+            responsibilityCenterId: input.responsibilityCenterId,
+            disbursedBy: actor.id,
+            status: "PREPARATION",
+            accountantSigningStatus: "pending",
+            ...(validatorUtilities.isNotEmpty(input.prNumber) ? { prNumber: input.prNumber } : {}),
+          })
+          .returning({ id: obrDisbursementVouchers.id });
+
+        createdIds.push(created!.id);
+      }
+    });
+
+    const createdVouchers: ObrDisbursementVoucher[] = [];
+    for (const id of createdIds) {
+      const dv = await _getDisbursementVoucherById(id);
+      if (dv) createdVouchers.push(dv);
+    }
+
+    return new Success(createdVouchers);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to create standalone disbursement.", { userId: actor.id }, e);
+  }
+}
+
+/**
+ * Lists OBR requests that are awaiting disbursement creation.
+ *
+ * @description
+ * Returns requests that have not yet been submitted for approval because no disbursement vouchers have been created.
+ *
+ * On success, wraps the request summaries in a {@link Success}. On permission failure, returns a {@link Failure}.
+ * On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function listRequestsPendingDisbursement
+ * @param {User} actor - User attempting to list pending disbursement requests.
+ * @returns {Promise<Result<ObrRequestSummaryType[]>>} Pending disbursement request summaries on success.
+ */
+export async function listRequestsPendingDisbursement(
+  actor: User,
+): Promise<Result<ObrRequestSummaryType[]>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to list requests pending disbursement.",
+        { userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const all = await _getAllObrRequestAsSummaries(
+      and(
+        eq(obrRequests.submittedForApproval, false),
+        eq(obrRequests.originatingOfficeId, actor.office.id),
+      )!,
+    );
+
+    return new Success(all.map(i => ({
+      id: i.id,
+      type: i.type,
+      requestNumber: i.requestNumber,
+      payee: i.payee,
+      officeAddress: i.officeAddress,
+      obrNumber: i.obrNumber,
+      prNumber: i.prNumber,
+      requestItemsCount: i.requestItemsCount,
+      approvalStatus: getSummaryOfStates(i.approvers),
+    } satisfies ObrRequestSummaryType)));
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to list requests pending disbursement.", { userId: actor.id }, e);
+  }
+}
+
+/**
+ * Updates editable header fields on an OBR request and propagates them to pending disbursement vouchers.
+ *
+ * @description
+ * Allows a budget officer to edit request header fields while the request has not been promoted and no disbursement
+ * voucher on the request has been accountant-approved. Header changes are mirrored to all non-approved disbursement
+ * vouchers linked to the request.
+ *
+ * On success, wraps the updated OBR request in a {@link Success}. On permission, validation, or not-found failure,
+ * returns a {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function updateObrRequestHeader
+ * @param {string} requestId - Identifier of the OBR request to update.
+ * @param {UpdateObrRequestHeaderPayload} payload - Header fields to update.
+ * @param {User} actor - User attempting to update the request header.
+ * @returns {Promise<Result<ObrRequestType>>} Updated OBR request on success.
+ */
+export async function updateObrRequestHeader(
+  requestId: string,
+  payload: UpdateObrRequestHeaderPayload,
+  actor: User,
+): Promise<Result<ObrRequestType>> {
+  try {
+    const validate = await isBudgetOfficerValidForRequestEdit(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to update the request header.",
+        { requestId, userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    if (await isRequestPromoted(requestId)) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "This request has already been promoted and can no longer be edited.",
+        { requestId },
+      );
+    }
+
+    if (await _hasApprovedDisbursementForRequest(requestId)) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        "The disbursement for this request has already been approved and can no longer be edited.",
+        { requestId },
+      );
+    }
+
+    const updatePayload = {
+      ...(validatorUtilities.isNotEmpty(payload.payee) ? { payee: payload.payee! } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.officeAddress) ? { officeAddress: payload.officeAddress! } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.obrNumber) ? { obrNumber: payload.obrNumber! } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber! } : {}),
+    };
+    if (Object.keys(updatePayload).length === 0) {
+      return new Failure(ErrorCodes.ValidationFailure, "No updatable fields provided.", { requestId, payload });
+    }
+
+    await db.transaction(async tx => {
+      await tx
+        .update(obrRequests)
+        .set(updatePayload)
+        .where(eq(obrRequests.id, requestId));
+
+      const dvUpdate: Record<string, unknown> = {};
+      if (updatePayload.payee !== undefined) dvUpdate.payee = updatePayload.payee;
+      if (updatePayload.officeAddress !== undefined) dvUpdate.address = updatePayload.officeAddress;
+      if (updatePayload.prNumber !== undefined) dvUpdate.prNumber = updatePayload.prNumber;
+
+      if (Object.keys(dvUpdate).length > 0) {
+        await tx
+          .update(obrDisbursementVouchers)
+          .set(dvUpdate)
+          .where(
+            and(
+              eq(obrDisbursementVouchers.requestId, requestId),
+              eq(obrDisbursementVouchers.accountantSigningStatus, "pending"),
+            ),
+          );
+      }
+    });
+
+    const updated = await getObrRequestById(requestId, actor);
+    if (updated instanceof Failure) return updated;
+    return updated;
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, "Unable to update request header.", { requestId, userId: actor.id }, e);
   }
 }
 
@@ -1439,6 +2248,7 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
 
     const updatePayload = {
       ...(validatorUtilities.isNotEmpty(payload.particulars) ? { particulars: payload.particulars! } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.explanation) ? { explanation: payload.explanation! } : {}),
       ...(validatorUtilities.isNumber(payload.grossAmount) ? { grossAmount: casts.castToDecimal(payload.grossAmount!) } : {}),
       ...(validatorUtilities.isNumber(payload.vatableAmount) ? { vatableAmount: casts.castToDecimal(payload.vatableAmount!) } : {}),
       ...(validatorUtilities.isNotEmpty(payload.taxType) ? { taxType: payload.taxType as TaxType } : {}),
@@ -1541,11 +2351,11 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       const requestItemUpdate: Record<string, unknown> = {};
       if (updatePayload.particulars) requestItemUpdate.particulars = updatePayload.particulars;
       if (updatePayload.grossAmount) requestItemUpdate.amount = updatePayload.grossAmount;
-      if (Object.keys(requestItemUpdate).length > 0) {
+      if (Object.keys(requestItemUpdate).length > 0 && validatorUtilities.isNotEmpty(ref.requestItemId)) {
         await tx
           .update(obrRequestItems)
           .set(requestItemUpdate)
-          .where(eq(obrRequestItems.id, ref.requestItemId));
+          .where(eq(obrRequestItems.id, ref.requestItemId!));
       }
 
       return [updated];
@@ -1558,6 +2368,12 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       payee: result.payee,
       address: result.address,
       particulars: result.particulars,
+      explanation: validatorUtilities.isNotEmpty(result.explanation) ? result.explanation : null,
+      isOneForAll: result.isOneForAll,
+      withCheque: result.withCheque,
+      disbursementBatchId: result.disbursementBatchId,
+      requestId: result.requestId,
+      requestItemId: result.requestItemId,
       grossAmount: validatorUtilities.isNotEmpty(result.grossAmount) ? result.grossAmount! : null,
       vatableAmount: validatorUtilities.isNotEmpty(result.vatableAmount) ? result.vatableAmount! : null,
       taxType: result.taxType ?? null,
@@ -1657,6 +2473,12 @@ async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementV
       payee: obrDisbursementVouchers.payee,
       address: obrDisbursementVouchers.address,
       particulars: obrDisbursementVouchers.particulars,
+      explanation: obrDisbursementVouchers.explanation,
+      isOneForAll: obrDisbursementVouchers.isOneForAll,
+      withCheque: obrDisbursementVouchers.withCheque,
+      disbursementBatchId: obrDisbursementVouchers.disbursementBatchId,
+      requestId: obrDisbursementVouchers.requestId,
+      requestItemId: obrDisbursementVouchers.requestItemId,
       prNumber: obrDisbursementVouchers.prNumber,
       grossAmount: obrDisbursementVouchers.grossAmount,
       vatableAmount: obrDisbursementVouchers.vatableAmount,
@@ -1711,6 +2533,12 @@ async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementV
     payee: ref.payee,
     address: ref.address,
     particulars: ref.particulars,
+    explanation: validatorUtilities.isNotEmpty(ref.explanation) ? ref.explanation : null,
+    isOneForAll: ref.isOneForAll,
+    withCheque: ref.withCheque,
+    disbursementBatchId: ref.disbursementBatchId,
+    requestId: ref.requestId,
+    requestItemId: ref.requestItemId,
     grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? ref.grossAmount! : null,
     vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
     taxType: ref.taxType ?? null,
@@ -1777,6 +2605,7 @@ async function _getElecDataForVoucher(voucherId: string): Promise<Array<ObrDisbu
  *
  * @async
  * @function getAllDisbursementVouchers
+ * @param {User} actor - User requesting disbursement vouchers.
  * @returns {Promise<Result<Array<ObrDisbursementVoucher>>>} A result wrapper containing all disbursement vouchers on
  *                                                           success, or a failure result on error.
  *
@@ -1786,8 +2615,18 @@ async function _getElecDataForVoucher(voucherId: string): Promise<Array<ObrDisbu
  * - Includes fund type information when assigned.
  * - Tax breakdowns are computed from each voucher's saved values.
  */
-export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisbursementVoucher>>> {
+export async function getAllDisbursementVouchers(actor: User): Promise<Result<Array<ObrDisbursementVoucher>>> {
   try {
+    const validate = await isWriterOrAccountantValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to fetch disbursement items",
+        { userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
     const elecItems = await db
       .select({ voucherId: obrDisbursementElectronic.voucherId })
       .from(obrDisbursementElectronic);
@@ -1800,6 +2639,12 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
         payee: obrDisbursementVouchers.payee,
         address: obrDisbursementVouchers.address,
         particulars: obrDisbursementVouchers.particulars,
+        explanation: obrDisbursementVouchers.explanation,
+        isOneForAll: obrDisbursementVouchers.isOneForAll,
+        withCheque: obrDisbursementVouchers.withCheque,
+        disbursementBatchId: obrDisbursementVouchers.disbursementBatchId,
+        requestId: obrDisbursementVouchers.requestId,
+        requestItemId: obrDisbursementVouchers.requestItemId,
         prNumber: obrDisbursementVouchers.prNumber,
         grossAmount: obrDisbursementVouchers.grossAmount,
         vatableAmount: obrDisbursementVouchers.vatableAmount,
@@ -1846,7 +2691,8 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
       .innerJoin(
         user,
         eq(user.id, obrDisbursementVouchers.disbursedBy),
-      );
+      )
+      .where(eq(user.officeId, actor.office.id));
 
     return new Success(all.map(ref => ({
       id: ref.id,
@@ -1855,6 +2701,12 @@ export async function getAllDisbursementVouchers(): Promise<Result<Array<ObrDisb
       payee: ref.payee,
       address: ref.address,
       particulars: ref.particulars,
+      explanation: validatorUtilities.isNotEmpty(ref.explanation) ? ref.explanation : null,
+      isOneForAll: ref.isOneForAll,
+      withCheque: ref.withCheque,
+      disbursementBatchId: ref.disbursementBatchId,
+      requestId: ref.requestId,
+      requestItemId: ref.requestItemId,
       grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? ref.grossAmount! : null,
       vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
       taxType: ref.taxType ?? null,
@@ -2731,7 +3583,9 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
       !permissionSet.has(permissions.OBR_APPROVER_BASIC_READ) &&
       !permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE) &&
       !permissionSet.has(permissions.OBR_APPROVER_ADVANCED_READ) &&
-      !permissionSet.has(permissions.OBR_REQUEST_READ)
+      !permissionSet.has(permissions.OBR_REQUEST_READ) &&
+      !permissionSet.has(permissions.OBR_DISBURSEMENT_CREATE) &&
+      !permissionSet.has(permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE)
     ) {
       return { error: ErrorCodes.InsufficientPermissions };
     }
@@ -2821,6 +3675,14 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
  * - Non-VAT tax types use direct amount-based calculations.
  * - `netAmount` is returned as `null` when no deductions are applied.
  */
+function parseTaxType(value: Optional<string>): TaxType | null {
+  if (!validatorUtilities.isNotEmpty(value)) return null;
+  if (value === "vat-g" || value === "vat-s" || value === "nvat-g" || value === "nvat-s") {
+    return value;
+  }
+  return null;
+}
+
 function createTaxBreakdown(vat: Optional<string>, type: Optional<TaxType>): ObrDisbursementTaxBreakdown {
   if (!validatorUtilities.isNumber(vat) || !validatorUtilities.isNotEmpty(type)) {
     return {
@@ -2935,6 +3797,31 @@ async function isRequestPromoted(requestId: string): Promise<boolean> {
   return !!row;
 }
 
+/**
+ * Checks whether any disbursement voucher on a request has been accountant-approved.
+ *
+ * @description
+ * Returns true when at least one linked disbursement voucher has `accountantSigningStatus = "approved"`.
+ *
+ * @async
+ * @function _hasApprovedDisbursementForRequest
+ * @param {string} requestId - Identifier of the OBR request to inspect.
+ * @returns {Promise<boolean>} `true` when an approved disbursement exists for the request.
+ */
+async function _hasApprovedDisbursementForRequest(requestId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: obrDisbursementVouchers.id })
+    .from(obrDisbursementVouchers)
+    .where(
+      and(
+        eq(obrDisbursementVouchers.requestId, requestId),
+        eq(obrDisbursementVouchers.accountantSigningStatus, "approved"),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function _getNextDisbursementVoucherSequence(tx: DbTransaction): Promise<number> {
@@ -3004,6 +3891,36 @@ async function _getNextChequeNumberSequence(tx: DbTransaction): Promise<number> 
   return max + 1;
 }
 
+async function findFirstUserWithApprovalPermission(
+  permissionFilter: string,
+  officeId?: string,
+): Promise<{ id: string; name: string; positionName: string } | null> {
+  try {
+    const [target] = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        positionName: officePosition.name,
+      })
+      .from(user)
+      .innerJoin(officePosition, eq(user.officePositionId, officePosition.id))
+      .where(
+        and(
+          eq(user.emailVerified, true),
+          eq(user.banned, false),
+          eq(user.shadowBanned, false),
+          sql`${officePosition.permissions} @> ARRAY[${permissionFilter}]`,
+          ...(officeId ? [eq(user.officeId, officeId)] : []),
+        ),
+      )
+      .limit(1);
+    return target ?? null;
+  } catch (e) {
+    void new Failure(ErrorCodes.Fatal, "Unable to find approval signer.", { permissionFilter, officeId }, e);
+    return null;
+  }
+}
+
 async function findFirstUserWithDisbursementPermission(
   permissionFilter: string,
 ): Promise<{ id: string; name: string; positionName: string } | null> {
@@ -3032,6 +3949,51 @@ async function findFirstUserWithDisbursementPermission(
   }
 }
 
+async function _createEsreForStandaloneBatch(batchId: string, tx: DbTransaction): Promise<void> {
+  const vouchers = await tx
+    .select({
+      id: obrDisbursementVouchers.id,
+      disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+      payee: obrDisbursementVouchers.payee,
+      particulars: obrDisbursementVouchers.particulars,
+      explanation: obrDisbursementVouchers.explanation,
+      grossAmount: obrDisbursementVouchers.grossAmount,
+      fundTypeId: obrDisbursementVouchers.fundTypeId,
+      withCheque: obrDisbursementVouchers.withCheque,
+    })
+    .from(obrDisbursementVouchers)
+    .where(
+      and(
+        eq(obrDisbursementVouchers.disbursementBatchId, batchId),
+        isNull(obrDisbursementVouchers.requestId),
+        eq(obrDisbursementVouchers.accountantSigningStatus, "approved"),
+      ),
+    );
+
+  if (vouchers.length === 0) return;
+
+  let chequeSequence = 0;
+  if (vouchers.some(v => v.withCheque)) {
+    chequeSequence = await _getNextChequeNumberSequence(tx);
+  }
+
+  for (const dv of vouchers) {
+    if (!dv.fundTypeId || !validatorUtilities.isNotEmpty(dv.grossAmount)) continue;
+
+    const checkNumber = dv.withCheque ? String(chequeSequence++) : null;
+
+    await tx.insert(esre).values({
+      checkNumber,
+      fundingSourceId: dv.fundTypeId,
+      dvOrPayrollNumber: dv.disbursementVoucherNumber,
+      payee: dv.payee,
+      natureOfPayment: validatorUtilities.isNotEmpty(dv.explanation) ? dv.explanation! : dv.particulars,
+      amount: casts.castToDecimal(dv.grossAmount!),
+      checkStatus: "FOR RELEASE",
+    });
+  }
+}
+
 async function checkAndPromoteRequest(requestId: string): Promise<void> {
   const [request] = await db
     .select({
@@ -3040,7 +4002,8 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
       payee: obrRequests.payee,
       officeAddress: obrRequests.officeAddress,
       prNumber: obrRequests.prNumber,
-      withCheque: obrRequests.withCheque,
+      originatingOfficeId: obrRequests.originatingOfficeId,
+      publisherId: obrRequests.publisherId,
     })
     .from(obrRequests)
     .where(eq(obrRequests.id, requestId))
@@ -3066,31 +4029,26 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
     .from(obrRequestItems)
     .where(eq(obrRequestItems.requestId, requestId));
 
-  let disbursements: Array<{
-    id: string;
-    requestItemId: string;
-    disbursementVoucherNumber: string;
-    fundTypeId: string | null;
-    particulars: string;
-    accountantSigningStatus: "pending" | "approved" | "binned";
-  }> = [];
+  const disbursements = await db
+    .select({
+      id: obrDisbursementVouchers.id,
+      requestItemId: obrDisbursementVouchers.requestItemId,
+      disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
+      fundTypeId: obrDisbursementVouchers.fundTypeId,
+      particulars: obrDisbursementVouchers.particulars,
+      explanation: obrDisbursementVouchers.explanation,
+      grossAmount: obrDisbursementVouchers.grossAmount,
+      isOneForAll: obrDisbursementVouchers.isOneForAll,
+      withCheque: obrDisbursementVouchers.withCheque,
+      accountantSigningStatus: obrDisbursementVouchers.accountantSigningStatus,
+      disbursedBy: obrDisbursementVouchers.disbursedBy,
+      headUserId: obrDisbursementVouchers.headUserId,
+    })
+    .from(obrDisbursementVouchers)
+    .where(eq(obrDisbursementVouchers.requestId, requestId));
 
-  if (request.withCheque) {
-    disbursements = await db
-      .select({
-        id: obrDisbursementVouchers.id,
-        requestItemId: obrDisbursementVouchers.requestItemId,
-        disbursementVoucherNumber: obrDisbursementVouchers.disbursementVoucherNumber,
-        fundTypeId: obrDisbursementVouchers.fundTypeId,
-        particulars: obrDisbursementVouchers.particulars,
-        accountantSigningStatus: obrDisbursementVouchers.accountantSigningStatus,
-      })
-      .from(obrDisbursementVouchers)
-      .where(eq(obrDisbursementVouchers.requestId, requestId));
-
-    if (disbursements.length === 0) return;
-    if (disbursements.some(d => d.accountantSigningStatus !== "approved")) return;
-  }
+  if (disbursements.length === 0) return;
+  if (disbursements.some(d => d.accountantSigningStatus !== "approved")) return;
 
   const ecRows = await db
     .select({ id: expenseClasses.id, class: expenseClasses.class })
@@ -3098,9 +4056,14 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
     .where(inArray(expenseClasses.id, [...new Set(requestItems.map(i => i.expenseCodeId))]));
   const ecClassMap = new Map(ecRows.map(r => [r.id, r.class ?? ""]));
 
+  const officeHead = await findOfficeHeadByOffice(request.originatingOfficeId);
+  const defaultRequestingOfficialId = officeHead?.id ?? request.publisherId;
+
   const now = DateTime.now().setZone("Asia/Manila");
   const yy = now.toFormat("yy");
   const mm = now.toFormat("MM");
+
+  let promoted = false;
 
   await db.transaction(async tx => {
     const [existingMain] = await tx
@@ -3113,7 +4076,21 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
     const baseSequence = await _getNextObrNumberSequence(tx);
     const baseObrNumber = String(baseSequence);
     const isMulti = requestItems.length > 1;
-    let chequeSequence = request.withCheque ? await _getNextChequeNumberSequence(tx) : 0;
+    const isOneForAll = disbursements.some(d => d.isOneForAll);
+    let chequeSequence = 0;
+    const anyWithCheque = isOneForAll
+      ? (disbursements[0]?.withCheque ?? false)
+      : disbursements.some(d => d.withCheque);
+    if (anyWithCheque) {
+      chequeSequence = await _getNextChequeNumberSequence(tx);
+    }
+    const sharedChequeNumber = isOneForAll && anyWithCheque ? String(chequeSequence) : null;
+
+    const resolveDisbursementForItem = (itemId: string) => (
+      isOneForAll
+        ? disbursements[0]
+        : disbursements.find(d => d.requestItemId === itemId)
+    );
 
     for (let idx = 0; idx < requestItems.length; idx++) {
       const item = requestItems[idx]!;
@@ -3132,22 +4109,17 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
           obligated: casts.castToDecimal(item.amount),
           responsibilityCenterId: item.responsibilityCenterId,
           expenseCodeId: item.expenseCodeId,
-          authorId: (await tx
-            .select({ publisherId: obrRequests.publisherId })
-            .from(obrRequests)
-            .where(eq(obrRequests.id, requestId))
-            .limit(1))[0]!.publisherId,
+          authorId: request.publisherId,
           requestSourceId: requestId,
           ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
         })
         .returning({ id: obrMainData.id });
 
-      if (request.withCheque) {
-        const dv = disbursements.find(d => d.requestItemId === item.id);
-        if (!dv?.fundTypeId) continue;
-
-        const checkNumber = String(chequeSequence);
-        chequeSequence += 1;
+      const dv = resolveDisbursementForItem(item.id);
+      if (dv?.fundTypeId) {
+        const checkNumber = dv.withCheque
+          ? (isOneForAll ? sharedChequeNumber : String(chequeSequence++))
+          : null;
 
         await tx.insert(esre).values({
           checkNumber,
@@ -3155,11 +4127,37 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
           dvOrPayrollNumber: dv.disbursementVoucherNumber,
           obrItemId: mainRow!.id,
           payee: request.payee,
-          natureOfPayment: item.particulars,
+          natureOfPayment: validatorUtilities.isNotEmpty(dv.explanation) ? dv.explanation! : item.particulars,
           amount: casts.castToDecimal(item.amount),
           checkStatus: "FOR RELEASE",
         });
       }
+    }
+
+    for (const item of requestItems) {
+      const dv = resolveDisbursementForItem(item.id);
+      if (!dv) continue;
+
+      const [obrItemRow] = await tx
+        .insert(obrItems)
+        .values({
+          payee: request.payee,
+          address: request.officeAddress,
+          particulars: item.particulars,
+          requestingOfficialId: dv.headUserId ?? defaultRequestingOfficialId,
+          disbursementRefId: dv.id,
+          publishedBy: dv.disbursedBy,
+          requestId,
+          requestItemId: item.id,
+        })
+        .returning({ id: obrItems.id });
+
+      await tx.insert(obrOfficeItem).values({
+        amount: casts.castToDecimal(item.amount),
+        responsibilityCenterId: item.responsibilityCenterId,
+        expenseCodeId: item.expenseCodeId,
+        itemId: obrItemRow!.id,
+      });
     }
 
     await tx
@@ -3169,20 +4167,27 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
         ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
       })
       .where(eq(obrRequests.id, requestId));
+
+    promoted = true;
   });
+
+  if (!promoted) return;
+
+  const movementPayload = {
+    requestId: request.id,
+    requestNumber: request.requestNumber,
+    officeId: request.originatingOfficeId,
+    actorName: "System",
+  };
 
   await publishEvent({
     type: "obr.request.main-data-created",
-    payload: {
-      requestId: request.id,
-      requestNumber: request.requestNumber,
-      officeId: (await db
-        .select({ officeId: obrRequests.originatingOfficeId })
-        .from(obrRequests)
-        .where(eq(obrRequests.id, requestId))
-        .limit(1))[0]!.officeId,
-      actorName: "System",
-    },
+    payload: movementPayload,
+  });
+
+  await publishEvent({
+    type: "obr.request.items-created",
+    payload: movementPayload,
   });
 }
 
@@ -3251,7 +4256,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
       officeAddress: obrRequests.officeAddress,
       obrNumber: obrRequests.obrNumber,
       prNumber: obrRequests.prNumber,
-      withCheque: obrRequests.withCheque,
+      submittedForApproval: obrRequests.submittedForApproval,
       publisherId: obrRequests.publisherId,
       officeId: obrRequests.originatingOfficeId,
       requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
@@ -3295,6 +4300,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
   if (!result) return null;
 
   const promoted = await isRequestPromoted(requestId);
+  const disbursementApproved = await _hasApprovedDisbursementForRequest(requestId);
 
   // Get the codes, user, positions and originating office
   const rcIds = [...new Set(result.requestItems.map(o => o.responsibilityCenterId))];
@@ -3365,7 +4371,8 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
     officeAddress: result.officeAddress,
     obrNumber: result.obrNumber,
     prNumber: result.prNumber,
-    withCheque: result.withCheque,
+    submittedForApproval: result.submittedForApproval,
+    disbursementApproved,
     promoted,
     publisher: {
       id: uMap.get(result.publisherId)!.id,
@@ -4128,8 +5135,11 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   const explanationStart = row;
   const explanationRows = elecData.length > 0 ? 3 : 2;
+  const explanationText = validatorUtilities.isNotEmpty(voucher.explanation)
+    ? voucher.explanation!
+    : voucher.particulars;
   ws.mergeCells(explanationStart, explanationLeftStartCol, explanationStart + explanationRows, explanationLeftEndCol);
-  ws.getCell(explanationStart, explanationLeftStartCol).value = voucher.particulars;
+  ws.getCell(explanationStart, explanationLeftStartCol).value = explanationText;
   ws.getCell(explanationStart, explanationLeftStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
   ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountEndCol);
   ws.getCell(explanationStart, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
@@ -4398,19 +5408,28 @@ async function _buildDisbursementVoucherExcelBuffer(
   }
   ws.getCell(row, signerLeftStartCol).value = "Signature:";
   ws.getCell(row, signerRightStartCol).value = "Signature:";
+  const signersApproved = voucher.accountantSigningStatus === "approved";
   ws.getCell(row + 1, signerLeftStartCol).value = "Printed Name:";
-  ws.getCell(row + 1, signerLeftValueStartCol).value = (voucher.signers.accountant.name ?? "").toUpperCase();
+  ws.getCell(row + 1, signerLeftValueStartCol).value = signersApproved
+    ? (voucher.signers.accountant.name ?? "").toUpperCase()
+    : "";
   ws.getCell(row + 1, signerLeftValueStartCol).font = { bold: true };
   ws.getCell(row + 1, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 1, signerRightStartCol).value = "Printed Name:";
-  ws.getCell(row + 1, signerRightValueStartCol).value = (voucher.signers.treasurer.name ?? "").toUpperCase();
+  ws.getCell(row + 1, signerRightValueStartCol).value = signersApproved
+    ? (voucher.signers.treasurer.name ?? "").toUpperCase()
+    : "";
   ws.getCell(row + 1, signerRightValueStartCol).font = { bold: true };
   ws.getCell(row + 1, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 2, signerLeftStartCol).value = "Position:";
-  ws.getCell(row + 2, signerLeftValueStartCol).value = voucher.signers.accountant.position ?? "";
+  ws.getCell(row + 2, signerLeftValueStartCol).value = signersApproved
+    ? (voucher.signers.accountant.position ?? "")
+    : "";
   ws.getCell(row + 2, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 2, signerRightStartCol).value = "Position:";
-  ws.getCell(row + 2, signerRightValueStartCol).value = voucher.signers.treasurer.position ?? "";
+  ws.getCell(row + 2, signerRightValueStartCol).value = signersApproved
+    ? (voucher.signers.treasurer.position ?? "")
+    : "";
   ws.getCell(row + 2, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 3, signerLeftStartCol).value = "Date:";
   ws.getCell(row + 3, signerRightStartCol).value = "Date:";
@@ -4443,16 +5462,22 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getCell(row, signerRightValueStartCol).value = "Bank Name";
 
   ws.getCell(row + 1, signerLeftStartCol).value = "Position:";
-  ws.getCell(row + 1, signerLeftValueStartCol).value = (voucher.signers.mayor.name ?? "").toUpperCase();
+  ws.getCell(row + 1, signerLeftValueStartCol).value = signersApproved
+    ? (voucher.signers.mayor.name ?? "").toUpperCase()
+    : "";
   ws.getCell(row + 1, signerLeftValueStartCol).font = { bold: true };
   ws.getCell(row + 1, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 1, signerRightStartCol).value = "Signature/ Printed Name/ Date";
-  ws.getCell(row + 1, signerRightValueStartCol).value = (voucher.payee ?? "").toUpperCase();
+  ws.getCell(row + 1, signerRightValueStartCol).value = signersApproved
+    ? (voucher.payee ?? "").toUpperCase()
+    : "";
   ws.getCell(row + 1, signerRightValueStartCol).font = { bold: true };
   ws.getCell(row + 1, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
 
   ws.getCell(row + 2, signerLeftStartCol).value = "Date:";
-  ws.getCell(row + 2, signerLeftValueStartCol).value = voucher.signers.mayor.position ?? "";
+  ws.getCell(row + 2, signerLeftValueStartCol).value = signersApproved
+    ? (voucher.signers.mayor.position ?? "")
+    : "";
   ws.getCell(row + 2, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   ws.getCell(row + 2, signerRightStartCol).value = "OR/Other Documents";
   ws.getCell(row + 2, signerRightValueStartCol).value = "JEV No./ Date";
@@ -4684,7 +5709,6 @@ type CreateNewRequestType = {
   officeAddress: string;
   obrNumber?: string;
   prNumber?: string;
-  withCheque?: boolean;
   requestItems: Array<{
     responsibilityCenterId: string;
     expenseCodeId: string;
@@ -4696,6 +5720,48 @@ type CreateNewRequestType = {
 type UpdateObrRequestItemPayload = {
   particulars?: string;
   amount?: string;
+}
+
+type UpdateObrRequestHeaderPayload = {
+  payee?: string;
+  officeAddress?: string;
+  obrNumber?: string;
+  prNumber?: string;
+}
+
+type CreateDisbursementItemPayload = {
+  requestItemId: string;
+  explanation: string;
+  taxType?: string;
+  vatableAmount?: string;
+};
+
+type CreateDisbursementPayload = {
+  oneForAll: boolean;
+  withCheque?: boolean;
+  particulars?: string;
+  explanation?: string;
+  grossAmount?: string;
+  taxType?: string;
+  vatableAmount?: string;
+  items: CreateDisbursementItemPayload[];
+}
+
+type CreateStandaloneDisbursementItemPayload = {
+  particulars: string;
+  explanation: string;
+  grossAmount: string;
+  taxType?: string;
+  vatableAmount?: string;
+};
+
+type CreateStandaloneDisbursementPayload = {
+  payee: string;
+  officeAddress: string;
+  responsibilityCenterId: string;
+  prNumber?: string;
+  withCheque?: boolean;
+  items: CreateStandaloneDisbursementItemPayload[];
 }
 
 type ObrRequestItemObject = {
@@ -4716,6 +5782,9 @@ type PendingDisbursementForAccountant = {
   payee?: string | null;
   address: string;
   particulars: string;
+  explanation: Optional<string>;
+  isOneForAll: boolean;
+  withCheque: boolean;
   grossAmount: Optional<string>;
   vatableAmount: Optional<string>;
   taxType: Optional<string>;
@@ -4728,12 +5797,34 @@ type PendingDisbursementForAccountant = {
   request: {
     id: string;
     requestNumber: string;
-  };
+  } | null;
   requestItem: {
     id: string;
     particulars: string;
     amount: string;
   };
+};
+
+type PendingDisbursementBatchForAccountant = {
+  batchId: string;
+  requestId: string | null;
+  requestNumber: string | null;
+  isHeadless: boolean;
+  payee?: string | null;
+  address: string;
+  isOneForAll: boolean;
+  withCheque: boolean;
+  accountantSigningStatus: string;
+  totalGrossAmount: string;
+  itemCount: number;
+  items: PendingDisbursementForAccountant[];
+  requestItems: Array<{
+    id: string;
+    particulars: string;
+    amount: string;
+    responsibilityCenter: string;
+    expenseName: string;
+  }>;
 };
 
 export type ObrTemplateType = templateBucket.TemplateType;
@@ -4779,7 +5870,8 @@ type ExpenseCodeObject = {
 }
 
 type ObrRequestType = {
-  withCheque: boolean;
+  submittedForApproval: boolean;
+  disbursementApproved: boolean;
   promoted: boolean;
   office: {
     id: string;
@@ -4832,6 +5924,12 @@ type ObrDisbursementVoucher = {
   payee?: string | null;
   address: string;
   particulars: string;
+  explanation: Optional<string>;
+  isOneForAll: boolean;
+  withCheque: boolean;
+  disbursementBatchId: string;
+  requestId: string | null;
+  requestItemId: string | null;
   grossAmount: Optional<string>;
   vatableAmount: Optional<string>;
   taxType: Optional<string>;
@@ -4893,6 +5991,7 @@ type DisbursementStatus = "PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEAS
 
 type UpdateDisbursementVoucherPayload = {
   particulars?: Optional<string>;
+  explanation?: Optional<string>;
   grossAmount?: Optional<string>;
   vatableAmount: Optional<string>;
   taxType: Optional<TaxType>;

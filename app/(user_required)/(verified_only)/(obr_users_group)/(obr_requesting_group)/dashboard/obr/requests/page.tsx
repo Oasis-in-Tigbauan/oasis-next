@@ -21,7 +21,6 @@ import * as permissions from "@/lib/db/permissions";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -72,7 +71,6 @@ type CreateFormState = {
   officeAddress: string;
   obrNumber: string;
   prNumber: string;
-  withCheque: boolean;
   requestItems: CreateFormItem[];
 };
 
@@ -110,7 +108,6 @@ function makeEmptyForm(): CreateFormState {
     officeAddress: "",
     obrNumber: "",
     prNumber: "",
-    withCheque: true,
     requestItems: [makeEmptyItem()],
   };
 }
@@ -941,7 +938,6 @@ function CreateRequestDialog({
       officeAddress: form.officeAddress.trim(),
       ...(form.obrNumber.trim() ? { obrNumber: form.obrNumber.trim() } : {}),
       ...(form.prNumber.trim() ? { prNumber: form.prNumber.trim() } : {}),
-      withCheque: form.withCheque,
       requestItems: form.requestItems.map(item => ({
         expenseCodeId: item.expenseCodeId,
         responsibilityCenterId: item.responsibilityCenterId,
@@ -1067,24 +1063,6 @@ function CreateRequestDialog({
                     onInput={e => updateHeader("prNumber", e.currentTarget.value)}
                     placeholder="Enter PR number"
                   />
-                </Field>
-              </FieldGroup>
-
-              <FieldGroup className="col-span-2">
-                <Field>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="withCheque"
-                      checked={form.withCheque}
-                      onCheckedChange={checked => {
-                        setForm(prev => ({ ...prev, withCheque: checked === true }));
-                        markDirty();
-                      }}
-                    />
-                    <Label htmlFor="withCheque">
-                      With cheque (create disbursement vouchers for each item)
-                    </Label>
-                  </div>
                 </Field>
               </FieldGroup>
             </div>
