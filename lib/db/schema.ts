@@ -469,7 +469,7 @@ export const obrRequests = pgTable("obr_requests", {
   obrNumber: text("obr_number"),
   prNumber: text("pr_number"),
   type: obrRequestType("request_type").notNull(),
-  withCheque: boolean("with_cheque").default(true).notNull(),
+  submittedForApproval: boolean("submitted_for_approval").default(false).notNull(),
 
   publisherId: text("publisher_id")
     .references(() => user.id)
@@ -554,6 +554,10 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
     .notNull(),
   particulars: text("particulars")
     .notNull(),
+  explanation: text("explanation"),
+  isOneForAll: boolean("is_one_for_all").default(false).notNull(),
+  withCheque: boolean("with_cheque").default(true).notNull(),
+  disbursementBatchId: text("disbursement_batch_id").notNull(),
   prNumber: text("pr_number"),
   grossAmount: decimal("gross_amount"),
   vatableAmount: decimal("vatable_amount"),
@@ -592,11 +596,9 @@ export const obrDisbursementVouchers = pgTable("obr_disbursement_vouchers", {
   fundTypeId: text("fund_type_id")
     .references(() => fundTypes.id),
   requestId: text("request_id")
-    .references(() => obrRequests.id)
-    .notNull(),
+    .references(() => obrRequests.id),
   requestItemId: text("request_item_id")
-    .references(() => obrRequestItems.id)
-    .notNull(),
+    .references(() => obrRequestItems.id),
   disbursedBy: text("disbursed_by")
     .references(() => user.id)
     .notNull(),

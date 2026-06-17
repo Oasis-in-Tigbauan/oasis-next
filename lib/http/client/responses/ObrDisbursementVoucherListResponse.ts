@@ -16,6 +16,12 @@ export type ObrDisbursementVoucherItem = {
   payee: string;
   address: string;
   particulars: string;
+  explanation: string | null;
+  isOneForAll: boolean;
+  withCheque: boolean;
+  disbursementBatchId: string;
+  requestId: string | null;
+  requestItemId: string | null;
   grossAmount: string | null;
   vatableAmount: string | null;
   taxType: string | null;

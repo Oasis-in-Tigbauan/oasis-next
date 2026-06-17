@@ -5,6 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 import { db } from "@/lib/db";
 import {
+  appNotifications,
   aroOfficeDefinitions,
   aipReferences,
   esre,
@@ -12,10 +13,15 @@ import {
   expenseClassOfficeCodes,
   expenseType,
   fundTypes,
+  lbacCollectionPerformanceData,
+  lbacCollectionPerformanceGroup,
+  lbacCollectionPerformanceMonthlyData,
   lbacGroups,
   lbacItems,
   lbacMonitoring,
   lbacQuarterlyReport,
+  lbacStatementOfExpenditures,
+  leaveApplications,
   modeOfProcurements,
   obrDisbursementElectronic,
   obrDisbursementVouchers,
@@ -26,6 +32,9 @@ import {
   obrRequestApprovers,
   obrRequestItems,
   obrRequests,
+  officeCodes,
+  payrollEntries,
+  payrolls,
   ppmp,
   ppmpMajorGroup,
   ppmpMinorGroup,
@@ -34,13 +43,14 @@ import {
   purchasingAip,
   saaobEntries,
   saaobEntryGroup,
+  saaobStatisticItems,
+  saaobStatisticSelectedGroups,
   saaobSummaryOfAccounts,
   saaobSummaryOfAccountsGroup,
   saaobSummaryOfAccountsLinkedGroups,
   supplemental,
   templateBucket,
   travelOrders,
-  officeCodes,
 } from "@/lib/db/schema";
 
 async function askForConfirmation() {
@@ -71,6 +81,9 @@ async function resetData() {
     await tx.update(saaobEntryGroup).set({ parentId: null });
     await tx.update(saaobSummaryOfAccountsGroup).set({ parentId: null });
     await tx.update(aipReferences).set({ parentId: null });
+    await tx.update(saaobStatisticItems).set({ parentId: null });
+    await tx.update(lbacCollectionPerformanceGroup).set({ parentId: null });
+    await tx.update(lbacStatementOfExpenditures).set({ parentId: null });
 
     console.log("Deleting operational records...");
     await tx.delete(obrMainAipReferences);
@@ -83,6 +96,13 @@ async function resetData() {
     await tx.delete(esre);
     await tx.delete(templateBucket);
     await tx.delete(travelOrders);
+    await tx.delete(leaveApplications);
+    await tx.delete(payrollEntries);
+    await tx.delete(payrolls);
+    await tx.delete(appNotifications);
+    await tx.delete(saaobStatisticSelectedGroups);
+    await tx.delete(lbacCollectionPerformanceMonthlyData);
+    await tx.delete(lbacCollectionPerformanceData);
     await tx.delete(obrItems);
     await tx.delete(obrMainData);
     await tx.delete(ppmpMinorGroup);
@@ -99,6 +119,9 @@ async function resetData() {
     console.log("Deleting planning and metadata records...");
     await tx.delete(lbacGroups);
     await tx.delete(lbacQuarterlyReport);
+    await tx.delete(lbacCollectionPerformanceGroup);
+    await tx.delete(lbacStatementOfExpenditures);
+    await tx.delete(saaobStatisticItems);
     await tx.delete(saaobEntries);
     await tx.delete(saaobSummaryOfAccountsGroup);
     await tx.delete(purchasing);

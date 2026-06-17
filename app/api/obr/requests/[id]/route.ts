@@ -18,6 +18,8 @@ export async function GET(
     permission.OBR_APPROVER_ADVANCED_READ,
     permission.OBR_REQUEST_READ,
     permission.OBR_MANAGEMENT_READ,
+    permission.OBR_DISBURSEMENT_CREATE,
+    permission.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
   ], "or");
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
@@ -100,7 +102,62 @@ export async function PATCH(
   );
 }
 
+export async function PUT(
+  req: NextRequest,
+  { params }: RouteContext<"/api/obr/requests/[id]">,
+) {
+  const session = await auth.verify([
+    permission.OBR_APPROVER_BASIC_HIGH_WRITE,
+  ]);
+  if (!session || session.code !== SessionCode.Ok) {
+    return ApiResponseBuilder.createFromSessionValidation(session).build();
+  }
+
+  const { id } = await params;
+  if (!validatorUtilities.isUuid(id)) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status404NotFound, "No such request item found.")
+      .build();
+  }
+
+  const body = await tryParseJson<UpdateObrRequestHeaderRequest>(req);
+  if (!body) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, "Invalid payload.")
+      .build();
+  }
+
+  const validate = await validator.validate<UpdateObrRequestHeaderRequest>(body, {
+    properties: {
+      payee: { type: "string", formatter: "non-empty-string" },
+      officeAddress: { type: "string", formatter: "non-empty-string" },
+      obrNumber: { type: "string", formatter: "non-empty-string" },
+      prNumber: { type: "string", formatter: "non-empty-string" },
+    },
+    requiredProperties: [],
+    allowUnvalidatedProperties: false,
+  });
+  if (!validate.ok) {
+    return ApiResponseBuilder
+      .createError(StatusCodes.Status400BadRequest, validate.errors!)
+      .build();
+  }
+
+  const result = await obr.updateObrRequestHeader(id, body, session.user!);
+  return oneOf(result).match(
+    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    e => ApiResponseBuilder.createFromFailure(e).build(),
+  );
+}
+
 type SetApproverStateRequest = {
   status: "pending" | "approved" | "binned";
   reason?: string;
+}
+
+type UpdateObrRequestHeaderRequest = {
+  payee?: string;
+  officeAddress?: string;
+  obrNumber?: string;
+  prNumber?: string;
 }

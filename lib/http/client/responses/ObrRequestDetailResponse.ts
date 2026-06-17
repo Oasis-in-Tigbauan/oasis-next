@@ -38,7 +38,8 @@ export type ObrRequestDetail = {
   officeAddress: string;
   obrNumber: Optional<string>;
   prNumber: Optional<string>;
-  withCheque: boolean;
+  submittedForApproval: boolean;
+  disbursementApproved: boolean;
   promoted: boolean;
   requestItemsCount: number;
   office: {

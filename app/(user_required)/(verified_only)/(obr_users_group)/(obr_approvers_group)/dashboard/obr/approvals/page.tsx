@@ -43,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
 import Typography from "@/components/typography";
@@ -268,40 +269,74 @@ function ApprovalDetailDialog({
   >(open ? `/api/obr/requests/${id}` : null, $fetch);
 
   const detail = data?.data?.data;
-  const canEdit = !!detail && !detail.promoted;
+  const canEdit = !!detail && !detail.promoted && !detail.disbursementApproved;
 
   const [actionOpen, setActionOpen] = useState(false);
-  const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [headerEdits, setHeaderEdits] = useState<{
+    payee: string;
+    officeAddress: string;
+    obrNumber: string;
+    prNumber: string;
+  } | null>(null);
   const [itemEdits, setItemEdits] = useState<Record<string, { particulars: string; amount: string }>>({});
+
+  const headerForm = headerEdits ?? {
+    payee: detail?.payee ?? "",
+    officeAddress: detail?.officeAddress ?? "",
+    obrNumber: detail?.obrNumber ?? "",
+    prNumber: detail?.prNumber ?? "",
+  };
+
+  const isHeaderDirty = headerEdits !== null;
+  const hasItemEdits = Object.keys(itemEdits).length > 0;
 
   const getItemEdit = (itemId: string, particulars: string, amount: string) =>
     itemEdits[itemId] ?? { particulars, amount };
 
-  const saveItemEdit = async (itemId: string) => {
-    const edit = itemEdits[itemId];
-    if (!edit) return;
-    setSavingItemId(itemId);
-    const res = await $fetch<unknown, ApiResponseException>(
-      `/api/obr/requests/${id}/items/${itemId}`,
-      {
-        method: "PATCH",
+  const saveAllChanges = async (): Promise<boolean> => {
+    if (!detail) return false;
+    setSaving(true);
+
+    if (isHeaderDirty) {
+      const res = await $fetch<unknown, ApiResponseException>(`/api/obr/requests/${id}`, {
+        method: "PUT",
         body: {
-          particulars: edit.particulars.trim(),
-          amount: edit.amount.trim(),
+          payee: headerForm.payee.trim(),
+          officeAddress: headerForm.officeAddress.trim(),
+          ...(headerForm.obrNumber.trim() ? { obrNumber: headerForm.obrNumber.trim() } : {}),
+          ...(headerForm.prNumber.trim() ? { prNumber: headerForm.prNumber.trim() } : {}),
         },
-      },
-    );
-    setSavingItemId(null);
-    if (res.error) {
-      alert(res.error.message ?? "Failed to update request item.");
-      return;
+      });
+      if (res.error) {
+        setSaving(false);
+        alert(res.error.message ?? "Failed to update request header.");
+        return false;
+      }
+      setHeaderEdits(null);
     }
-    setItemEdits(prev => {
-      const next = { ...prev };
-      delete next[itemId];
-      return next;
-    });
+
+    for (const [itemId, edit] of Object.entries(itemEdits)) {
+      const res = await $fetch<unknown, ApiResponseException>(
+        `/api/obr/requests/${id}/items/${itemId}`,
+        {
+          method: "PATCH",
+          body: {
+            particulars: edit.particulars.trim(),
+            amount: edit.amount.trim(),
+          },
+        },
+      );
+      if (res.error) {
+        setSaving(false);
+        alert(res.error.message ?? "Failed to update request item.");
+        return false;
+      }
+    }
+    setItemEdits({});
+    setSaving(false);
     mutate();
+    return true;
   };
 
   const formatAmount = (amount: string) => {
@@ -341,6 +376,15 @@ function ApprovalDetailDialog({
             {(error || data?.error || (!isLoading && !detail)) && <DeadHamster />}
             {detail && (
               <div className="flex flex-col gap-6 pb-2">
+                {detail.disbursementApproved && (
+                  <Alert>
+                    <AlertTitle>Disbursement already approved</AlertTitle>
+                    <AlertDescription>
+                      This request can no longer be edited because its disbursement has already been approved.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1">
                     <Typography variant="small" className="text-muted-foreground">
@@ -356,34 +400,86 @@ function ApprovalDetailDialog({
                       {detail.type}
                     </Typography>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <Typography variant="small" className="text-muted-foreground">
-                      Payee
-                    </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.payee}</Typography>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Typography variant="small" className="text-muted-foreground">
-                      Office Address
-                    </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.officeAddress}</Typography>
-                  </div>
-                  {detail.obrNumber && (
-                    <div className="flex flex-col gap-1">
-                      <Typography variant="small" className="text-muted-foreground">
-                        OBR Number
-                      </Typography>
-                      <Typography variant="p" className="not-first:mt-0">{detail.obrNumber}</Typography>
-                    </div>
-                  )}
-                  {detail.prNumber && (
-                    <div className="flex flex-col gap-1">
-                      <Typography variant="small" className="text-muted-foreground">
-                        PR Number
-                      </Typography>
-                      <Typography variant="p" className="not-first:mt-0">{detail.prNumber}</Typography>
-                    </div>
-                  )}
+                  <Field>
+                    <Label htmlFor="payee">Payee</Label>
+                    {canEdit ? (
+                      <Input
+                        id="payee"
+                        value={headerForm.payee}
+                        onChange={e => setHeaderEdits(prev => ({
+                          ...(prev ?? {
+                            payee: detail.payee ?? "",
+                            officeAddress: detail.officeAddress,
+                            obrNumber: detail.obrNumber ?? "",
+                            prNumber: detail.prNumber ?? "",
+                          }),
+                          payee: e.target.value,
+                        }))}
+                      />
+                    ) : (
+                      <Typography variant="p" className="not-first:mt-0">{detail.payee}</Typography>
+                    )}
+                  </Field>
+                  <Field>
+                    <Label htmlFor="officeAddress">Office Address</Label>
+                    {canEdit ? (
+                      <Input
+                        id="officeAddress"
+                        value={headerForm.officeAddress}
+                        onChange={e => setHeaderEdits(prev => ({
+                          ...(prev ?? {
+                            payee: detail.payee ?? "",
+                            officeAddress: detail.officeAddress,
+                            obrNumber: detail.obrNumber ?? "",
+                            prNumber: detail.prNumber ?? "",
+                          }),
+                          officeAddress: e.target.value,
+                        }))}
+                      />
+                    ) : (
+                      <Typography variant="p" className="not-first:mt-0">{detail.officeAddress}</Typography>
+                    )}
+                  </Field>
+                  <Field>
+                    <Label htmlFor="obrNumber">OBR Number</Label>
+                    {canEdit ? (
+                      <Input
+                        id="obrNumber"
+                        value={headerForm.obrNumber}
+                        onChange={e => setHeaderEdits(prev => ({
+                          ...(prev ?? {
+                            payee: detail.payee ?? "",
+                            officeAddress: detail.officeAddress,
+                            obrNumber: detail.obrNumber ?? "",
+                            prNumber: detail.prNumber ?? "",
+                          }),
+                          obrNumber: e.target.value,
+                        }))}
+                      />
+                    ) : (
+                      <Typography variant="p" className="not-first:mt-0">{detail.obrNumber ?? "—"}</Typography>
+                    )}
+                  </Field>
+                  <Field>
+                    <Label htmlFor="prNumber">PR Number</Label>
+                    {canEdit ? (
+                      <Input
+                        id="prNumber"
+                        value={headerForm.prNumber}
+                        onChange={e => setHeaderEdits(prev => ({
+                          ...(prev ?? {
+                            payee: detail.payee ?? "",
+                            officeAddress: detail.officeAddress,
+                            obrNumber: detail.obrNumber ?? "",
+                            prNumber: detail.prNumber ?? "",
+                          }),
+                          prNumber: e.target.value,
+                        }))}
+                      />
+                    ) : (
+                      <Typography variant="p" className="not-first:mt-0">{detail.prNumber ?? "—"}</Typography>
+                    )}
+                  </Field>
                   <div className="flex flex-col gap-1">
                     <Typography variant="small" className="text-muted-foreground">
                       Originating Office
@@ -412,13 +508,11 @@ function ApprovalDetailDialog({
                         <TableHead>Account Code</TableHead>
                         <TableHead>Responsibility Center</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
-                        {canEdit && <TableHead className="w-24">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {detail.requestItems.map((item) => {
                         const edit = getItemEdit(item.id, item.particulars, item.amount);
-                        const isDirty = !!itemEdits[item.id];
                         return (
                           <TableRow key={item.id}>
                             <TableCell>
@@ -447,19 +541,6 @@ function ApprovalDetailDialog({
                                 />
                               ) : formatAmount(item.amount)}
                             </TableCell>
-                            {canEdit && (
-                              <TableCell>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={!isDirty || savingItemId === item.id}
-                                  onClick={() => saveItemEdit(item.id)}
-                                >
-                                  {savingItemId === item.id ? "Saving…" : "Save"}
-                                </Button>
-                              </TableCell>
-                            )}
                           </TableRow>
                         );
                       })}
@@ -516,6 +597,11 @@ function ApprovalDetailDialog({
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
             </DialogClose>
+            {canEdit && (isHeaderDirty || hasItemEdits) && (
+              <Button variant="outline" disabled={saving} onClick={saveAllChanges}>
+                {saving ? "Saving…" : "Save Changes"}
+              </Button>
+            )}
             {detail && !detail.promoted && (
               <Button onClick={() => setActionOpen(true)}>
                 Submit Decision

@@ -55,7 +55,7 @@ export async function POST(
       .build();
   }
 
-  const result = await obr.approveDisbursement(id, session.user!, body.status, body.reason);
+  const result = await obr.approveDisbursementsForRequest(id, session.user!, body.status, body.reason);
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
