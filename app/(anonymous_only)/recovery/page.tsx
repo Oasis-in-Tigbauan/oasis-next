@@ -2,7 +2,7 @@
 
 import { type SyntheticEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, Eye, EyeOff, X } from "lucide-react";
 import Link from "next/link";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -24,6 +24,8 @@ export default function RecoveryPage() {
     password: "",
     confirmPassword: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [onFocus, setOnFocus] = useState(false);
 
   const requirements = useMemo(() => [
@@ -117,15 +119,27 @@ export default function RecoveryPage() {
 
                 <Field>
                   <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={credentials.password}
-                    onFocus={() => setOnFocus(true)}
-                    onBlur={() => setOnFocus(false)}
-                    onInput={e => onFieldUpdate(e, "password")}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      className="pr-9"
+                      type={showPassword ? "text" : "password"}
+                      value={credentials.password}
+                      onFocus={() => setOnFocus(true)}
+                      onBlur={() => setOnFocus(false)}
+                      onInput={e => onFieldUpdate(e, "password")}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      onClick={() => setShowPassword(v => !v)}
+                      disabled={isLoading}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   {
                     onFocus && (
                       <ul className="grid grid-cols-1 gap-2">
@@ -150,13 +164,25 @@ export default function RecoveryPage() {
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="confirm-password">Confirm Password</FieldLabel>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={credentials.confirmPassword}
-                    onInput={e => onFieldUpdate(e, "confirmPassword")}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirm-password"
+                      className="pr-9"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={credentials.confirmPassword}
+                      onInput={e => onFieldUpdate(e, "confirmPassword")}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      onClick={() => setShowConfirmPassword(v => !v)}
+                      disabled={isLoading}
+                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   <FieldDescription>Please confirm your password.</FieldDescription>
                 </Field>
 
