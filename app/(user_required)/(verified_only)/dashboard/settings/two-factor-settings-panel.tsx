@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, ShieldCheck, ShieldOff } from "lucide-react";
+import { Copy, Eye, EyeOff, ShieldCheck, ShieldOff } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -32,6 +32,7 @@ export default function TwoFactorSettingsPanel() {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [step, setStep] = useState<SetupStep>("idle");
   const [password, setPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [code, setCode] = useState("");
   const [setupData, setSetupData] = useState<SetupData | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
@@ -238,20 +239,32 @@ export default function TwoFactorSettingsPanel() {
           <Field orientation="horizontal" className="contents">
             <FieldLabel
               htmlFor="setup-password"
-              className="w-auto shrink-0 self-center text-sm font-normal"
+              className="w-auto shrink-0 self-start pt-2 text-sm font-normal"
             >
               Current password
             </FieldLabel>
             <FieldContent className="min-w-0">
-              <Input
-                id="setup-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-                disabled={isSubmitting}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="setup-password"
+                  className="pr-9"
+                  type={showCurrentPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
+                  disabled={isSubmitting}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  disabled={isSubmitting}
+                  aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                >
+                  {showCurrentPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
               <FieldDescription>
                 Confirm your password to generate a new authenticator setup.
               </FieldDescription>
@@ -359,20 +372,32 @@ export default function TwoFactorSettingsPanel() {
           <Field orientation="horizontal" className="contents">
             <FieldLabel
               htmlFor="disable-password"
-              className="w-auto shrink-0 self-center text-sm font-normal"
+              className="w-auto shrink-0 self-start pt-2 text-sm font-normal"
             >
               Current password
             </FieldLabel>
             <FieldContent className="min-w-0">
-              <Input
-                id="disable-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-                disabled={isSubmitting}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="disable-password"
+                  className="pr-9"
+                  type={showCurrentPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
+                  disabled={isSubmitting}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  disabled={isSubmitting}
+                  aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                >
+                  {showCurrentPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
               <FieldDescription>
                 Confirm your password to disable two-factor authentication.
               </FieldDescription>
