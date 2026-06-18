@@ -1,6 +1,9 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { Decimal } from "decimal.js";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import type { PdfPageBuilder } from "@cj-tech-master/excelts/pdf";
 
 import * as templateBucket from "@/lib/buckets/templates";
 import * as casts from "@/lib/types/casts";
@@ -12,6 +15,7 @@ import {
   buildChargesString,
   type ObrFormSignerBlock,
 } from "@/common/obr/form-export-layout";
+import { applyReadyToPrintLayout } from "@/common/forms/excel-print-layout";
 import {
   aipReferences,
   esre,
@@ -1294,6 +1298,39 @@ export async function exportObrRequestFormToBuffer(requestId: string, user: User
 }
 
 /**
+ * Exports an OBR request form to a PDF buffer.
+ *
+ * @description
+ * Validates request read access by reusing {@link getObrRequestById}, then draws a fixed-coordinate printable PDF
+ * copy matching the OBR form layout.
+ *
+ * On success, wraps the PDF bytes in a {@link Success}. On access or validation errors, returns a {@link Failure}.
+ * On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function exportObrRequestFormToPdfBuffer
+ * @param {string} requestId - Identifier of the OBR request to export.
+ * @param {User} user - User requesting the export.
+ * @returns {Promise<Result<Buffer>>} PDF bytes on success, or a failure result.
+ */
+export async function exportObrRequestFormToPdfBuffer(requestId: string, user: User): Promise<Result<Buffer>> {
+  try {
+    const requestResult = await getObrRequestById(requestId, user);
+    if (requestResult instanceof Failure) return requestResult;
+
+    const buffer = await _buildObrFormPdfBuffer(requestResult.value);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Failed to export OBR request form PDF.",
+      { requestId, userId: user.id },
+      e,
+    );
+  }
+}
+
+/**
  * Exports an OBR disbursement voucher form to an XLSX buffer.
  *
  * @description
@@ -1344,6 +1381,59 @@ export async function exportDisbursementVoucherToBuffer(id: string, actor: User)
     return new Failure(
       ErrorCodes.Fatal,
       "Failed to export disbursement voucher form.",
+      { id, userId: actor.id },
+      e,
+    );
+  }
+}
+
+/**
+ * Exports an OBR disbursement voucher form to a PDF buffer.
+ *
+ * @description
+ * Validates disbursement write access, loads the voucher and optional electronic billing rows, then draws a
+ * fixed-coordinate printable PDF copy of the DV form.
+ *
+ * On success, wraps the PDF bytes in a {@link Success}. On access, lookup, or validation errors, returns a
+ * {@link Failure}. On unexpected failure, wraps the error in a fatal {@link Failure}.
+ *
+ * @async
+ * @function exportDisbursementVoucherToPdfBuffer
+ * @param {string} id - Identifier of the disbursement voucher to export.
+ * @param {User} actor - User requesting the export.
+ * @returns {Promise<Result<Buffer>>} PDF bytes on success, or a failure result.
+ */
+export async function exportDisbursementVoucherToPdfBuffer(id: string, actor: User): Promise<Result<Buffer>> {
+  try {
+    const validate = await isWriterUserValidForDisbursement(actor);
+    if (validate?.error) {
+      return new Failure(
+        validate.error,
+        "Unable to export the object you requested.",
+        { id, userId: actor.id },
+        validate.stack ? validate.stack : undefined,
+      );
+    }
+
+    const voucher = await _getDisbursementVoucherById(id);
+    if (!voucher) {
+      return new Failure(
+        ErrorCodes.ResourceNotFound,
+        "No such disbursement voucher found.",
+        { id, userId: actor.id },
+      );
+    }
+
+    const elecData = voucher.hasElecData
+      ? await _getElecDataForVoucher(voucher.id)
+      : [];
+
+    const buffer = await _buildDisbursementVoucherPdfBuffer(voucher, elecData);
+    return new Success(buffer);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      "Failed to export disbursement voucher PDF.",
       { id, userId: actor.id },
       e,
     );
@@ -3715,6 +3805,51 @@ function _applyCellBorder(
   }
 }
 
+function _applyCellBox(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  rowStart: number,
+  rowEnd: number,
+  colStart: number,
+  colEnd: number,
+  horizontal: "left" | "center" | "right" = "left",
+) {
+  for (let row = rowStart; row <= rowEnd; row++) {
+    for (let col = colStart; col <= colEnd; col++) {
+      const cell = ws.getCell(row, col);
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      };
+      cell.alignment = {
+        vertical: "middle",
+        horizontal,
+        wrapText: true,
+      };
+    }
+  }
+}
+
+async function _addTigbauanSeal(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wb: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  col: number,
+  row: number,
+  size = 50,
+) {
+  try {
+    const seal = await readFile(path.join(process.cwd(), "public", "assets", "tigbauan-seal.png"));
+    const imageId = wb.addImage({ buffer: seal, extension: "png" });
+    ws.addImage(imageId, { tl: { col, row }, ext: { width: size, height: size } });
+  } catch {
+    // Export remains valid if the seal asset is unavailable.
+  }
+}
+
 function _renderSignerBlock(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
@@ -3985,6 +4120,568 @@ function _applyDisbursementSectionBox(
   }
 }
 
+const _PDF_PAGE = { width: 612, height: 936 };
+const _PDF_INK = { r: 0, g: 0, b: 0 };
+const _PDF_WHITE = { r: 1, g: 1, b: 1 };
+const _PDF_BLUE = { r: 0, g: 0, b: 0.7 };
+const _PDF_RED = { r: 0.86, g: 0, b: 0 };
+const _PDF_LIGHT = { r: 0.97, g: 0.97, b: 0.97 };
+const _PDF_FONT = "Arial";
+
+type PdfTextOptions = {
+  size?: number;
+  bold?: boolean;
+  italic?: boolean;
+  color?: { r: number; g: number; b: number };
+  anchor?: "start" | "middle" | "end";
+};
+
+function _pdfY(y: number): number {
+  return _PDF_PAGE.height - y;
+}
+
+function _pdfRect(page: PdfPageBuilder, x: number, y: number, width: number, height: number, fill?: typeof _PDF_LIGHT): void {
+  page.drawRect({
+    x,
+    y: _pdfY(y + height),
+    width,
+    height,
+    fill,
+    stroke: _PDF_INK,
+    lineWidth: 0.65,
+  });
+}
+
+function _pdfLine(page: PdfPageBuilder, x1: number, y1: number, x2: number, y2: number, lineWidth = 0.65): void {
+  page.drawLine({ x1, y1: _pdfY(y1), x2, y2: _pdfY(y2), color: _PDF_INK, lineWidth });
+}
+
+function _pdfText(page: PdfPageBuilder, value: string | number | null | undefined, x: number, y: number, options: PdfTextOptions = {}): void {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (!text) return;
+  page.drawText(text, {
+    x,
+    y: _pdfY(y),
+    fontSize: options.size ?? 9,
+    fontFamily: _PDF_FONT,
+    bold: options.bold,
+    italic: options.italic,
+    color: options.color,
+    anchor: options.anchor,
+  });
+}
+
+function _pdfWrappedText(
+  page: PdfPageBuilder,
+  value: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  options: PdfTextOptions & { lineHeight?: number; maxLines?: number } = {},
+): number {
+  const words = value.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  const size = options.size ?? 9;
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (page.measureText(candidate, { fontFamily: _PDF_FONT, fontSize: size }) <= maxWidth || !current) {
+      current = candidate;
+      continue;
+    }
+    lines.push(current);
+    current = word;
+  }
+  if (current) lines.push(current);
+
+  const maxLines = options.maxLines ?? lines.length;
+  const visible = lines.slice(0, maxLines);
+  if (lines.length > maxLines && visible.length > 0) {
+    visible[visible.length - 1] = `${visible[visible.length - 1]!.replace(/\.+$/, "")}...`;
+  }
+
+  const lineHeight = options.lineHeight ?? size + 3;
+  visible.forEach((line, index) => _pdfText(page, line, x, y + index * lineHeight, options));
+  return visible.length * lineHeight;
+}
+
+function _pdfCenter(page: PdfPageBuilder, value: string | number | null | undefined, x: number, y: number, options: PdfTextOptions = {}): void {
+  _pdfText(page, value, x, y, { ...options, anchor: "middle" });
+}
+
+function _pdfRight(page: PdfPageBuilder, value: string | number | null | undefined, x: number, y: number, options: PdfTextOptions = {}): void {
+  _pdfText(page, value, x, y, { ...options, anchor: "end" });
+}
+
+function _pdfCheckbox(page: PdfPageBuilder, x: number, y: number, checked: boolean): void {
+  _pdfRect(page, x, y, 9, 9, checked ? _PDF_INK : undefined);
+  if (checked) {
+    page.drawLine({ x1: x + 2, y1: _pdfY(y + 5), x2: x + 4, y2: _pdfY(y + 7), color: _PDF_WHITE, lineWidth: 1.2 });
+    page.drawLine({ x1: x + 4, y1: _pdfY(y + 7), x2: x + 7.5, y2: _pdfY(y + 2), color: _PDF_WHITE, lineWidth: 1.2 });
+  }
+}
+
+async function _pdfSeal(page: PdfPageBuilder, x: number, y: number, size: number): Promise<void> {
+  try {
+    const seal = await readFile(path.join(process.cwd(), "public", "assets", "tigbauan-seal.png"));
+    page.drawImage({ data: seal, format: "png", x, y: _pdfY(y + size), width: size, height: size });
+  } catch {
+    // Export remains valid if the seal asset is unavailable.
+  }
+}
+
+function _pdfMoney(value: Decimal | number | string): string {
+  if (value instanceof Decimal) return _formatNumber(value);
+  return _formatNumber(new Decimal(value || 0));
+}
+
+async function _buildObrFormPdfBuffer(request: ObrRequestType): Promise<Buffer> {
+  const { PdfDocumentBuilder } = await import("@cj-tech-master/excelts/pdf");
+  const document = new PdfDocumentBuilder()
+    .disableFontAutoDiscovery()
+    .setMetadata({
+      title: `OBR Request ${request.requestNumber}`,
+      author: "Municipality of Tigbauan",
+      subject: "Obligation Request",
+      creator: "Oasis-Next",
+    });
+  const page = document.addPage(_PDF_PAGE);
+
+  await _drawObrPdfCopy(page, request, 12);
+  await _drawObrPdfCopy(page, request, 472);
+
+  return Buffer.from(await document.build());
+}
+
+async function _drawObrPdfCopy(page: PdfPageBuilder, request: ObrRequestType, top: number): Promise<void> {
+  const left = 18;
+  const width = 576;
+  const cols = [left, 90, 250, 350, 420, 490, 526, left + width];
+  let y = top;
+  let total = 0;
+
+  _pdfRect(page, left, y, width, 48);
+  await _pdfSeal(page, left + 136, y + 5, 38);
+  _pdfCenter(page, "Republic of the Philippines", left + width / 2, y + 13, { size: 9 });
+  _pdfCenter(page, "Local Government Unit of Tigbauan", left + width / 2, y + 27, { size: 9 });
+  _pdfCenter(page, "Tigbauan, Iloilo", left + width / 2, y + 41, { size: 9 });
+  y += 48;
+
+  _pdfRect(page, left, y, width, 24);
+  _pdfCenter(page, "OBLIGATION REQUEST", left + width / 2, y + 18, { size: 18, bold: true });
+  y += 24;
+
+  _pdfRect(page, left, y, width, 24);
+  _pdfLine(page, cols[1], y, cols[1], y + 24);
+  _pdfLine(page, cols[4], y, cols[4], y + 24);
+  _pdfLine(page, cols[5], y, cols[5], y + 24);
+  _pdfText(page, "Request:", left + 3, y + 15, { size: 9 });
+  _pdfText(page, request.requestNumber, cols[1] + 3, y + 17, { size: 13, bold: true, color: _PDF_RED });
+  _pdfText(page, "Obligation No.:", cols[4] + 3, y + 15, { size: 9 });
+  _pdfText(page, request.obrNumber ?? "", cols[5] + 3, y + 16, { size: 11, bold: true });
+  y += 24;
+
+  _pdfRect(page, left, y, width, 24);
+  _pdfLine(page, cols[1], y, cols[1], y + 24);
+  _pdfLine(page, cols[4], y, cols[4], y + 24);
+  _pdfLine(page, cols[5], y, cols[5], y + 24);
+  _pdfText(page, "Payee:", left + 3, y + 15, { size: 9 });
+  _pdfText(page, (request.payee ?? "").toUpperCase(), cols[1] + 3, y + 16, { size: 10, bold: true });
+  _pdfText(page, "PR No.", cols[4] + 3, y + 15, { size: 9 });
+  _pdfText(page, request.prNumber ?? "", cols[5] + 3, y + 15, { size: 9 });
+  y += 24;
+
+  _pdfRect(page, left, y, width, 26);
+  _pdfLine(page, cols[1], y, cols[1], y + 26);
+  _pdfLine(page, cols[4], y, cols[4], y + 26);
+  _pdfLine(page, cols[5], y, cols[5], y + 26);
+  _pdfText(page, "Office:", left + 3, y + 10, { size: 9 });
+  _pdfText(page, "Address:", left + 3, y + 22, { size: 9 });
+  _pdfText(page, (request.officeAddress || "TIGBAUAN, ILOILO").toUpperCase(), cols[1] + 3, y + 16, { size: 9, bold: true });
+  _pdfText(page, "Date:", cols[4] + 3, y + 15, { size: 9 });
+  y += 26;
+
+  _pdfRect(page, left, y, width, 24);
+  for (const x of cols.slice(1, -1)) _pdfLine(page, x, y, x, y + 24);
+  _pdfCenter(page, "RC", (cols[0] + cols[1]) / 2, y + 16, { size: 10, bold: true });
+  _pdfCenter(page, "PARTICULARS", (cols[1] + cols[4]) / 2, y + 16, { size: 10, bold: true });
+  _pdfCenter(page, "FPP", (cols[4] + cols[5]) / 2, y + 16, { size: 10, bold: true });
+  _pdfCenter(page, "ACCOUNT", (cols[5] + cols[6]) / 2, y + 11, { size: 8, bold: true });
+  _pdfCenter(page, "CODE", (cols[5] + cols[6]) / 2, y + 21, { size: 8, bold: true });
+  _pdfCenter(page, "AMOUNT", (cols[6] + cols[7]) / 2, y + 16, { size: 10, bold: true });
+  y += 24;
+
+  const lineRows = Math.max(3, request.requestItems.length);
+  for (let index = 0; index < lineRows; index++) {
+    const item = request.requestItems[index];
+    const rowHeight = index === 0 ? 48 : 20;
+    _pdfRect(page, left, y, width, rowHeight);
+    for (const x of cols.slice(1, -1)) _pdfLine(page, x, y, x, y + rowHeight);
+    if (item) {
+      const amount = _toMoneyNumber(item.amount);
+      total += amount;
+      _pdfCenter(page, item.responsibilityCenter.name, (cols[0] + cols[1]) / 2, y + 14, { size: 8 });
+      _pdfWrappedText(page, item.particulars.toUpperCase(), cols[1] + 3, y + 12, cols[4] - cols[1] - 6, { size: 8, lineHeight: 10, maxLines: 4 });
+      _pdfCenter(page, item.expenseCode.fpp ?? item.expenseCode.name, (cols[4] + cols[5]) / 2, y + 14, { size: 6 });
+      _pdfCenter(page, item.expenseCode.accountCode ?? "-", (cols[5] + cols[6]) / 2, y + 14, { size: 8 });
+      _pdfText(page, "P", cols[6] + 3, y + 18, { size: 9 });
+      _pdfRight(page, _pdfMoney(amount), cols[7] - 4, y + 18, { size: 8 });
+    }
+    y += rowHeight;
+  }
+
+  _pdfRect(page, left, y, width, 20);
+  _pdfLine(page, cols[1], y, cols[1], y + 20);
+  _pdfLine(page, cols[4], y, cols[4], y + 20);
+  _pdfLine(page, cols[6], y, cols[6], y + 20);
+  _pdfText(page, "Charges:", left + 3, y + 14, { size: 8 });
+  if (request.requestItems.length === 1) {
+    const item = request.requestItems[0]!;
+    _pdfText(page, buildChargesString(item.responsibilityCenter.name, item.expenseCode.name, item.amount).toUpperCase(), cols[1] + 3, y + 14, { size: 7 });
+  }
+  _pdfRight(page, "Total Amount Requested:", cols[6] - 4, y + 14, { size: 9, bold: true });
+  _pdfRight(page, `P ${_pdfMoney(total)}`, cols[7] - 4, y + 14, { size: 9, bold: true, color: _PDF_BLUE });
+  y += 20;
+
+  _pdfRect(page, left, y, width, 18);
+  _pdfLine(page, cols[1], y, cols[1], y + 18);
+  _pdfText(page, "Amount in Words:", left + 3, y + 13, { size: 8 });
+  _pdfRight(page, amountToWords(total).toUpperCase(), left + width - 3, y + 13, { size: 7, bold: true, color: _PDF_BLUE });
+  y += 18;
+
+  _drawObrPdfSigners(page, request, left, y, width);
+}
+
+function _drawObrPdfSigners(page: PdfPageBuilder, request: ObrRequestType, left: number, y: number, width: number): void {
+  const mid = left + width / 2;
+  const leftSigner = request.approvers[0];
+  const rightSigner = request.approvers[1];
+  const leftName = (leftSigner?.signer?.name ?? "-").toUpperCase();
+  const rightName = (rightSigner?.signer?.name ?? "-").toUpperCase();
+  const leftPosition = leftSigner?.position.name ?? "-";
+  const rightPosition = rightSigner?.position.name ?? "-";
+
+  _pdfRect(page, left, y, width, 154);
+  _pdfLine(page, mid, y, mid, y + 154);
+  _pdfLine(page, left, y + 20, left + width, y + 20);
+  _pdfLine(page, left, y + 44, left + width, y + 44);
+  _pdfLine(page, left, y + 64, left + width, y + 64);
+  _pdfCenter(page, "Certified:", left + width / 4, y + 14, { size: 10 });
+  _pdfCenter(page, "Certified:", mid + width / 4, y + 14, { size: 10 });
+  _pdfCheckbox(page, left + 32, y + 24, true);
+  _pdfWrappedText(page, "Charges to appropriation/allotment necessary, lawful and under my direct supervision", left + 50, y + 31, 210, { size: 7, lineHeight: 8, maxLines: 2 });
+  _pdfCheckbox(page, mid + 32, y + 24, true);
+  _pdfText(page, "Existence of available appropriation", mid + 50, y + 33, { size: 7 });
+  _pdfCheckbox(page, left + 32, y + 47, true);
+  _pdfText(page, "Supporting documents valid, proper and legal", left + 50, y + 55, { size: 7 });
+
+  _pdfText(page, "Signature", left + 3, y + 84, { size: 9 });
+  _pdfText(page, "Printed Name:", left + 3, y + 106, { size: 9 });
+  _pdfCenter(page, leftName, left + width / 4 + 35, y + 106, { size: 10, bold: true });
+  _pdfText(page, "Position", left + 3, y + 126, { size: 9 });
+  _pdfCenter(page, leftPosition, left + width / 4 + 35, y + 126, { size: 9, bold: true });
+  _pdfCenter(page, "Head, Requesting Office/Authorized Representative", left + width / 4 + 35, y + 141, { size: 6 });
+  _pdfText(page, "Date:", left + 3, y + 151, { size: 9 });
+
+  _pdfText(page, "Signature", mid + 3, y + 84, { size: 9 });
+  _pdfText(page, "Printed Name:", mid + 3, y + 106, { size: 9 });
+  _pdfCenter(page, rightName, mid + width / 4 + 35, y + 106, { size: 10, bold: true });
+  _pdfText(page, "Position", mid + 3, y + 126, { size: 9 });
+  _pdfCenter(page, rightPosition, mid + width / 4 + 35, y + 126, { size: 9, bold: true });
+  _pdfCenter(page, "Head, Budget Unit/Authorized Representative", mid + width / 4 + 35, y + 141, { size: 6 });
+  _pdfText(page, "Date:", mid + 3, y + 151, { size: 9 });
+}
+
+async function _buildDisbursementVoucherPdfBuffer(
+  voucher: ObrDisbursementVoucher,
+  elecData: Array<ObrDisbursementElectronicItem>,
+): Promise<Buffer> {
+  const { PdfDocumentBuilder } = await import("@cj-tech-master/excelts/pdf");
+  const document = new PdfDocumentBuilder()
+    .disableFontAutoDiscovery()
+    .setMetadata({
+      title: `Disbursement Voucher ${voucher.disbursementVoucherNumber}`,
+      author: "Municipality of Tigbauan",
+      subject: "Disbursement Voucher",
+      creator: "Oasis-Next",
+    });
+  const page = document.addPage(_PDF_PAGE);
+  await _drawDisbursementVoucherPdf(page, voucher, elecData);
+  return Buffer.from(await document.build());
+}
+
+async function _drawDisbursementVoucherPdf(
+  page: PdfPageBuilder,
+  voucher: ObrDisbursementVoucher,
+  elecData: Array<ObrDisbursementElectronicItem>,
+): Promise<void> {
+  const left = 18;
+  const width = 576;
+  const rightStart = 468;
+  const rightWidth = 126;
+  const leftWidth = rightStart - left;
+  let y = 12;
+  const grossAmount = _toDecimal(voucher.grossAmount);
+  const withholdings = _withholdingRows(grossAmount, voucher.taxType);
+
+  _pdfRect(page, left, y, width, 88);
+  await _pdfSeal(page, left + 96, y + 12, 54);
+  _pdfCenter(page, "Republic of the Philippines", left + width / 2, y + 15, { size: 10 });
+  _pdfCenter(page, "Province of Iloilo", left + width / 2, y + 29, { size: 10 });
+  _pdfCenter(page, "MUNICIPAL GOVERNMENT OF TIGBAUAN", left + width / 2, y + 45, { size: 10, bold: true });
+  _pdfCenter(page, "Tigbauan, Iloilo", left + width / 2, y + 61, { size: 10 });
+  _pdfRect(page, rightStart, y + 62, rightWidth, 26, _PDF_LIGHT);
+  _pdfRight(page, voucher.disbursementVoucherNumber, rightStart + rightWidth - 10, y + 81, { size: 16, bold: true, color: _PDF_RED });
+  y += 88;
+
+  _pdfRect(page, left, y, leftWidth, 46);
+  _pdfRect(page, rightStart, y, rightWidth, 46);
+  _pdfCenter(page, "DISBURSEMENT VOUCHER", left + leftWidth / 2, y + 30, { size: 20, bold: true });
+  _pdfText(page, "Fund:", rightStart + 4, y + 16, { size: 10, bold: true });
+  _pdfText(page, (voucher.fundType?.name ?? "").toUpperCase(), rightStart + 4, y + 34, { size: 10, bold: true, color: _PDF_BLUE });
+  y += 46;
+
+  _pdfRect(page, left, y, leftWidth, 36);
+  _pdfRect(page, rightStart, y, rightWidth, 36);
+  _pdfText(page, "Mode of Payment:", left + 4, y + 23, { size: 9 });
+  _pdfCheckbox(page, left + 130, y + 12, false);
+  _pdfText(page, "Check", left + 146, y + 22, { size: 9 });
+  _pdfCheckbox(page, left + 220, y + 12, false);
+  _pdfText(page, "Cash", left + 236, y + 22, { size: 9 });
+  _pdfCheckbox(page, left + 310, y + 12, false);
+  _pdfText(page, "Others", left + 326, y + 22, { size: 9 });
+  _pdfText(page, "DV No.:", rightStart + 4, y + 22, { size: 10, bold: true });
+  y += 36;
+
+  _drawDvPdfPayeeBlock(page, voucher, left, y, width, rightStart);
+  y += 88;
+
+  _pdfRect(page, left, y, leftWidth, 32, _PDF_LIGHT);
+  _pdfRect(page, rightStart, y, rightWidth, 32, _PDF_LIGHT);
+  _pdfCenter(page, "EXPLANATION", left + leftWidth / 2, y + 21, { size: 11, bold: true });
+  _pdfCenter(page, "Amount", rightStart + rightWidth / 2, y + 21, { size: 11, bold: true });
+  y += 32;
+
+  _pdfRect(page, left, y, leftWidth, 58);
+  _pdfRect(page, rightStart, y, 26, 58);
+  _pdfRect(page, rightStart + 26, y, rightWidth - 26, 58);
+  _pdfWrappedText(page, voucher.particulars.toUpperCase(), left + 20, y + 26, leftWidth - 40, { size: 8, lineHeight: 10, maxLines: 3 });
+  _pdfCenter(page, "P", rightStart + 13, y + 35, { size: 10, bold: true });
+  _pdfRight(page, _pdfMoney(withholdings.netAmount), rightStart + rightWidth - 6, y + 35, { size: 10, bold: true });
+  y += 72;
+
+  if (elecData.length > 0) {
+    y = _drawDvElecPdfTable(page, elecData, left + 26, y);
+    y += 18;
+  }
+
+  y = _drawDvPdfBreakdown(page, voucher, grossAmount, withholdings, elecData.length > 0, left, y, leftWidth, rightStart, rightWidth);
+  _drawDvPdfSigners(page, voucher, left, y, width);
+}
+
+function _drawDvPdfPayeeBlock(
+  page: PdfPageBuilder,
+  voucher: ObrDisbursementVoucher,
+  left: number,
+  y: number,
+  width: number,
+  rightStart: number,
+): void {
+  const labelW = 76;
+  const valueW = 210;
+  const midStart = left + labelW + valueW;
+  const rightWidth = left + width - rightStart;
+  _pdfRect(page, left, y, labelW, 34);
+  _pdfRect(page, left + labelW, y, valueW, 34);
+  _pdfRect(page, midStart, y, rightStart - midStart, 34);
+  _pdfRect(page, rightStart, y, rightWidth, 34);
+  _pdfText(page, "Payee:", left + 4, y + 22, { size: 9 });
+  _pdfText(page, (voucher.payee ?? "").toUpperCase(), left + labelW + 3, y + 22, { size: 9, bold: true, color: _PDF_BLUE });
+  _pdfText(page, "ID No./TIN:", midStart + 4, y + 14, { size: 8 });
+  _pdfText(page, "OBR No.:", rightStart + 4, y + 14, { size: 8 });
+  _pdfCenter(page, voucher.prNumber ?? "", rightStart + rightWidth / 2, y + 28, { size: 9, bold: true });
+
+  _pdfRect(page, left, y + 34, labelW, 54);
+  _pdfRect(page, left + labelW, y + 34, valueW, 54);
+  _pdfRect(page, midStart, y + 34, rightStart - midStart, 18);
+  _pdfRect(page, rightStart, y + 34, rightWidth, 18);
+  _pdfRect(page, midStart, y + 52, rightStart - midStart, 18);
+  _pdfRect(page, rightStart, y + 52, rightWidth, 18);
+  _pdfRect(page, midStart, y + 70, rightStart - midStart, 18);
+  _pdfRect(page, rightStart, y + 70, rightWidth, 18);
+  _pdfText(page, "Address:", left + 4, y + 48, { size: 9 });
+  _pdfText(page, voucher.address.toUpperCase(), left + labelW + 3, y + 48, { size: 9 });
+  _pdfCenter(page, "Responsibility Center:", (midStart + left + width) / 2, y + 47, { size: 8, bold: true });
+  _pdfCenter(page, "Office/Unit/Project", (midStart + rightStart) / 2, y + 65, { size: 8 });
+  _pdfCenter(page, "Code", rightStart + rightWidth / 2, y + 65, { size: 8 });
+  _pdfCenter(page, voucher.responsibilityCenter.aa, (midStart + rightStart) / 2, y + 83, { size: 8 });
+}
+
+function _drawDvElecPdfTable(
+  page: PdfPageBuilder,
+  elecData: Array<ObrDisbursementElectronicItem>,
+  x: number,
+  y: number,
+): number {
+  const widths = [145, 70, 55, 55, 68, 48, 48, 62];
+  const totalWidth = widths.reduce((acc, width) => acc + width, 0);
+  const headerHeight = 26;
+  const rowHeight = 34;
+  const totalHeight = headerHeight + rowHeight * elecData.length + 18;
+  _pdfRect(page, x, y, totalWidth, totalHeight);
+  let cx = x;
+  for (const width of widths.slice(0, -1)) {
+    cx += width;
+    _pdfLine(page, cx, y, cx, y + totalHeight);
+  }
+  _pdfLine(page, x, y + headerHeight, x + totalWidth, y + headerHeight);
+  const headers = ["BILLING NAME", "METER SERIAL#", "ACCOUNT", "GROSS", "VATABLE SALES", "VAT 5%", "EVAT 2%", "NET"];
+  cx = x;
+  headers.forEach((header, index) => {
+    _pdfCenter(page, header, cx + widths[index]! / 2, y + 16, { size: 6.4, bold: true });
+    cx += widths[index]!;
+  });
+
+  let rowY = y + headerHeight;
+  let totalGross = new Decimal(0);
+  let totalVatable = new Decimal(0);
+  let totalVat = new Decimal(0);
+  let totalEvat = new Decimal(0);
+  let totalNet = new Decimal(0);
+  for (const item of elecData) {
+    _pdfLine(page, x, rowY + rowHeight, x + totalWidth, rowY + rowHeight);
+    const gross = _toDecimal(item.gross);
+    const vatable = _toDecimal(item.vatableSales);
+    const vat = vatable.mul("0.05");
+    const evat = vatable.mul("0.02");
+    const net = gross.sub(vat).sub(evat);
+    _pdfWrappedText(page, item.billingName.toUpperCase(), x + 3, rowY + 11, widths[0]! - 6, { size: 6.5, lineHeight: 8, maxLines: 3 });
+    let valueX = x + widths[0]!;
+    _pdfCenter(page, item.meterSerial, valueX + widths[1]! / 2, rowY + 20, { size: 6.5 });
+    valueX += widths[1]!;
+    _pdfCenter(page, item.account, valueX + widths[2]! / 2, rowY + 20, { size: 6.5 });
+    valueX += widths[2]!;
+    [_pdfMoney(gross), _pdfMoney(vatable), _pdfMoney(vat), _pdfMoney(evat), _pdfMoney(net)].forEach((amount, index) => {
+      _pdfRight(page, amount, valueX + widths[index + 3]! - 3, rowY + 20, { size: 6.5 });
+      valueX += widths[index + 3]!;
+    });
+    totalGross = totalGross.add(gross);
+    totalVatable = totalVatable.add(vatable);
+    totalVat = totalVat.add(vat);
+    totalEvat = totalEvat.add(evat);
+    totalNet = totalNet.add(net);
+    rowY += rowHeight;
+  }
+
+  _pdfCenter(page, "TOTAL", x + (widths[0]! + widths[1]! + widths[2]!) / 2, rowY + 13, { size: 7, bold: true });
+  let valueX = x + widths[0]! + widths[1]! + widths[2]!;
+  [_pdfMoney(totalGross), _pdfMoney(totalVatable), _pdfMoney(totalVat), _pdfMoney(totalEvat), _pdfMoney(totalNet)].forEach((amount, index) => {
+    _pdfRight(page, amount, valueX + widths[index + 3]! - 3, rowY + 13, { size: 6.5, bold: true });
+    valueX += widths[index + 3]!;
+  });
+  return y + totalHeight;
+}
+
+function _drawDvPdfBreakdown(
+  page: PdfPageBuilder,
+  voucher: ObrDisbursementVoucher,
+  grossAmount: Decimal,
+  withholdings: ReturnType<typeof _withholdingRows>,
+  isElecLayout: boolean,
+  left: number,
+  y: number,
+  leftWidth: number,
+  rightStart: number,
+  rightWidth: number,
+): number {
+  const rows: Array<{ label: string; value: string; bold?: boolean; italic?: boolean }> = [];
+  if (validatorUtilities.isNotEmpty(voucher.taxType)) {
+    rows.push(
+      { label: "GROSS AMOUNT", value: _pdfMoney(grossAmount), bold: true },
+      { label: "Less: Withholding Taxes", value: "" },
+      { label: _taxTypeLabel(voucher.taxType).toUpperCase(), value: "", bold: true },
+      { label: withholdings.vatLabel, value: _formatParens(withholdings.vatAmount), italic: true },
+      { label: withholdings.ewtLabel, value: _formatParens(withholdings.ewtAmount), italic: true },
+      { label: "TOTAL WITHHOLDING TAXES", value: _formatParens(withholdings.totalWithholding), bold: true },
+      { label: "NET AMOUNT", value: _pdfMoney(withholdings.netAmount), bold: true },
+    );
+  } else {
+    rows.push({ label: "GROSS AMOUNT", value: _pdfMoney(grossAmount), bold: true });
+  }
+
+  const labelX = isElecLayout ? left + 82 : left + 26;
+  const valueX = isElecLayout ? rightStart - 70 : rightStart + rightWidth - 6;
+  for (const row of rows) {
+    _pdfText(page, row.label, labelX, y + 12, { size: 8.5, bold: row.bold, italic: row.italic });
+    _pdfRight(page, row.value, valueX, y + 12, { size: 8.5, bold: row.bold });
+    y += 16;
+  }
+
+  y += 8;
+  _pdfRect(page, left, y, leftWidth, 34);
+  _pdfRect(page, rightStart, y, 26, 34);
+  _pdfRect(page, rightStart + 26, y, rightWidth - 26, 34);
+  _pdfCenter(page, "Amount Due", left + leftWidth / 2, y + 22, { size: 11, bold: true });
+  _pdfCenter(page, "P", rightStart + 13, y + 23, { size: 11, bold: true, color: _PDF_BLUE });
+  _pdfRight(page, _pdfMoney(withholdings.netAmount), rightStart + rightWidth - 6, y + 23, { size: 12, bold: true, color: _PDF_BLUE });
+  return y + 34;
+}
+
+function _drawDvPdfSigners(page: PdfPageBuilder, voucher: ObrDisbursementVoucher, left: number, y: number, width: number): void {
+  const half = width / 2;
+  _pdfRect(page, left, y, width, 292);
+  _pdfLine(page, left + half, y, left + half, y + 292);
+  _pdfLine(page, left, y + 58, left + width, y + 58);
+  _pdfLine(page, left, y + 144, left + width, y + 144);
+  _pdfText(page, "A. Certified", left + 6, y + 18, { size: 11, bold: true });
+  _pdfCheckbox(page, left + 22, y + 26, true);
+  _pdfText(page, "Allotment obligated for the purpose as indicated above", left + 38, y + 35, { size: 8 });
+  _pdfCheckbox(page, left + 22, y + 45, true);
+  _pdfText(page, "Supporting documents complete", left + 38, y + 54, { size: 8 });
+  _pdfText(page, "B. Certified", left + half + 34, y + 18, { size: 11, bold: true });
+  _pdfCheckbox(page, left + half + 76, y + 26, true);
+  _pdfText(page, "Funds Available", left + half + 92, y + 35, { size: 8 });
+
+  _pdfText(page, "Signature:", left + 4, y + 84, { size: 8 });
+  _pdfText(page, "Printed Name:", left + 4, y + 106, { size: 8 });
+  _pdfCenter(page, (voucher.signers.accountant.name ?? "").toUpperCase(), left + half / 2 + 34, y + 106, { size: 9, bold: true });
+  _pdfText(page, "Position", left + 4, y + 127, { size: 8 });
+  _pdfCenter(page, voucher.signers.accountant.position ?? "", left + half / 2 + 34, y + 127, { size: 8 });
+  _pdfText(page, "Date:", left + 4, y + 143, { size: 8 });
+
+  _pdfText(page, "Signature:", left + half + 4, y + 84, { size: 8 });
+  _pdfText(page, "Printed Name", left + half + 4, y + 106, { size: 8 });
+  _pdfCenter(page, (voucher.signers.treasurer.name ?? "").toUpperCase(), left + half + half / 2 + 34, y + 106, { size: 9, bold: true });
+  _pdfText(page, "Position", left + half + 4, y + 127, { size: 8 });
+  _pdfCenter(page, voucher.signers.treasurer.position ?? "", left + half + half / 2 + 34, y + 127, { size: 8 });
+  _pdfText(page, "Date:", left + half + 4, y + 143, { size: 8 });
+
+  _pdfText(page, "C. Approved for Payment", left + 6, y + 162, { size: 11, bold: true });
+  _pdfText(page, "D. Received Payment", left + half + 34, y + 162, { size: 11, bold: true });
+  _pdfLine(page, left + 76, y + 144, left + 76, y + 292);
+  _pdfLine(page, left + half + 86, y + 144, left + half + 86, y + 292);
+  _pdfLine(page, left + half, y + 188, left + width, y + 188);
+  _pdfLine(page, left + half, y + 236, left + width, y + 236);
+
+  _pdfText(page, "Signature:/", left + 4, y + 230, { size: 8 });
+  _pdfText(page, "Printed Name:", left + 4, y + 244, { size: 8 });
+  _pdfCenter(page, (voucher.signers.mayor.name ?? "").toUpperCase(), left + half / 2 + 34, y + 244, { size: 9, bold: true });
+  _pdfText(page, "Position", left + 4, y + 267, { size: 8 });
+  _pdfCenter(page, voucher.signers.mayor.position ?? "", left + half / 2 + 34, y + 267, { size: 8 });
+  _pdfText(page, "Date:", left + 4, y + 288, { size: 8 });
+
+  _pdfText(page, "Check No./", left + half + 4, y + 172, { size: 8 });
+  _pdfText(page, "Date", left + half + 4, y + 185, { size: 8 });
+  _pdfText(page, "Bank Name", left + half + 100, y + 172, { size: 8 });
+  _pdfText(page, "Signature/", left + half + 4, y + 211, { size: 8 });
+  _pdfText(page, "Printed Name/", left + half + 4, y + 224, { size: 8 });
+  _pdfText(page, "Date", left + half + 4, y + 237, { size: 8 });
+  _pdfCenter(page, (voucher.payee ?? "").toUpperCase(), left + half + 205, y + 226, { size: 8, bold: true });
+  _pdfText(page, "OR/Other", left + half + 4, y + 258, { size: 8 });
+  _pdfText(page, "Documents", left + half + 4, y + 271, { size: 8 });
+  _pdfCenter(page, "JEV No./ Date", left + half + 205, y + 266, { size: 8 });
+}
+
 async function _buildDisbursementVoucherExcelBuffer(
   voucher: ObrDisbursementVoucher,
   elecData: Array<ObrDisbursementElectronicItem>,
@@ -3994,23 +4691,9 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   const wb = new Workbook();
   const ws = wb.addWorksheet("Disbursement Voucher");
-  ws.getColumn(1).width = 14;
-  ws.getColumn(2).width = 22;
-  ws.getColumn(3).width = 14;
-  ws.getColumn(4).width = 14;
-  ws.getColumn(5).width = 16;
-  ws.getColumn(6).width = 14;
-  ws.getColumn(7).width = 12;
-  ws.getColumn(8).width = 13;
-  ws.getColumn(9).width = 14;
-
-  // Extra columns used only by electric-detail rows inside EXPLANATION.
-  ws.getColumn(10).width = 12;
-  ws.getColumn(11).width = 11;
-  ws.getColumn(12).width = 13;
-  ws.getColumn(13).width = 14;
-  ws.getColumn(14).width = 13;
-  ws.getColumn(15).width = 14;
+  [14, 18, 12, 12, 12, 14, 13, 13, 14, 12, 11, 13, 14, 13, 14].forEach((width, index) => {
+    ws.getColumn(index + 1).width = width;
+  });
 
   const isElecLayout = elecData.length > 0;
   const explanationLeftStartCol = 1;
@@ -4041,6 +4724,23 @@ async function _buildDisbursementVoucherExcelBuffer(
     const headerWb = new Workbook();
     await headerWb.xlsx.readFile(headerTemplatePath);
     row = await _copyTemplateRows(headerWb, ws, row);
+  } else {
+    ws.mergeCells(row, 1, row + 4, headerRightEndCol);
+    await _addTigbauanSeal(wb, ws, 1.35, row - 0.65, 56);
+    ws.getCell(row, 1).value = "Republic of the Philippines\nProvince of Iloilo\nMUNICIPAL GOVERNMENT OF TIGBAUAN\nTigbauan, Iloilo";
+    ws.getCell(row, 1).font = { size: 10, bold: false };
+    ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    _applyDisbursementBorder(ws, row, 1, headerRightEndCol, "center");
+    _applyDisbursementBorder(ws, row + 1, 1, headerRightEndCol, "center");
+    _applyDisbursementBorder(ws, row + 2, 1, headerRightEndCol, "center");
+    _applyDisbursementBorder(ws, row + 3, 1, headerRightEndCol, "center");
+    _applyDisbursementBorder(ws, row + 4, 1, headerRightEndCol, "center");
+    ws.getRow(row).height = 17;
+    ws.getRow(row + 1).height = 17;
+    ws.getRow(row + 2).height = 17;
+    ws.getRow(row + 3).height = 17;
+    ws.getRow(row + 4).height = 20;
+    row += 5;
   }
 
   // DV number row - appears above the DISBURSEMENT VOUCHER title, right-aligned, red
@@ -4049,31 +4749,41 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getCell(row, headerRightStartCol).value = voucher.disbursementVoucherNumber;
   ws.getCell(row, headerRightStartCol).font = { bold: true, size: 16, color: { argb: "FFFF0000" } };
   ws.getCell(row, headerRightStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(row, headerRightStartCol).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7F7F7" } };
+  _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
+  ws.getCell(row, headerRightStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getRow(row).height = 22;
   row++;
 
   // DISBURSEMENT VOUCHER title spanning 2 rows; Fund on the right
   ws.mergeCells(row, headerLeftStartCol, row + 1, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row + 1, headerRightEndCol);
   ws.getCell(row, headerLeftStartCol).value = "DISBURSEMENT VOUCHER";
-  ws.getCell(row, headerLeftStartCol).font = { bold: true, size: 18 };
+  ws.getCell(row, headerLeftStartCol).font = { bold: true, size: 20 };
   ws.getCell(row, headerLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, headerRightStartCol).value = `Fund: ${voucher.fundType?.name ?? ""}`;
+  ws.getCell(row, headerRightStartCol).value = `Fund:\n${(voucher.fundType?.name ?? "").toUpperCase()}`;
+  ws.getCell(row, headerRightStartCol).font = { bold: true, color: { argb: "FF000080" } };
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   _applyDisbursementBorder(ws, row + 1, headerLeftStartCol, headerRightEndCol);
+  ws.getCell(row, headerRightStartCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+  ws.getRow(row).height = 24;
+  ws.getRow(row + 1).height = 24;
   row += 2;
 
   // Mode of Payment + DV No.
   ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
-  ws.getCell(row, headerLeftStartCol).value = "Mode of Payment:      \u2610 Check      \u2610 Cash      \u2610 Others";
-  ws.getCell(row, headerRightStartCol).value = `DV No.: ${voucher.disbursementVoucherNumber}`;
+  ws.getCell(row, headerLeftStartCol).value = "Mode of Payment:        □  Check          □  Cash          □  Others";
+  ws.getCell(row, headerRightStartCol).value = "DV No.:";
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
+  ws.getRow(row).height = 25;
   row++;
 
   // Payee row 1 of 2: label + value (rowspan 2) + ID No./TIN
   ws.getCell(row, 1).value = "Payee:";
   ws.mergeCells(row, payeeValueStartCol, row + 1, payeeValueEndCol);
   ws.getCell(row, payeeValueStartCol).value = voucher.payee ?? "";
+  ws.getCell(row, payeeValueStartCol).font = { bold: true, color: { argb: "FF000080" } };
   ws.getCell(row, payeeValueStartCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
   ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
   ws.getCell(row, rightMetaStartCol).value = "ID No./TIN:";
@@ -4082,8 +4792,12 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   // Payee row 2 of 2: OBR No.
   ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
-  ws.getCell(row, rightMetaStartCol).value = `OBR No.: ${voucher.prNumber ?? ""}`;
+  ws.getCell(row, rightMetaStartCol).value = `OBR No.:\n${voucher.prNumber ?? ""}`;
+  ws.getCell(row, rightMetaStartCol).font = { bold: true };
+  ws.getCell(row, rightMetaStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
+  ws.getCell(row, rightMetaStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getRow(row).height = 30;
   row++;
 
   // Address row 1 of 3: label + value (rowspan 3) + Responsibility Center header
@@ -4131,10 +4845,16 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.mergeCells(explanationStart, explanationLeftStartCol, explanationStart + explanationRows, explanationLeftEndCol);
   ws.getCell(explanationStart, explanationLeftStartCol).value = voucher.particulars;
   ws.getCell(explanationStart, explanationLeftStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
-  ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountEndCol);
-  ws.getCell(explanationStart, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
+  ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountStartCol);
+  if (explanationAmountEndCol > explanationAmountStartCol + 1) {
+    ws.mergeCells(explanationStart, explanationAmountStartCol + 1, explanationStart + explanationRows, explanationAmountEndCol);
+  }
+  ws.getCell(explanationStart, explanationAmountStartCol).value = "₱";
   ws.getCell(explanationStart, explanationAmountStartCol).font = { bold: true, size: 13 };
-  ws.getCell(explanationStart, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(explanationStart, explanationAmountStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(explanationStart, explanationAmountStartCol + 1).value = `${_formatNumber(withholdings.netAmount)}`;
+  ws.getCell(explanationStart, explanationAmountStartCol + 1).font = { bold: true, size: 13 };
+  ws.getCell(explanationStart, explanationAmountStartCol + 1).alignment = { horizontal: "right", vertical: "middle" };
   for (let rr = explanationStart; rr <= explanationStart + explanationRows; rr++) {
     _applyDisbursementBorder(ws, rr, explanationLeftStartCol, explanationLeftEndCol);
     _applyDisbursementBorder(ws, rr, explanationAmountStartCol, explanationAmountEndCol, "right");
@@ -4323,44 +5043,64 @@ async function _buildDisbursementVoucherExcelBuffer(
     row++;
   }
 
-  const breakdownRows: Array<{ label: string; value: string; bold?: boolean }> = [
-    { label: "GROSS AMOUNT", value: _formatNumber(grossAmount), bold: true },
-    { label: "Less: Withholding Taxes", value: "" },
-    { label: _taxTypeLabel(voucher.taxType), value: "" },
-    {
-      label: withholdings.vatLabel,
-      value: withholdings.vatLabel === "-" ? "-" : _formatParens(withholdings.vatAmount),
-    },
-    {
-      label: withholdings.ewtLabel,
-      value: withholdings.ewtLabel === "-" ? "-" : _formatParens(withholdings.ewtAmount),
-    },
-    { label: "TOTAL WITHHOLDING TAXES", value: _formatParens(withholdings.totalWithholding), bold: true },
-    { label: "NET AMOUNT", value: _formatNumber(withholdings.netAmount), bold: true },
-  ];
+  const breakdownRows: Array<{ label: string; value: string; bold?: boolean }> = [];
+  if (validatorUtilities.isNotEmpty(voucher.taxType)) {
+    breakdownRows.push(
+      { label: "GROSS AMOUNT", value: _formatNumber(grossAmount), bold: true },
+      { label: "Less: Withholding Taxes", value: "" },
+      { label: _taxTypeLabel(voucher.taxType), value: "" },
+      {
+        label: withholdings.vatLabel,
+        value: withholdings.vatLabel === "-" ? "-" : _formatParens(withholdings.vatAmount),
+      },
+      {
+        label: withholdings.ewtLabel,
+        value: withholdings.ewtLabel === "-" ? "-" : _formatParens(withholdings.ewtAmount),
+      },
+      { label: "TOTAL WITHHOLDING TAXES", value: _formatParens(withholdings.totalWithholding), bold: true },
+      { label: "NET AMOUNT", value: _formatNumber(withholdings.netAmount), bold: true },
+    );
+  } else {
+    breakdownRows.push({ label: "GROSS AMOUNT", value: _formatNumber(grossAmount), bold: true });
+  }
 
   for (const item of breakdownRows) {
-    ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
-    ws.getCell(row, explanationLeftStartCol).value = item.label;
-    ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
-    ws.getCell(row, explanationAmountStartCol).value = item.value;
-    ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
-    _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
-    _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
+    if (isElecLayout) {
+      ws.mergeCells(row, 2, row, 8);
+      ws.mergeCells(row, 9, row, 12);
+      ws.getCell(row, 2).value = item.label;
+      ws.getCell(row, 9).value = item.value;
+      ws.getCell(row, 9).alignment = { horizontal: "right", vertical: "middle" };
+      _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
+      _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
+    } else {
+      ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
+      ws.getCell(row, explanationLeftStartCol).value = item.label;
+      ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
+      ws.getCell(row, explanationAmountStartCol).value = item.value;
+      ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+      _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
+      _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
+    }
     if (item.bold) {
-      ws.getCell(row, explanationLeftStartCol).font = { bold: true };
-      ws.getCell(row, explanationAmountStartCol).font = { bold: true };
+      ws.getCell(row, isElecLayout ? 2 : explanationLeftStartCol).font = { bold: true };
+      ws.getCell(row, isElecLayout ? 9 : explanationAmountStartCol).font = { bold: true };
     }
     row++;
   }
 
   ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
-  ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
-  ws.getCell(row, explanationLeftStartCol).value = "Amount Due";
+  ws.getCell(row, explanationLeftStartCol).value = "Amount Due----------------";
   ws.getCell(row, explanationLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
+  if (explanationAmountEndCol > explanationAmountStartCol + 1) {
+    ws.mergeCells(row, explanationAmountStartCol + 1, row, explanationAmountEndCol);
+  }
+  ws.getCell(row, explanationAmountStartCol).value = "₱";
   ws.getCell(row, explanationAmountStartCol).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
-  ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, explanationAmountStartCol + 1).value = `${_formatNumber(withholdings.netAmount)}`;
+  ws.getCell(row, explanationAmountStartCol + 1).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
+  ws.getCell(row, explanationAmountStartCol + 1).alignment = { horizontal: "right", vertical: "middle" };
   _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
   _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
   row++;
@@ -4385,7 +5125,7 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "\u2610 Supporting documents complete";
+  ws.getCell(row, signerLeftStartCol).value = "☑ Supporting documents complete";
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
@@ -4484,12 +5224,15 @@ async function _buildDisbursementVoucherExcelBuffer(
     ws.getRow(r).commit();
   }
 
+  applyReadyToPrintLayout(ws, { printArea: `A1:O${row}` });
+
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
 }
 
-async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplatePath: string | null): Promise<Buffer> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _buildObrFormExcelBufferLegacy(request: ObrRequestType, headerTemplatePath: string | null): Promise<Buffer> {
   const { Workbook } = await import("@cj-tech-master/excelts");
 
   const wb = new Workbook();
@@ -4659,6 +5402,293 @@ async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplateP
   for (let r = 1; r <= row; r++) {
     ws.getRow(r).commit();
   }
+
+  applyReadyToPrintLayout(ws, { printArea: `A1:G${row}` });
+
+  const rawBuffer = await wb.xlsx.writeBuffer();
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
+  return Buffer.from(rawBuffer as unknown as Uint8Array);
+}
+
+async function _renderObrDefaultHeader(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wb: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+): Promise<number> {
+  ws.mergeCells(row, 1, row + 2, 8);
+  await _addTigbauanSeal(wb, ws, 1.85, row - 0.85, 44);
+  ws.getCell(row, 1).value = "Republic of the Philippines\nLocal Government Unit of Tigbauan\nTigbauan, Iloilo";
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row, 1).font = { size: 10 };
+  _applyCellBox(ws, row, row + 2, 1, 8, "center");
+  ws.getRow(row).height = 14;
+  ws.getRow(row + 1).height = 14;
+  ws.getRow(row + 2).height = 14;
+  return row + 3;
+}
+
+function _renderObrSignerPair(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  left: ObrFormSignerBlock,
+  right: ObrFormSignerBlock,
+): number {
+  ws.mergeCells(row, 1, row, 4);
+  ws.mergeCells(row, 5, row, 8);
+  ws.getCell(row, 1).value = "Certified:";
+  ws.getCell(row, 5).value = "Certified:";
+  _applyCellBox(ws, row, row, 1, 8, "center");
+  ws.getRow(row).height = 18;
+  row++;
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.mergeCells(row, 6, row, 8);
+  ws.getCell(row, 1).value = "☑";
+  ws.getCell(row, 2).value = "Charges to appropriation/allotment necessary,\nlawful and under my direct supervision";
+  ws.getCell(row, 5).value = "☑";
+  ws.getCell(row, 6).value = "Existence of available appropriation";
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, 5).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getRow(row).height = 20;
+  row++;
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.mergeCells(row, 6, row, 8);
+  ws.getCell(row, 1).value = "☑";
+  ws.getCell(row, 2).value = "Supporting documents valid, proper and legal";
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getRow(row).height = 18;
+  row++;
+
+  for (let i = 0; i < 5; i++) {
+    ws.mergeCells(row + i, 2, row + i, 4);
+    ws.mergeCells(row + i, 6, row + i, 8);
+    _applyCellBox(ws, row + i, row + i, 1, 8);
+  }
+
+  ws.getCell(row, 1).value = "Signature";
+  ws.getCell(row, 5).value = "Signature";
+  ws.getCell(row + 1, 1).value = "Printed Name:";
+  ws.getCell(row + 1, 2).value = left.printedName.toUpperCase();
+  ws.getCell(row + 1, 2).font = { bold: true };
+  ws.getCell(row + 1, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 1, 5).value = "Printed Name:";
+  ws.getCell(row + 1, 6).value = right.printedName.toUpperCase();
+  ws.getCell(row + 1, 6).font = { bold: true };
+  ws.getCell(row + 1, 6).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, 1).value = "Position";
+  ws.getCell(row + 2, 2).value = left.position;
+  ws.getCell(row + 2, 2).font = { bold: true };
+  ws.getCell(row + 2, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 2, 5).value = "Position";
+  ws.getCell(row + 2, 6).value = right.position;
+  ws.getCell(row + 2, 6).font = { bold: true };
+  ws.getCell(row + 2, 6).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 3, 2).value = left.roleLabel;
+  ws.getCell(row + 3, 6).value = right.roleLabel;
+  ws.getCell(row + 3, 2).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 3, 6).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(row + 4, 1).value = "Date:";
+  ws.getCell(row + 4, 5).value = "Date:";
+
+  ws.getRow(row).height = 24;
+  ws.getRow(row + 1).height = 17;
+  ws.getRow(row + 2).height = 17;
+  ws.getRow(row + 3).height = 17;
+  ws.getRow(row + 4).height = 24;
+  return row + 5;
+}
+
+async function _renderObrCopy(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wb: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ws: any,
+  row: number,
+  request: ObrRequestType,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  headerWb: any | null,
+): Promise<number> {
+  if (headerWb) {
+    row = await _copyTemplateRows(headerWb, ws, row);
+  } else {
+    row = await _renderObrDefaultHeader(wb, ws, row);
+  }
+
+  ws.mergeCells(row, 1, row, 8);
+  ws.getCell(row, 1).value = "OBLIGATION REQUEST";
+  ws.getCell(row, 1).font = { bold: true, size: 18 };
+  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  _applyCellBox(ws, row, row, 1, 8, "center");
+  ws.getRow(row).height = 22;
+  row++;
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.mergeCells(row, 6, row, 8);
+  ws.getCell(row, 1).value = "Request:";
+  ws.getCell(row, 2).value = request.requestNumber;
+  ws.getCell(row, 2).font = { bold: true, size: 14, color: { argb: "FFFF0000" } };
+  ws.getCell(row, 5).value = "Obligation No.:";
+  ws.getCell(row, 6).value = request.obrNumber ?? "";
+  ws.getCell(row, 6).font = { bold: true, size: 12 };
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getRow(row).height = 21;
+  row++;
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.mergeCells(row, 6, row, 8);
+  ws.getCell(row, 1).value = "Payee:";
+  ws.getCell(row, 2).value = (request.payee ?? "").toUpperCase();
+  ws.getCell(row, 2).font = { bold: true };
+  ws.getCell(row, 5).value = "PR No.";
+  ws.getCell(row, 6).value = request.prNumber ?? "";
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getRow(row).height = 21;
+  row++;
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.mergeCells(row, 6, row, 8);
+  ws.getCell(row, 1).value = "Office:\nAddress:";
+  ws.getCell(row, 2).value = (request.officeAddress || "TIGBAUAN, ILOILO").toUpperCase();
+  ws.getCell(row, 2).font = { bold: true };
+  ws.getCell(row, 5).value = "Date:";
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getRow(row).height = 24;
+  row++;
+
+  ws.getCell(row, 1).value = "RC";
+  ws.mergeCells(row, 2, row, 4);
+  ws.getCell(row, 2).value = "PARTICULARS";
+  ws.getCell(row, 5).value = "FPP";
+  ws.getCell(row, 6).value = "ACCOUNT\nCODE";
+  ws.getCell(row, 8).value = "AMOUNT";
+  _applyCellBox(ws, row, row, 1, 8, "center");
+  for (let col = 1; col <= 8; col++) ws.getCell(row, col).font = { bold: true };
+  ws.getRow(row).height = 26;
+  row++;
+
+  const itemRowsStart = row;
+  let totalAmount = 0;
+  const visibleItemRows = Math.max(3, request.requestItems.length);
+  for (let index = 0; index < visibleItemRows; index++) {
+    const item = request.requestItems[index];
+    ws.mergeCells(row, 2, row, 4);
+    if (item) {
+      const amount = _toMoneyNumber(item.amount);
+      totalAmount += amount;
+      ws.getCell(row, 1).value = item.responsibilityCenter.name;
+      ws.getCell(row, 2).value = item.particulars.toUpperCase();
+      ws.getCell(row, 5).value = item.expenseCode.fpp ?? item.expenseCode.name;
+      ws.getCell(row, 6).value = item.expenseCode.accountCode ?? "-";
+      ws.getCell(row, 7).value = "₱";
+      ws.getCell(row, 8).value = amount;
+      ws.getCell(row, 8).numFmt = "#,##0.00";
+      ws.getCell(row, 8).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
+    }
+    _applyCellBox(ws, row, row, 1, 8);
+    ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "top", wrapText: true };
+    ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+    ws.getCell(row, 5).alignment = { horizontal: "center", vertical: "top", wrapText: true };
+    ws.getCell(row, 6).alignment = { horizontal: "center", vertical: "top", wrapText: true };
+    ws.getCell(row, 7).alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(row).height = index === 0 ? 46 : 20;
+    row++;
+  }
+  _applyCellBox(ws, itemRowsStart, row - 1, 1, 8);
+
+  ws.mergeCells(row, 2, row, 4);
+  ws.mergeCells(row, 5, row, 7);
+  ws.getCell(row, 1).value = "Charges:";
+  if (request.requestItems.length === 1) {
+    const singleItem = request.requestItems[0]!;
+    ws.getCell(row, 2).value = buildChargesString(
+      singleItem.responsibilityCenter.name,
+      singleItem.expenseCode.name,
+      singleItem.amount,
+    ).toUpperCase();
+  }
+  ws.getCell(row, 5).value = "Total Amount Requested:";
+  ws.getCell(row, 5).font = { bold: true };
+  ws.getCell(row, 8).value = totalAmount;
+  ws.getCell(row, 8).numFmt = "\"₱\" #,##0.00";
+  ws.getCell(row, 8).font = { bold: true, color: { argb: "FF0000FF" } };
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getCell(row, 5).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(row, 8).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getRow(row).height = 19;
+  row++;
+
+  ws.mergeCells(row, 2, row, 8);
+  ws.getCell(row, 1).value = "Amount in Words:";
+  ws.getCell(row, 2).value = amountToWords(totalAmount).toUpperCase();
+  ws.getCell(row, 2).font = { bold: true, color: { argb: "FF0000FF" } };
+  ws.getCell(row, 2).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
+  _applyCellBox(ws, row, row, 1, 8);
+  ws.getRow(row).height = 18;
+  row++;
+
+  const signerBlocks: ObrFormSignerBlock[] = request.approvers.slice(0, 2).map((approver, idx) => ({
+    printedName: approver.signer?.name ?? "-",
+    position: approver.position.name,
+    roleLabel: idx === 0
+      ? "Head, Requesting Office/\nAuthorized Representative"
+      : "Head, Budget Unit/\nAuthorized Representative",
+  }));
+
+  return _renderObrSignerPair(ws, row, signerBlocks[0] ?? {
+    printedName: "-",
+    position: "-",
+    roleLabel: "Head, Requesting Office/\nAuthorized Representative",
+  }, signerBlocks[1] ?? {
+    printedName: "-",
+    position: "-",
+    roleLabel: "Head, Budget Unit/\nAuthorized Representative",
+  });
+}
+
+async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplatePath: string | null): Promise<Buffer> {
+  const { Workbook } = await import("@cj-tech-master/excelts");
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("OBR Form");
+  [12, 15, 18, 18, 22, 12, 4, 14].forEach((width, index) => {
+    ws.getColumn(index + 1).width = width;
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let headerWb: any | null = null;
+  if (headerTemplatePath) {
+    headerWb = new Workbook();
+    await headerWb.xlsx.readFile(headerTemplatePath);
+  }
+
+  let row = 1;
+  row = await _renderObrCopy(wb, ws, row, request, headerWb);
+  ws.getRow(row).height = 22;
+  row++;
+  row = await _renderObrCopy(wb, ws, row, request, headerWb);
+  row--;
+
+  for (let r = 1; r <= row; r++) {
+    for (let c = 1; c <= 8; c++) {
+      // Ensure a consistent export typography while preserving style attributes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cell = ws.getCell(r, c) as any;
+      cell.font = {
+        ...(cell.font ?? {}),
+        name: "Arial Narrow",
+        size: cell.font?.size ?? 9,
+      };
+    }
+    ws.getRow(r).commit();
+  }
+
+  applyReadyToPrintLayout(ws, { printArea: `A1:H${row}`, fitToHeight: 1 });
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;

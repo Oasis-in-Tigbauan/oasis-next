@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { DateTime } from "luxon";
-import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import useSWR from "swr";
 
@@ -225,16 +225,18 @@ export default function LeaveApplicationPage() {
       }
 
       const blob = await response.blob();
-      const match = (response.headers.get("Content-Disposition") ?? "").match(/filename="([^"]+)"/);
-      const link = document.createElement("a");
-      const downloadUrl = URL.createObjectURL(blob);
-      link.href = downloadUrl;
-      link.download = match?.[1] ?? "leave-application.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(downloadUrl);
-      toast.success("Leave PDF is ready");
+      const previewUrl = URL.createObjectURL(blob);
+      const previewWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+      if (!previewWindow) {
+        URL.revokeObjectURL(previewUrl);
+        toast.error("Leave preview was blocked", {
+          description: "Allow pop-ups for this site and try again.",
+        });
+        return;
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60_000);
+      toast.success("Leave print preview is ready");
     } finally {
       setIsExporting(false);
     }
@@ -305,8 +307,8 @@ export default function LeaveApplicationPage() {
             disabled={!selectedItem || isExporting}
             onClick={() => handleExport(selectedItem)}
           >
-            <Download />
-            <span className="hidden sm:inline">{isExporting ? "Exporting..." : "Export PDF"}</span>
+            <Printer />
+            <span className="hidden sm:inline">{isExporting ? "Preparing..." : "Print PDF"}</span>
           </Button>
         </div>
       </div>

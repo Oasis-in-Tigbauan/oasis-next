@@ -2,6 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { toWords } from "to-words";
 
+import { applyReadyToPrintLayout } from "@/common/forms/excel-print-layout";
 import { type User } from "@/lib/accounts";
 import { db } from "@/lib/db";
 import * as permissions from "@/lib/db/permissions";
@@ -997,6 +998,8 @@ export async function exportPurchaseRequestToBuffer(
       };
     }
 
+    applyReadyToPrintLayout(ws, { printArea: `A1:F${currentLine}` });
+
     const rawBuffer = await wb.xlsx.writeBuffer();
     if (rawBuffer instanceof Buffer) return new Success(rawBuffer);
     return new Success(Buffer.from(rawBuffer as unknown as Uint8Array));
@@ -1292,6 +1295,8 @@ export async function exportPurchaseOrderToBuffer(
 
     // ── Closing separator ──────────────────────────────────────────────────
     applyBorders(currentLine, currentLine, 1, 6);
+
+    applyReadyToPrintLayout(ws, { printArea: `A1:F${currentLine}` });
 
     const rawBuffer = await wb.xlsx.writeBuffer();
     if (rawBuffer instanceof Buffer) return new Success(rawBuffer);

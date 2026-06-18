@@ -8,7 +8,7 @@ import { Failure } from "@/lib/one-of";
 import { validatorUtilities } from "@/lib/validators";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth.verify([
@@ -27,16 +27,22 @@ export async function GET(
     return ApiResponseBuilder.createError(404, "No such request found.").build();
   }
 
-  const result = await obr.exportObrRequestFormToBuffer(id, session.user!);
+  const format = new URL(req.url).searchParams.get("format");
+  const isPdf = format === "pdf";
+  const result = isPdf
+    ? await obr.exportObrRequestFormToPdfBuffer(id, session.user!)
+    : await obr.exportObrRequestFormToBuffer(id, session.user!);
   if (result instanceof Failure) {
     return ApiResponseBuilder.createFromFailure(result).build();
   }
 
-  const filename = `obr-request-${id}.xlsx`;
+  const filename = `obr-request-${id}.${isPdf ? "pdf" : "xlsx"}`;
   return new NextResponse(new Uint8Array(result.value), {
     status: 200,
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Type": isPdf
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });

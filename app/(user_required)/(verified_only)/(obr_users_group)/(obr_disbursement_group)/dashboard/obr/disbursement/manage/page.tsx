@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Pencil, X, Check, Trash2, Download, Upload, FileSpreadsheet } from "lucide-react";
+import { Pencil, X, Check, Trash2, Upload, FileSpreadsheet, FileText } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -426,13 +426,13 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
     }
   }, [voucher, onDeleted, onOpenChange]);
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (format: "xlsx" | "pdf" = "xlsx") => {
     if (!voucher) return;
     setExporting(true);
     setExportError(null);
 
     try {
-      const response = await fetch(`/api/obr/disbursements/${voucher.id}/export`);
+      const response = await fetch(`/api/obr/disbursements/${voucher.id}/export${format === "pdf" ? "?format=pdf" : ""}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setExportError(extractErrorMessage(payload, "Export failed. Please try again."));
@@ -443,7 +443,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
       const url = URL.createObjectURL(blob);
       const contentDisposition = response.headers.get("Content-Disposition") ?? "";
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? `disbursement-voucher-${voucher.id}.xlsx`;
+      const filename = filenameMatch?.[1] ?? `disbursement-voucher-${voucher.id}.${format}`;
 
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -751,10 +751,16 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
 
         {!editing && !confirmingDelete && (
           <DialogFooter className="justify-between">
-            <Button onClick={() => void handleExport()} disabled={exporting}>
-              <Download className="size-4 mr-1" />
-              {exporting ? "Exporting..." : "Export"}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void handleExport("xlsx")} disabled={exporting}>
+                <FileSpreadsheet className="size-4 mr-1" />
+                {exporting ? "Exporting..." : "Export XLSX"}
+              </Button>
+              <Button onClick={() => void handleExport("pdf")} disabled={exporting}>
+                <FileText className="size-4 mr-1" />
+                {exporting ? "Exporting..." : "Export PDF"}
+              </Button>
+            </div>
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
             </DialogClose>

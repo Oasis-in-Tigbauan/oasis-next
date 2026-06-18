@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { FileSpreadsheet, FileText, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -83,12 +83,12 @@ export default function Page() {
   const paddingBottom =
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (format: "xlsx" | "pdf" = "xlsx") => {
     if (!selectedItem) return;
 
     setExporting(true);
     try {
-      const response = await fetch(`/api/obr/disbursements/${selectedItem.dv.id}/export`);
+      const response = await fetch(`/api/obr/disbursements/${selectedItem.dv.id}/export${format === "pdf" ? "?format=pdf" : ""}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         alert(extractErrorMessage(payload, "Failed to export voucher. Please try again."));
@@ -99,7 +99,7 @@ export default function Page() {
       const url = URL.createObjectURL(blob);
       const contentDisposition = response.headers.get("Content-Disposition") ?? "";
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? `disbursement-voucher-${selectedItem.dv.id}.xlsx`;
+      const filename = filenameMatch?.[1] ?? `disbursement-voucher-${selectedItem.dv.id}.${format}`;
 
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -190,11 +190,21 @@ export default function Page() {
         <Button
           variant="outline"
           size="icon-sm"
-          aria-label="Export selected DV"
+          aria-label="Export selected DV as XLSX"
           disabled={!selectedItem || exporting}
-          onClick={() => void handleExport()}
+          onClick={() => void handleExport("xlsx")}
         >
-          <Download />
+          <FileSpreadsheet />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Export selected DV as PDF"
+          disabled={!selectedItem || exporting}
+          onClick={() => void handleExport("pdf")}
+        >
+          <FileText />
         </Button>
       </div>
 

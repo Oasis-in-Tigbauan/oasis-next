@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Download, FileSpreadsheet, PlusIcon, Table2, Trash2, Trash2Icon, Upload } from "lucide-react";
+import { ClipboardPaste, FileSpreadsheet, FileText, PlusIcon, Table2, Trash2, Trash2Icon, Upload } from "lucide-react";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -117,6 +118,31 @@ function makeEmptyForm(): CreateFormState {
 
 function makeEmptyErrors(): CreateFormErrors {
   return { items: [] };
+}
+
+function normalizeLookup(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeAmount(value: string): string {
+  return value.replace(/[,\s₱]/g, "").trim();
+}
+
+function splitPastedRow(row: string): string[] {
+  if (row.includes("\t")) {
+    return row.split("\t").map(cell => cell.trim());
+  }
+
+  return row.split(",").map(cell => cell.trim());
+}
+
+function isBulkImportHeader(columns: string[]): boolean {
+  const normalized = columns.map(normalizeLookup).join(" ");
+  return normalized.includes("expense") && normalized.includes("amount");
 }
 
 // --- ApprovalStatusBadge ---
@@ -328,11 +354,11 @@ function ObrExportDialog({
 
   const templates = data?.data?.data;
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (format: "xlsx" | "pdf" = "xlsx") => {
     setExporting(true);
     setExportError(null);
     try {
-      const response = await fetch(`/api/obr/requests/${requestId}/export`);
+      const response = await fetch(`/api/obr/requests/${requestId}/export${format === "pdf" ? "?format=pdf" : ""}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setExportError(extractErrorMessage(payload, "Export failed. Please try again."));
@@ -343,7 +369,7 @@ function ObrExportDialog({
       const url = URL.createObjectURL(blob);
       const contentDisposition = response.headers.get("Content-Disposition") ?? "";
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? `obr-request-${requestId}.xlsx`;
+      const filename = filenameMatch?.[1] ?? `obr-request-${requestId}.${format}`;
 
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -462,9 +488,13 @@ function ObrExportDialog({
             >
               Cancel
             </Button>
-            <Button disabled={exporting} onClick={() => void handleExport()}>
-              <Download className="size-3.5" />
-              {exporting ? "Exporting..." : "Export"}
+            <Button variant="outline" disabled={exporting} onClick={() => void handleExport("xlsx")}>
+              <FileSpreadsheet className="size-3.5" />
+              {exporting ? "Exporting..." : "Export XLSX"}
+            </Button>
+            <Button disabled={exporting} onClick={() => void handleExport("pdf")}>
+              <FileText className="size-3.5" />
+              {exporting ? "Exporting..." : "Export PDF"}
             </Button>
           </DialogFooter>
         </div>
@@ -831,6 +861,9 @@ function CreateRequestDialog({
   const [errors, setErrors] = useState<CreateFormErrors>(makeEmptyErrors);
   const [submitting, setSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [bulkPasteText, setBulkPasteText] = useState("");
+  const [bulkImportMessage, setBulkImportMessage] = useState<string | null>(null);
+  const [bulkImportError, setBulkImportError] = useState<string | null>(null);
 
   const markDirty = () => setIsDirty(true);
 
@@ -868,6 +901,125 @@ function CreateRequestDialog({
       ...prev,
       requestItems: prev.requestItems.filter((_, i) => i !== index),
     }));
+    markDirty();
+  };
+
+  const importPastedItems = () => {
+    setBulkImportMessage(null);
+    setBulkImportError(null);
+
+    const lines = bulkPasteText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      setBulkImportError("Paste at least one item row before importing.");
+      return;
+    }
+
+    const expenseByLookup = new Map<string, string>();
+    for (const expense of expenseClassList) {
+      const values = [
+        expense.id,
+        expense.accountCode ?? "",
+        expense.accountName,
+        expense.fpp ?? "",
+        expense.accountCode ? `${expense.accountName} ${expense.accountCode}` : "",
+      ];
+      for (const value of values) {
+        const key = normalizeLookup(value);
+        if (key) expenseByLookup.set(key, expense.id);
+      }
+    }
+
+    const officeByLookup = new Map<string, string>();
+    for (const officeCode of officeCodeList) {
+      const values = [
+        officeCode.id,
+        officeCode.aa,
+        officeCode.code ?? "",
+        officeCode.office.name,
+        `${officeCode.aa} ${officeCode.office.name}`,
+      ];
+      for (const value of values) {
+        const key = normalizeLookup(value);
+        if (key) officeByLookup.set(key, officeCode.id);
+      }
+    }
+
+    const imported: CreateFormItem[] = [];
+    const skipped: string[] = [];
+
+    lines.forEach((line, lineIndex) => {
+      const columns = splitPastedRow(line);
+      if (lineIndex === 0 && isBulkImportHeader(columns)) return;
+
+      if (columns.length < 4) {
+        skipped.push(`Line ${lineIndex + 1}: expected at least 4 columns.`);
+        return;
+      }
+
+      const expenseText = columns[0] ?? "";
+      const responsibilityText = columns.length >= 5 ? columns[2] ?? "" : columns[1] ?? "";
+      const particulars = columns.length >= 5
+        ? columns.slice(3, -1).join(" ").trim()
+        : columns.slice(2, -1).join(" ").trim();
+      const amount = normalizeAmount(columns[columns.length - 1] ?? "");
+
+      const expenseCodeId = expenseByLookup.get(normalizeLookup(expenseText));
+      const responsibilityCenterId = officeByLookup.get(normalizeLookup(responsibilityText));
+      const parsedAmount = Number.parseFloat(amount);
+
+      if (!expenseCodeId) {
+        skipped.push(`Line ${lineIndex + 1}: expense not found (${expenseText}).`);
+        return;
+      }
+      if (!responsibilityCenterId) {
+        skipped.push(`Line ${lineIndex + 1}: responsibility center not found (${responsibilityText}).`);
+        return;
+      }
+      if (!particulars) {
+        skipped.push(`Line ${lineIndex + 1}: particulars is empty.`);
+        return;
+      }
+      if (!amount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        skipped.push(`Line ${lineIndex + 1}: amount is invalid.`);
+        return;
+      }
+
+      imported.push({
+        _key: crypto.randomUUID(),
+        expenseCodeId,
+        responsibilityCenterId,
+        particulars,
+        amount,
+      });
+    });
+
+    if (imported.length === 0) {
+      setBulkImportError(skipped.slice(0, 5).join(" "));
+      return;
+    }
+
+    setForm(prev => ({
+      ...prev,
+      requestItems:
+        prev.requestItems.length === 1
+        && !prev.requestItems[0].expenseCodeId
+        && !prev.requestItems[0].responsibilityCenterId
+        && !prev.requestItems[0].particulars
+        && !prev.requestItems[0].amount
+          ? imported
+          : [...prev.requestItems, ...imported],
+    }));
+    setErrors(makeEmptyErrors());
+    setBulkPasteText("");
+    setBulkImportMessage(
+      skipped.length > 0
+        ? `Imported ${imported.length} item(s). Skipped ${skipped.length}: ${skipped.slice(0, 3).join(" ")}`
+        : `Imported ${imported.length} item(s).`,
+    );
     markDirty();
   };
 
@@ -925,6 +1077,9 @@ function CreateRequestDialog({
     if (!nextOpen) {
       setForm(makeEmptyForm());
       setErrors(makeEmptyErrors());
+      setBulkPasteText("");
+      setBulkImportMessage(null);
+      setBulkImportError(null);
       setIsDirty(false);
     }
     onOpenChange(nextOpen);
@@ -1103,6 +1258,50 @@ function CreateRequestDialog({
               {errors.requestItems && (
                 <p className="text-sm text-destructive">{errors.requestItems}</p>
               )}
+
+              <div className="rounded-md border bg-muted/30 p-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <Typography variant="small" className="font-medium">
+                      Paste Items from Spreadsheet
+                    </Typography>
+                    <Typography variant="small" className="text-muted-foreground">
+                      Columns: Expense Code or Name, Responsibility Center, Particulars, Amount. A header row is allowed.
+                    </Typography>
+                  </div>
+                  <Textarea
+                    value={bulkPasteText}
+                    onChange={e => {
+                      setBulkPasteText(e.currentTarget.value);
+                      setBulkImportMessage(null);
+                      setBulkImportError(null);
+                    }}
+                    placeholder={"Expense Code\tResponsibility Center\tParticulars\tAmount\nOffice Supplies\t101 - Mayor's Office\tBond paper A4\t1500.00"}
+                    className="min-h-28 bg-background font-mono text-xs"
+                    disabled={submitting}
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 text-xs">
+                      {bulkImportMessage && (
+                        <p className="text-muted-foreground">{bulkImportMessage}</p>
+                      )}
+                      {bulkImportError && (
+                        <p className="text-destructive">{bulkImportError}</p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={importPastedItems}
+                      disabled={submitting || expenseClassList.length === 0 || officeCodeList.length === 0}
+                    >
+                      <ClipboardPaste className="size-4 mr-1" />
+                      Import Pasted Rows
+                    </Button>
+                  </div>
+                </div>
+              </div>
 
               {form.requestItems.map((item, idx) => {
                 const itemErr = errors.items[idx] ?? {};
