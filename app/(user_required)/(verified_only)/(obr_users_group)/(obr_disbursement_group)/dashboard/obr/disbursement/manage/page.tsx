@@ -83,10 +83,10 @@ const STATUS_OPTIONS: DisbursementStatus[] = [
   "PAID",
 ];
 
-function formatCurrency(value: string | null): string {
-  if (!value) return "—";
+function formatCurrency(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
 
-  const trimmed = value.trim();
+  const trimmed = typeof value === "number" ? String(value) : value.trim();
   if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return "—";
 
   const isNegative = trimmed.startsWith("-");
