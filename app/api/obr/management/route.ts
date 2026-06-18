@@ -12,7 +12,7 @@ export async function GET() {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
-  const result = await obr.getObrItems();
+  const result = await obr.getObrItems(session.user!);
   return oneOf(result).match(
     s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
     e => ApiResponseBuilder.createFromFailure(e).build(),
