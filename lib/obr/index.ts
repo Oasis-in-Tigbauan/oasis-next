@@ -2744,26 +2744,28 @@ export async function getAllDisbursementVouchers(actor: User): Promise<Result<Ar
 
 
 /**
- * Retrieves all created OBR items.
+ * Retrieves OBR items for the actor's originating office.
  *
  * @description
- * Fetches OBR item records, resolves related requesting official and publisher users, loads associated office-item
- * amount entries with responsibility-center and expense-code details, groups those entries by OBR item, and computes
- * each item's overall amount.
+ * Fetches OBR item records linked to requests from the actor's office, resolves related requesting official and
+ * publisher users, loads associated office-item amount entries with responsibility-center and expense-code details,
+ * groups those entries by OBR item, and computes each item's overall amount.
  *
- * On success, wraps the mapped OBR items in a {@link Success}. If no OBR items exist, returns an empty success list.
- * On unexpected failure, wraps the error in a fatal {@link Failure}.
+ * On success, wraps the mapped OBR items in a {@link Success}. If no OBR items exist for the office, returns an empty
+ * success list. On unexpected failure, wraps the error in a fatal {@link Failure}.
  *
  * @async
  * @function getObrItems
+ * @param {User} actor - User requesting the OBR item list; results are limited to this user's office.
  * @returns {Promise<Result<ObrItem[]>>} A result wrapper containing OBR items on success, or a failure result on error.
  *
  * @remarks
  * - Each returned item includes its amount breakdown entries.
  * - Overall amounts are computed from the item's associated office-item amounts.
  * - Missing user details are represented with fallback `"Unknown"` values.
+ * - Items are scoped by the parent request's `originatingOfficeId`.
  */
-export async function getObrItems(): Promise<Result<ObrItem[]>> {
+export async function getObrItems(actor: User): Promise<Result<ObrItem[]>> {
   try {
     const items = await db
       .select({
@@ -2782,7 +2784,8 @@ export async function getObrItems(): Promise<Result<ObrItem[]>> {
       .leftJoin(
         obrDisbursementVouchers,
         eq(obrDisbursementVouchers.id, obrItems.disbursementRefId),
-      );
+      )
+      .where(eq(obrRequests.originatingOfficeId, actor.office.id));
 
     if (items.length === 0) return new Success([]);
 
