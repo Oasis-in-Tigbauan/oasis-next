@@ -908,7 +908,7 @@ export async function listPendingDisbursementsForAccountant(
         existing.push({
           id: requestItem.id,
           particulars: requestItem.particulars,
-          amount: requestItem.amount,
+          amount: casts.castToDecimal(String(requestItem.amount)),
           responsibilityCenter: requestItem.responsibilityCenter,
           expenseName: requestItem.expenseName,
         });
@@ -4386,7 +4386,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
     requestItems: result.requestItems.map(i => ({
       id: i.id,
       particulars: i.particulars,
-      amount: i.amount,
+      amount: casts.castToDecimal(String(i.amount)),
       expenseCode: {
         id: ecMap.get(i.expenseCodeId)!.id,
         name: ecMap.get(i.expenseCodeId)!.name,
