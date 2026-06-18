@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { redirect, RedirectType } from "next/navigation";
 import { type SyntheticEvent, useRef, useState } from "react";
-import { LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import { $fetch } from "@/lib/http/client/fetch";
 
@@ -19,6 +19,7 @@ export default function SigninPage() {
   const turnstileComponent = useRef<TurnstileInstance | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<SigninPageState>({
     email: "",
@@ -81,8 +82,8 @@ export default function SigninPage() {
   };
 
   return (
-    <main className="grid min-h-svh overflow-x-auto bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
-      <section className="flex min-h-svh flex-col px-6 py-6 sm:px-10 lg:px-14">
+    <main className="grid h-svh min-h-svh overflow-hidden bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
+      <section className="flex h-svh min-h-0 flex-col overflow-hidden px-6 py-6 sm:px-10 lg:px-14">
         <header className="flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-xl border bg-card shadow-sm">
             <Image
@@ -99,7 +100,7 @@ export default function SigninPage() {
           </div>
         </header>
 
-        <div className="flex flex-1 items-center justify-center py-10">
+        <div className="no-scrollbar min-h-0 flex flex-1 items-center justify-center overflow-y-auto overflow-x-hidden py-10">
           <div className="w-full max-w-[420px]">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
               <ShieldCheck className="size-3.5 text-[oklch(0.48_0.1_258)]" />
@@ -150,14 +151,23 @@ export default function SigninPage() {
                       <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="password"
-                        className="h-10 pl-9"
-                        type="password"
+                        className="h-10 pl-9 pr-9"
+                        type={showPassword ? "text" : "password"}
                         autoComplete="current-password"
                         value={credentials.password}
                         onInput={e => onFieldUpdate(e, "password")}
                         disabled={isLoading}
                         required
                       />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        onClick={() => setShowPassword(v => !v)}
+                        disabled={isLoading}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
                     </div>
                   </Field>
 

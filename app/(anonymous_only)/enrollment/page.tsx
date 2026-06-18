@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LockKeyhole, User, X } from "lucide-react";
+import { Check, Eye, EyeOff, LockKeyhole, User, X } from "lucide-react";
 import { type SyntheticEvent, useMemo, useState } from "react";
 import { redirect, RedirectType, useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -25,6 +25,8 @@ export default function SignupPage() {
 
   const [onFocus, setOnFocus] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [enrollmentFields, setEnrollmentFields] = useState<EnrollmentFormState>({
     fullName: "",
     password: "",
@@ -171,8 +173,8 @@ export default function SignupPage() {
                     <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
-                      className="h-10 pl-9"
-                      type="password"
+                      className="h-10 pl-9 pr-9"
+                      type={showPassword ? "text" : "password"}
                       value={enrollmentFields.password}
                       onFocus={() => setOnFocus(true)}
                       onBlur={() => setOnFocus(false)}
@@ -180,6 +182,15 @@ export default function SignupPage() {
                       disabled={isSubmitting}
                       required
                     />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      onClick={() => setShowPassword(v => !v)}
+                      disabled={isSubmitting}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
                   </div>
                   {
                     onFocus && (
@@ -210,13 +221,22 @@ export default function SignupPage() {
                     <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="confirm-password"
-                      className="h-10 pl-9"
-                      type="password"
+                      className="h-10 pl-9 pr-9"
+                      type={showConfirmPassword ? "text" : "password"}
                       value={enrollmentFields.confirmPassword}
                       onInput={e => handleInput(e, "confirmPassword")}
                       disabled={isSubmitting}
                       required
                     />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      onClick={() => setShowConfirmPassword(v => !v)}
+                      disabled={isSubmitting}
+                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
                   </div>
                   <FieldDescription>Please confirm your password.</FieldDescription>
                 </Field>
