@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { ClipboardPaste, FileSpreadsheet, FileText, PlusIcon, Table2, Trash2, Trash2Icon, Upload } from "lucide-react";
+import { ClipboardPaste, FileSpreadsheet, FileText, PlusIcon, Printer, Table2, Trash2, Trash2Icon, Upload } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -90,6 +91,15 @@ type CreateFormErrors = {
   items: ItemError[];
 };
 
+type PrintSignerForm = {
+  leftName: string;
+  leftPosition: string;
+  leftDate: string;
+  rightName: string;
+  rightPosition: string;
+  rightDate: string;
+};
+
 // --- Helpers ---
 
 function makeEmptyItem(): CreateFormItem {
@@ -140,6 +150,50 @@ function splitPastedRow(row: string): string[] {
 function isBulkImportHeader(columns: string[]): boolean {
   const normalized = columns.map(normalizeLookup).join(" ");
   return normalized.includes("expense") && normalized.includes("amount");
+}
+
+function makeDefaultPrintSignerForm(detail?: ObrRequestDetail | null): PrintSignerForm {
+  const left = detail?.approvers[0];
+  const right = detail?.approvers[1];
+  return {
+    leftName: left?.signer?.name ?? "",
+    leftPosition: left?.position.name ?? "",
+    leftDate: "",
+    rightName: right?.signer?.name ?? "",
+    rightPosition: right?.position.name ?? "",
+    rightDate: "",
+  };
+}
+
+async function openObrRequestPrintPreview(requestId: string, printForm: PrintSignerForm): Promise<void> {
+  const searchParams = new URLSearchParams({ format: "pdf" });
+  Object.entries(printForm).forEach(([key, value]) => {
+    const trimmed = value.trim();
+    if (trimmed) searchParams.set(key, trimmed);
+  });
+
+  const response = await fetch(`/api/obr/requests/${requestId}/export?${searchParams.toString()}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    toast.error("OBR print preview failed", {
+      description: extractErrorMessage(payload, "Unable to generate the OBR PDF."),
+    });
+    return;
+  }
+
+  const blob = await response.blob();
+  const previewUrl = URL.createObjectURL(blob);
+  const previewWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+  if (!previewWindow) {
+    URL.revokeObjectURL(previewUrl);
+    toast.error("OBR print preview was blocked", {
+      description: "Allow pop-ups for this site and try again.",
+    });
+    return;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60_000);
+  toast.success("OBR print preview is ready");
 }
 
 // --- ApprovalStatusBadge ---
@@ -521,6 +575,7 @@ export default function Page() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [printRequestId, setPrintRequestId] = useState<string | null>(null);
 
   const permissionSet = new Set(userData?.data?.data?.office?.role?.permissions ?? []);
   const canCreate = permissionSet.has(permissions.OBR_REQUEST_CREATE);
@@ -528,6 +583,10 @@ export default function Page() {
   const handleRowClick = useCallback((id: string) => {
     setSelectedId(id);
     setDetailOpen(true);
+  }, []);
+
+  const handlePrint = useCallback((id: string) => {
+    setPrintRequestId(id);
   }, []);
 
   if (listLoading) {
@@ -572,6 +631,7 @@ export default function Page() {
                   <TableHead>Office Address</TableHead>
                   <TableHead className="text-right">Items</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-16 text-right">Print</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -590,6 +650,20 @@ export default function Page() {
                     <TableCell className="text-right">{req.requestItemsCount}</TableCell>
                     <TableCell>
                       <ApprovalStatusBadge status={req.approvalStatus} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Print OBR request ${req.requestNumber}`}
+                        onClick={event => {
+                          event.stopPropagation();
+                          handlePrint(req.id);
+                        }}
+                      >
+                        <Printer />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -614,6 +688,16 @@ export default function Page() {
           onSuccess={() => mutateList()}
         />
       )}
+
+      {printRequestId && (
+        <ObrPrintDialog
+          requestId={printRequestId}
+          open={Boolean(printRequestId)}
+          onOpenChange={open => {
+            if (!open) setPrintRequestId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -633,6 +717,7 @@ function RequestDetailDialog({
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
   >(open ? `/api/obr/requests/${id}` : null, $fetch);
   const [exportOpen, setExportOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
 
   const detail = data?.data?.data;
 
@@ -807,13 +892,23 @@ function RequestDetailDialog({
         </ScrollArea>
 
         <DialogFooter className="pt-4 justify-between">
-          <Button
-            variant="secondary"
-            onClick={() => setExportOpen(true)}
-            disabled={!detail}
-          >
-            Export
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPrintOpen(true)}
+              disabled={!detail}
+            >
+              <Printer className="size-4 mr-1" />
+              Print PDF
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setExportOpen(true)}
+              disabled={!detail}
+            >
+              Export
+            </Button>
+          </div>
           <DialogClose asChild>
             <Button variant="outline">Close</Button>
           </DialogClose>
@@ -828,6 +923,130 @@ function RequestDetailDialog({
           detail={detail}
         />
       )}
+      {detail && (
+        <ObrPrintDialog
+          requestId={id}
+          detail={detail}
+          open={printOpen}
+          onOpenChange={setPrintOpen}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+function ObrPrintDialog({
+  requestId,
+  detail,
+  open,
+  onOpenChange,
+}: {
+  requestId: string;
+  detail?: ObrRequestDetail | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [form, setForm] = useState<PrintSignerForm>(() => makeDefaultPrintSignerForm(detail));
+  const [submitting, setSubmitting] = useState(false);
+
+  const update = (key: keyof PrintSignerForm, value: string) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+  };
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      await openObrRequestPrintPreview(requestId, form);
+      onOpenChange(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Print OBR PDF</DialogTitle>
+          <DialogDescription>
+            Add the printed name, position, and date to show on the printable copy.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <Typography variant="small" className="font-medium">
+              Requesting Office
+            </Typography>
+            <Field>
+              <Label htmlFor="obr-print-left-name">Printed Name</Label>
+              <Input
+                id="obr-print-left-name"
+                value={form.leftName}
+                onInput={event => update("leftName", event.currentTarget.value)}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="obr-print-left-position">Position</Label>
+              <Input
+                id="obr-print-left-position"
+                value={form.leftPosition}
+                onInput={event => update("leftPosition", event.currentTarget.value)}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="obr-print-left-date">Date</Label>
+              <Input
+                id="obr-print-left-date"
+                value={form.leftDate}
+                placeholder="e.g. June 18, 2026"
+                onInput={event => update("leftDate", event.currentTarget.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="space-y-4">
+            <Typography variant="small" className="font-medium">
+              Budget Unit
+            </Typography>
+            <Field>
+              <Label htmlFor="obr-print-right-name">Printed Name</Label>
+              <Input
+                id="obr-print-right-name"
+                value={form.rightName}
+                onInput={event => update("rightName", event.currentTarget.value)}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="obr-print-right-position">Position</Label>
+              <Input
+                id="obr-print-right-position"
+                value={form.rightPosition}
+                onInput={event => update("rightPosition", event.currentTarget.value)}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="obr-print-right-date">Date</Label>
+              <Input
+                id="obr-print-right-date"
+                value={form.rightDate}
+                placeholder="e.g. June 18, 2026"
+                onInput={event => update("rightDate", event.currentTarget.value)}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline" disabled={submitting}>Cancel</Button>
+          </DialogClose>
+          <Button onClick={() => void submit()} disabled={submitting}>
+            <Printer className="size-4 mr-1" />
+            {submitting ? "Preparing..." : "Open PDF"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   );
 }
@@ -901,18 +1120,18 @@ function CreateRequestDialog({
     markDirty();
   };
 
-  const importPastedItems = () => {
-    setBulkImportMessage(null);
-    setBulkImportError(null);
-
-    const lines = bulkPasteText
+  const parsePastedItems = (text: string): {
+    imported: CreateFormItem[];
+    skipped: string[];
+    empty: boolean;
+  } => {
+    const lines = text
       .split(/\r?\n/)
       .map(line => line.trim())
       .filter(Boolean);
 
     if (lines.length === 0) {
-      setBulkImportError("Paste at least one item row before importing.");
-      return;
+      return { imported: [], skipped: [], empty: true };
     }
 
     const expenseByLookup = new Map<string, string>();
@@ -994,11 +1213,10 @@ function CreateRequestDialog({
       });
     });
 
-    if (imported.length === 0) {
-      setBulkImportError(skipped.slice(0, 5).join(" "));
-      return;
-    }
+    return { imported, skipped, empty: false };
+  };
 
+  const applyImportedItems = (imported: CreateFormItem[], skipped: string[]) => {
     setForm(prev => ({
       ...prev,
       requestItems:
@@ -1017,7 +1235,48 @@ function CreateRequestDialog({
         ? `Imported ${imported.length} item(s). Skipped ${skipped.length}: ${skipped.slice(0, 3).join(" ")}`
         : `Imported ${imported.length} item(s).`,
     );
+    setBulkImportError(null);
     markDirty();
+  };
+
+  const importPastedItems = () => {
+    setBulkImportMessage(null);
+    setBulkImportError(null);
+
+    const { imported, skipped, empty } = parsePastedItems(bulkPasteText);
+
+    if (empty) {
+      setBulkImportError("Paste at least one item row before importing.");
+      return;
+    }
+
+    if (imported.length === 0) {
+      setBulkImportError(skipped.slice(0, 5).join(" "));
+      return;
+    }
+
+    applyImportedItems(imported, skipped);
+  };
+
+  const handleFirstItemPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (expenseClassList.length === 0 || officeCodeList.length === 0) return;
+
+    const text = event.clipboardData.getData("text");
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const firstLine = trimmed.split(/\r?\n/).find(Boolean) ?? "";
+    const looksLikeRows =
+      trimmed.includes("\n")
+      || trimmed.includes("\t")
+      || splitPastedRow(firstLine).length >= 4;
+    if (!looksLikeRows) return;
+
+    const { imported, skipped } = parsePastedItems(trimmed);
+    if (imported.length === 0) return;
+
+    event.preventDefault();
+    applyImportedItems(imported, skipped);
   };
 
   const validate = (): boolean => {
@@ -1290,6 +1549,7 @@ function CreateRequestDialog({
                   <div
                     key={item._key}
                     className="rounded-md border p-4 flex flex-col gap-3"
+                    onPaste={idx === 0 ? handleFirstItemPaste : undefined}
                   >
                     <div className="flex items-center justify-between">
                       <Typography variant="small" className="font-medium">

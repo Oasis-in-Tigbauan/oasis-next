@@ -27,10 +27,19 @@ export async function GET(
     return ApiResponseBuilder.createError(404, "No such request found.").build();
   }
 
-  const format = new URL(req.url).searchParams.get("format");
+  const searchParams = new URL(req.url).searchParams;
+  const format = searchParams.get("format");
   const isPdf = format === "pdf";
+  const printOptions = {
+    leftName: searchParams.get("leftName")?.trim() || undefined,
+    leftPosition: searchParams.get("leftPosition")?.trim() || undefined,
+    leftDate: searchParams.get("leftDate")?.trim() || undefined,
+    rightName: searchParams.get("rightName")?.trim() || undefined,
+    rightPosition: searchParams.get("rightPosition")?.trim() || undefined,
+    rightDate: searchParams.get("rightDate")?.trim() || undefined,
+  };
   const result = isPdf
-    ? await obr.exportObrRequestFormToPdfBuffer(id, session.user!)
+    ? await obr.exportObrRequestFormToPdfBuffer(id, session.user!, printOptions)
     : await obr.exportObrRequestFormToBuffer(id, session.user!);
   if (result instanceof Failure) {
     return ApiResponseBuilder.createFromFailure(result).build();

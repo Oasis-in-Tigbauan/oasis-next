@@ -2122,12 +2122,25 @@ export async function exportObrRequestFormToBuffer(requestId: string, user: User
  * @param {User} user - User requesting the export.
  * @returns {Promise<Result<Buffer>>} PDF bytes on success, or a failure result.
  */
-export async function exportObrRequestFormToPdfBuffer(requestId: string, user: User): Promise<Result<Buffer>> {
+export type ObrRequestPrintOptions = {
+  leftName?: string;
+  leftPosition?: string;
+  leftDate?: string;
+  rightName?: string;
+  rightPosition?: string;
+  rightDate?: string;
+};
+
+export async function exportObrRequestFormToPdfBuffer(
+  requestId: string,
+  user: User,
+  printOptions: ObrRequestPrintOptions = {},
+): Promise<Result<Buffer>> {
   try {
     const requestResult = await getObrRequestById(requestId, user);
     if (requestResult instanceof Failure) return requestResult;
 
-    const buffer = await _buildObrFormPdfBuffer(requestResult.value);
+    const buffer = await _buildObrFormPdfBuffer(requestResult.value, printOptions);
     return new Success(buffer);
   } catch (e) {
     return new Failure(
@@ -2212,7 +2225,24 @@ export async function exportDisbursementVoucherToBuffer(id: string, actor: User)
  * @param {User} actor - User requesting the export.
  * @returns {Promise<Result<Buffer>>} PDF bytes on success, or a failure result.
  */
-export async function exportDisbursementVoucherToPdfBuffer(id: string, actor: User): Promise<Result<Buffer>> {
+export type DisbursementVoucherPrintOptions = {
+  accountantName?: string;
+  accountantPosition?: string;
+  accountantDate?: string;
+  treasurerName?: string;
+  treasurerPosition?: string;
+  treasurerDate?: string;
+  mayorName?: string;
+  mayorPosition?: string;
+  mayorDate?: string;
+  receivedName?: string;
+};
+
+export async function exportDisbursementVoucherToPdfBuffer(
+  id: string,
+  actor: User,
+  printOptions: DisbursementVoucherPrintOptions = {},
+): Promise<Result<Buffer>> {
   try {
     const validate = await isWriterUserValidForDisbursement(actor);
     if (validate?.error) {
@@ -2237,7 +2267,7 @@ export async function exportDisbursementVoucherToPdfBuffer(id: string, actor: Us
       ? await _getElecDataForVoucher(voucher.id)
       : [];
 
-    const buffer = await _buildDisbursementVoucherPdfBuffer(voucher, elecData);
+    const buffer = await _buildDisbursementVoucherPdfBuffer(voucher, elecData, printOptions);
     return new Success(buffer);
   } catch (e) {
     return new Failure(
@@ -3566,8 +3596,9 @@ export async function searchObrItems(query: string): Promise<Result<ObrMainDataS
  * @async
  * @function getValidUsersAsApprovers
  * @param {ValidApproverPermissionType} filter - Disbursement approval permission used to filter eligible users.
- * @returns {Promise<Result<{ id: string; name: string; }[]>>} A result wrapper containing valid approver users on
- *                                                             success, or a failure result on error.
+ * @returns {Promise<Result<{ id: string; name: string; positionName: string; }[]>>} A result wrapper containing
+ *                                                                                  valid approver users on success,
+ *                                                                                  or a failure result on error.
  *
  * @remarks
  * - Only supported disbursement approval permission filters are accepted.
@@ -3576,7 +3607,7 @@ export async function searchObrItems(query: string): Promise<Result<ObrMainDataS
  */
 export async function getValidUsersAsApprovers(
   filter: ValidApproverPermissionType,
-): Promise<Result<{ id: string; name: string; }[]>> {
+): Promise<Result<{ id: string; name: string; positionName: string }[]>> {
   try {
     if (
       filter !== "obr.disbursement.mayor.approve" &&
@@ -3587,7 +3618,7 @@ export async function getValidUsersAsApprovers(
     }
 
     const users = await db
-      .select({ id: user.id, name: user.name })
+      .select({ id: user.id, name: user.name, positionName: officePosition.name })
       .from(user)
       .innerJoin(officePosition, eq(user.officePositionId, officePosition.id))
       .where(
@@ -5223,6 +5254,30 @@ function _pdfRight(page: PdfPageBuilder, value: string | number | null | undefin
   _pdfText(page, value, x, y, { ...options, anchor: "end" });
 }
 
+function _pdfFitCenter(
+  page: PdfPageBuilder,
+  value: string | number | null | undefined,
+  x1: number,
+  x2: number,
+  y: number,
+  options: PdfTextOptions & { minSize?: number } = {},
+): void {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (!text) return;
+
+  const maxWidth = Math.max(0, x2 - x1 - 4);
+  let size = options.size ?? 9;
+  const minSize = options.minSize ?? 5;
+  while (
+    size > minSize
+    && page.measureText(text, { fontFamily: _PDF_FONT, fontSize: size }) > maxWidth
+  ) {
+    size -= 0.5;
+  }
+
+  _pdfCenter(page, text, (x1 + x2) / 2, y, { ...options, size });
+}
+
 function _pdfCheckbox(page: PdfPageBuilder, x: number, y: number, checked: boolean): void {
   _pdfRect(page, x, y, 9, 9, checked ? _PDF_INK : undefined);
   if (checked) {
@@ -5245,7 +5300,10 @@ function _pdfMoney(value: Decimal | number | string): string {
   return _formatNumber(new Decimal(value || 0));
 }
 
-async function _buildObrFormPdfBuffer(request: ObrRequestType): Promise<Buffer> {
+async function _buildObrFormPdfBuffer(
+  request: ObrRequestType,
+  printOptions: ObrRequestPrintOptions = {},
+): Promise<Buffer> {
   const { PdfDocumentBuilder } = await import("@cj-tech-master/excelts/pdf");
   const document = new PdfDocumentBuilder()
     .disableFontAutoDiscovery()
@@ -5257,16 +5315,23 @@ async function _buildObrFormPdfBuffer(request: ObrRequestType): Promise<Buffer> 
     });
   const page = document.addPage(_PDF_PAGE);
 
-  await _drawObrPdfCopy(page, request, 12);
-  await _drawObrPdfCopy(page, request, 472);
+  await _drawObrPdfCopy(page, request, 12, printOptions);
+  await _drawObrPdfCopy(page, request, 472, printOptions);
 
   return Buffer.from(await document.build());
 }
 
-async function _drawObrPdfCopy(page: PdfPageBuilder, request: ObrRequestType, top: number): Promise<void> {
+async function _drawObrPdfCopy(
+  page: PdfPageBuilder,
+  request: ObrRequestType,
+  top: number,
+  printOptions: ObrRequestPrintOptions = {},
+): Promise<void> {
   const left = 18;
   const width = 576;
-  const cols = [left, 90, 250, 350, 420, 490, 526, left + width];
+  const cols = [left, 90, 250, 350, 378, 428, 498, left + width];
+  const topLabelX = 420;
+  const topValueX = 506;
   let y = top;
   let total = 0;
 
@@ -5283,36 +5348,36 @@ async function _drawObrPdfCopy(page: PdfPageBuilder, request: ObrRequestType, to
 
   _pdfRect(page, left, y, width, 24);
   _pdfLine(page, cols[1], y, cols[1], y + 24);
-  _pdfLine(page, cols[4], y, cols[4], y + 24);
-  _pdfLine(page, cols[5], y, cols[5], y + 24);
+  _pdfLine(page, topLabelX, y, topLabelX, y + 24);
+  _pdfLine(page, topValueX, y, topValueX, y + 24);
   _pdfText(page, "Request:", left + 3, y + 15, { size: 9 });
   _pdfText(page, request.requestNumber, cols[1] + 3, y + 17, { size: 13, bold: true, color: _PDF_RED });
-  _pdfText(page, "Obligation No.:", cols[4] + 3, y + 15, { size: 9 });
-  _pdfText(page, request.obrNumber ?? "", cols[5] + 3, y + 16, { size: 11, bold: true });
+  _pdfText(page, "Obligation No.:", topLabelX + 3, y + 15, { size: 9 });
+  _pdfFitCenter(page, request.obrNumber ?? "", topValueX, left + width, y + 16, { size: 11, minSize: 6, bold: true });
   y += 24;
 
   _pdfRect(page, left, y, width, 24);
   _pdfLine(page, cols[1], y, cols[1], y + 24);
-  _pdfLine(page, cols[4], y, cols[4], y + 24);
-  _pdfLine(page, cols[5], y, cols[5], y + 24);
+  _pdfLine(page, topLabelX, y, topLabelX, y + 24);
+  _pdfLine(page, topValueX, y, topValueX, y + 24);
   _pdfText(page, "Payee:", left + 3, y + 15, { size: 9 });
   _pdfText(page, (request.payee ?? "").toUpperCase(), cols[1] + 3, y + 16, { size: 10, bold: true });
-  _pdfText(page, "PR No.", cols[4] + 3, y + 15, { size: 9 });
-  _pdfText(page, request.prNumber ?? "", cols[5] + 3, y + 15, { size: 9 });
+  _pdfText(page, "PR No.", topLabelX + 3, y + 15, { size: 9 });
+  _pdfFitCenter(page, request.prNumber ?? "", topValueX, left + width, y + 15, { size: 9, minSize: 6 });
   y += 24;
 
   _pdfRect(page, left, y, width, 26);
   _pdfLine(page, cols[1], y, cols[1], y + 26);
-  _pdfLine(page, cols[4], y, cols[4], y + 26);
-  _pdfLine(page, cols[5], y, cols[5], y + 26);
+  _pdfLine(page, topLabelX, y, topLabelX, y + 26);
+  _pdfLine(page, topValueX, y, topValueX, y + 26);
   _pdfText(page, "Office:", left + 3, y + 10, { size: 9 });
   _pdfText(page, "Address:", left + 3, y + 22, { size: 9 });
   _pdfText(page, (request.officeAddress || "TIGBAUAN, ILOILO").toUpperCase(), cols[1] + 3, y + 16, { size: 9, bold: true });
-  _pdfText(page, "Date:", cols[4] + 3, y + 15, { size: 9 });
+  _pdfText(page, "Date:", topLabelX + 3, y + 15, { size: 9 });
   y += 26;
 
   _pdfRect(page, left, y, width, 24);
-  for (const x of cols.slice(1, -1)) _pdfLine(page, x, y, x, y + 24);
+  for (const x of [cols[1], cols[4], cols[5], cols[6]]) _pdfLine(page, x, y, x, y + 24);
   _pdfCenter(page, "RC", (cols[0] + cols[1]) / 2, y + 16, { size: 10, bold: true });
   _pdfCenter(page, "PARTICULARS", (cols[1] + cols[4]) / 2, y + 16, { size: 10, bold: true });
   _pdfCenter(page, "FPP", (cols[4] + cols[5]) / 2, y + 16, { size: 10, bold: true });
@@ -5321,24 +5386,34 @@ async function _drawObrPdfCopy(page: PdfPageBuilder, request: ObrRequestType, to
   _pdfCenter(page, "AMOUNT", (cols[6] + cols[7]) / 2, y + 16, { size: 10, bold: true });
   y += 24;
 
-  const lineRows = Math.max(3, request.requestItems.length);
+  const itemAreaHeight = 98;
+  const lineRows = Math.max(1, request.requestItems.length);
+  const rowHeight = itemAreaHeight / lineRows;
+  _pdfRect(page, left, y, width, itemAreaHeight);
+  for (const x of [cols[1], cols[4], cols[5], cols[6]]) _pdfLine(page, x, y, x, y + itemAreaHeight);
   for (let index = 0; index < lineRows; index++) {
     const item = request.requestItems[index];
-    const rowHeight = index === 0 ? 48 : 20;
-    _pdfRect(page, left, y, width, rowHeight);
-    for (const x of cols.slice(1, -1)) _pdfLine(page, x, y, x, y + rowHeight);
+    const rowY = y + index * rowHeight;
+    if (index > 0) _pdfLine(page, left, rowY, left + width, rowY);
     if (item) {
       const amount = _toMoneyNumber(item.amount);
       total += amount;
-      _pdfCenter(page, item.responsibilityCenter.name, (cols[0] + cols[1]) / 2, y + 14, { size: 8 });
-      _pdfWrappedText(page, item.particulars.toUpperCase(), cols[1] + 3, y + 12, cols[4] - cols[1] - 6, { size: 8, lineHeight: 10, maxLines: 4 });
-      _pdfCenter(page, item.expenseCode.fpp ?? item.expenseCode.name, (cols[4] + cols[5]) / 2, y + 14, { size: 6 });
-      _pdfCenter(page, item.expenseCode.accountCode ?? "-", (cols[5] + cols[6]) / 2, y + 14, { size: 8 });
-      _pdfText(page, "P", cols[6] + 3, y + 18, { size: 9 });
-      _pdfRight(page, _pdfMoney(amount), cols[7] - 4, y + 18, { size: 8 });
+      const itemFontSize = rowHeight < 18 ? 6 : 8;
+      const itemTextY = rowY + Math.min(14, Math.max(10, rowHeight / 2 + 3));
+      const maxParticularLines = Math.max(1, Math.floor((rowHeight - 6) / 8));
+      _pdfFitCenter(page, item.responsibilityCenter.name, cols[0], cols[1], itemTextY, { size: itemFontSize, minSize: 5 });
+      _pdfWrappedText(page, item.particulars.toUpperCase(), cols[1] + 3, rowY + 10, cols[4] - cols[1] - 6, {
+        size: itemFontSize,
+        lineHeight: Math.max(7, itemFontSize + 2),
+        maxLines: maxParticularLines,
+      });
+      _pdfFitCenter(page, item.expenseCode.fpp ?? item.expenseCode.name, cols[4], cols[5], itemTextY, { size: 6, minSize: 5 });
+      _pdfFitCenter(page, item.expenseCode.accountCode ?? "-", cols[5], cols[6], itemTextY, { size: 8, minSize: 5.5 });
+      _pdfText(page, "P", cols[6] + 4, itemTextY, { size: itemFontSize });
+      _pdfRight(page, _pdfMoney(amount), cols[7] - 4, itemTextY, { size: itemFontSize });
     }
-    y += rowHeight;
   }
+  y += itemAreaHeight;
 
   _pdfRect(page, left, y, width, 20);
   _pdfLine(page, cols[1], y, cols[1], y + 20);
@@ -5359,23 +5434,36 @@ async function _drawObrPdfCopy(page: PdfPageBuilder, request: ObrRequestType, to
   _pdfRight(page, amountToWords(total).toUpperCase(), left + width - 3, y + 13, { size: 7, bold: true, color: _PDF_BLUE });
   y += 18;
 
-  _drawObrPdfSigners(page, request, left, y, width);
+  _drawObrPdfSigners(page, request, left, y, width, printOptions);
 }
 
-function _drawObrPdfSigners(page: PdfPageBuilder, request: ObrRequestType, left: number, y: number, width: number): void {
+function _drawObrPdfSigners(
+  page: PdfPageBuilder,
+  request: ObrRequestType,
+  left: number,
+  y: number,
+  width: number,
+  printOptions: ObrRequestPrintOptions = {},
+): void {
   const mid = left + width / 2;
   const leftSigner = request.approvers[0];
   const rightSigner = request.approvers[1];
-  const leftName = (leftSigner?.signer?.name ?? "-").toUpperCase();
-  const rightName = (rightSigner?.signer?.name ?? "-").toUpperCase();
-  const leftPosition = leftSigner?.position.name ?? "-";
-  const rightPosition = rightSigner?.position.name ?? "-";
+  const leftName = (printOptions.leftName ?? leftSigner?.signer?.name ?? "-").toUpperCase();
+  const rightName = (printOptions.rightName ?? rightSigner?.signer?.name ?? "-").toUpperCase();
+  const leftPosition = printOptions.leftPosition ?? leftSigner?.position.name ?? "-";
+  const rightPosition = printOptions.rightPosition ?? rightSigner?.position.name ?? "-";
+  const leftDate = printOptions.leftDate ?? "";
+  const rightDate = printOptions.rightDate ?? "";
 
   _pdfRect(page, left, y, width, 154);
   _pdfLine(page, mid, y, mid, y + 154);
   _pdfLine(page, left, y + 20, left + width, y + 20);
   _pdfLine(page, left, y + 44, left + width, y + 44);
   _pdfLine(page, left, y + 64, left + width, y + 64);
+  _pdfLine(page, left, y + 96, left + width, y + 96);
+  _pdfLine(page, left, y + 134, left + width, y + 134);
+  _pdfLine(page, left + 108, y + 64, left + 108, y + 154);
+  _pdfLine(page, mid + 108, y + 64, mid + 108, y + 154);
   _pdfCenter(page, "Certified:", left + width / 4, y + 14, { size: 10 });
   _pdfCenter(page, "Certified:", mid + width / 4, y + 14, { size: 10 });
   _pdfCheckbox(page, left + 32, y + 24, true);
@@ -5387,24 +5475,27 @@ function _drawObrPdfSigners(page: PdfPageBuilder, request: ObrRequestType, left:
 
   _pdfText(page, "Signature", left + 3, y + 84, { size: 9 });
   _pdfText(page, "Printed Name:", left + 3, y + 106, { size: 9 });
-  _pdfCenter(page, leftName, left + width / 4 + 35, y + 106, { size: 10, bold: true });
+  _pdfFitCenter(page, leftName, left + 112, mid - 8, y + 106, { size: 10, minSize: 6, bold: true });
   _pdfText(page, "Position", left + 3, y + 126, { size: 9 });
-  _pdfCenter(page, leftPosition, left + width / 4 + 35, y + 126, { size: 9, bold: true });
-  _pdfCenter(page, "Head, Requesting Office/Authorized Representative", left + width / 4 + 35, y + 141, { size: 6 });
+  _pdfFitCenter(page, leftPosition, left + 112, mid - 8, y + 126, { size: 9, minSize: 6, bold: true });
+  _pdfFitCenter(page, "Head, Requesting Office/Authorized Representative", left + 112, mid - 8, y + 131, { size: 5.5, minSize: 4.5 });
   _pdfText(page, "Date:", left + 3, y + 151, { size: 9 });
+  _pdfFitCenter(page, leftDate, left + 72, mid - 8, y + 148, { size: 8, minSize: 6 });
 
   _pdfText(page, "Signature", mid + 3, y + 84, { size: 9 });
   _pdfText(page, "Printed Name:", mid + 3, y + 106, { size: 9 });
-  _pdfCenter(page, rightName, mid + width / 4 + 35, y + 106, { size: 10, bold: true });
+  _pdfFitCenter(page, rightName, mid + 112, left + width - 8, y + 106, { size: 10, minSize: 6, bold: true });
   _pdfText(page, "Position", mid + 3, y + 126, { size: 9 });
-  _pdfCenter(page, rightPosition, mid + width / 4 + 35, y + 126, { size: 9, bold: true });
-  _pdfCenter(page, "Head, Budget Unit/Authorized Representative", mid + width / 4 + 35, y + 141, { size: 6 });
+  _pdfFitCenter(page, rightPosition, mid + 112, left + width - 8, y + 126, { size: 9, minSize: 6, bold: true });
+  _pdfFitCenter(page, "Head, Budget Unit/Authorized Representative", mid + 112, left + width - 8, y + 131, { size: 5.5, minSize: 4.5 });
   _pdfText(page, "Date:", mid + 3, y + 151, { size: 9 });
+  _pdfFitCenter(page, rightDate, mid + 72, left + width - 8, y + 148, { size: 8, minSize: 6 });
 }
 
 async function _buildDisbursementVoucherPdfBuffer(
   voucher: ObrDisbursementVoucher,
   elecData: Array<ObrDisbursementElectronicItem>,
+  printOptions: DisbursementVoucherPrintOptions = {},
 ): Promise<Buffer> {
   const { PdfDocumentBuilder } = await import("@cj-tech-master/excelts/pdf");
   const document = new PdfDocumentBuilder()
@@ -5416,7 +5507,7 @@ async function _buildDisbursementVoucherPdfBuffer(
       creator: "Oasis-Next",
     });
   const page = document.addPage(_PDF_PAGE);
-  await _drawDisbursementVoucherPdf(page, voucher, elecData);
+  await _drawDisbursementVoucherPdf(page, voucher, elecData, printOptions);
   return Buffer.from(await document.build());
 }
 
@@ -5424,6 +5515,7 @@ async function _drawDisbursementVoucherPdf(
   page: PdfPageBuilder,
   voucher: ObrDisbursementVoucher,
   elecData: Array<ObrDisbursementElectronicItem>,
+  printOptions: DisbursementVoucherPrintOptions = {},
 ): Promise<void> {
   const left = 18;
   const width = 576;
@@ -5440,8 +5532,17 @@ async function _drawDisbursementVoucherPdf(
   _pdfCenter(page, "Province of Iloilo", left + width / 2, y + 29, { size: 10 });
   _pdfCenter(page, "MUNICIPAL GOVERNMENT OF TIGBAUAN", left + width / 2, y + 45, { size: 10, bold: true });
   _pdfCenter(page, "Tigbauan, Iloilo", left + width / 2, y + 61, { size: 10 });
-  _pdfRect(page, rightStart, y + 62, rightWidth, 26, _PDF_LIGHT);
-  _pdfRight(page, voucher.disbursementVoucherNumber, rightStart + rightWidth - 10, y + 81, { size: 16, bold: true, color: _PDF_RED });
+  _pdfRect(page, rightStart, y + 62, rightWidth, 26);
+  page.drawRect({
+    x: rightStart + 10,
+    y: _pdfY(y + 82),
+    width: rightWidth - 20,
+    height: 14,
+    fill: _PDF_LIGHT,
+    stroke: _PDF_LIGHT,
+    lineWidth: 0,
+  });
+  _pdfRight(page, voucher.disbursementVoucherNumber, rightStart + rightWidth - 18, y + 79, { size: 12, bold: true, italic: true, color: _PDF_RED });
   y += 88;
 
   _pdfRect(page, left, y, leftWidth, 46);
@@ -5472,6 +5573,15 @@ async function _drawDisbursementVoucherPdf(
   _pdfCenter(page, "Amount", rightStart + rightWidth / 2, y + 21, { size: 11, bold: true });
   y += 32;
 
+  if (elecData.length === 0 && !validatorUtilities.isNotEmpty(voucher.taxType)) {
+    _drawDvPdfNormalExplanation(page, voucher, withholdings, left, y, leftWidth, rightStart, rightWidth);
+    y += 160;
+    _drawDvPdfAmountDue(page, withholdings, left, y, leftWidth, rightStart, rightWidth);
+    y += 38;
+    _drawDvPdfSigners(page, voucher, left, y, width, printOptions);
+    return;
+  }
+
   _pdfRect(page, left, y, leftWidth, 58);
   _pdfRect(page, rightStart, y, 26, 58);
   _pdfRect(page, rightStart + 26, y, rightWidth - 26, 58);
@@ -5486,7 +5596,43 @@ async function _drawDisbursementVoucherPdf(
   }
 
   y = _drawDvPdfBreakdown(page, voucher, grossAmount, withholdings, elecData.length > 0, left, y, leftWidth, rightStart, rightWidth);
-  _drawDvPdfSigners(page, voucher, left, y, width);
+  _drawDvPdfSigners(page, voucher, left, y, width, printOptions);
+}
+
+function _drawDvPdfNormalExplanation(
+  page: PdfPageBuilder,
+  voucher: ObrDisbursementVoucher,
+  withholdings: ReturnType<typeof _withholdingRows>,
+  left: number,
+  y: number,
+  leftWidth: number,
+  rightStart: number,
+  rightWidth: number,
+): void {
+  const bodyHeight = 160;
+  _pdfRect(page, left, y, leftWidth, bodyHeight);
+  _pdfRect(page, rightStart, y, rightWidth, bodyHeight);
+  _pdfWrappedText(page, voucher.particulars.toUpperCase(), left + 34, y + 44, leftWidth - 68, {
+    size: 10,
+    lineHeight: 13,
+    maxLines: 8,
+  });
+  _pdfRight(page, _pdfMoney(withholdings.netAmount), rightStart + rightWidth - 8, y + bodyHeight / 2 + 5, { size: 11, bold: true });
+}
+
+function _drawDvPdfAmountDue(
+  page: PdfPageBuilder,
+  withholdings: ReturnType<typeof _withholdingRows>,
+  left: number,
+  y: number,
+  leftWidth: number,
+  rightStart: number,
+  rightWidth: number,
+): void {
+  _pdfRect(page, left, y, leftWidth, 38);
+  _pdfRect(page, rightStart, y, rightWidth, 38);
+  _pdfRight(page, "Amount Due--------------", rightStart - 4, y + 24, { size: 11, bold: true });
+  _pdfRight(page, _pdfMoney(withholdings.netAmount), rightStart + rightWidth - 8, y + 25, { size: 12, bold: true, color: _PDF_BLUE });
 }
 
 function _drawDvPdfPayeeBlock(
@@ -5513,15 +5659,14 @@ function _drawDvPdfPayeeBlock(
 
   _pdfRect(page, left, y + 34, labelW, 54);
   _pdfRect(page, left + labelW, y + 34, valueW, 54);
-  _pdfRect(page, midStart, y + 34, rightStart - midStart, 18);
-  _pdfRect(page, rightStart, y + 34, rightWidth, 18);
+  _pdfRect(page, midStart, y + 34, left + width - midStart, 18);
   _pdfRect(page, midStart, y + 52, rightStart - midStart, 18);
   _pdfRect(page, rightStart, y + 52, rightWidth, 18);
   _pdfRect(page, midStart, y + 70, rightStart - midStart, 18);
   _pdfRect(page, rightStart, y + 70, rightWidth, 18);
   _pdfText(page, "Address:", left + 4, y + 48, { size: 9 });
   _pdfText(page, voucher.address.toUpperCase(), left + labelW + 3, y + 48, { size: 9 });
-  _pdfCenter(page, "Responsibility Center:", (midStart + left + width) / 2, y + 47, { size: 8, bold: true });
+  _pdfFitCenter(page, "Responsibility Center:", midStart, left + width, y + 47, { size: 8, minSize: 6.5, bold: true });
   _pdfCenter(page, "Office/Unit/Project", (midStart + rightStart) / 2, y + 65, { size: 8 });
   _pdfCenter(page, "Code", rightStart + rightWidth / 2, y + 65, { size: 8 });
   _pdfCenter(page, voucher.responsibilityCenter.aa, (midStart + rightStart) / 2, y + 83, { size: 8 });
@@ -5637,12 +5782,28 @@ function _drawDvPdfBreakdown(
   return y + 34;
 }
 
-function _drawDvPdfSigners(page: PdfPageBuilder, voucher: ObrDisbursementVoucher, left: number, y: number, width: number): void {
+function _drawDvPdfSigners(
+  page: PdfPageBuilder,
+  voucher: ObrDisbursementVoucher,
+  left: number,
+  y: number,
+  width: number,
+  printOptions: DisbursementVoucherPrintOptions = {},
+): void {
   const half = width / 2;
+  const accountantName = (printOptions.accountantName ?? voucher.signers.accountant.name ?? "").toUpperCase();
+  const accountantPosition = printOptions.accountantPosition ?? voucher.signers.accountant.position ?? "";
+  const treasurerName = (printOptions.treasurerName ?? voucher.signers.treasurer.name ?? "").toUpperCase();
+  const treasurerPosition = printOptions.treasurerPosition ?? voucher.signers.treasurer.position ?? "";
+  const mayorName = (printOptions.mayorName ?? voucher.signers.mayor.name ?? "").toUpperCase();
+  const mayorPosition = printOptions.mayorPosition ?? voucher.signers.mayor.position ?? "";
+  const receivedName = (printOptions.receivedName ?? voucher.payee ?? "").toUpperCase();
   _pdfRect(page, left, y, width, 292);
   _pdfLine(page, left + half, y, left + half, y + 292);
   _pdfLine(page, left, y + 58, left + width, y + 58);
   _pdfLine(page, left, y + 144, left + width, y + 144);
+  _pdfLine(page, left, y + 132, left + width, y + 132);
+  _pdfLine(page, left, y + 176, left + width, y + 176);
   _pdfText(page, "A. Certified", left + 6, y + 18, { size: 11, bold: true });
   _pdfCheckbox(page, left + 22, y + 26, true);
   _pdfText(page, "Allotment obligated for the purpose as indicated above", left + 38, y + 35, { size: 8 });
@@ -5654,42 +5815,45 @@ function _drawDvPdfSigners(page: PdfPageBuilder, voucher: ObrDisbursementVoucher
 
   _pdfText(page, "Signature:", left + 4, y + 84, { size: 8 });
   _pdfText(page, "Printed Name:", left + 4, y + 106, { size: 8 });
-  _pdfCenter(page, (voucher.signers.accountant.name ?? "").toUpperCase(), left + half / 2 + 34, y + 106, { size: 9, bold: true });
+  _pdfFitCenter(page, accountantName, left + 82, left + half - 8, y + 106, { size: 9, minSize: 6, bold: true });
   _pdfText(page, "Position", left + 4, y + 127, { size: 8 });
-  _pdfCenter(page, voucher.signers.accountant.position ?? "", left + half / 2 + 34, y + 127, { size: 8 });
+  _pdfFitCenter(page, accountantPosition, left + 82, left + half - 8, y + 127, { size: 8, minSize: 6 });
   _pdfText(page, "Date:", left + 4, y + 143, { size: 8 });
+  _pdfFitCenter(page, printOptions.accountantDate ?? "", left + 82, left + half - 8, y + 143, { size: 8, minSize: 6 });
 
   _pdfText(page, "Signature:", left + half + 4, y + 84, { size: 8 });
   _pdfText(page, "Printed Name", left + half + 4, y + 106, { size: 8 });
-  _pdfCenter(page, (voucher.signers.treasurer.name ?? "").toUpperCase(), left + half + half / 2 + 34, y + 106, { size: 9, bold: true });
+  _pdfFitCenter(page, treasurerName, left + half + 92, left + width - 8, y + 106, { size: 9, minSize: 6, bold: true });
   _pdfText(page, "Position", left + half + 4, y + 127, { size: 8 });
-  _pdfCenter(page, voucher.signers.treasurer.position ?? "", left + half + half / 2 + 34, y + 127, { size: 8 });
+  _pdfFitCenter(page, treasurerPosition, left + half + 92, left + width - 8, y + 127, { size: 8, minSize: 6 });
   _pdfText(page, "Date:", left + half + 4, y + 143, { size: 8 });
+  _pdfFitCenter(page, printOptions.treasurerDate ?? "", left + half + 92, left + width - 8, y + 143, { size: 8, minSize: 6 });
 
   _pdfText(page, "C. Approved for Payment", left + 6, y + 162, { size: 11, bold: true });
   _pdfText(page, "D. Received Payment", left + half + 34, y + 162, { size: 11, bold: true });
-  _pdfLine(page, left + 76, y + 144, left + 76, y + 292);
-  _pdfLine(page, left + half + 86, y + 144, left + half + 86, y + 292);
-  _pdfLine(page, left + half, y + 188, left + width, y + 188);
-  _pdfLine(page, left + half, y + 236, left + width, y + 236);
+  _pdfLine(page, left + 76, y + 176, left + 76, y + 292);
+  _pdfLine(page, left + half + 86, y + 176, left + half + 86, y + 292);
+  _pdfLine(page, left + half, y + 200, left + width, y + 200);
+  _pdfLine(page, left + half, y + 246, left + width, y + 246);
 
-  _pdfText(page, "Signature:/", left + 4, y + 230, { size: 8 });
-  _pdfText(page, "Printed Name:", left + 4, y + 244, { size: 8 });
-  _pdfCenter(page, (voucher.signers.mayor.name ?? "").toUpperCase(), left + half / 2 + 34, y + 244, { size: 9, bold: true });
-  _pdfText(page, "Position", left + 4, y + 267, { size: 8 });
-  _pdfCenter(page, voucher.signers.mayor.position ?? "", left + half / 2 + 34, y + 267, { size: 8 });
+  _pdfText(page, "Signature:/", left + 4, y + 246, { size: 8 });
+  _pdfText(page, "Printed Name:", left + 4, y + 260, { size: 8 });
+  _pdfFitCenter(page, mayorName, left + 82, left + half - 8, y + 260, { size: 9, minSize: 6, bold: true });
+  _pdfText(page, "Position", left + 4, y + 278, { size: 8 });
+  _pdfFitCenter(page, mayorPosition, left + 82, left + half - 8, y + 278, { size: 8, minSize: 6 });
   _pdfText(page, "Date:", left + 4, y + 288, { size: 8 });
+  _pdfFitCenter(page, printOptions.mayorDate ?? "", left + 82, left + half - 8, y + 288, { size: 8, minSize: 6 });
 
-  _pdfText(page, "Check No./", left + half + 4, y + 172, { size: 8 });
-  _pdfText(page, "Date", left + half + 4, y + 185, { size: 8 });
-  _pdfText(page, "Bank Name", left + half + 100, y + 172, { size: 8 });
-  _pdfText(page, "Signature/", left + half + 4, y + 211, { size: 8 });
-  _pdfText(page, "Printed Name/", left + half + 4, y + 224, { size: 8 });
-  _pdfText(page, "Date", left + half + 4, y + 237, { size: 8 });
-  _pdfCenter(page, (voucher.payee ?? "").toUpperCase(), left + half + 205, y + 226, { size: 8, bold: true });
-  _pdfText(page, "OR/Other", left + half + 4, y + 258, { size: 8 });
-  _pdfText(page, "Documents", left + half + 4, y + 271, { size: 8 });
-  _pdfCenter(page, "JEV No./ Date", left + half + 205, y + 266, { size: 8 });
+  _pdfText(page, "Check No./", left + half + 4, y + 187, { size: 8 });
+  _pdfText(page, "Date", left + half + 4, y + 198, { size: 8 });
+  _pdfText(page, "Bank Name", left + half + 100, y + 187, { size: 8 });
+  _pdfText(page, "Signature/", left + half + 4, y + 216, { size: 8 });
+  _pdfText(page, "Printed Name/", left + half + 4, y + 229, { size: 8 });
+  _pdfText(page, "Date", left + half + 4, y + 242, { size: 8 });
+  _pdfFitCenter(page, receivedName, left + half + 92, left + width - 8, y + 230, { size: 8, minSize: 5.5, bold: true });
+  _pdfText(page, "OR/Other", left + half + 4, y + 264, { size: 8 });
+  _pdfText(page, "Documents", left + half + 4, y + 277, { size: 8 });
+  _pdfCenter(page, "JEV No./ Date", left + half + 205, y + 271, { size: 8 });
 }
 
 async function _buildDisbursementVoucherExcelBuffer(

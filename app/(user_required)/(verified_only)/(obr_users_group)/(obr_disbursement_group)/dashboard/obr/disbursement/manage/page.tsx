@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Pencil, X, Check, Trash2, Upload, FileSpreadsheet, FileText, Plus } from "lucide-react";
+import { Pencil, X, Check, Trash2, Upload, FileSpreadsheet, FileText, Plus, Printer } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -63,6 +64,26 @@ import Typography from "@/components/typography";
 
 type TaxType = "vat-g" | "vat-s" | "nvat-g" | "nvat-s";
 type DisbursementStatus = "PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID";
+type DvPrintForm = {
+  accountantName: string;
+  accountantPosition: string;
+  accountantDate: string;
+  treasurerName: string;
+  treasurerPosition: string;
+  treasurerDate: string;
+  mayorName: string;
+  mayorPosition: string;
+  mayorDate: string;
+  receivedName: string;
+};
+
+type ValidDvApprover = {
+  id: string;
+  name: string;
+  positionName: string;
+};
+
+type ValidDvApproverResponse = GenericOkResponse<ValidDvApprover[]>;
 
 const NONE = "__none__";
 
@@ -128,6 +149,21 @@ function displayText(value: string | null | undefined): string {
   return value ?? "—";
 }
 
+function makeDefaultDvPrintForm(voucher: ObrDisbursementVoucherItem): DvPrintForm {
+  return {
+    accountantName: voucher.signers.accountant.name ?? "",
+    accountantPosition: voucher.signers.accountant.position ?? "",
+    accountantDate: "",
+    treasurerName: voucher.signers.treasurer.name ?? "",
+    treasurerPosition: voucher.signers.treasurer.position ?? "",
+    treasurerDate: "",
+    mayorName: voucher.signers.mayor.name ?? "",
+    mayorPosition: voucher.signers.mayor.position ?? "",
+    mayorDate: "",
+    receivedName: voucher.payee ?? "",
+  };
+}
+
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-muted-foreground">—</span>;
   if (status === "PAID") {
@@ -160,6 +196,37 @@ function extractErrorMessage(payload: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+async function openDisbursementPrintPreview(voucherId: string, form: DvPrintForm): Promise<void> {
+  const searchParams = new URLSearchParams({ format: "pdf" });
+  Object.entries(form).forEach(([key, value]) => {
+    const trimmed = value.trim();
+    if (trimmed) searchParams.set(key, trimmed);
+  });
+
+  const response = await fetch(`/api/obr/disbursements/${voucherId}/export?${searchParams.toString()}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    toast.error("DV print preview failed", {
+      description: extractErrorMessage(payload, "Unable to generate the DV PDF."),
+    });
+    return;
+  }
+
+  const blob = await response.blob();
+  const previewUrl = URL.createObjectURL(blob);
+  const previewWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+  if (!previewWindow) {
+    URL.revokeObjectURL(previewUrl);
+    toast.error("DV print preview was blocked", {
+      description: "Allow pop-ups for this site and try again.",
+    });
+    return;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60_000);
+  toast.success("DV print preview is ready");
 }
 
 function formatTemplateDate(iso: string): string {
@@ -338,6 +405,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("details");
 
@@ -759,6 +827,10 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
         {!editing && !confirmingDelete && (
           <DialogFooter className="justify-between">
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setPrintOpen(true)} disabled={exporting}>
+                <Printer className="size-4 mr-1" />
+                Print PDF
+              </Button>
               <Button variant="outline" onClick={() => void handleExport("xlsx")} disabled={exporting}>
                 <FileSpreadsheet className="size-4 mr-1" />
                 {exporting ? "Exporting..." : "Export XLSX"}
@@ -774,7 +846,191 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
           </DialogFooter>
         )}
       </DialogContent>
+      <DvPrintDialog
+        key={voucher.id}
+        voucher={voucher}
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+      />
     </Dialog>
+  );
+}
+
+function DvPrintDialog({
+  voucher,
+  open,
+  onOpenChange,
+}: {
+  voucher: ObrDisbursementVoucherItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [form, setForm] = useState<DvPrintForm>(() => makeDefaultDvPrintForm(voucher));
+  const [submitting, setSubmitting] = useState(false);
+  const { data: accountantApproversData } = useSWR<BetterFetchResponse<ValidDvApproverResponse, ApiResponseException>>(
+    open ? "/api/obr/disbursements/valid/approvers?filter=obr.disbursement.accountant.approve" : null,
+    $fetch,
+  );
+  const { data: treasurerApproversData } = useSWR<BetterFetchResponse<ValidDvApproverResponse, ApiResponseException>>(
+    open ? "/api/obr/disbursements/valid/approvers?filter=obr.disbursement.treasurer.approve" : null,
+    $fetch,
+  );
+  const { data: mayorApproversData } = useSWR<BetterFetchResponse<ValidDvApproverResponse, ApiResponseException>>(
+    open ? "/api/obr/disbursements/valid/approvers?filter=obr.disbursement.mayor.approve" : null,
+    $fetch,
+  );
+
+  const accountantDefault = accountantApproversData?.data?.data?.[0];
+  const treasurerDefault = treasurerApproversData?.data?.data?.[0];
+  const mayorDefault = mayorApproversData?.data?.data?.[0];
+  const printForm: DvPrintForm = {
+    accountantName: form.accountantName || accountantDefault?.name || "",
+    accountantPosition: form.accountantPosition || accountantDefault?.positionName || "",
+    accountantDate: form.accountantDate,
+    treasurerName: form.treasurerName || treasurerDefault?.name || "",
+    treasurerPosition: form.treasurerPosition || treasurerDefault?.positionName || "",
+    treasurerDate: form.treasurerDate,
+    mayorName: form.mayorName || mayorDefault?.name || "",
+    mayorPosition: form.mayorPosition || mayorDefault?.positionName || "",
+    mayorDate: form.mayorDate,
+    receivedName: form.receivedName || voucher.payee || "",
+  };
+
+  const update = (key: keyof DvPrintForm, value: string) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+  };
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      await openDisbursementPrintPreview(voucher.id, printForm);
+      onOpenChange(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Print Disbursement Voucher</DialogTitle>
+          <DialogDescription>
+            Add signatory details to show on the printable DV copy.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <DvPrintSignerFields
+            title="A. Certified"
+            nameLabel="Printed Name"
+            nameValue={printForm.accountantName}
+            positionValue={printForm.accountantPosition}
+            dateValue={form.accountantDate}
+            onNameChange={value => update("accountantName", value)}
+            onPositionChange={value => update("accountantPosition", value)}
+            onDateChange={value => update("accountantDate", value)}
+          />
+          <DvPrintSignerFields
+            title="B. Certified"
+            nameLabel="Printed Name"
+            nameValue={printForm.treasurerName}
+            positionValue={printForm.treasurerPosition}
+            dateValue={form.treasurerDate}
+            onNameChange={value => update("treasurerName", value)}
+            onPositionChange={value => update("treasurerPosition", value)}
+            onDateChange={value => update("treasurerDate", value)}
+          />
+          <DvPrintSignerFields
+            title="C. Approved for Payment"
+            nameLabel="Printed Name"
+            nameValue={printForm.mayorName}
+            positionValue={printForm.mayorPosition}
+            dateValue={form.mayorDate}
+            onNameChange={value => update("mayorName", value)}
+            onPositionChange={value => update("mayorPosition", value)}
+            onDateChange={value => update("mayorDate", value)}
+          />
+          <div className="space-y-3">
+            <Typography variant="small" className="font-medium">
+              D. Received Payment
+            </Typography>
+            <Field>
+              <Label htmlFor="dv-print-received-name">Signature / Printed Name / Date</Label>
+              <Input
+                id="dv-print-received-name"
+                value={printForm.receivedName}
+                onInput={event => update("receivedName", event.currentTarget.value)}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline" disabled={submitting}>Cancel</Button>
+          </DialogClose>
+          <Button onClick={() => void submit()} disabled={submitting}>
+            <Printer className="size-4 mr-1" />
+            {submitting ? "Preparing..." : "Open PDF"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DvPrintSignerFields({
+  title,
+  nameLabel,
+  nameValue,
+  positionValue,
+  dateValue,
+  onNameChange,
+  onPositionChange,
+  onDateChange,
+}: {
+  title: string;
+  nameLabel: string;
+  nameValue: string;
+  positionValue: string;
+  dateValue: string;
+  onNameChange: (value: string) => void;
+  onPositionChange: (value: string) => void;
+  onDateChange: (value: string) => void;
+}) {
+  const baseId = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return (
+    <div className="space-y-3">
+      <Typography variant="small" className="font-medium">
+        {title}
+      </Typography>
+      <Field>
+        <Label htmlFor={`${baseId}-name`}>{nameLabel}</Label>
+        <Input
+          id={`${baseId}-name`}
+          value={nameValue}
+          onInput={event => onNameChange(event.currentTarget.value)}
+        />
+      </Field>
+      <Field>
+        <Label htmlFor={`${baseId}-position`}>Position</Label>
+        <Input
+          id={`${baseId}-position`}
+          value={positionValue}
+          onInput={event => onPositionChange(event.currentTarget.value)}
+        />
+      </Field>
+      <Field>
+        <Label htmlFor={`${baseId}-date`}>Date</Label>
+        <Input
+          id={`${baseId}-date`}
+          value={dateValue}
+          placeholder="e.g. June 19, 2026"
+          onInput={event => onDateChange(event.currentTarget.value)}
+        />
+      </Field>
+    </div>
   );
 }
 
@@ -794,12 +1050,17 @@ export default function Page() {
   const [selectedVoucher, setSelectedVoucher] = useState<ObrDisbursementVoucherItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [printVoucher, setPrintVoucher] = useState<ObrDisbursementVoucherItem | null>(null);
 
   const vouchers = useMemo(() => listData?.data?.data ?? [], [listData]);
 
   const handleRowClick = useCallback((v: ObrDisbursementVoucherItem) => {
     setSelectedVoucher(v);
     setDetailOpen(true);
+  }, []);
+
+  const handlePrint = useCallback((voucher: ObrDisbursementVoucherItem) => {
+    setPrintVoucher(voucher);
   }, []);
 
   const handleSaved = useCallback(() => {
@@ -853,6 +1114,7 @@ export default function Page() {
                   <TableHead className="whitespace-nowrap">Position</TableHead>
                   <TableHead className="whitespace-nowrap">Status</TableHead>
                   <TableHead className="whitespace-nowrap">PR #</TableHead>
+                  <TableHead className="w-16 text-right">Print</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -890,6 +1152,20 @@ export default function Page() {
                       <StatusBadge status={v.status} />
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{v.prNumber ?? "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Print disbursement voucher ${v.disbursementVoucherNumber}`}
+                        onClick={event => {
+                          event.stopPropagation();
+                          handlePrint(v);
+                        }}
+                      >
+                        <Printer />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -905,6 +1181,17 @@ export default function Page() {
         onSaved={handleSaved}
         onDeleted={handleDeleted}
       />
+
+      {printVoucher && (
+        <DvPrintDialog
+          key={printVoucher.id}
+          voucher={printVoucher}
+          open={Boolean(printVoucher)}
+          onOpenChange={open => {
+            if (!open) setPrintVoucher(null);
+          }}
+        />
+      )}
 
       <CreateDisbursementDialog
         open={createOpen}
