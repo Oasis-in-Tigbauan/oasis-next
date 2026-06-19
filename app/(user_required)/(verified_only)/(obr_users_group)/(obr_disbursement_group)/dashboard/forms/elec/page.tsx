@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { FileSpreadsheet, FileText, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { FileSpreadsheet, FileText, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { $fetch } from "@/lib/http/client/fetch";
@@ -12,6 +13,7 @@ import type {
   ElecItemResponse,
   ElecListResponse,
 } from "@/lib/http/client/responses";
+import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
 
 import DeadHamster from "@/components/dead-hamster";
 import Loading from "@/components/loading";
@@ -37,6 +39,14 @@ const TAX_TYPE_LABELS: Record<string, string> = {
 
 const TOTAL_COLS = 10;
 
+type ValidDvApprover = {
+  id: string;
+  name: string;
+  positionName: string;
+};
+
+type ValidDvApproverResponse = GenericOkResponse<ValidDvApprover[]>;
+
 export default function Page() {
   const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<ElecListResponse, ApiResponseException>
@@ -48,7 +58,20 @@ export default function Page() {
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const { data: accountantApproversData } = useSWR<BetterFetchResponse<ValidDvApproverResponse, ApiResponseException>>(
+    "/api/obr/disbursements/valid/approvers?filter=obr.disbursement.accountant.approve",
+    $fetch,
+  );
+  const { data: treasurerApproversData } = useSWR<BetterFetchResponse<ValidDvApproverResponse, ApiResponseException>>(
+    "/api/obr/disbursements/valid/approvers?filter=obr.disbursement.treasurer.approve",
+    $fetch,
+  );
+  const { data: mayorApproversData } = useSWR<BetterFetchResponse<ValidDvApproverResponse, ApiResponseException>>(
+    "/api/obr/disbursements/valid/approvers?filter=obr.disbursement.mayor.approve",
+    $fetch,
+  );
 
   const items = useMemo(() => data?.data?.data ?? [], [data?.data?.data]);
 
@@ -114,6 +137,57 @@ export default function Page() {
       setExporting(false);
     }
   }, [selectedItem]);
+
+  const handlePrint = useCallback(async () => {
+    if (!selectedItem) return;
+
+    const accountantDefault = accountantApproversData?.data?.data?.[0];
+    const treasurerDefault = treasurerApproversData?.data?.data?.[0];
+    const mayorDefault = mayorApproversData?.data?.data?.[0];
+    const searchParams = new URLSearchParams({ format: "pdf" });
+    if (accountantDefault) {
+      searchParams.set("accountantName", accountantDefault.name);
+      searchParams.set("accountantPosition", accountantDefault.positionName);
+    }
+    if (treasurerDefault) {
+      searchParams.set("treasurerName", treasurerDefault.name);
+      searchParams.set("treasurerPosition", treasurerDefault.positionName);
+    }
+    if (mayorDefault) {
+      searchParams.set("mayorName", mayorDefault.name);
+      searchParams.set("mayorPosition", mayorDefault.positionName);
+    }
+
+    setPrinting(true);
+    try {
+      const response = await fetch(`/api/obr/disbursements/${selectedItem.dv.id}/export?${searchParams.toString()}`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        toast.error("DV-Elec print preview failed", {
+          description: extractErrorMessage(payload, "Failed to generate voucher PDF. Please try again."),
+        });
+        return;
+      }
+
+      const blob = await response.blob();
+      const previewUrl = URL.createObjectURL(blob);
+      const previewWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+      if (!previewWindow) {
+        URL.revokeObjectURL(previewUrl);
+        toast.error("DV-Elec print preview was blocked", {
+          description: "Allow pop-ups for this site and try again.",
+        });
+        return;
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60_000);
+      toast.success("DV-Elec print preview is ready");
+    } catch {
+      toast.error("An unexpected error occurred while printing.");
+    } finally {
+      setPrinting(false);
+    }
+  }, [accountantApproversData, mayorApproversData, selectedItem, treasurerApproversData]);
 
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
@@ -205,6 +279,16 @@ export default function Page() {
           onClick={() => void handleExport("pdf")}
         >
           <FileText />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Print selected DV"
+          disabled={!selectedItem || printing}
+          onClick={() => void handlePrint()}
+        >
+          <Printer />
         </Button>
       </div>
 

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Pencil,
   Plus,
+  Printer,
   Search,
   Trash2,
 } from "lucide-react";
@@ -70,6 +71,43 @@ import { Textarea } from "@/components/ui/textarea";
 const TOTAL_COLS = 12;
 const PARENT_TYPE_MINOR = 6700;
 const PARENT_TYPE_PROJECT = 6701;
+
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+function openPrintWindow(title: string, body: string): void {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) {
+    alert("Print preview was blocked. Allow pop-ups for this site and try again.");
+    return;
+  }
+
+  printWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+    h1 { text-align: center; font-size: 18px; margin: 0 0 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    th, td { border: 1px solid #111; padding: 4px; vertical-align: top; }
+    th { text-align: center; }
+    .right { text-align: right; }
+    .group { font-weight: 700; background: #f2f2f2; }
+    @page { size: legal landscape; margin: 0.25in; }
+  </style>
+</head>
+<body>${body}</body>
+</html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
 
 type FlatRow =
   | { kind: "major"; id: string; data: PpmpMajorGroupResponse }
@@ -149,6 +187,58 @@ export default function Page() {
     mutate();
     closeDialog();
   }, [mutate, closeDialog]);
+
+  const handlePrint = useCallback(() => {
+    const rows = flatRows.map(row => {
+      if (row.kind === "major") {
+        return `<tr class="group"><td colspan="12">Source of Funds: ${escapeHtml(row.data.saaob.name)}</td></tr>`;
+      }
+      if (row.kind === "minor") {
+        return `<tr class="group"><td colspan="12">AIP: ${escapeHtml(row.data.lbac.aipRefCode)} - ${escapeHtml(row.data.lbac.name)}</td></tr>`;
+      }
+      if (row.kind === "project") {
+        return `<tr class="group"><td colspan="12">Project: ${escapeHtml(row.data.title)}</td></tr>`;
+      }
+      return `
+        <tr>
+          <td>${escapeHtml(row.data.generalDescription)}</td>
+          <td>${escapeHtml(humanizeTypeOfProject(row.data.typeOfProject))}</td>
+          <td>${escapeHtml(row.data.quantityOrSize)}</td>
+          <td>${escapeHtml(row.data.recommendedModeOfProcurement)}</td>
+          <td>${row.data.eligibleForPreProcurementConference ? "Yes" : "No"}</td>
+          <td>${escapeHtml(formatMonthYearLabel(row.data.startOfProcurementActivity))}</td>
+          <td>${escapeHtml(formatMonthYearLabel(row.data.endOfProcurementActivity))}</td>
+          <td>${escapeHtml(formatMonthYearLabel(row.data.expectedDeliveryPeriod))}</td>
+          <td>${escapeHtml(row.data.saaob.name)}</td>
+          <td class="right">${escapeHtml(fmtMoney(row.data.estimatedBudget))}</td>
+          <td>${escapeHtml(row.data.attachedSupportingDocuments)}</td>
+          <td>${escapeHtml(row.data.remarks)}</td>
+        </tr>
+      `;
+    }).join("");
+    openPrintWindow("PPMP", `
+      <h1>PROJECT PROCUREMENT MANAGEMENT PLAN</h1>
+      <table>
+        <thead>
+          <tr>
+            <th>General Description</th>
+            <th>Type</th>
+            <th>Quantity/Size</th>
+            <th>Mode</th>
+            <th>Pre-Proc</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Delivery</th>
+            <th>Source</th>
+            <th>Budget</th>
+            <th>Documents</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `);
+  }, [flatRows]);
 
   const openAddMinor = useCallback((majorId: string) => {
     setDialogMode("add-minor");
@@ -313,6 +403,17 @@ export default function Page() {
           onClick={handleDelete}
         >
           <Trash2 />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Print PPMP"
+          title="Print PPMP"
+          disabled={flatRows.length === 0}
+          onClick={handlePrint}
+        >
+          <Printer />
         </Button>
 
         {selectedRow && (

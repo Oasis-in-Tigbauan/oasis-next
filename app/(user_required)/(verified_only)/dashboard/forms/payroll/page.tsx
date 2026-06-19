@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { DateTime } from "luxon";
-import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import useSWR from "swr";
 
@@ -151,6 +151,48 @@ function toPayload(form: PayrollForm) {
   };
 }
 
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+function openPrintWindow(title: string, body: string): void {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) {
+    toast.error("Print preview was blocked", {
+      description: "Allow pop-ups for this site and try again.",
+    });
+    return;
+  }
+
+  printWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+    h1 { text-align: center; font-size: 22px; margin: 0 0 8px; }
+    .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 24px; margin: 18px 0; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { border: 1px solid #111; padding: 5px; vertical-align: top; }
+    th { text-align: center; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    .signers { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 42px; font-size: 10px; text-align: center; }
+    .line { border-top: 1px solid #111; padding-top: 5px; font-weight: 700; }
+    @page { size: legal portrait; margin: 0.35in; }
+  </style>
+</head>
+<body>${body}</body>
+</html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
 export default function PayrollPage() {
   const { data, error, isLoading, mutate } = useSWR<
     BetterFetchResponse<PayrollListResponse, ApiResponseException>
@@ -235,6 +277,43 @@ export default function PayrollPage() {
     }
   }
 
+  function handlePrint() {
+    if (!selectedItem) return;
+    const rows = selectedItem.entries.map(entry => `
+      <tr>
+        <td class="center">${escapeHtml(entry.serialNo)}</td>
+        <td>${escapeHtml(entry.name)}</td>
+        <td>${escapeHtml(entry.position)}</td>
+        <td class="center">${escapeHtml(entry.idNo ?? "")}</td>
+        <td class="right">${escapeHtml(formatAmount(entry.amount))}</td>
+        <td class="center">${escapeHtml(entry.signatureNo)}</td>
+      </tr>
+    `).join("");
+    const body = `
+      <h1>PAYROLL</h1>
+      <div class="center">${escapeHtml(formatMonth(selectedItem.payrollMonth))}</div>
+      <div class="meta">
+        <div><strong>LGU:</strong> ${escapeHtml(selectedItem.lgu)}</div>
+        <div><strong>Payroll No.:</strong> ${escapeHtml(selectedItem.payrollNo)}</div>
+        <div><strong>Fund:</strong> ${escapeHtml(selectedItem.fund)}</div>
+        <div><strong>Sheet:</strong> ${escapeHtml(selectedItem.sheetNumber)} of ${escapeHtml(selectedItem.totalSheets)}</div>
+      </div>
+      <table>
+        <thead><tr><th>Serial No.</th><th>Name</th><th>Position</th><th>ID No.</th><th>Amount</th><th>Signature of Recipient</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><th colspan="4" class="right">Total:</th><th class="right">${escapeHtml(formatAmount(selectedItem.totalAmount))}</th><th></th></tr></tfoot>
+      </table>
+      <div class="signers">
+        <div><div class="line">${escapeHtml(selectedItem.authorizedOfficial)}</div><div>Authorized Official</div></div>
+        <div><div class="line">${escapeHtml(selectedItem.headOfAccounting)}</div><div>Head of Accounting</div></div>
+        <div><div class="line">${escapeHtml(selectedItem.headOfTreasury)}</div><div>Head of Treasury</div></div>
+        <div><div class="line">${escapeHtml(selectedItem.localChiefExecutive)}</div><div>Local Chief Executive</div></div>
+        <div><div class="line">${escapeHtml(selectedItem.disbursingOfficer)}</div><div>Disbursing Officer</div></div>
+      </div>
+    `;
+    openPrintWindow(`Payroll ${selectedItem.payrollNo}`, body);
+  }
+
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
 
@@ -283,6 +362,16 @@ export default function PayrollPage() {
         >
           <Download />
           <span className="hidden sm:inline">{isExporting ? "Exporting..." : "Export Excel"}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-2"
+          disabled={!selectedItem}
+          onClick={handlePrint}
+        >
+          <Printer />
+          <span className="hidden sm:inline">Print</span>
         </Button>
 
         <div className="ml-auto hidden min-w-0 items-center gap-2 rounded-md border border-transparent bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground md:flex">
