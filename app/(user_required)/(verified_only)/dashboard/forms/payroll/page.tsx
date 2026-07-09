@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { DateTime } from "luxon";
-import { Download, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { Copy, Download, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import useSWR from "swr";
 
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -119,6 +120,25 @@ function makeEditForm(item: PayrollItemResponse): PayrollForm {
       amount: entry.amount,
     })),
   };
+}
+
+function copyPayrollEntries(item: PayrollItemResponse): PayrollEntryForm[] {
+  return item.entries.map(entry => ({
+    name: entry.name,
+    position: entry.position,
+    idNo: entry.idNo ?? "",
+    amount: entry.amount,
+  }));
+}
+
+function getMostRecentPayroll(items: PayrollItemResponse[]): PayrollItemResponse | null {
+  return items.reduce<PayrollItemResponse | null>((latest, item) => {
+    if (!latest) return item;
+    const monthOrder = item.payrollMonth.localeCompare(latest.payrollMonth);
+    if (monthOrder > 0) return item;
+    if (monthOrder === 0 && item.date.localeCompare(latest.date) > 0) return item;
+    return latest;
+  }, null);
 }
 
 function formatAmount(value: string) {
@@ -446,7 +466,10 @@ export default function PayrollPage() {
       </div>
 
       <PayrollDialog
+        key={addOpen ? `add-${selectedItem?.id ?? "latest"}-${items.length}` : "add-closed"}
         mode="add"
+        reusablePayrolls={items}
+        selectedReuseSource={selectedItem}
         open={addOpen}
         onOpenChange={setAddOpen}
         onSuccess={item => {
@@ -491,17 +514,33 @@ export default function PayrollPage() {
 function PayrollDialog({
   mode,
   item,
+  reusablePayrolls = [],
+  selectedReuseSource,
   open,
   onOpenChange,
   onSuccess,
 }: {
   mode: "add" | "edit";
   item?: PayrollItemResponse;
+  reusablePayrolls?: PayrollItemResponse[];
+  selectedReuseSource?: PayrollItemResponse | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (item: PayrollItemResponse) => void;
 }) {
   const [form, setForm] = useState<PayrollForm>(mode === "edit" && item ? makeEditForm(item) : makeEmptyForm());
+  const reusableSources = useMemo(
+    () => mode === "add" ? reusablePayrolls.filter(source => source.entries.length > 0) : [],
+    [mode, reusablePayrolls],
+  );
+  const defaultReuseSourceId = useMemo(() => {
+    if (mode !== "add") return "";
+    if (selectedReuseSource && reusableSources.some(source => source.id === selectedReuseSource.id)) {
+      return selectedReuseSource.id;
+    }
+    return getMostRecentPayroll(reusableSources)?.id ?? "";
+  }, [mode, reusableSources, selectedReuseSource]);
+  const [reuseSourceId, setReuseSourceId] = useState(defaultReuseSourceId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const totalAmount = payrollTotal(form.entries);
@@ -529,6 +568,19 @@ function PayrollDialog({
         ? previous.entries
         : previous.entries.filter((_, entryIndex) => entryIndex !== index),
     }));
+  }
+
+  function reuseEmployeeRows() {
+    const source = reusableSources.find(payroll => payroll.id === reuseSourceId);
+    if (!source) return;
+
+    setForm(previous => ({
+      ...previous,
+      entries: copyPayrollEntries(source),
+    }));
+    toast.success("Employee list reused", {
+      description: `${source.entries.length} payee row${source.entries.length === 1 ? "" : "s"} loaded from payroll ${source.payrollNo}.`,
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -585,6 +637,29 @@ function PayrollDialog({
                 </FormSection>
 
                 <FormSection title="Payee Rows">
+                  {mode === "add" && reusableSources.length > 0 && (
+                    <div className="mb-3 flex flex-col gap-2 rounded-md border border-[#D8E2EC] bg-[#F8FAFC] p-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="grid min-w-0 flex-1 gap-2">
+                        <Label className="text-xs text-[#415367]">Reuse employee list from</Label>
+                        <NativeSelect
+                          className="w-full bg-white text-xs"
+                          size="sm"
+                          value={reuseSourceId}
+                          onChange={event => setReuseSourceId(event.target.value)}
+                        >
+                          {reusableSources.map(source => (
+                            <NativeSelectOption key={source.id} value={source.id}>
+                              {source.payrollNo} - {formatMonth(source.payrollMonth)} ({source.entries.length} payees)
+                            </NativeSelectOption>
+                          ))}
+                        </NativeSelect>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" className="shrink-0" disabled={!reuseSourceId} onClick={reuseEmployeeRows}>
+                        <Copy />
+                        Load Rows
+                      </Button>
+                    </div>
+                  )}
                   <div className="overflow-x-auto">
                     <Table className="min-w-[860px] table-fixed text-xs [&_td]:border-r [&_th]:border-r">
                       <TableHeader>
