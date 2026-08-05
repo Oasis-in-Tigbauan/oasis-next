@@ -1,21 +1,21 @@
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import * as purchasing from "@/lib/forms/purchasing";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { oneOf } from "@/lib/one-of";
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import * as purchasing from '@/lib/forms/purchasing';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {oneOf} from '@/lib/one-of';
 
 export async function GET() {
-  const session = await auth.verify([
-    permission.PURCHASING_REQUEST_CREATE,
-    permission.PURCHASING_REQUEST_MANAGE,
-  ], "or");
+  const session = await auth.verify(
+    [permission.PURCHASING_REQUEST_CREATE, permission.PURCHASING_REQUEST_MANAGE],
+    'or',
+  );
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
   const result = await purchasing.getValidSignatories(session.user!);
   return oneOf(result).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }

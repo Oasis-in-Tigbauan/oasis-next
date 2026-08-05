@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import {NextResponse} from 'next/server';
 
-import { ErrorCodes, Failure } from "@/lib/one-of";
-import { SessionCode, type SessionVerifiedResult } from "@/lib/auth";
-import { StatusCodes } from "@/lib/http/composers/StatusCodes";
+import {SessionCode, type SessionVerifiedResult} from '@/lib/auth';
+import {StatusCodes} from '@/lib/http/composers/StatusCodes';
+import {ErrorCodes, Failure} from '@/lib/one-of';
 
 export class ApiResponseBuilder<TResponse> implements IResponseComposer<TResponse> {
   private _code: StatusCodes | number = StatusCodes.Status200Ok;
@@ -14,7 +14,7 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
     data: null as TResponse,
   };
 
-  private constructor() { }
+  private constructor() {}
 
   withHeader(key: string, value: string): IResponseComposer<TResponse> {
     if (!this._additionalHeaders[key]) {
@@ -43,7 +43,7 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
   build(): NextResponse {
     // For empty responses, Next.js returns a 204 No Content response.
     if (this._code === StatusCodes.Status204NoContent || !this._hasBodySet) {
-      return new NextResponse(null, { status: this._code });
+      return new NextResponse(null, {status: this._code});
     }
 
     return NextResponse.json(this._body, {
@@ -59,8 +59,7 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
    * @returns {Types}
    */
   static create<T>(code: StatusCodes | number): IResponseComposer<T> {
-    return new ApiResponseBuilder<T>()
-      .withStatusCode(code);
+    return new ApiResponseBuilder<T>().withStatusCode(code);
   }
 
   /**
@@ -73,18 +72,21 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
    * @returns {ApiResponseBuilder<IApiResponseError<T>>}
    * @throws {Error} Throws exception when you provide non 4XX or 5XX status code.
    */
-  static createError<T>(code: StatusCodes | number, errorBody: T): IResponseComposer<IApiResponseError<T>> {
+  static createError<T>(
+    code: StatusCodes | number,
+    errorBody: T,
+  ): IResponseComposer<IApiResponseError<T>> {
     // Accept only 4XX or 5XX codes
     if (code < 400 || code >= 600) {
-      throw new Error("Invalid status code. This method only supports 4XX or 5XX codes.");
+      throw new Error('Invalid status code. This method only supports 4XX or 5XX codes.');
     }
 
     const response = new ApiResponseBuilder<IApiResponseError<T>>();
 
     // Compose the exception here.
     const body: IApiResponseError<T> = {
-      type: "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.1",
-      title: "Bad Request",
+      type: 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.1',
+      title: 'Bad Request',
       status: StatusCodes.Status400BadRequest,
       details: errorBody,
     };
@@ -95,170 +97,170 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
 
     // Provide proper IETF link for the response for reference
     switch (code) {
-    case StatusCodes.Status400BadRequest:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.1";
-      body.title = "Bad Request";
-      break;
-    case StatusCodes.Status401Unauthorized:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7235#section-3.1";
-      body.title = "Unauthorized";
-      break;
-    case StatusCodes.Status402PaymentRequired:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.2";
-      body.title = "Payment Required";
-      break;
-    case StatusCodes.Status403Forbidden:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.3";
-      body.title = "Forbidden";
-      break;
-    case StatusCodes.Status404NotFound:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.4";
-      body.title = "Not Found";
-      break;
-    case StatusCodes.Status405MethodNotAllowed:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.5";
-      body.title = "Method Not Allowed";
-      break;
-    case StatusCodes.Status406NotAcceptable:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.6";
-      body.title = "Not Acceptable";
-      break;
-    case StatusCodes.Status407ProxyAuthenticationRequired:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7235#section-3.2";
-      body.title = "Proxy Authentication Required";
-      break;
-    case StatusCodes.Status408RequestTimeout:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.7";
-      body.title = "Request Timeout";
-      break;
-    case StatusCodes.Status409Conflict:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.8";
-      body.title = "Conflict";
-      break;
-    case StatusCodes.Status410Gone:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.9";
-      body.title = "Gone";
-      break;
-    case StatusCodes.Status411LengthRequired:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.10";
-      body.title = "Length Required";
-      break;
-    case StatusCodes.Status412PreconditionFailed:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7232#section-4.2";
-      body.title = "Precondition Failed";
-      break;
-    case StatusCodes.Status413PayloadTooLarge:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.11";
-      body.title = "Payload Too Large";
-      break;
-    case StatusCodes.Status414RequestUriTooLong:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.12";
-      body.title = "Request URI Too Long";
-      break;
-    case StatusCodes.Status415UnsupportedMediaType:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.13";
-      body.title = "Unsupported Media Type";
-      break;
-    case StatusCodes.Status416RangeNotSatisfiable:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7233#section-4.4";
-      body.title = "Range Not Satisfiable";
-      break;
-    case StatusCodes.Status417ExpectationFailed:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.14";
-      body.title = "Expectation Failed";
-      break;
-    case StatusCodes.Status418ImATeapot:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc2324#section-2.3.2";
-      body.title = "I'm a teapot";
-      break;
-    case StatusCodes.Status419AuthenticationTimeout:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7235#section-3.2";
-      body.title = "Authentication Timeout";
-      break;
-    case StatusCodes.Status421MisdirectedRequest:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7540#section-9.1.2";
-      body.title = "Misdirected Request";
-      break;
-    case StatusCodes.Status422UnprocessableEntity:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc4918#section-11.2";
-      body.title = "Unprocessable Entity";
-      break;
-    case StatusCodes.Status423Locked:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc4918#section-11.3";
-      body.title = "Locked";
-      break;
-    case StatusCodes.Status424FailedDependency:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc4918#section-11.4";
-      body.title = "Failed Dependency";
-      break;
-    case StatusCodes.Status426UpgradeRequired:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.15";
-      body.title = "Upgrade Required";
-      break;
-    case StatusCodes.Status428PreconditionRequired:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc6585#section-3";
-      body.title = "Precondition Required";
-      break;
-    case StatusCodes.Status429TooManyRequests:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc6585#section-4";
-      body.title = "Too Many Requests";
-      break;
-    case StatusCodes.Status431RequestHeaderFieldsTooLarge:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc6585#section-5";
-      body.title = "Request Header Fields Too Large";
-      break;
-    case StatusCodes.Status451UnavailableForLegalReasons:
-      body.type = "";
-      body.title = "Unavailable For Legal Reasons";
-      break;
-    case StatusCodes.Status499ClientClosedRequest:
-      body.type = "";
-      body.title = "Client Closed Request";
-      break;
-    case StatusCodes.Status500InternalServerError:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.1";
-      body.title = "Internal Server Error";
-      break;
-    case StatusCodes.Status501NotImplemented:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.2";
-      body.title = "Not Implemented";
-      break;
-    case StatusCodes.Status502BadGateway:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.3";
-      body.title = "Bad Gateway";
-      break;
-    case StatusCodes.Status503ServiceUnavailable:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.4";
-      body.title = "Service Unavailable";
-      break;
-    case StatusCodes.Status504GatewayTimeout:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.5";
-      body.title = "Gateway Timeout";
-      break;
-    case StatusCodes.Status505HttpVersionNotSupported:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.6";
-      body.title = "HTTP Version Not Supported";
-      break;
-    case StatusCodes.Status506VariantAlsoNegotiates:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc2295#section-8.1";
-      body.title = "Variant Also Negotiates";
-      break;
-    case StatusCodes.Status507InsufficientStorage:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc4918#section-11.5";
-      body.title = "Insufficient Storage";
-      break;
-    case StatusCodes.Status508LoopDetected:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc5842#section-7.2";
-      body.title = "Loop Detected";
-      break;
-    case StatusCodes.Status510NotExtended:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc2774#section-7";
-      body.title = "Not Extended";
-      break;
-    case StatusCodes.Status511NetworkAuthenticationRequired:
-      body.type = "https://datatracker.ietf.org/doc/html/rfc6585#section-6";
-      body.title = "Network Authentication Required";
-      break;
+      case StatusCodes.Status400BadRequest:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.1';
+        body.title = 'Bad Request';
+        break;
+      case StatusCodes.Status401Unauthorized:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7235#section-3.1';
+        body.title = 'Unauthorized';
+        break;
+      case StatusCodes.Status402PaymentRequired:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.2';
+        body.title = 'Payment Required';
+        break;
+      case StatusCodes.Status403Forbidden:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.3';
+        body.title = 'Forbidden';
+        break;
+      case StatusCodes.Status404NotFound:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.4';
+        body.title = 'Not Found';
+        break;
+      case StatusCodes.Status405MethodNotAllowed:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.5';
+        body.title = 'Method Not Allowed';
+        break;
+      case StatusCodes.Status406NotAcceptable:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.6';
+        body.title = 'Not Acceptable';
+        break;
+      case StatusCodes.Status407ProxyAuthenticationRequired:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7235#section-3.2';
+        body.title = 'Proxy Authentication Required';
+        break;
+      case StatusCodes.Status408RequestTimeout:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.7';
+        body.title = 'Request Timeout';
+        break;
+      case StatusCodes.Status409Conflict:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.8';
+        body.title = 'Conflict';
+        break;
+      case StatusCodes.Status410Gone:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.9';
+        body.title = 'Gone';
+        break;
+      case StatusCodes.Status411LengthRequired:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.10';
+        body.title = 'Length Required';
+        break;
+      case StatusCodes.Status412PreconditionFailed:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7232#section-4.2';
+        body.title = 'Precondition Failed';
+        break;
+      case StatusCodes.Status413PayloadTooLarge:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.11';
+        body.title = 'Payload Too Large';
+        break;
+      case StatusCodes.Status414RequestUriTooLong:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.12';
+        body.title = 'Request URI Too Long';
+        break;
+      case StatusCodes.Status415UnsupportedMediaType:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.13';
+        body.title = 'Unsupported Media Type';
+        break;
+      case StatusCodes.Status416RangeNotSatisfiable:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7233#section-4.4';
+        body.title = 'Range Not Satisfiable';
+        break;
+      case StatusCodes.Status417ExpectationFailed:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.14';
+        body.title = 'Expectation Failed';
+        break;
+      case StatusCodes.Status418ImATeapot:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc2324#section-2.3.2';
+        body.title = "I'm a teapot";
+        break;
+      case StatusCodes.Status419AuthenticationTimeout:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7235#section-3.2';
+        body.title = 'Authentication Timeout';
+        break;
+      case StatusCodes.Status421MisdirectedRequest:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7540#section-9.1.2';
+        body.title = 'Misdirected Request';
+        break;
+      case StatusCodes.Status422UnprocessableEntity:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc4918#section-11.2';
+        body.title = 'Unprocessable Entity';
+        break;
+      case StatusCodes.Status423Locked:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc4918#section-11.3';
+        body.title = 'Locked';
+        break;
+      case StatusCodes.Status424FailedDependency:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc4918#section-11.4';
+        body.title = 'Failed Dependency';
+        break;
+      case StatusCodes.Status426UpgradeRequired:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.15';
+        body.title = 'Upgrade Required';
+        break;
+      case StatusCodes.Status428PreconditionRequired:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc6585#section-3';
+        body.title = 'Precondition Required';
+        break;
+      case StatusCodes.Status429TooManyRequests:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc6585#section-4';
+        body.title = 'Too Many Requests';
+        break;
+      case StatusCodes.Status431RequestHeaderFieldsTooLarge:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc6585#section-5';
+        body.title = 'Request Header Fields Too Large';
+        break;
+      case StatusCodes.Status451UnavailableForLegalReasons:
+        body.type = '';
+        body.title = 'Unavailable For Legal Reasons';
+        break;
+      case StatusCodes.Status499ClientClosedRequest:
+        body.type = '';
+        body.title = 'Client Closed Request';
+        break;
+      case StatusCodes.Status500InternalServerError:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.1';
+        body.title = 'Internal Server Error';
+        break;
+      case StatusCodes.Status501NotImplemented:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.2';
+        body.title = 'Not Implemented';
+        break;
+      case StatusCodes.Status502BadGateway:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.3';
+        body.title = 'Bad Gateway';
+        break;
+      case StatusCodes.Status503ServiceUnavailable:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.4';
+        body.title = 'Service Unavailable';
+        break;
+      case StatusCodes.Status504GatewayTimeout:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.5';
+        body.title = 'Gateway Timeout';
+        break;
+      case StatusCodes.Status505HttpVersionNotSupported:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.6';
+        body.title = 'HTTP Version Not Supported';
+        break;
+      case StatusCodes.Status506VariantAlsoNegotiates:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc2295#section-8.1';
+        body.title = 'Variant Also Negotiates';
+        break;
+      case StatusCodes.Status507InsufficientStorage:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc4918#section-11.5';
+        body.title = 'Insufficient Storage';
+        break;
+      case StatusCodes.Status508LoopDetected:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc5842#section-7.2';
+        body.title = 'Loop Detected';
+        break;
+      case StatusCodes.Status510NotExtended:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc2774#section-7';
+        body.title = 'Not Extended';
+        break;
+      case StatusCodes.Status511NetworkAuthenticationRequired:
+        body.type = 'https://datatracker.ietf.org/doc/html/rfc6585#section-6';
+        body.title = 'Network Authentication Required';
+        break;
     }
 
     // Add the body to the response
@@ -273,44 +275,57 @@ export class ApiResponseBuilder<TResponse> implements IResponseComposer<TRespons
    * @param {Failure} failure - An object representing the failure details, including its type and message.
    * @return {object} The composed error response object, including the appropriate HTTP status code and error message.
    */
-  static createFromFailure(failure: Failure): IResponseComposer<IApiResponseError<{ message: string; }>> {
+  static createFromFailure(
+    failure: Failure,
+  ): IResponseComposer<IApiResponseError<{message: string}>> {
     switch (failure.type) {
-    case ErrorCodes.ValidationFailure:
-    case ErrorCodes.ResourceExpired:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status400BadRequest, { message: failure.message });
-    case ErrorCodes.ResourceNotFound:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status404NotFound, { message: failure.message });
-    case ErrorCodes.InsufficientPermissions:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status403Forbidden, { message: failure.message });
-    default:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status500InternalServerError, { message: failure.message });
+      case ErrorCodes.ValidationFailure:
+      case ErrorCodes.ResourceExpired:
+        return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, {
+          message: failure.message,
+        });
+      case ErrorCodes.ResourceNotFound:
+        return ApiResponseBuilder.createError(StatusCodes.Status404NotFound, {
+          message: failure.message,
+        });
+      case ErrorCodes.InsufficientPermissions:
+        return ApiResponseBuilder.createError(StatusCodes.Status403Forbidden, {
+          message: failure.message,
+        });
+      default:
+        return ApiResponseBuilder.createError(StatusCodes.Status500InternalServerError, {
+          message: failure.message,
+        });
     }
   }
 
-  static createFromSessionValidation(result: Optional<SessionVerifiedResult>): IResponseComposer<IApiResponseError<{ message: string; }>> {
+  static createFromSessionValidation(
+    result: Optional<SessionVerifiedResult>,
+  ): IResponseComposer<IApiResponseError<{message: string}>> {
     if (!result) {
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status401Unauthorized, { message: "Invalid session." });
+      return ApiResponseBuilder.createError(StatusCodes.Status401Unauthorized, {
+        message: 'Invalid session.',
+      });
     }
 
     switch (result.code) {
-    case SessionCode.Banned:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status403Forbidden, { message: "Your account has been banned." });
-    case SessionCode.ShadowBanned:
-    case SessionCode.Pending:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status403Forbidden, { message: "Your account is pending verification." });
-    case SessionCode.InsufficientPermissions:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status403Forbidden, { message: "You don't have permission to perform this action." });
-    default:
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status401Unauthorized, { message: "Invalid session." });
+      case SessionCode.Banned:
+        return ApiResponseBuilder.createError(StatusCodes.Status403Forbidden, {
+          message: 'Your account has been banned.',
+        });
+      case SessionCode.ShadowBanned:
+      case SessionCode.Pending:
+        return ApiResponseBuilder.createError(StatusCodes.Status403Forbidden, {
+          message: 'Your account is pending verification.',
+        });
+      case SessionCode.InsufficientPermissions:
+        return ApiResponseBuilder.createError(StatusCodes.Status403Forbidden, {
+          message: "You don't have permission to perform this action.",
+        });
+      default:
+        return ApiResponseBuilder.createError(StatusCodes.Status401Unauthorized, {
+          message: 'Invalid session.',
+        });
     }
   }
 }

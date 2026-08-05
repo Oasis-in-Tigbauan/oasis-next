@@ -1,10 +1,10 @@
-import { createClient } from "redis";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
+import {createClient} from 'redis';
 
 const REDIS_URL = process.env.REDIS_URL;
 
 export type NotificationRealtimeEvent = {
-  type: "notifications.updated";
+  type: 'notifications.updated';
   at: string;
 };
 
@@ -15,15 +15,16 @@ export function getNotificationChannel(userId: string) {
 export async function publishNotificationUpdate(userId: string): Promise<void> {
   if (!REDIS_URL) return;
 
-  const client = createClient({ url: REDIS_URL })
-    .on("error", (error) => Sentry.captureException(error));
+  const client = createClient({url: REDIS_URL}).on('error', (error) =>
+    Sentry.captureException(error),
+  );
 
   try {
     await client.connect();
     await client.publish(
       getNotificationChannel(userId),
       JSON.stringify({
-        type: "notifications.updated",
+        type: 'notifications.updated',
         at: new Date().toISOString(),
       } satisfies NotificationRealtimeEvent),
     );

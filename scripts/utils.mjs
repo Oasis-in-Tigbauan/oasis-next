@@ -1,12 +1,13 @@
-import fs from "node:fs";
-import fsp from "node:fs/promises";
-import child_process from "node:child_process";
-import crypto from "node:crypto";
-import os from "node:os";
-import path from "node:path";
-import * as pg from "pg";
-import * as readline from "node:readline/promises";
-import {stdin, stdout} from "node:process";
+import child_process from 'node:child_process';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {stdin, stdout} from 'node:process';
+import * as readline from 'node:readline/promises';
+
+import * as pg from 'pg';
 
 const __dirname = import.meta.dirname;
 
@@ -14,25 +15,25 @@ const __dirname = import.meta.dirname;
  * Uppercase characters
  * @type {string}
  */
-const UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 /**
  * Lowercase characters
  * @type {string}
  */
-const LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
+const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
 
 /**
  * Numbers
  * @type {string}
  */
-const NUMBERS = "0123456789";
+const NUMBERS = '0123456789';
 
 /**
  * Special characters (Not really)
  * @type {string}
  */
-const SPECIAL_CHARACTERS = "A0B1C2D3E4F5G6H7I8J9KaLbMcNdOePfQgRhSiTjUkVlWmXnYoZpqrstuvwxyz";
+const SPECIAL_CHARACTERS = 'A0B1C2D3E4F5G6H7I8J9KaLbMcNdOePfQgRhSiTjUkVlWmXnYoZpqrstuvwxyz';
 
 export const prompt = {
   /**
@@ -42,7 +43,7 @@ export const prompt = {
    * @returns {Promise<string>} - The answer to the question.
    */
   async questionAsync(q) {
-    const rl = readline.createInterface({ input: stdin, output: stdout });
+    const rl = readline.createInterface({input: stdin, output: stdout});
     const response = await rl.question(q);
 
     rl.close();
@@ -57,14 +58,14 @@ export const token = {
    * @param additionalSymbols {string} - Additional symbols to include in the password.
    * @returns {string}
    */
-  generatePassword: (length = 32, additionalSymbols = "") => {
-    let result = "";
+  generatePassword: (length = 32, additionalSymbols = '') => {
+    let result = '';
     while (!checkPasswordComplexity(result)) {
       // Reset the contents
-      result = "";
+      result = '';
 
       // Randomize proportions for the password
-      const [ lowerLength, upperLength, numberCount, symbolCount ] = randomPartition(length);
+      const [lowerLength, upperLength, numberCount, symbolCount] = randomPartition(length);
 
       // Lowercase characters
       for (let i = 0; i < lowerLength; i++) {
@@ -107,12 +108,12 @@ export const process = {
   spawnAsync: async (command, args, options = {}) => {
     return new Promise((resolve, reject) => {
       const child = child_process.spawn(command, args, {
-        stdio: "inherit",
+        stdio: 'inherit',
         ...options, // Allow overriding defaults
       });
 
-      child.on("error", (err) => reject(err));
-      child.on("close", (code) => {
+      child.on('error', (err) => reject(err));
+      child.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
@@ -125,7 +126,7 @@ export const process = {
 
 export const fsUtils = {
   createRecursiveDirectories(root, subPaths) {
-    const paths = subPaths.map(subPath => path.join(root, subPath));
+    const paths = subPaths.map((subPath) => path.join(root, subPath));
     for (const path of paths) {
       // No need for existing directories.
       if (fs.existsSync(path)) {
@@ -133,24 +134,27 @@ export const fsUtils = {
       }
 
       // Create directory.
-      fs.mkdirSync(path, { recursive: true });
+      fs.mkdirSync(path, {recursive: true});
     }
   },
   removeDir(loc) {
-    fs.rmSync(loc, { recursive: true });
+    fs.rmSync(loc, {recursive: true});
   },
   async unpackWith7z(args) {
     const platform = os.platform();
-    const arch = platform === "darwin" ? "any" : `${os.arch()}`;
-    const exe = platform === "win32" ? "7z.exe" : "7zz";
+    const arch = platform === 'darwin' ? 'any' : `${os.arch()}`;
+    const exe = platform === 'win32' ? '7z.exe' : '7zz';
 
-    const exePath = path.join(__dirname, "7z", `${platform}-${arch}`, exe);
+    const exePath = path.join(__dirname, '7z', `${platform}-${arch}`, exe);
     if (!fs.existsSync(exePath)) {
-      console.error("No such platform prefix exists for unpacking: %s", `${platform}-${arch}/${exe}`);
+      console.error(
+        'No such platform prefix exists for unpacking: %s',
+        `${platform}-${arch}/${exe}`,
+      );
       process.exit(1);
     }
 
-    if (platform !== "win32") {
+    if (platform !== 'win32') {
       fs.chmodSync(exePath, 0o755);
     }
 
@@ -195,8 +199,8 @@ export const db = {
    * - If `username`/`password` are empty strings or `undefined`, the resulting URI may omit
    *   or partially omit credentials depending on `URL` behavior.
    */
-  createConnectionString({ username, password, name, host, port, query }) {
-    const url = new URL(`postgres://${host ?? "localhost"}:${port ?? "5173"}`);
+  createConnectionString({username, password, name, host, port, query}) {
+    const url = new URL(`postgres://${host ?? 'localhost'}:${port ?? '5173'}`);
     url.pathname = name;
     url.username = username;
     url.password = password;
@@ -239,23 +243,20 @@ export const db = {
    * @throws {Error} Throws an error if connecting to PostgreSQL fails,
    *                 or if creating the database encounters errors.
    */
-  async setupDatabase({ username, password, name, host, port }) {
+  async setupDatabase({username, password, name, host, port}) {
     const client = new pg.Client({
       connectionString: this.createConnectionString({
         username,
         password,
         host,
         port,
-        name: "postgres", // connect to maintenance DB
+        name: 'postgres', // connect to maintenance DB
       }),
     });
 
     await client.connect();
     try {
-      const { rowCount } = await client.query(
-        "SELECT 1 FROM pg_database WHERE datname = $1",
-        [name],
-      );
+      const {rowCount} = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [name]);
 
       if (rowCount === 0) {
         const dbIdent = quoteIdent(name);
@@ -281,8 +282,8 @@ export const timers = {
 
 export const csv = {
   read: async (location) => {
-    const file = await fsp.readFile(location, "utf-8");
-    const [header, ...data] = file.split(/\r?\n/).map((row) => row.split(","));
+    const file = await fsp.readFile(location, 'utf-8');
+    const [header, ...data] = file.split(/\r?\n/).map((row) => row.split(','));
 
     const output = [];
     for (const item of data) {
@@ -314,8 +315,10 @@ export const env = {
    * @param {string} [defaultValue] - Default value if nothing is entered.
    * @returns {Promise<string>} - The answer to the question.
    */
-  async ask(question, key, defaultValue){
-    const q = await prompt.questionAsync(`${question}${defaultValue ? ` (default: ${defaultValue})` : ""}: `);
+  async ask(question, key, defaultValue) {
+    const q = await prompt.questionAsync(
+      `${question}${defaultValue ? ` (default: ${defaultValue})` : ''}: `,
+    );
 
     // Default value
     if (!q && defaultValue) {
@@ -338,9 +341,9 @@ export const env = {
    * @param {string} value - The value to be stored for the specified configuration key.
    */
   write: (key, value) => {
-    const [...rest] = key.split(".");
+    const [...rest] = key.split('.');
 
-    const runtimeKey = rest.join("_").toUpperCase();
+    const runtimeKey = rest.join('_').toUpperCase();
     RUNTIME_CONFIG.set(runtimeKey, value);
   },
 
@@ -355,32 +358,32 @@ export const env = {
    * @returns {Promise<void>}
    */
   export: async (path) => {
-    let config = "# DO NOT commit this file to your repository!\n";
+    let config = '# DO NOT commit this file to your repository!\n';
 
     RUNTIME_CONFIG.forEach((value, key) => {
       config += `${key}="${value}"\n`;
     });
 
-    await fs.promises.writeFile(path, config, "utf-8");
+    await fs.promises.writeFile(path, config, 'utf-8');
   },
 
   load: () => {
-    const envPath = path.join(__dirname, "../.env");
+    const envPath = path.join(__dirname, '../.env');
     if (!fs.existsSync(envPath)) {
       return false;
     }
 
-    const envFile = fs.readFileSync(envPath, "utf-8");
+    const envFile = fs.readFileSync(envPath, 'utf-8');
     const lines = envFile.split(/\r?\n/);
 
     for (const line of lines) {
-      if (line.trim().startsWith("#") || !line.includes("=")) {
+      if (line.trim().startsWith('#') || !line.includes('=')) {
         continue; // Skip comments and invalid lines
       }
 
-      const [key, ...rest] = line.split("=");
-      const value = rest.join("=").replace(/^"(.*)"$/, "$1"); // Remove surrounding quotes if present
-      RUNTIME_CONFIG.set(key.trim().replaceAll("_", ".").toLowerCase(), value.trim());
+      const [key, ...rest] = line.split('=');
+      const value = rest.join('=').replace(/^"(.*)"$/, '$1'); // Remove surrounding quotes if present
+      RUNTIME_CONFIG.set(key.trim().replaceAll('_', '.').toLowerCase(), value.trim());
     }
 
     return true;
@@ -390,9 +393,9 @@ export const env = {
 export const str = {
   isEmpty(str) {
     if (str === null || str === undefined) return true;
-    if (typeof str !== "string") return true;
+    if (typeof str !== 'string') return true;
     if (str.trim().length === 0) return true;
-    return str.replace(/\s/g, "").length === 0;
+    return str.replace(/\s/g, '').length === 0;
   },
 };
 
@@ -402,9 +405,11 @@ function checkPasswordComplexity(password) {
     return false;
   }
 
-  return (password.match(/[a-z]/g) ?? []).length >= 2 // At least there are 2 lowercase characters
-        && (password.match(/[A-Z]/g) ?? []).length >= 2 // At least there are 2 uppercase characters
-        && (password.match(/[0-9]/g) ?? []).length >= 2; // At least there should be 2 numbers
+  return (
+    (password.match(/[a-z]/g) ?? []).length >= 2 && // At least there are 2 lowercase characters
+    (password.match(/[A-Z]/g) ?? []).length >= 2 && // At least there are 2 uppercase characters
+    (password.match(/[0-9]/g) ?? []).length >= 2
+  ); // At least there should be 2 numbers
 }
 
 /**
@@ -444,7 +449,7 @@ function randomPartition(total = 32) {
  */
 function shuffle(str) {
   // Convert a string into an array (so we can swap characters)
-  const arr = str.split("");
+  const arr = str.split('');
 
   // Fisher–Yates shuffle with crypto.randomInt
   for (let i = arr.length - 1; i > 0; i--) {
@@ -452,14 +457,14 @@ function shuffle(str) {
     [arr[i], arr[j]] = [arr[j], arr[i]]; // swap
   }
 
-  return arr.join("");
+  return arr.join('');
 }
 
 function quoteIdent(ident) {
   // PostgreSQL identifier quoting: double-quote and escape internal double-quotes by doubling them.
   // Also, reject empty names early.
-  if (typeof ident !== "string" || ident.length === 0) {
-    throw new Error("Database name must be a non-empty string");
+  if (typeof ident !== 'string' || ident.length === 0) {
+    throw new Error('Database name must be a non-empty string');
   }
-  return `"${ident.replace(/"/g, "\"\"")}"`;
+  return `"${ident.replace(/"/g, '""')}"`;
 }

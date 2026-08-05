@@ -1,22 +1,13 @@
-"use client";
+'use client';
 
-import { Plus, RefreshCcw, Trash } from "lucide-react";
-import { type InputEvent, type SubmitEvent, useState } from "react";
-import useSWR from "swr";
+import {Plus, RefreshCcw, Trash} from 'lucide-react';
+import {type InputEvent, type SubmitEvent, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  AssignableRolesListResponse,
-  BetterFetchResponse,
-  InvitationListResponse,
-  InvitationResponse,
-  OfficesListResponse,
-} from "@/lib/http/client/responses";
-
-import DeadHamster from "@/components/dead-hamster";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -26,11 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -38,28 +28,31 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
+} from '@/components/ui/select';
+import {Spinner} from '@/components/ui/spinner';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+  ApiResponseException,
+  AssignableRolesListResponse,
+  BetterFetchResponse,
+  InvitationListResponse,
+  InvitationResponse,
+  OfficesListResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function Invitations() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<InvitationListResponse, ApiResponseException>>(
-    "/api/management/approvals/invitation", $fetch);
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<InvitationListResponse, ApiResponseException>
+  >('/api/management/approvals/invitation', $fetch);
 
   const onRevokeHandler = (id: string) => {
     if (data?.data && data.data.data) {
       mutate({
         data: {
           ok: true,
-          data: data.data.data.filter(x => x.id !== id),
+          data: data.data.data.filter((x) => x.id !== id),
         },
         error: undefined,
       }).catch(console.error);
@@ -79,11 +72,11 @@ export default function Invitations() {
   };
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const invitations = data?.data?.data ?? [];
@@ -133,7 +126,7 @@ function Row({
   index,
   onRevoke,
 }: {
-  data: InvitationListResponse["data"][0];
+  data: InvitationListResponse['data'][0];
   index: number;
   onRevoke: (id: string) => void;
 }) {
@@ -143,12 +136,15 @@ function Row({
   const handleRevoke = async () => {
     setIsRevoking(true);
 
-    const res = await $fetch<"", ApiResponseException>("/api/management/approvals/invitation/" + data.id, {
-      method: "DELETE",
-    });
+    const res = await $fetch<'', ApiResponseException>(
+      '/api/management/approvals/invitation/' + data.id,
+      {
+        method: 'DELETE',
+      },
+    );
 
     if (res.error) {
-      alert("Failed to revoke invitation. Try again later.");
+      alert('Failed to revoke invitation. Try again later.');
       return;
     }
 
@@ -158,30 +154,29 @@ function Row({
   const handleResend = async () => {
     setIsResending(true);
 
-    const res = await $fetch<{ sent: boolean, errors?: object }, ApiResponseException>("/api/management/approvals/invitation/" + data.id, {
-      method: "POST",
-    });
+    const res = await $fetch<{sent: boolean; errors?: object}, ApiResponseException>(
+      '/api/management/approvals/invitation/' + data.id,
+      {
+        method: 'POST',
+      },
+    );
 
     if (res.error) {
-      alert("Failed to resend invitation. Try again later.");
+      alert('Failed to resend invitation. Try again later.');
     } else {
       if (res.data.errors) {
-        alert("Invitation created, but failed to send the email. You can retry sending it later.");
+        alert('Invitation created, but failed to send the email. You can retry sending it later.');
         return;
       }
 
-      alert("Invitation resent!");
+      alert('Invitation resent!');
     }
 
     setIsResending(false);
   };
 
   return (
-    <TableRow
-      className={cn(
-        index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
-      )}
-    >
+    <TableRow className={cn(index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined)}>
       <TableCell className="font-medium text-center whitespace-normal wrap-break-word">
         {data.email}
       </TableCell>
@@ -207,7 +202,7 @@ function Row({
             variant="outline"
             className="h-8 w-8"
           >
-            {isResending ? (<Spinner />) : (<RefreshCcw />)}
+            {isResending ? <Spinner /> : <RefreshCcw />}
           </Button>
           <Button
             onClick={handleRevoke}
@@ -215,7 +210,7 @@ function Row({
             variant="outline"
             className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white"
           >
-            {isRevoking ? (<Spinner />) : (<Trash />)}
+            {isRevoking ? <Spinner /> : <Trash />}
           </Button>
         </div>
       </TableCell>
@@ -223,9 +218,18 @@ function Row({
   );
 }
 
-function PositionSelector({ officeId, value, setValue }: { officeId: string, value: string, setValue: (v: string) => void }) {
-  const { data, error, isLoading } = useSWR<BetterFetchResponse<AssignableRolesListResponse, ApiResponseException>>(
-    officeId ? `/api/management/offices/positions?oId=${officeId}` : null, $fetch);
+function PositionSelector({
+  officeId,
+  value,
+  setValue,
+}: {
+  officeId: string;
+  value: string;
+  setValue: (v: string) => void;
+}) {
+  const {data, error, isLoading} = useSWR<
+    BetterFetchResponse<AssignableRolesListResponse, ApiResponseException>
+  >(officeId ? `/api/management/offices/positions?oId=${officeId}` : null, $fetch);
 
   return (
     <FieldGroup className="mt-4">
@@ -234,25 +238,23 @@ function PositionSelector({ officeId, value, setValue }: { officeId: string, val
         <Select
           disabled={isLoading || error || data?.error || !officeId}
           value={value}
-          onValueChange={e => setValue(e)}
+          onValueChange={(e) => setValue(e)}
           required
         >
           <SelectTrigger id="office-position">
-            {
-              isLoading ? (
-                <SelectValue placeholder="Loading" />
-              ) : (
-                <SelectValue placeholder="Select an Office Position" />
-              )
-            }
+            {isLoading ? (
+              <SelectValue placeholder="Loading" />
+            ) : (
+              <SelectValue placeholder="Select an Office Position" />
+            )}
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {
-                (data?.data?.data || []).map((pos, index) => (
-                  <SelectItem key={index} value={pos.id}>{pos.name}</SelectItem>
-                ))
-              }
+              {(data?.data?.data || []).map((pos, index) => (
+                <SelectItem key={index} value={pos.id}>
+                  {pos.name}
+                </SelectItem>
+              ))}
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -261,14 +263,15 @@ function PositionSelector({ officeId, value, setValue }: { officeId: string, val
   );
 }
 
-function InvitationForm({ handleInvite }: { handleInvite: (invitation: InvitationResponse) => void }) {
+function InvitationForm({handleInvite}: {handleInvite: (invitation: InvitationResponse) => void}) {
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [office, setOffice] = useState("");
-  const [officePosition, setOfficePosition] = useState("");
+  const [email, setEmail] = useState('');
+  const [office, setOffice] = useState('');
+  const [officePosition, setOfficePosition] = useState('');
 
-  const { data, error, isLoading } = useSWR<BetterFetchResponse<OfficesListResponse, ApiResponseException>>(
-    "/api/management/offices", $fetch);
+  const {data, error, isLoading} = useSWR<
+    BetterFetchResponse<OfficesListResponse, ApiResponseException>
+  >('/api/management/offices', $fetch);
 
   const handleSetEmail = (e: InputEvent<HTMLInputElement>) => {
     setEmail(e.currentTarget.value);
@@ -285,35 +288,38 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const { data } = await $fetch<InvitationResponse, ApiResponseException>("/api/management/approvals/invitation", {
-      method: "POST",
-      body: {
-        email,
-        officeId: office,
-        officePositionId: officePosition,
+    const {data} = await $fetch<InvitationResponse, ApiResponseException>(
+      '/api/management/approvals/invitation',
+      {
+        method: 'POST',
+        body: {
+          email,
+          officeId: office,
+          officePositionId: officePosition,
+        },
       },
-    });
+    );
 
     if (data?.ok) {
       handleInvite(data);
 
       if (data?.data?.errors) {
-        alert("Invitation created, but failed to send the email. You can retry sending it later.");
+        alert('Invitation created, but failed to send the email. You can retry sending it later.');
       } else {
-        alert("Invitation sent!");
+        alert('Invitation sent!');
       }
 
       // Clear values
-      setEmail("");
-      setOffice("");
-      setOfficePosition("");
+      setEmail('');
+      setOffice('');
+      setOfficePosition('');
 
       // Remove values
       setOpen(false);
       return;
     }
 
-    alert("Failed to send invitation. Try again later.");
+    alert('Failed to send invitation. Try again later.');
   };
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -321,9 +327,9 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
 
     // If the dialog is closing, wipe the state clean
     if (!isOpen) {
-      setEmail("");
-      setOffice("");
-      setOfficePosition("");
+      setEmail('');
+      setOffice('');
+      setOfficePosition('');
     }
   };
 
@@ -339,7 +345,8 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
         <DialogHeader>
           <DialogTitle>Invite a Member to Organization</DialogTitle>
           <DialogDescription>
-            Enter the email address of the member you want to invite and the office you want to assign them to.
+            Enter the email address of the member you want to invite and the office you want to
+            assign them to.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -366,35 +373,31 @@ function InvitationForm({ handleInvite }: { handleInvite: (invitation: Invitatio
                 required
               >
                 <SelectTrigger id="office">
-                  {
-                    isLoading ? (
-                      <SelectValue placeholder="Loading" />
-                    ) : (
-                      <SelectValue placeholder="Select an Office" />
-                    )
-                  }
+                  {isLoading ? (
+                    <SelectValue placeholder="Loading" />
+                  ) : (
+                    <SelectValue placeholder="Select an Office" />
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {
-                      (data?.data?.data || []).map((office, index) => (
-                        <SelectItem key={index} value={office.id}>{office.name}</SelectItem>
-                      ))
-                    }
+                    {(data?.data?.data || []).map((office, index) => (
+                      <SelectItem key={index} value={office.id}>
+                        {office.name}
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
           </FieldGroup>
-          {
-            office && (
-              <PositionSelector
-                officeId={office}
-                value={officePosition}
-                setValue={(v) => handleSelectOfficePosition(v)}
-              />
-            )
-          }
+          {office && (
+            <PositionSelector
+              officeId={office}
+              value={officePosition}
+              setValue={(v) => handleSelectOfficePosition(v)}
+            />
+          )}
           <DialogFooter className="mt-4">
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>

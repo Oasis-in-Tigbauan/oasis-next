@@ -1,10 +1,40 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Pencil, X, Check, Trash2, Download, Upload, FileSpreadsheet, Plus } from "lucide-react";
-import useSWR from "swr";
+import {Pencil, X, Check, Trash2, Download, Upload, FileSpreadsheet, Plus} from 'lucide-react';
+import {useCallback, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Field} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -14,162 +44,119 @@ import type {
   ObrTemplateInfo,
   ObrTemplatesResponse,
   OfficeCodeListResponse,
-} from "@/lib/http/client/responses";
+} from '@/lib/http/client/responses';
+import type {ObrRequestDetailResponse} from '@/lib/http/client/responses';
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Field } from "@/components/ui/field";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
-import type { ObrRequestDetailResponse } from "@/lib/http/client/responses";
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+type TaxType = 'vat-g' | 'vat-s' | 'nvat-g' | 'nvat-s';
+type DisbursementStatus = 'PREPARATION' | 'PROCESSING' | 'ON HOLD' | 'FOR RELEASE' | 'PAID';
 
-type TaxType = "vat-g" | "vat-s" | "nvat-g" | "nvat-s";
-type DisbursementStatus = "PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID";
+const NONE = '__none__';
 
-const NONE = "__none__";
-
-const TAX_TYPES: TaxType[] = ["vat-g", "vat-s", "nvat-g", "nvat-s"];
+const TAX_TYPES: TaxType[] = ['vat-g', 'vat-s', 'nvat-g', 'nvat-s'];
 
 const TAX_TYPE_LABELS: Record<TaxType, string> = {
-  "vat-g": "VAT - Goods",
-  "vat-s": "VAT - Services",
-  "nvat-g": "Non-VAT - Goods",
-  "nvat-s": "Non-VAT - Services",
+  'vat-g': 'VAT - Goods',
+  'vat-s': 'VAT - Services',
+  'nvat-g': 'Non-VAT - Goods',
+  'nvat-s': 'Non-VAT - Services',
 };
 
 const STATUS_OPTIONS: DisbursementStatus[] = [
-  "PREPARATION",
-  "PROCESSING",
-  "ON HOLD",
-  "FOR RELEASE",
-  "PAID",
+  'PREPARATION',
+  'PROCESSING',
+  'ON HOLD',
+  'FOR RELEASE',
+  'PAID',
 ];
 
 function formatCurrency(value: string | number | null | undefined): string {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === '') return '—';
 
-  const trimmed = typeof value === "number" ? String(value) : value.trim();
-  if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return "—";
+  const trimmed = typeof value === 'number' ? String(value) : value.trim();
+  if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return '—';
 
-  const isNegative = trimmed.startsWith("-");
-  const unsigned = trimmed.replace(/^[-+]/, "");
-  const [rawInt, rawFrac = ""] = unsigned.split(".");
+  const isNegative = trimmed.startsWith('-');
+  const unsigned = trimmed.replace(/^[-+]/, '');
+  const [rawInt, rawFrac = ''] = unsigned.split('.');
 
-  const normalizedInt = rawInt.replace(/^0+(?=\d)/, "") || "0";
-  const paddedFrac = (rawFrac + "000").slice(0, 3);
+  const normalizedInt = rawInt.replace(/^0+(?=\d)/, '') || '0';
+  const paddedFrac = (rawFrac + '000').slice(0, 3);
   const centPart = paddedFrac.slice(0, 2);
-  const roundingDigit = Number.parseInt(paddedFrac[2] ?? "0", 10);
+  const roundingDigit = Number.parseInt(paddedFrac[2] ?? '0', 10);
 
   let cents = BigInt(`${normalizedInt}${centPart}`);
   if (roundingDigit >= 5) {
     cents += 1n;
   }
 
-  const centsStr = cents.toString().padStart(3, "0");
-  const integerPart = centsStr.slice(0, -2) || "0";
+  const centsStr = cents.toString().padStart(3, '0');
+  const integerPart = centsStr.slice(0, -2) || '0';
   const fractionalPart = centsStr.slice(-2);
-  const intWithGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const intWithGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const roundedIsZero = cents === 0n;
-  const sign = isNegative && !roundedIsZero ? "-" : "";
+  const sign = isNegative && !roundedIsZero ? '-' : '';
 
   return `${sign}${intWithGrouping}.${fractionalPart}`;
 }
 
 function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(iso));
 }
 
 function displayText(value: string | null | undefined): string {
-  return value ?? "—";
+  return value ?? '—';
 }
 
-function StatusBadge({ status }: { status: string | null }) {
+function StatusBadge({status}: {status: string | null}) {
   if (!status) return <span className="text-muted-foreground">—</span>;
-  if (status === "PAID") {
+  if (status === 'PAID') {
     return (
       <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
         {status}
       </Badge>
     );
   }
-  if (status === "ON HOLD") {
+  if (status === 'ON HOLD') {
     return <Badge variant="destructive">{status}</Badge>;
   }
   return <Badge variant="secondary">{status}</Badge>;
 }
 
 function extractErrorMessage(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") return fallback;
+  if (!payload || typeof payload !== 'object') return fallback;
 
   const data = payload as {
-    error?: { message?: unknown };
+    error?: {message?: unknown};
     message?: unknown;
     errors?: unknown;
   };
 
-  if (typeof data.error?.message === "string") return data.error.message;
-  if (typeof data.message === "string") return data.message;
+  if (typeof data.error?.message === 'string') return data.error.message;
+  if (typeof data.message === 'string') return data.message;
   if (Array.isArray(data.errors)) {
-    const msgs = data.errors.filter((v): v is string => typeof v === "string");
-    if (msgs.length > 0) return msgs.join(" ");
+    const msgs = data.errors.filter((v): v is string => typeof v === 'string');
+    if (msgs.length > 0) return msgs.join(' ');
   }
 
   return fallback;
 }
 
 function formatTemplateDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Taipei",
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Taipei',
   }).format(new Date(iso));
 }
 
@@ -186,40 +173,46 @@ function HeaderTemplateSection({
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const runUpload = useCallback(async (file: File, mode: "upload" | "replace") => {
-    setSubmitting(true);
-    setActionError(null);
+  const runUpload = useCallback(
+    async (file: File, mode: 'upload' | 'replace') => {
+      setSubmitting(true);
+      setActionError(null);
 
-    const formData = new FormData();
-    formData.set("type", "header");
-    formData.set("file", file);
+      const formData = new FormData();
+      formData.set('type', 'header');
+      formData.set('file', file);
 
-    try {
-      const response = await fetch(apiPath, {
-        method: mode === "upload" ? "POST" : "PATCH",
-        body: formData,
-      });
+      try {
+        const response = await fetch(apiPath, {
+          method: mode === 'upload' ? 'POST' : 'PATCH',
+          body: formData,
+        });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        setActionError(extractErrorMessage(payload, `Failed to ${mode} template.`));
-        return;
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          setActionError(extractErrorMessage(payload, `Failed to ${mode} template.`));
+          return;
+        }
+
+        onMutate();
+      } catch {
+        setActionError('An unexpected error occurred. Please try again.');
+      } finally {
+        setSubmitting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
+    },
+    [apiPath, onMutate],
+  );
 
-      onMutate();
-    } catch {
-      setActionError("An unexpected error occurred. Please try again.");
-    } finally {
-      setSubmitting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }, [apiPath, onMutate]);
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    void runUpload(file, template ? "replace" : "upload");
-  }, [runUpload, template]);
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      void runUpload(file, template ? 'replace' : 'upload');
+    },
+    [runUpload, template],
+  );
 
   const handleRemove = useCallback(async () => {
     setSubmitting(true);
@@ -227,20 +220,20 @@ function HeaderTemplateSection({
 
     try {
       const response = await fetch(apiPath, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "header" }),
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: 'header'}),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(extractErrorMessage(payload, "Failed to remove template."));
+        setActionError(extractErrorMessage(payload, 'Failed to remove template.'));
         return;
       }
 
       onMutate();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -250,13 +243,17 @@ function HeaderTemplateSection({
     <div className="flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
-          <Typography variant="small" className="font-semibold">Header Template</Typography>
+          <Typography variant="small" className="font-semibold">
+            Header Template
+          </Typography>
           {template ? (
             <Typography variant="small" className="text-muted-foreground">
               Last updated {formatTemplateDate(template.updatedAt)}
             </Typography>
           ) : (
-            <Typography variant="small" className="text-muted-foreground">Not uploaded</Typography>
+            <Typography variant="small" className="text-muted-foreground">
+              Not uploaded
+            </Typography>
           )}
         </div>
         <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" />
@@ -314,7 +311,9 @@ function HeaderTemplateSection({
       </Typography>
 
       {actionError && (
-        <Typography variant="small" className="text-destructive">{actionError}</Typography>
+        <Typography variant="small" className="text-destructive">
+          {actionError}
+        </Typography>
       )}
     </div>
   );
@@ -330,7 +329,7 @@ type DetailDialogProps = {
   onDeleted: () => void;
 };
 
-function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: DetailDialogProps) {
+function DetailDialog({voucher, open, onOpenChange, onSaved, onDeleted}: DetailDialogProps) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -339,17 +338,16 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("details");
+  const [activeTab, setActiveTab] = useState('details');
 
-  const [vatableAmount, setVatableAmount] = useState("");
+  const [vatableAmount, setVatableAmount] = useState('');
   const [taxType, setTaxType] = useState<string>(NONE);
   const [fundTypeId, setFundTypeId] = useState<string>(NONE);
   const [status, setStatus] = useState<string>(NONE);
 
-  const { data: fundTypesData } = useSWR<BetterFetchResponse<FundTypesListResponse, ApiResponseException>>(
-    editing ? "/api/management/data/fund-types" : null,
-    $fetch,
-  );
+  const {data: fundTypesData} = useSWR<
+    BetterFetchResponse<FundTypesListResponse, ApiResponseException>
+  >(editing ? '/api/management/data/fund-types' : null, $fetch);
 
   const {
     data: templatesData,
@@ -357,7 +355,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
     isLoading: templatesLoading,
     mutate: mutateTemplates,
   } = useSWR<BetterFetchResponse<ObrTemplatesResponse, ApiResponseException>>(
-    open ? "/api/obr/disbursements/templates" : null,
+    open ? '/api/obr/disbursements/templates' : null,
     $fetch,
   );
 
@@ -366,8 +364,8 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
 
   const startEditing = useCallback(() => {
     if (!voucher) return;
-    setActiveTab("details");
-    setVatableAmount(voucher.vatableAmount ?? "");
+    setActiveTab('details');
+    setVatableAmount(voucher.vatableAmount ?? '');
     setTaxType(voucher.taxType ?? NONE);
     setFundTypeId(voucher.fundType?.id ?? NONE);
     setStatus(voucher.status ?? NONE);
@@ -386,26 +384,26 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
     setSaveError(null);
 
     const payload: Record<string, string> = {};
-    if (vatableAmount.trim() !== "") payload.vatableAmount = vatableAmount.trim();
+    if (vatableAmount.trim() !== '') payload.vatableAmount = vatableAmount.trim();
     if (taxType !== NONE) payload.taxType = taxType;
     if (fundTypeId !== NONE) payload.fundTypeId = fundTypeId;
     if (status !== NONE) payload.status = status;
 
     try {
       const res = await fetch(`/api/obr/disbursements/${voucher.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok || json.error) {
-        setSaveError(json.error?.message ?? json.message ?? "Failed to save changes.");
+        setSaveError(json.error?.message ?? json.message ?? 'Failed to save changes.');
         return;
       }
       setEditing(false);
       onSaved();
     } catch {
-      setSaveError("An unexpected error occurred.");
+      setSaveError('An unexpected error occurred.');
     } finally {
       setSaving(false);
     }
@@ -416,17 +414,17 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
     setDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`/api/obr/disbursements/${voucher.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/obr/disbursements/${voucher.id}`, {method: 'DELETE'});
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setDeleteError(json.error?.message ?? json.message ?? "Failed to delete.");
+        setDeleteError(json.error?.message ?? json.message ?? 'Failed to delete.');
         setConfirmingDelete(false);
         return;
       }
       onDeleted();
       onOpenChange(false);
     } catch {
-      setDeleteError("An unexpected error occurred.");
+      setDeleteError('An unexpected error occurred.');
       setConfirmingDelete(false);
     } finally {
       setDeleting(false);
@@ -442,17 +440,17 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
       const response = await fetch(`/api/obr/disbursements/${voucher.id}/export`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setExportError(extractErrorMessage(payload, "Export failed. Please try again."));
+        setExportError(extractErrorMessage(payload, 'Export failed. Please try again.'));
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
       const filename = filenameMatch?.[1] ?? `disbursement-voucher-${voucher.id}.xlsx`;
 
-      const anchor = document.createElement("a");
+      const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = filename;
       document.body.appendChild(anchor);
@@ -460,23 +458,26 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
     } catch {
-      setExportError("An unexpected error occurred. Please try again.");
+      setExportError('An unexpected error occurred. Please try again.');
     } finally {
       setExporting(false);
     }
   }, [voucher]);
 
-  const handleClose = useCallback((o: boolean) => {
-    if (!o) {
-      setEditing(false);
-      setSaveError(null);
-      setConfirmingDelete(false);
-      setDeleteError(null);
-      setExportError(null);
-      setActiveTab("details");
-    }
-    onOpenChange(o);
-  }, [onOpenChange]);
+  const handleClose = useCallback(
+    (o: boolean) => {
+      if (!o) {
+        setEditing(false);
+        setSaveError(null);
+        setConfirmingDelete(false);
+        setDeleteError(null);
+        setExportError(null);
+        setActiveTab('details');
+      }
+      onOpenChange(o);
+    },
+    [onOpenChange],
+  );
 
   if (!voucher) return null;
 
@@ -497,7 +498,10 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => { setConfirmingDelete(true); setDeleteError(null); }}
+                  onClick={() => {
+                    setConfirmingDelete(true);
+                    setDeleteError(null);
+                  }}
                   className="text-destructive hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
@@ -507,13 +511,22 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
           <TabsList className="mb-3 self-start">
             <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="template" disabled={editing}>Template</TabsTrigger>
+            <TabsTrigger value="template" disabled={editing}>
+              Template
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="mt-0 min-h-0 flex-1 overflow-y-scroll overflow-x-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="details"
+            className="mt-0 min-h-0 flex-1 overflow-y-scroll overflow-x-hidden data-[state=inactive]:hidden"
+          >
             <ScrollArea className="max-h-[60vh] pr-1">
               <div className="flex flex-col gap-4 pb-2">
                 {/* General */}
@@ -532,7 +545,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                   </Field>
                   <Field>
                     <Label>PR #</Label>
-                    <Input readOnly value={voucher.prNumber ?? "—"} />
+                    <Input readOnly value={voucher.prNumber ?? '—'} />
                   </Field>
                 </div>
 
@@ -549,7 +562,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                     {editing ? (
                       <Input
                         value={vatableAmount}
-                        onChange={e => setVatableAmount(e.target.value)}
+                        onChange={(e) => setVatableAmount(e.target.value)}
                         placeholder="e.g. 1234.56"
                       />
                     ) : (
@@ -565,20 +578,31 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>None</SelectItem>
-                          {(["vat-g", "vat-s", "nvat-g", "nvat-s"] as TaxType[]).map(t => (
-                            <SelectItem key={t} value={t}>{TAX_TYPE_LABELS[t]}</SelectItem>
+                          {(['vat-g', 'vat-s', 'nvat-g', 'nvat-s'] as TaxType[]).map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {TAX_TYPE_LABELS[t]}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Input readOnly value={voucher.taxType ? (TAX_TYPE_LABELS[voucher.taxType as TaxType] ?? voucher.taxType) : "—"} />
+                      <Input
+                        readOnly
+                        value={
+                          voucher.taxType
+                            ? (TAX_TYPE_LABELS[voucher.taxType as TaxType] ?? voucher.taxType)
+                            : '—'
+                        }
+                      />
                     )}
                   </Field>
                 </div>
 
                 {/* Tax Breakdown */}
                 <div>
-                  <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">Tax Breakdown</Typography>
+                  <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">
+                    Tax Breakdown
+                  </Typography>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                     <Field>
                       <Label>Tax</Label>
@@ -620,13 +644,15 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>None</SelectItem>
-                          {fundTypes.map(f => (
-                            <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                          {fundTypes.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Input readOnly value={voucher.fundType?.name ?? "—"} />
+                      <Input readOnly value={voucher.fundType?.name ?? '—'} />
                     )}
                   </Field>
                   <Field>
@@ -642,13 +668,15 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>None</SelectItem>
-                          {STATUS_OPTIONS.map(s => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          {STATUS_OPTIONS.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Input readOnly value={voucher.status ?? "—"} />
+                      <Input readOnly value={voucher.status ?? '—'} />
                     )}
                   </Field>
                 </div>
@@ -657,7 +685,9 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
 
                 {/* Signers */}
                 <div>
-                  <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">Signers</Typography>
+                  <Typography variant="muted" className="text-xs uppercase font-semibold mb-2">
+                    Signers
+                  </Typography>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field>
                       <Label>Head of Office</Label>
@@ -697,7 +727,10 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="template" className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="template"
+            className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden"
+          >
             {templatesLoading ? (
               <Loading />
             ) : templatesError || templatesData?.error ? (
@@ -714,15 +747,11 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
           </TabsContent>
         </Tabs>
 
-        {!editing && exportError && (
-          <p className="text-sm text-destructive">{exportError}</p>
-        )}
+        {!editing && exportError && <p className="text-sm text-destructive">{exportError}</p>}
 
         {editing && (
           <>
-            {saveError && (
-              <p className="text-sm text-destructive">{saveError}</p>
-            )}
+            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={cancelEditing} disabled={saving}>
                 <X className="size-4 mr-1" />
@@ -730,7 +759,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
               </Button>
               <Button onClick={handleSave} disabled={saving}>
                 <Check className="size-4 mr-1" />
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogFooter>
           </>
@@ -738,19 +767,21 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
 
         {!editing && confirmingDelete && (
           <>
-            {deleteError && (
-              <p className="text-sm text-destructive">{deleteError}</p>
-            )}
+            {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
             <DialogFooter className="gap-2">
               <p className="text-sm text-muted-foreground mr-auto self-center">
                 Delete this disbursement voucher? The linked OBR item will be unlinked.
               </p>
-              <Button variant="outline" onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+              >
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
                 <Trash2 className="size-4 mr-1" />
-                {deleting ? "Deleting..." : "Confirm Delete"}
+                {deleting ? 'Deleting...' : 'Confirm Delete'}
               </Button>
             </DialogFooter>
           </>
@@ -760,7 +791,7 @@ function DetailDialog({ voucher, open, onOpenChange, onSaved, onDeleted }: Detai
           <DialogFooter className="justify-between">
             <Button onClick={() => void handleExport()} disabled={exporting}>
               <Download className="size-4 mr-1" />
-              {exporting ? "Exporting..." : "Export"}
+              {exporting ? 'Exporting...' : 'Export'}
             </Button>
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
@@ -781,7 +812,7 @@ export default function Page() {
     isLoading: listLoading,
     mutate: mutateList,
   } = useSWR<BetterFetchResponse<ObrDisbursementVoucherListResponse, ApiResponseException>>(
-    "/api/obr/disbursements",
+    '/api/obr/disbursements',
     $fetch,
   );
 
@@ -854,36 +885,64 @@ export default function Page() {
                   <TableRow
                     key={v.id}
                     className={`cursor-pointer select-none ${
-                      index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""
+                      index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''
                     }`}
                     onClick={() => handleRowClick(v)}
                   >
-                    <TableCell className="font-medium whitespace-nowrap">{v.disbursementVoucherNumber}</TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">
+                      {v.disbursementVoucherNumber}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(v.createdAt)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{v.fundType?.name ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.fundType?.name ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{v.payee}</TableCell>
                     <TableCell className="whitespace-nowrap">{v.address}</TableCell>
-                    <TableCell className="whitespace-nowrap max-w-48 truncate">{v.particulars}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.grossAmount)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.vatableAmount)}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {v.taxType ? (TAX_TYPE_LABELS[v.taxType as TaxType] ?? v.taxType) : "—"}
+                    <TableCell className="whitespace-nowrap max-w-48 truncate">
+                      {v.particulars}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.tax)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.vat5)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.pt3)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt2)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.ewt1)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatCurrency(v.taxBreakdown.netAmount)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.grossAmount)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.vatableAmount)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {v.taxType ? (TAX_TYPE_LABELS[v.taxType as TaxType] ?? v.taxType) : '—'}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.taxBreakdown.tax)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.taxBreakdown.vat5)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.taxBreakdown.pt3)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.taxBreakdown.ewt2)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.taxBreakdown.ewt1)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatCurrency(v.taxBreakdown.netAmount)}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{v.responsibilityCenter.aa}</TableCell>
-                    <TableCell className="whitespace-nowrap">{displayText(v.signers.headOfOffice.name)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{displayText(v.signers.headOfOffice.position)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{displayText(v.signers.mayor.name)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{displayText(v.signers.mayor.position)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {displayText(v.signers.headOfOffice.name)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {displayText(v.signers.headOfOffice.position)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {displayText(v.signers.mayor.name)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {displayText(v.signers.mayor.position)}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <StatusBadge status={v.status} />
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{v.prNumber ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{v.prNumber ?? '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -937,11 +996,11 @@ type OneForAllFields = {
 
 function defaultOneForAllFields(): OneForAllFields {
   return {
-    particulars: "",
-    explanation: "",
-    grossAmount: "",
+    particulars: '',
+    explanation: '',
+    grossAmount: '',
     taxType: NONE,
-    vatableAmount: "",
+    vatableAmount: '',
   };
 }
 
@@ -957,11 +1016,11 @@ type StandaloneLine = {
 function makeStandaloneLine(): StandaloneLine {
   return {
     id: crypto.randomUUID(),
-    particulars: "",
-    explanation: "",
-    grossAmount: "",
+    particulars: '',
+    explanation: '',
+    grossAmount: '',
     taxType: NONE,
-    vatableAmount: "",
+    vatableAmount: '',
   };
 }
 
@@ -1004,7 +1063,7 @@ function DisbursementLineFields({
           <Input
             id={`${idPrefix}-particulars`}
             value={particulars}
-            onChange={e => onParticularsChange?.(e.target.value)}
+            onChange={(e) => onParticularsChange?.(e.target.value)}
           />
         )}
       </Field>
@@ -1013,7 +1072,7 @@ function DisbursementLineFields({
         <Textarea
           id={`${idPrefix}-explanation`}
           value={explanation}
-          onChange={e => onExplanationChange(e.target.value)}
+          onChange={(e) => onExplanationChange(e.target.value)}
           rows={3}
         />
       </Field>
@@ -1026,7 +1085,7 @@ function DisbursementLineFields({
             <Input
               id={`${idPrefix}-gross`}
               value={grossAmount}
-              onChange={e => onGrossAmountChange?.(e.target.value)}
+              onChange={(e) => onGrossAmountChange?.(e.target.value)}
               placeholder="0.00"
               className="font-mono"
             />
@@ -1040,7 +1099,7 @@ function DisbursementLineFields({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>None</SelectItem>
-              {TAX_TYPES.map(type => (
+              {TAX_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
                   {TAX_TYPE_LABELS[type]}
                 </SelectItem>
@@ -1053,7 +1112,7 @@ function DisbursementLineFields({
           <Input
             id={`${idPrefix}-vatable`}
             value={vatableAmount}
-            onChange={e => onVatableAmountChange(e.target.value)}
+            onChange={(e) => onVatableAmountChange(e.target.value)}
             placeholder="0.00"
             className="font-mono"
           />
@@ -1072,34 +1131,34 @@ function CreateDisbursementDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
-  const { data: pendingData } = useSWR<
+  const {data: pendingData} = useSWR<
     BetterFetchResponse<PendingRequestListResponse, ApiResponseException>
-  >(open ? "/api/obr/requests/pending-disbursement" : null, $fetch);
+  >(open ? '/api/obr/requests/pending-disbursement' : null, $fetch);
 
-  const { data: officeCodesData } = useSWR<
+  const {data: officeCodesData} = useSWR<
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
-  >(open ? "/api/management/data/office-codes" : null, $fetch);
+  >(open ? '/api/management/data/office-codes' : null, $fetch);
 
   const pendingRequests = pendingData?.data?.data ?? [];
   const officeCodes = officeCodesData?.data?.data ?? [];
 
-  const [mode, setMode] = useState<"obr" | "standalone">("obr");
+  const [mode, setMode] = useState<'obr' | 'standalone'>('obr');
   const [requestId, setRequestId] = useState<string>(NONE);
   const [oneForAll, setOneForAll] = useState(false);
   const [withCheque, setWithCheque] = useState(true);
   const [itemFields, setItemFields] = useState<Record<string, ItemLineFields>>({});
   const [oneForAllFields, setOneForAllFields] = useState<OneForAllFields>(defaultOneForAllFields);
-  const [standalonePayee, setStandalonePayee] = useState("");
-  const [standaloneAddress, setStandaloneAddress] = useState("");
-  const [standalonePrNumber, setStandalonePrNumber] = useState("");
+  const [standalonePayee, setStandalonePayee] = useState('');
+  const [standaloneAddress, setStandaloneAddress] = useState('');
+  const [standalonePrNumber, setStandalonePrNumber] = useState('');
   const [standaloneRcId, setStandaloneRcId] = useState(NONE);
   const [standaloneLines, setStandaloneLines] = useState<StandaloneLine[]>([makeStandaloneLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: requestDetailData, isLoading: detailLoading } = useSWR<
+  const {data: requestDetailData, isLoading: detailLoading} = useSWR<
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
-  >(open && mode === "obr" && requestId !== NONE ? `/api/obr/requests/${requestId}` : null, $fetch);
+  >(open && mode === 'obr' && requestId !== NONE ? `/api/obr/requests/${requestId}` : null, $fetch);
 
   const requestDetail = requestDetailData?.data?.data;
 
@@ -1117,7 +1176,7 @@ function CreateDisbursementDialog({
         const amount = parseFloat(item.amount);
         return sum + (isNaN(amount) ? 0 : amount);
       }, 0);
-      setOneForAllFields(prev => ({
+      setOneForAllFields((prev) => ({
         ...prev,
         grossAmount: total > 0 ? total.toFixed(2) : prev.grossAmount,
       }));
@@ -1125,19 +1184,19 @@ function CreateDisbursementDialog({
   };
 
   const getItemFields = (itemId: string): ItemLineFields =>
-    itemFields[itemId] ?? { explanation: "", taxType: NONE, vatableAmount: "" };
+    itemFields[itemId] ?? {explanation: '', taxType: NONE, vatableAmount: ''};
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setMode("obr");
+      setMode('obr');
       setRequestId(NONE);
       setOneForAll(false);
       setWithCheque(true);
       setItemFields({});
       setOneForAllFields(defaultOneForAllFields());
-      setStandalonePayee("");
-      setStandaloneAddress("");
-      setStandalonePrNumber("");
+      setStandalonePayee('');
+      setStandaloneAddress('');
+      setStandalonePrNumber('');
       setStandaloneRcId(NONE);
       setStandaloneLines([makeStandaloneLine()]);
       setError(null);
@@ -1149,42 +1208,42 @@ function CreateDisbursementDialog({
     setSubmitting(true);
     setError(null);
 
-    if (mode === "obr") {
+    if (mode === 'obr') {
       if (requestId === NONE || !requestDetail) {
         setSubmitting(false);
-        setError("Please select an OBR request.");
+        setError('Please select an OBR request.');
         return;
       }
 
-      const items = requestDetail.requestItems.map(item => {
+      const items = requestDetail.requestItems.map((item) => {
         const fields = getItemFields(item.id);
         return {
           requestItemId: item.id,
           explanation: fields.explanation.trim(),
-          ...(fields.taxType !== NONE ? { taxType: fields.taxType } : {}),
-          ...(fields.vatableAmount.trim() ? { vatableAmount: fields.vatableAmount.trim() } : {}),
+          ...(fields.taxType !== NONE ? {taxType: fields.taxType} : {}),
+          ...(fields.vatableAmount.trim() ? {vatableAmount: fields.vatableAmount.trim()} : {}),
         };
       });
 
       if (oneForAll) {
         if (!oneForAllFields.particulars.trim()) {
           setSubmitting(false);
-          setError("Particulars are required.");
+          setError('Particulars are required.');
           return;
         }
         if (!oneForAllFields.explanation.trim()) {
           setSubmitting(false);
-          setError("An explanation is required.");
+          setError('An explanation is required.');
           return;
         }
         if (!oneForAllFields.grossAmount.trim()) {
           setSubmitting(false);
-          setError("Gross amount is required.");
+          setError('Gross amount is required.');
           return;
         }
 
-        const res = await $fetch<unknown, ApiResponseException>("/api/obr/disbursements", {
-          method: "POST",
+        const res = await $fetch<unknown, ApiResponseException>('/api/obr/disbursements', {
+          method: 'POST',
           body: {
             requestId,
             oneForAll: true,
@@ -1192,9 +1251,9 @@ function CreateDisbursementDialog({
             particulars: oneForAllFields.particulars.trim(),
             explanation: oneForAllFields.explanation.trim(),
             grossAmount: oneForAllFields.grossAmount.trim(),
-            ...(oneForAllFields.taxType !== NONE ? { taxType: oneForAllFields.taxType } : {}),
+            ...(oneForAllFields.taxType !== NONE ? {taxType: oneForAllFields.taxType} : {}),
             ...(oneForAllFields.vatableAmount.trim()
-              ? { vatableAmount: oneForAllFields.vatableAmount.trim() }
+              ? {vatableAmount: oneForAllFields.vatableAmount.trim()}
               : {}),
             items: [],
           },
@@ -1202,18 +1261,18 @@ function CreateDisbursementDialog({
 
         setSubmitting(false);
         if (res.error) {
-          setError(res.error.message ?? "Failed to create disbursement.");
+          setError(res.error.message ?? 'Failed to create disbursement.');
           return;
         }
       } else {
-        if (items.some(i => !i.explanation)) {
+        if (items.some((i) => !i.explanation)) {
           setSubmitting(false);
-          setError("Each item requires an explanation.");
+          setError('Each item requires an explanation.');
           return;
         }
 
-        const res = await $fetch<unknown, ApiResponseException>("/api/obr/disbursements", {
-          method: "POST",
+        const res = await $fetch<unknown, ApiResponseException>('/api/obr/disbursements', {
+          method: 'POST',
           body: {
             requestId,
             oneForAll: false,
@@ -1224,57 +1283,58 @@ function CreateDisbursementDialog({
 
         setSubmitting(false);
         if (res.error) {
-          setError(res.error.message ?? "Failed to create disbursement.");
+          setError(res.error.message ?? 'Failed to create disbursement.');
           return;
         }
       }
     } else {
       if (!standalonePayee.trim()) {
         setSubmitting(false);
-        setError("Payee is required.");
+        setError('Payee is required.');
         return;
       }
       if (!standaloneAddress.trim()) {
         setSubmitting(false);
-        setError("Office address is required.");
+        setError('Office address is required.');
         return;
       }
       if (standaloneRcId === NONE) {
         setSubmitting(false);
-        setError("Responsibility center is required.");
+        setError('Responsibility center is required.');
         return;
       }
-      if (standaloneLines.some(line =>
-        !line.particulars.trim() ||
-        !line.explanation.trim() ||
-        !line.grossAmount.trim(),
-      )) {
+      if (
+        standaloneLines.some(
+          (line) =>
+            !line.particulars.trim() || !line.explanation.trim() || !line.grossAmount.trim(),
+        )
+      ) {
         setSubmitting(false);
-        setError("Each line requires particulars, explanation, and gross amount.");
+        setError('Each line requires particulars, explanation, and gross amount.');
         return;
       }
 
-      const res = await $fetch<unknown, ApiResponseException>("/api/obr/disbursements", {
-        method: "POST",
+      const res = await $fetch<unknown, ApiResponseException>('/api/obr/disbursements', {
+        method: 'POST',
         body: {
           payee: standalonePayee.trim(),
           officeAddress: standaloneAddress.trim(),
           responsibilityCenterId: standaloneRcId,
           withCheque,
-          ...(standalonePrNumber.trim() ? { prNumber: standalonePrNumber.trim() } : {}),
-          items: standaloneLines.map(line => ({
+          ...(standalonePrNumber.trim() ? {prNumber: standalonePrNumber.trim()} : {}),
+          items: standaloneLines.map((line) => ({
             particulars: line.particulars.trim(),
             explanation: line.explanation.trim(),
             grossAmount: line.grossAmount.trim(),
-            ...(line.taxType !== NONE ? { taxType: line.taxType } : {}),
-            ...(line.vatableAmount.trim() ? { vatableAmount: line.vatableAmount.trim() } : {}),
+            ...(line.taxType !== NONE ? {taxType: line.taxType} : {}),
+            ...(line.vatableAmount.trim() ? {vatableAmount: line.vatableAmount.trim()} : {}),
           })),
         },
       });
 
       setSubmitting(false);
       if (res.error) {
-        setError(res.error.message ?? "Failed to create standalone disbursement.");
+        setError(res.error.message ?? 'Failed to create standalone disbursement.');
         return;
       }
     }
@@ -1283,7 +1343,7 @@ function CreateDisbursementDialog({
     handleClose(false);
   };
 
-  const canSubmit = mode === "obr" ? !!requestDetail : true;
+  const canSubmit = mode === 'obr' ? !!requestDetail : true;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -1291,13 +1351,14 @@ function CreateDisbursementDialog({
         <DialogHeader>
           <DialogTitle>Create Disbursement</DialogTitle>
           <DialogDescription>
-            Create a disbursement linked to an OBR request, or a standalone disbursement sent directly for approval.
+            Create a disbursement linked to an OBR request, or a standalone disbursement sent
+            directly for approval.
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-y-auto pr-2">
           <div className="flex flex-col gap-6 pb-2">
-            <Tabs value={mode} onValueChange={v => setMode(v as "obr" | "standalone")}>
+            <Tabs value={mode} onValueChange={(v) => setMode(v as 'obr' | 'standalone')}>
               <TabsList>
                 <TabsTrigger value="obr">OBR Request</TabsTrigger>
                 <TabsTrigger value="standalone">Standalone</TabsTrigger>
@@ -1312,9 +1373,10 @@ function CreateDisbursementDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NONE}>Select a request</SelectItem>
-                      {pendingRequests.map(req => (
+                      {pendingRequests.map((req) => (
                         <SelectItem key={req.id} value={req.id}>
-                          {req.requestNumber} — {req.payee ?? "No payee"} ({req.requestItemsCount} items)
+                          {req.requestNumber} — {req.payee ?? 'No payee'} ({req.requestItemsCount}{' '}
+                          items)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1328,7 +1390,7 @@ function CreateDisbursementDialog({
                       <Checkbox
                         id="oneForAll"
                         checked={oneForAll}
-                        onCheckedChange={checked => handleOneForAllChange(checked === true)}
+                        onCheckedChange={(checked) => handleOneForAllChange(checked === true)}
                       />
                       <Label htmlFor="oneForAll">One disbursement for all</Label>
                     </div>
@@ -1336,7 +1398,8 @@ function CreateDisbursementDialog({
                     {oneForAll ? (
                       <div className="rounded-md border p-4 flex flex-col gap-4">
                         <Typography variant="small" className="text-muted-foreground">
-                          Combined disbursement for {requestDetail.requestItems.length} request items
+                          Combined disbursement for {requestDetail.requestItems.length} request
+                          items
                         </Typography>
                         <DisbursementLineFields
                           idPrefix="one-for-all"
@@ -1345,11 +1408,21 @@ function CreateDisbursementDialog({
                           grossAmount={oneForAllFields.grossAmount}
                           taxType={oneForAllFields.taxType}
                           vatableAmount={oneForAllFields.vatableAmount}
-                          onParticularsChange={value => setOneForAllFields(prev => ({ ...prev, particulars: value }))}
-                          onExplanationChange={value => setOneForAllFields(prev => ({ ...prev, explanation: value }))}
-                          onGrossAmountChange={value => setOneForAllFields(prev => ({ ...prev, grossAmount: value }))}
-                          onTaxTypeChange={value => setOneForAllFields(prev => ({ ...prev, taxType: value }))}
-                          onVatableAmountChange={value => setOneForAllFields(prev => ({ ...prev, vatableAmount: value }))}
+                          onParticularsChange={(value) =>
+                            setOneForAllFields((prev) => ({...prev, particulars: value}))
+                          }
+                          onExplanationChange={(value) =>
+                            setOneForAllFields((prev) => ({...prev, explanation: value}))
+                          }
+                          onGrossAmountChange={(value) =>
+                            setOneForAllFields((prev) => ({...prev, grossAmount: value}))
+                          }
+                          onTaxTypeChange={(value) =>
+                            setOneForAllFields((prev) => ({...prev, taxType: value}))
+                          }
+                          onVatableAmountChange={(value) =>
+                            setOneForAllFields((prev) => ({...prev, vatableAmount: value}))
+                          }
                         />
 
                         <div className="pt-2">
@@ -1366,7 +1439,7 @@ function CreateDisbursementDialog({
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {requestDetail.requestItems.map(item => (
+                              {requestDetail.requestItems.map((item) => (
                                 <TableRow key={item.id}>
                                   <TableCell>{item.responsibilityCenter.name}</TableCell>
                                   <TableCell>{item.expenseCode.name}</TableCell>
@@ -1385,7 +1458,10 @@ function CreateDisbursementDialog({
                         {requestDetail.requestItems.map((item, idx) => {
                           const fields = getItemFields(item.id);
                           return (
-                            <div key={item.id} className="rounded-md border p-4 flex flex-col gap-3">
+                            <div
+                              key={item.id}
+                              className="rounded-md border p-4 flex flex-col gap-3"
+                            >
                               <Typography variant="small" className="text-muted-foreground">
                                 Item {idx + 1}
                               </Typography>
@@ -1398,18 +1474,24 @@ function CreateDisbursementDialog({
                                 vatableAmount={fields.vatableAmount}
                                 lockParticulars
                                 lockGrossAmount
-                                onExplanationChange={value => setItemFields(prev => ({
-                                  ...prev,
-                                  [item.id]: { ...fields, explanation: value },
-                                }))}
-                                onTaxTypeChange={value => setItemFields(prev => ({
-                                  ...prev,
-                                  [item.id]: { ...fields, taxType: value },
-                                }))}
-                                onVatableAmountChange={value => setItemFields(prev => ({
-                                  ...prev,
-                                  [item.id]: { ...fields, vatableAmount: value },
-                                }))}
+                                onExplanationChange={(value) =>
+                                  setItemFields((prev) => ({
+                                    ...prev,
+                                    [item.id]: {...fields, explanation: value},
+                                  }))
+                                }
+                                onTaxTypeChange={(value) =>
+                                  setItemFields((prev) => ({
+                                    ...prev,
+                                    [item.id]: {...fields, taxType: value},
+                                  }))
+                                }
+                                onVatableAmountChange={(value) =>
+                                  setItemFields((prev) => ({
+                                    ...prev,
+                                    [item.id]: {...fields, vatableAmount: value},
+                                  }))
+                                }
                               />
                             </div>
                           );
@@ -1427,7 +1509,7 @@ function CreateDisbursementDialog({
                     <Input
                       id="standalonePayee"
                       value={standalonePayee}
-                      onChange={e => setStandalonePayee(e.target.value)}
+                      onChange={(e) => setStandalonePayee(e.target.value)}
                     />
                   </Field>
                   <Field>
@@ -1435,7 +1517,7 @@ function CreateDisbursementDialog({
                     <Input
                       id="standalonePrNumber"
                       value={standalonePrNumber}
-                      onChange={e => setStandalonePrNumber(e.target.value)}
+                      onChange={(e) => setStandalonePrNumber(e.target.value)}
                       placeholder="Optional"
                     />
                   </Field>
@@ -1444,7 +1526,7 @@ function CreateDisbursementDialog({
                     <Input
                       id="standaloneAddress"
                       value={standaloneAddress}
-                      onChange={e => setStandaloneAddress(e.target.value)}
+                      onChange={(e) => setStandaloneAddress(e.target.value)}
                     />
                   </Field>
                   <Field className="col-span-2">
@@ -1455,7 +1537,7 @@ function CreateDisbursementDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={NONE}>Select responsibility center</SelectItem>
-                        {officeCodes.map(rc => (
+                        {officeCodes.map((rc) => (
                           <SelectItem key={rc.id} value={rc.id}>
                             {rc.aa}
                           </SelectItem>
@@ -1472,7 +1554,7 @@ function CreateDisbursementDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setStandaloneLines(prev => [...prev, makeStandaloneLine()])}
+                      onClick={() => setStandaloneLines((prev) => [...prev, makeStandaloneLine()])}
                     >
                       <Plus className="size-4 mr-1" />
                       Add explanation
@@ -1489,7 +1571,9 @@ function CreateDisbursementDialog({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => setStandaloneLines(prev => prev.filter(l => l.id !== line.id))}
+                            onClick={() =>
+                              setStandaloneLines((prev) => prev.filter((l) => l.id !== line.id))
+                            }
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -1502,21 +1586,31 @@ function CreateDisbursementDialog({
                         grossAmount={line.grossAmount}
                         taxType={line.taxType}
                         vatableAmount={line.vatableAmount}
-                        onParticularsChange={value => setStandaloneLines(prev => prev.map(l =>
-                          l.id === line.id ? { ...l, particulars: value } : l,
-                        ))}
-                        onExplanationChange={value => setStandaloneLines(prev => prev.map(l =>
-                          l.id === line.id ? { ...l, explanation: value } : l,
-                        ))}
-                        onGrossAmountChange={value => setStandaloneLines(prev => prev.map(l =>
-                          l.id === line.id ? { ...l, grossAmount: value } : l,
-                        ))}
-                        onTaxTypeChange={value => setStandaloneLines(prev => prev.map(l =>
-                          l.id === line.id ? { ...l, taxType: value } : l,
-                        ))}
-                        onVatableAmountChange={value => setStandaloneLines(prev => prev.map(l =>
-                          l.id === line.id ? { ...l, vatableAmount: value } : l,
-                        ))}
+                        onParticularsChange={(value) =>
+                          setStandaloneLines((prev) =>
+                            prev.map((l) => (l.id === line.id ? {...l, particulars: value} : l)),
+                          )
+                        }
+                        onExplanationChange={(value) =>
+                          setStandaloneLines((prev) =>
+                            prev.map((l) => (l.id === line.id ? {...l, explanation: value} : l)),
+                          )
+                        }
+                        onGrossAmountChange={(value) =>
+                          setStandaloneLines((prev) =>
+                            prev.map((l) => (l.id === line.id ? {...l, grossAmount: value} : l)),
+                          )
+                        }
+                        onTaxTypeChange={(value) =>
+                          setStandaloneLines((prev) =>
+                            prev.map((l) => (l.id === line.id ? {...l, taxType: value} : l)),
+                          )
+                        }
+                        onVatableAmountChange={(value) =>
+                          setStandaloneLines((prev) =>
+                            prev.map((l) => (l.id === line.id ? {...l, vatableAmount: value} : l)),
+                          )
+                        }
                       />
                     </div>
                   ))}
@@ -1528,7 +1622,7 @@ function CreateDisbursementDialog({
               <Checkbox
                 id="withCheque"
                 checked={withCheque}
-                onCheckedChange={checked => setWithCheque(checked === true)}
+                onCheckedChange={(checked) => setWithCheque(checked === true)}
               />
               <Label htmlFor="withCheque">
                 With cheque (auto-assign cheque number on approval)
@@ -1548,7 +1642,7 @@ function CreateDisbursementDialog({
             <Button variant="outline">Cancel</Button>
           </DialogClose>
           <Button disabled={submitting || !canSubmit} onClick={handleSubmit}>
-            {submitting ? "Creating…" : "Create Disbursement"}
+            {submitting ? 'Creating…' : 'Create Disbursement'}
           </Button>
         </DialogFooter>
       </DialogContent>

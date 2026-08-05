@@ -1,8 +1,8 @@
-import { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 type Response = {
-    id: string;
-    token: string;
-}
+  id: string;
+  token: string;
+};
 
-export type EnrollmentEligibilityResponse = GenericOkResponse<Response>
+export type EnrollmentEligibilityResponse = GenericOkResponse<Response>;

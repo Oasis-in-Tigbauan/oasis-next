@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type ElecItem = {
   id: string;

@@ -38,7 +38,7 @@ Notes:
 ## Usage (Node/Bun)
 
 ```ts
-import { generatePassword } from "password-generator";
+import {generatePassword} from 'password-generator';
 
 const pass = await generatePassword();
 ```
@@ -52,13 +52,13 @@ const pass = await generatePassword(20, true);
 With options:
 
 ```ts
-import { generatePasswordWithOptions } from "password-generator";
+import {generatePasswordWithOptions} from 'password-generator';
 
 const pass = await generatePasswordWithOptions({
   length: 16,
   memorable: false,
   pattern: /\d/,
-  prefix: "foo-",
+  prefix: 'foo-',
   ignoreSecurityRecommendations: true,
 });
 ```
@@ -69,7 +69,7 @@ Deterministic entropy for tests:
 const pass = await generatePasswordWithOptions({
   length: 16,
   memorable: false,
-  entropy: "seed",
+  entropy: 'seed',
 });
 ```
 
@@ -87,7 +87,7 @@ const passphrase = await generatePasswordWithOptions({
 
 ```html
 <script type="module">
-  import { generatePassword } from "./dist/index.js";
+  import {generatePassword} from './dist/index.js';
 
   const pass = await generatePassword();
   console.log(pass);
@@ -118,9 +118,7 @@ export async function generatePassword(
   prefix?: string,
 ): Promise<string>;
 
-export async function generatePasswordWithOptions(
-  options?: GenerateOptions,
-): Promise<string>;
+export async function generatePasswordWithOptions(options?: GenerateOptions): Promise<string>;
 ```
 
 ## Migration (v2 -> v3)

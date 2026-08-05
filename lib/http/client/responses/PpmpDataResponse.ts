@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type PpmpSaaobRef = {
   id: string;
@@ -14,7 +14,7 @@ export type PpmpLbacRef = {
 export type PpmpPlanItemResponse = {
   id: string;
   generalDescription: string | null;
-  typeOfProject: "goods" | "infra" | "cons-serv";
+  typeOfProject: 'goods' | 'infra' | 'cons-serv';
   quantityOrSize: string;
   recommendedModeOfProcurement: string | null;
   eligibleForPreProcurementConference: boolean;

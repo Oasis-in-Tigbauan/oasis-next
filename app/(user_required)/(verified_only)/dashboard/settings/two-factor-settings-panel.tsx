@@ -1,26 +1,19 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, ShieldCheck, ShieldOff } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
+import {Copy, Eye, EyeOff, ShieldCheck, ShieldOff} from 'lucide-react';
+import {QRCodeSVG} from 'qrcode.react';
+import {useEffect, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type { User } from "@/lib/accounts";
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Field, FieldContent, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Spinner} from '@/components/ui/spinner';
+import type {User} from '@/lib/accounts';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-
-type SetupStep = "idle" | "password" | "verify" | "backup-codes" | "disable";
+type SetupStep = 'idle' | 'password' | 'verify' | 'backup-codes' | 'disable';
 
 type SetupData = {
   totpURI: string;
@@ -30,10 +23,10 @@ export default function TwoFactorSettingsPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [step, setStep] = useState<SetupStep>("idle");
-  const [password, setPassword] = useState("");
+  const [step, setStep] = useState<SetupStep>('idle');
+  const [password, setPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [setupData, setSetupData] = useState<SetupData | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,18 +36,17 @@ export default function TwoFactorSettingsPanel() {
     const loadStatus = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await $fetch<GenericOkResponse<User>>("/api/account/me", {
-          method: "GET",
+        const {data, error} = await $fetch<GenericOkResponse<User>>('/api/account/me', {
+          method: 'GET',
         });
 
         if (error || !data?.data) {
-          setErrorMessage("Unable to load your account settings.");
+          setErrorMessage('Unable to load your account settings.');
           return;
         }
 
         setTwoFactorEnabled(data.data.twoFactorEnabled);
-      }
-      finally {
+      } finally {
         setIsLoading(false);
       }
     };
@@ -63,49 +55,51 @@ export default function TwoFactorSettingsPanel() {
   }, []);
 
   const resetForm = () => {
-    setPassword("");
-    setCode("");
+    setPassword('');
+    setCode('');
     setSetupData(null);
     setBackupCodes([]);
-    setStep("idle");
+    setStep('idle');
     setErrorMessage(null);
   };
 
   const onSetupStart = () => {
     resetForm();
     setSuccessMessage(null);
-    setStep("password");
+    setStep('password');
   };
 
   const onDisableStart = () => {
     resetForm();
     setSuccessMessage(null);
-    setStep("disable");
+    setStep('disable');
   };
 
   const onSetupPasswordSubmit = async () => {
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const { data, error } = await $fetch<GenericOkResponse<SetupData>>("/api/account/two-factor/setup", {
-        method: "POST",
-        body: { password },
-      });
+      const {data, error} = await $fetch<GenericOkResponse<SetupData>>(
+        '/api/account/two-factor/setup',
+        {
+          method: 'POST',
+          body: {password},
+        },
+      );
 
       const payload = data?.data;
       if (error || !payload?.totpURI) {
         setErrorMessage(
-          typeof error?.message === "string" && error.message.length > 0
+          typeof error?.message === 'string' && error.message.length > 0
             ? error.message
-            : "Unable to start two-factor setup. Check your password and try again.",
+            : 'Unable to start two-factor setup. Check your password and try again.',
         );
         return;
       }
 
-      setSetupData({ totpURI: payload.totpURI });
-      setStep("verify");
-    }
-    finally {
+      setSetupData({totpURI: payload.totpURI});
+      setStep('verify');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -114,23 +108,25 @@ export default function TwoFactorSettingsPanel() {
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const { data, error } = await $fetch<GenericOkResponse<{ backupCodes: string[] }>>("/api/account/two-factor/setup/verify", {
-        method: "POST",
-        body: { code },
-      });
+      const {data, error} = await $fetch<GenericOkResponse<{backupCodes: string[]}>>(
+        '/api/account/two-factor/setup/verify',
+        {
+          method: 'POST',
+          body: {code},
+        },
+      );
 
       if (error || !data?.data) {
-        setErrorMessage("The verification code you entered is incorrect.");
+        setErrorMessage('The verification code you entered is incorrect.');
         return;
       }
 
       setTwoFactorEnabled(true);
       setSetupData(null);
-      setCode("");
+      setCode('');
       setBackupCodes(data.data.backupCodes ?? []);
-      setStep("backup-codes");
-    }
-    finally {
+      setStep('backup-codes');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -139,39 +135,40 @@ export default function TwoFactorSettingsPanel() {
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const { error } = await $fetch("/api/account/two-factor/setup/disable", {
-        method: "POST",
-        body: { password },
+      const {error} = await $fetch('/api/account/two-factor/setup/disable', {
+        method: 'POST',
+        body: {password},
       });
 
       if (error) {
         setErrorMessage(
-          typeof error?.message === "string" && error.message.length > 0
+          typeof error?.message === 'string' && error.message.length > 0
             ? error.message
-            : "Unable to disable two-factor authentication. Check your password and try again.",
+            : 'Unable to disable two-factor authentication. Check your password and try again.',
         );
         return;
       }
 
       setTwoFactorEnabled(false);
-      setSuccessMessage("Two-factor authentication has been disabled.");
+      setSuccessMessage('Two-factor authentication has been disabled.');
       resetForm();
-    }
-    finally {
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   const onBackupCodesDone = () => {
-    setSuccessMessage("Two-factor authentication has been enabled. Store your backup codes in a safe place.");
+    setSuccessMessage(
+      'Two-factor authentication has been enabled. Store your backup codes in a safe place.',
+    );
     resetForm();
   };
 
   const copyBackupCodes = async () => {
     if (!backupCodes.length) return;
 
-    await navigator.clipboard.writeText(backupCodes.join("\n"));
-    setSuccessMessage("Backup codes copied to clipboard.");
+    await navigator.clipboard.writeText(backupCodes.join('\n'));
+    setSuccessMessage('Backup codes copied to clipboard.');
   };
 
   if (isLoading) {
@@ -188,7 +185,8 @@ export default function TwoFactorSettingsPanel() {
       <div className="col-span-2 space-y-1">
         <h2 className="text-lg font-semibold tracking-tight">Two-factor authentication</h2>
         <p className="text-sm text-muted-foreground">
-          Add an extra layer of security using a time-based one-time password from an authenticator app.
+          Add an extra layer of security using a time-based one-time password from an authenticator
+          app.
         </p>
       </div>
 
@@ -206,7 +204,7 @@ export default function TwoFactorSettingsPanel() {
         )}
       </div>
 
-      {successMessage && step !== "backup-codes" && (
+      {successMessage && step !== 'backup-codes' && (
         <div className="col-span-2 rounded-lg border border-green-300 bg-green-200 px-3 py-2 text-sm text-foreground">
           {successMessage}
         </div>
@@ -218,7 +216,7 @@ export default function TwoFactorSettingsPanel() {
         </div>
       )}
 
-      {step === "idle" && !twoFactorEnabled && (
+      {step === 'idle' && !twoFactorEnabled && (
         <div className="col-span-2">
           <Button type="button" onClick={onSetupStart}>
             Set up two-factor authentication
@@ -226,7 +224,7 @@ export default function TwoFactorSettingsPanel() {
         </div>
       )}
 
-      {step === "idle" && twoFactorEnabled && (
+      {step === 'idle' && twoFactorEnabled && (
         <div className="col-span-2">
           <Button type="button" variant="destructive" onClick={onDisableStart}>
             Disable two-factor authentication
@@ -234,7 +232,7 @@ export default function TwoFactorSettingsPanel() {
         </div>
       )}
 
-      {step === "password" && (
+      {step === 'password' && (
         <FieldGroup className="col-span-2 contents">
           <Field orientation="horizontal" className="contents">
             <FieldLabel
@@ -248,7 +246,7 @@ export default function TwoFactorSettingsPanel() {
                 <Input
                   id="setup-password"
                   className="pr-9"
-                  type={showCurrentPassword ? "text" : "password"}
+                  type={showCurrentPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
                   onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
@@ -260,7 +258,9 @@ export default function TwoFactorSettingsPanel() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                   onClick={() => setShowCurrentPassword((v) => !v)}
                   disabled={isSubmitting}
-                  aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                  aria-label={
+                    showCurrentPassword ? 'Hide current password' : 'Show current password'
+                  }
                 >
                   {showCurrentPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
@@ -286,11 +286,12 @@ export default function TwoFactorSettingsPanel() {
         </FieldGroup>
       )}
 
-      {step === "verify" && setupData && (
+      {step === 'verify' && setupData && (
         <FieldGroup className="col-span-2 contents">
           <div className="col-span-2 space-y-4 rounded-lg border bg-muted/30 p-4">
             <p className="text-sm text-muted-foreground">
-              Scan this QR code with your authenticator app, then enter the 6-digit code to confirm setup.
+              Scan this QR code with your authenticator app, then enter the 6-digit code to confirm
+              setup.
             </p>
             <div className="flex justify-center rounded-lg border bg-white p-4">
               <QRCodeSVG value={setupData.totpURI} size={180} />
@@ -315,7 +316,9 @@ export default function TwoFactorSettingsPanel() {
                 placeholder="000000"
                 className="tracking-widest"
                 value={code}
-                onInput={(e) => setCode((e.target as HTMLInputElement).value.replace(/\D/g, "").slice(0, 6))}
+                onInput={(e) =>
+                  setCode((e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))
+                }
                 disabled={isSubmitting}
                 required
               />
@@ -338,17 +341,18 @@ export default function TwoFactorSettingsPanel() {
         </FieldGroup>
       )}
 
-      {step === "backup-codes" && (
+      {step === 'backup-codes' && (
         <div className="col-span-2 space-y-4">
           <div className="rounded-lg border border-green-300/50 bg-green-50 px-4 py-3 dark:bg-green-950/20">
             <p className="text-sm font-medium">Two-factor authentication is enabled</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Save your backup codes below. Each code can only be used once. They will not be shown again.
+              Save your backup codes below. Each code can only be used once. They will not be shown
+              again.
             </p>
           </div>
 
           <ul className="grid grid-cols-2 gap-2 font-mono text-sm sm:grid-cols-3">
-            {backupCodes.map(backupCode => (
+            {backupCodes.map((backupCode) => (
               <li key={backupCode} className="rounded border bg-background px-2 py-1">
                 {backupCode}
               </li>
@@ -356,7 +360,12 @@ export default function TwoFactorSettingsPanel() {
           </ul>
 
           <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyBackupCodes()}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copyBackupCodes()}
+            >
               <Copy className="size-4" />
               Copy backup codes
             </Button>
@@ -367,7 +376,7 @@ export default function TwoFactorSettingsPanel() {
         </div>
       )}
 
-      {step === "disable" && (
+      {step === 'disable' && (
         <FieldGroup className="col-span-2 contents">
           <Field orientation="horizontal" className="contents">
             <FieldLabel
@@ -381,7 +390,7 @@ export default function TwoFactorSettingsPanel() {
                 <Input
                   id="disable-password"
                   className="pr-9"
-                  type={showCurrentPassword ? "text" : "password"}
+                  type={showCurrentPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
                   onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
@@ -393,7 +402,9 @@ export default function TwoFactorSettingsPanel() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                   onClick={() => setShowCurrentPassword((v) => !v)}
                   disabled={isSubmitting}
-                  aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                  aria-label={
+                    showCurrentPassword ? 'Hide current password' : 'Show current password'
+                  }
                 >
                   {showCurrentPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>

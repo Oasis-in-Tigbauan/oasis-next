@@ -1,20 +1,12 @@
-"use client";
+'use client';
 
-import { Plus } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
-import useSWR from "swr";
+import {Plus} from 'lucide-react';
+import {type SubmitEvent, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  BetterFetchResponse,
-  OfficeCodeListResponse,
-  OfficeCodeResponse,
-  OfficeCodeWithHeadsResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import DeadHamster from "@/components/dead-hamster";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -24,11 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -36,27 +27,29 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+  ApiResponseException,
+  BetterFetchResponse,
+  OfficeCodeListResponse,
+  OfficeCodeResponse,
+  OfficeCodeWithHeadsResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>>(
-    "/api/management/data/office-codes", $fetch);
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
+  >('/api/management/data/office-codes', $fetch);
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const handleCreateMutate = (item: OfficeCodeResponse) => {
@@ -76,7 +69,7 @@ export default function Page() {
       mutate({
         data: {
           ok: true,
-          data: (data?.data?.data || []).map(x => {
+          data: (data?.data?.data || []).map((x) => {
             if (x.id === item.data.id) return item.data;
             return x;
           }),
@@ -124,24 +117,24 @@ export default function Page() {
   );
 }
 
-function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse) => void}) {
+function CreateOfficeCodeDialog({mutate}: {mutate: (item: OfficeCodeResponse) => void}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<OfficeCodePayload>({
-    aa: "",
+    aa: '',
     code: null,
     sector: null,
     function: null,
     liftOffice: null,
     subOffice: null,
-    officeId: "",
-    headUserId: "",
+    officeId: '',
+    headUserId: '',
   });
 
   const handleInput = (key: keyof OfficeCodePayload, value: string) => {
-    setPayload(prev => ({
+    setPayload((prev) => ({
       ...prev,
-      [key]: key !== "aa" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+      [key]: key !== 'aa' && !((value?.trim() ?? '').length > 0) ? undefined : value,
     }));
   };
 
@@ -149,10 +142,12 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
     e.preventDefault();
 
     const res = await $fetch<OfficeCodeResponse, ApiResponseException>(
-      "/api/management/data/office-codes", { method: "POST", body: payload });
+      '/api/management/data/office-codes',
+      {method: 'POST', body: payload},
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to create office code. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to create office code. Try again later.');
       return;
     }
 
@@ -160,17 +155,17 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
     mutate(res.data);
 
     // Reset and close.
-    alert("Office code created successfully.");
+    alert('Office code created successfully.');
 
     setPayload({
-      aa: "",
+      aa: '',
       code: null,
       sector: null,
       function: null,
       liftOffice: null,
       subOffice: null,
-      officeId: "",
-      headUserId: "",
+      officeId: '',
+      headUserId: '',
     });
     setOpen(false);
   };
@@ -199,7 +194,7 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
                 type="text"
                 placeholder="Enter the AA"
                 value={payload.aa}
-                onInput={e => handleInput("aa", e.currentTarget.value)}
+                onInput={(e) => handleInput('aa', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -212,8 +207,8 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
                   id="code"
                   type="text"
                   placeholder="Enter the Code"
-                  value={payload.code ?? ""}
-                  onInput={e => handleInput("code", e.currentTarget.value)}
+                  value={payload.code ?? ''}
+                  onInput={(e) => handleInput('code', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -224,8 +219,8 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
                   id="sector"
                   type="text"
                   placeholder="Enter the sector"
-                  value={payload.sector ?? ""}
-                  onInput={e => handleInput("sector", e.currentTarget.value)}
+                  value={payload.sector ?? ''}
+                  onInput={(e) => handleInput('sector', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -236,8 +231,8 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
                   id="function"
                   type="text"
                   placeholder="Enter the function"
-                  value={payload.function ?? ""}
-                  onInput={e => handleInput("function", e.currentTarget.value)}
+                  value={payload.function ?? ''}
+                  onInput={(e) => handleInput('function', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -248,8 +243,8 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
                   id="lift-office"
                   type="text"
                   placeholder="Enter the Lift Office"
-                  value={payload.liftOffice ?? ""}
-                  onInput={e => handleInput("liftOffice", e.currentTarget.value)}
+                  value={payload.liftOffice ?? ''}
+                  onInput={(e) => handleInput('liftOffice', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -260,16 +255,16 @@ function CreateOfficeCodeDialog({ mutate }: { mutate: (item: OfficeCodeResponse)
                   id="sub-office"
                   type="text"
                   placeholder="Enter the sub-office"
-                  value={payload.subOffice ?? ""}
-                  onInput={e => handleInput("subOffice", e.currentTarget.value)}
+                  value={payload.subOffice ?? ''}
+                  onInput={(e) => handleInput('subOffice', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
             <OfficeSelector
               oId={payload.officeId}
               hId={payload.headUserId}
-              setOId={oId => handleInput("officeId", oId)}
-              setHId={hId => handleInput("headUserId", hId)}
+              setOId={(oId) => handleInput('officeId', oId)}
+              setHId={(hId) => handleInput('headUserId', hId)}
             />
           </div>
           <DialogFooter className="mt-4">
@@ -289,7 +284,7 @@ function OfficeCodeRow({
   index,
   mutate,
 }: {
-  data: OfficeCodeResponse["data"];
+  data: OfficeCodeResponse['data'];
   index: number;
   mutate: (item: OfficeCodeResponse) => void;
 }) {
@@ -307,10 +302,10 @@ function OfficeCodeRow({
   });
 
   const handleInput = (key: keyof OfficeCodeUpdatePayload, value: string) => {
-    setPayload(prev => {
+    setPayload((prev) => {
       return {
         ...prev,
-        [key]: key !== "aa" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+        [key]: key !== 'aa' && !((value?.trim() ?? '').length > 0) ? undefined : value,
       };
     });
   };
@@ -319,10 +314,12 @@ function OfficeCodeRow({
     e.preventDefault();
 
     const res = await $fetch<OfficeCodeResponse, ApiResponseException>(
-      `/api/management/data/office-codes/${data.id}`, { method: "PATCH", body: payload });
+      `/api/management/data/office-codes/${data.id}`,
+      {method: 'PATCH', body: payload},
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to update the office code. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to update the office code. Try again later.');
       return;
     }
 
@@ -330,7 +327,7 @@ function OfficeCodeRow({
     mutate(res.data);
 
     // Close.
-    alert("Office code updated successfully.");
+    alert('Office code updated successfully.');
     setOpen(false);
   };
 
@@ -339,28 +336,30 @@ function OfficeCodeRow({
       <DialogTrigger asChild>
         <TableRow
           className={cn(
-            "cursor-pointer",
-            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+            'cursor-pointer',
+            index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined,
           )}
         >
-          <TableCell className="font-medium whitespace-normal wrap-break-word">
-            {data.aa}
-          </TableCell>
-          <TableCell className="whitespace-normal wrap-break-word">{data.code ?? "-"}</TableCell>
+          <TableCell className="font-medium whitespace-normal wrap-break-word">{data.aa}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.code ?? '-'}</TableCell>
           <TableCell className="whitespace-normal wrap-break-word">{data.headUser.name}</TableCell>
-          <TableCell className="whitespace-normal wrap-break-word">{data.sector ?? "-"}</TableCell>
-          <TableCell className="whitespace-normal wrap-break-word">{data.function ?? "-"}</TableCell>
-          <TableCell className="whitespace-normal wrap-break-word">{data.liftOffice ?? "-"}</TableCell>
-          <TableCell className="whitespace-normal wrap-break-word">{data.subOffice ?? "-"}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.sector ?? '-'}</TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.function ?? '-'}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.liftOffice ?? '-'}
+          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">
+            {data.subOffice ?? '-'}
+          </TableCell>
           <TableCell className="whitespace-normal wrap-break-word">{data.office.name}</TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent className="min-w-[75%]">
         <DialogHeader>
           <DialogTitle>Update Office Code</DialogTitle>
-          <DialogDescription>
-            Update the expense code details.
-          </DialogDescription>
+          <DialogDescription>Update the expense code details.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
@@ -371,7 +370,7 @@ function OfficeCodeRow({
                 type="text"
                 placeholder="Enter the AA"
                 value={payload.aa}
-                onInput={e => handleInput("aa", e.currentTarget.value)}
+                onInput={(e) => handleInput('aa', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -384,8 +383,8 @@ function OfficeCodeRow({
                   id="code"
                   type="text"
                   placeholder="Enter the Code"
-                  value={payload.code ?? ""}
-                  onInput={e => handleInput("code", e.currentTarget.value)}
+                  value={payload.code ?? ''}
+                  onInput={(e) => handleInput('code', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -396,8 +395,8 @@ function OfficeCodeRow({
                   id="sector"
                   type="text"
                   placeholder="Enter the sector"
-                  value={payload.sector ?? ""}
-                  onInput={e => handleInput("sector", e.currentTarget.value)}
+                  value={payload.sector ?? ''}
+                  onInput={(e) => handleInput('sector', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -408,8 +407,8 @@ function OfficeCodeRow({
                   id="function"
                   type="text"
                   placeholder="Enter the function"
-                  value={payload.function ?? ""}
-                  onInput={e => handleInput("function", e.currentTarget.value)}
+                  value={payload.function ?? ''}
+                  onInput={(e) => handleInput('function', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -420,8 +419,8 @@ function OfficeCodeRow({
                   id="lift-office"
                   type="text"
                   placeholder="Enter the Lift Office"
-                  value={payload.liftOffice ?? ""}
-                  onInput={e => handleInput("liftOffice", e.currentTarget.value)}
+                  value={payload.liftOffice ?? ''}
+                  onInput={(e) => handleInput('liftOffice', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
@@ -432,16 +431,16 @@ function OfficeCodeRow({
                   id="sub-office"
                   type="text"
                   placeholder="Enter the sub-office"
-                  value={payload.subOffice ?? ""}
-                  onInput={e => handleInput("subOffice", e.currentTarget.value)}
+                  value={payload.subOffice ?? ''}
+                  onInput={(e) => handleInput('subOffice', e.currentTarget.value)}
                 />
               </Field>
             </FieldGroup>
             <OfficeSelector
-              oId={payload.officeId ?? ""}
-              hId={payload.headUserId ?? ""}
-              setOId={oId => handleInput("officeId", oId)}
-              setHId={hId => handleInput("headUserId", hId)}
+              oId={payload.officeId ?? ''}
+              hId={payload.headUserId ?? ''}
+              setOId={(oId) => handleInput('officeId', oId)}
+              setHId={(hId) => handleInput('headUserId', hId)}
             />
           </div>
           <DialogFooter className="mt-4">
@@ -456,20 +455,31 @@ function OfficeCodeRow({
   );
 }
 
-function OfficeSelector({ oId, hId, setOId, setHId }: { oId: string; hId: string; setOId: (id: string) => void; setHId: (id: string) => void }) {
-  const { data, error, isLoading } = useSWR<BetterFetchResponse<OfficeCodeWithHeadsResponse, ApiResponseException>>(
-    "/api/management/offices/heads", $fetch);
+function OfficeSelector({
+  oId,
+  hId,
+  setOId,
+  setHId,
+}: {
+  oId: string;
+  hId: string;
+  setOId: (id: string) => void;
+  setHId: (id: string) => void;
+}) {
+  const {data, error, isLoading} = useSWR<
+    BetterFetchResponse<OfficeCodeWithHeadsResponse, ApiResponseException>
+  >('/api/management/offices/heads', $fetch);
 
   const offices = data?.data?.data ?? [];
   const isDisabled = isLoading || !!error || !!data?.error;
 
-  const selectedOffice = offices.find(o => o.id === oId);
+  const selectedOffice = offices.find((o) => o.id === oId);
   const heads = selectedOffice?.heads ?? [];
 
   const handleOfficeChange = (id: string) => {
     if (isDisabled) return;
     setOId(id);
-    setHId("");
+    setHId('');
   };
 
   return (
@@ -477,19 +487,13 @@ function OfficeSelector({ oId, hId, setOId, setHId }: { oId: string; hId: string
       <FieldGroup>
         <Field>
           <Label htmlFor="office">Office</Label>
-          <Select
-            value={oId}
-            disabled={isDisabled}
-            onValueChange={handleOfficeChange}
-          >
+          <Select value={oId} disabled={isDisabled} onValueChange={handleOfficeChange}>
             <SelectTrigger>
-              <SelectValue
-                placeholder={isLoading ? "Loading..." : "Select an Office"}
-              />
+              <SelectValue placeholder={isLoading ? 'Loading...' : 'Select an Office'} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                {offices.map(o => (
+                {offices.map((o) => (
                   <SelectItem key={o.id} value={o.id}>
                     {o.name}
                   </SelectItem>
@@ -503,25 +507,21 @@ function OfficeSelector({ oId, hId, setOId, setHId }: { oId: string; hId: string
       <FieldGroup>
         <Field>
           <Label htmlFor="headUser">Office Head</Label>
-          <Select
-            value={hId}
-            disabled={isDisabled || !selectedOffice}
-            onValueChange={setHId}
-          >
+          <Select value={hId} disabled={isDisabled || !selectedOffice} onValueChange={setHId}>
             <SelectTrigger>
               <SelectValue
                 placeholder={
                   isLoading
-                    ? "Loading..."
+                    ? 'Loading...'
                     : selectedOffice
-                      ? "Select a Head"
-                      : "Select an Office first"
+                      ? 'Select a Head'
+                      : 'Select an Office first'
                 }
               />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                {heads.map(h => (
+                {heads.map((h) => (
                   <SelectItem key={h.id} value={h.id}>
                     {h.name}
                   </SelectItem>
@@ -544,6 +544,6 @@ type OfficeCodePayload = {
   subOffice: Optional<string>;
   officeId: string;
   headUserId: string;
-}
+};
 
 type OfficeCodeUpdatePayload = Partial<OfficeCodePayload>;

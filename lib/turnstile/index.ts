@@ -1,11 +1,11 @@
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
 
 export async function validate(token: string): Promise<Result<boolean>> {
   try {
-    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         response: token,
@@ -13,13 +13,13 @@ export async function validate(token: string): Promise<Result<boolean>> {
       }),
     });
 
-    const resp: { success: boolean; } = await response.json();
+    const resp: {success: boolean} = await response.json();
     if (!resp.success) {
       return new Success(false);
     }
 
     return new Success(true);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to validate turnstile.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to validate turnstile.', {}, e);
   }
 }

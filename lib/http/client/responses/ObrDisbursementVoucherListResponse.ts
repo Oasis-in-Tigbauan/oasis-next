@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type ObrDisbursementTaxBreakdown = {
   tax: string | null;
@@ -31,10 +31,10 @@ export type ObrDisbursementVoucherItem = {
     aa: string;
   };
   signers: {
-    accountant: { id: string | null; name: string | null; position: string | null };
-    treasurer: { id: string | null; name: string | null; position: string | null };
-    mayor: { id: string | null; name: string | null; position: string | null };
-    headOfOffice: { id: string | null; name: string | null; position: string | null };
+    accountant: {id: string | null; name: string | null; position: string | null};
+    treasurer: {id: string | null; name: string | null; position: string | null};
+    mayor: {id: string | null; name: string | null; position: string | null};
+    headOfOffice: {id: string | null; name: string | null; position: string | null};
   };
   fundType: {
     id: string;

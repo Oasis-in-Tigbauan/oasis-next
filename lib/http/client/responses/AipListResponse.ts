@@ -1,8 +1,8 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type AipReferenceResponse = {
   id: string;
-  type: "group" | "item";
+  type: 'group' | 'item';
   parentId: string | null;
   sector: string | null;
   code: string | null;

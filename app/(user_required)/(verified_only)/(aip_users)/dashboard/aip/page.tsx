@@ -1,11 +1,32 @@
-"use client";
+'use client';
 
-import { useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {Pencil, Plus, Trash2} from 'lucide-react';
+import {useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {AipFormDialog} from '@/app/(user_required)/(verified_only)/(aip_users)/dashboard/aip/aip-form-dialog';
+import type {AipPageColumnDef} from '@/common/aip/page-columns';
+import {
+  AipPageSpacerRow,
+  AipPageTableCells,
+  AipPageTableHeader,
+  useAipColumnVisibility,
+} from '@/common/aip/page-display';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   AipListResponse,
   AipNodeResponse,
@@ -13,31 +34,10 @@ import type {
   AipReferenceSingleResponse,
   ApiResponseException,
   BetterFetchResponse,
-} from "@/lib/http/client/responses";
-import { cn } from "@/lib/utils";
-import {
-  AipPageSpacerRow,
-  AipPageTableCells,
-  AipPageTableHeader,
-  useAipColumnVisibility,
-} from "@/common/aip/page-display";
-import type { AipPageColumnDef } from "@/common/aip/page-columns";
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { AipFormDialog } from "@/app/(user_required)/(verified_only)/(aip_users)/dashboard/aip/aip-form-dialog";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-
-type EntryType = "group" | "item";
+type EntryType = 'group' | 'item';
 
 type FlatTree = {
   nodeMap: Map<string, AipNodeResponse>;
@@ -51,7 +51,7 @@ type VisibleRow = {
 
 function toAmount(value: string | null): number {
   if (!value) return 0;
-  const parsed = Number.parseFloat(value.replace(/,/g, ""));
+  const parsed = Number.parseFloat(value.replace(/,/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -63,9 +63,9 @@ function flattenVisibleRows(
   const rows: VisibleRow[] = [];
 
   for (const node of nodes) {
-    rows.push({ node, depth });
+    rows.push({node, depth});
 
-    if (node.type === "group" && expandedIds.has(node.id) && node.children.length > 0) {
+    if (node.type === 'group' && expandedIds.has(node.id) && node.children.length > 0) {
       rows.push(...flattenVisibleRows(node.children, expandedIds, depth + 1));
     }
   }
@@ -74,9 +74,9 @@ function flattenVisibleRows(
 }
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<AipListResponse, ApiResponseException>
-  >("/api/aip", $fetch);
+  >('/api/aip', $fetch);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -90,16 +90,13 @@ export default function Page() {
 
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [moveBusy, setMoveBusy] = useState(false);
-  const [moveParentId, setMoveParentId] = useState<string>("");
+  const [moveParentId, setMoveParentId] = useState<string>('');
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   const columnVisibility = useAipColumnVisibility();
 
   const roots = useMemo(() => data?.data?.data ?? [], [data]);
-  const visibleRows = useMemo(
-    () => flattenVisibleRows(roots, expandedIds),
-    [roots, expandedIds],
-  );
+  const visibleRows = useMemo(() => flattenVisibleRows(roots, expandedIds), [roots, expandedIds]);
 
   // eslint-disable-next-line
   const rowVirtualizer = useVirtualizer({
@@ -112,9 +109,8 @@ export default function Page() {
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length > 0
-    ? totalSize - virtualRows[virtualRows.length - 1].end
-    : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const flatTree = useMemo<FlatTree>(() => {
     const nodeMap = new Map<string, AipNodeResponse>();
@@ -122,7 +118,7 @@ export default function Page() {
 
     const visit = (node: AipNodeResponse) => {
       nodeMap.set(node.id, node);
-      if (node.type === "group") {
+      if (node.type === 'group') {
         groupList.push(node);
       }
       for (const child of node.children) {
@@ -134,14 +130,14 @@ export default function Page() {
       visit(node);
     }
 
-    return { nodeMap, groupList };
+    return {nodeMap, groupList};
   }, [roots]);
 
-  const selectedNode = selectedId ? flatTree.nodeMap.get(selectedId) ?? null : null;
-  const selectedGroup = selectedNode?.type === "group" ? selectedNode : null;
+  const selectedNode = selectedId ? (flatTree.nodeMap.get(selectedId) ?? null) : null;
+  const selectedGroup = selectedNode?.type === 'group' ? selectedNode : null;
 
   const toggleExpanded = (id: string) => {
-    setExpandedIds(prev => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -153,7 +149,7 @@ export default function Page() {
   };
 
   const toggleChecked = (id: string, checked: boolean) => {
-    setCheckedIds(prev => {
+    setCheckedIds((prev) => {
       const next = new Set(prev);
       if (checked) {
         next.add(id);
@@ -187,24 +183,23 @@ export default function Page() {
   const handleDelete = async () => {
     if (!selectedNode || deleteBusy) return;
 
-    if (selectedNode.type === "group" && selectedNode.children.length > 0) {
-      alert("Cannot delete this group while it still has nested groups/items.");
+    if (selectedNode.type === 'group' && selectedNode.children.length > 0) {
+      alert('Cannot delete this group while it still has nested groups/items.');
       return;
     }
 
-    const confirmed = confirm(
-      `Delete this ${selectedNode.type}? This action cannot be undone.`,
-    );
+    const confirmed = confirm(`Delete this ${selectedNode.type}? This action cannot be undone.`);
     if (!confirmed) return;
 
     setDeleteBusy(true);
 
-    const endpoint = selectedNode.type === "group"
-      ? `/api/aip/groups/${selectedNode.id}`
-      : `/api/aip/items/${selectedNode.id}`;
+    const endpoint =
+      selectedNode.type === 'group'
+        ? `/api/aip/groups/${selectedNode.id}`
+        : `/api/aip/items/${selectedNode.id}`;
 
     const response = await $fetch<unknown, ApiResponseException>(endpoint, {
-      method: "DELETE",
+      method: 'DELETE',
     });
 
     setDeleteBusy(false);
@@ -214,7 +209,7 @@ export default function Page() {
       return;
     }
 
-    setCheckedIds(prev => {
+    setCheckedIds((prev) => {
       const next = new Set(prev);
       next.delete(selectedNode.id);
       return next;
@@ -224,24 +219,27 @@ export default function Page() {
   };
 
   const handleConvert = async (item: AipReferenceResponse, targetType: EntryType) => {
-    if (item.type === "group" && targetType === "item") {
+    if (item.type === 'group' && targetType === 'item') {
       const current = flatTree.nodeMap.get(item.id);
       if (current && current.children.length > 0) {
-        alert("Cannot convert a group with children into an item. Move or delete children first.");
+        alert('Cannot convert a group with children into an item. Move or delete children first.');
         return;
       }
     }
 
-    const response = await $fetch<AipReferenceSingleResponse, ApiResponseException>("/api/aip/convert", {
-      method: "POST",
-      body: {
-        id: item.id,
-        targetType,
+    const response = await $fetch<AipReferenceSingleResponse, ApiResponseException>(
+      '/api/aip/convert',
+      {
+        method: 'POST',
+        body: {
+          id: item.id,
+          targetType,
+        },
       },
-    });
+    );
 
     if (response.error) {
-      alert(response.error.message ?? "Failed to convert AIP reference.");
+      alert(response.error.message ?? 'Failed to convert AIP reference.');
       return;
     }
 
@@ -253,13 +251,13 @@ export default function Page() {
     if (moveBusy) return;
 
     if (!moveParentId) {
-      alert("Select a target group first.");
+      alert('Select a target group first.');
       return;
     }
 
     const ids = [...checkedIds];
     if (ids.length === 0) {
-      alert("Select at least one group/item to move.");
+      alert('Select at least one group/item to move.');
       return;
     }
 
@@ -278,7 +276,7 @@ export default function Page() {
         continue;
       }
 
-      if (node.type === "group" && isDescendant(node.id, moveParentId)) {
+      if (node.type === 'group' && isDescendant(node.id, moveParentId)) {
         skippedIds.push(id);
         continue;
       }
@@ -287,14 +285,14 @@ export default function Page() {
     }
 
     if (validIds.length === 0) {
-      alert("No valid selections to move. Invalid targets were skipped.");
+      alert('No valid selections to move. Invalid targets were skipped.');
       return;
     }
 
     setMoveBusy(true);
 
-    const response = await $fetch<unknown, ApiResponseException>("/api/aip/move", {
-      method: "POST",
+    const response = await $fetch<unknown, ApiResponseException>('/api/aip/move', {
+      method: 'POST',
       body: {
         ids: validIds,
         parentId: moveParentId,
@@ -304,7 +302,7 @@ export default function Page() {
     setMoveBusy(false);
 
     if (response.error) {
-      alert(response.error.message ?? "Failed to move selected entries.");
+      alert(response.error.message ?? 'Failed to move selected entries.');
       return;
     }
 
@@ -312,16 +310,18 @@ export default function Page() {
     await refreshAfterMutation();
 
     if (skippedIds.length > 0) {
-      alert(`Moved ${validIds.length} entr${validIds.length === 1 ? "y" : "ies"}. Skipped ${skippedIds.length} invalid entr${skippedIds.length === 1 ? "y" : "ies"}.`);
+      alert(
+        `Moved ${validIds.length} entr${validIds.length === 1 ? 'y' : 'ies'}. Skipped ${skippedIds.length} invalid entr${skippedIds.length === 1 ? 'y' : 'ies'}.`,
+      );
     }
   };
 
   const handleCreateOrUpdateSuccess = async (saved: AipReferenceResponse) => {
     if (saved.parentId) {
-      setExpandedIds(prev => {
+      setExpandedIds((prev) => {
         const next = new Set(prev);
         next.add(saved.parentId!);
-        if (saved.type === "group") {
+        if (saved.type === 'group') {
           next.add(saved.id);
         }
         return next;
@@ -336,7 +336,7 @@ export default function Page() {
       if (!row) return;
 
       row.focus();
-      row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      row.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     });
   };
 
@@ -351,7 +351,7 @@ export default function Page() {
           size="sm"
           className="h-7 text-xs"
           onClick={() => {
-            setAddGroupKey(k => k + 1);
+            setAddGroupKey((k) => k + 1);
             setAddGroupOpen(true);
           }}
         >
@@ -365,7 +365,7 @@ export default function Page() {
           className="h-7 text-xs"
           disabled={!selectedGroup}
           onClick={() => {
-            setAddItemKey(k => k + 1);
+            setAddItemKey((k) => k + 1);
             setAddItemOpen(true);
           }}
         >
@@ -399,13 +399,16 @@ export default function Page() {
         </Button>
 
         <div className="ml-auto flex items-center gap-2">
-          <Select value={moveParentId || "__none__"} onValueChange={v => setMoveParentId(v === "__none__" ? "" : v)}>
+          <Select
+            value={moveParentId || '__none__'}
+            onValueChange={(v) => setMoveParentId(v === '__none__' ? '' : v)}
+          >
             <SelectTrigger className="w-72 h-7 text-xs">
               <SelectValue placeholder="Select target group for move" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Select target group...</SelectItem>
-              {flatTree.groupList.map(group => (
+              {flatTree.groupList.map((group) => (
                 <SelectItem key={group.id} value={group.id}>
                   {group.aipReferenceCode} - {group.description}
                 </SelectItem>
@@ -420,7 +423,7 @@ export default function Page() {
             disabled={checkedIds.size === 0 || !moveParentId || moveBusy}
             onClick={handleMove}
           >
-            {moveBusy ? "Moving..." : `Move (${checkedIds.size})`}
+            {moveBusy ? 'Moving...' : `Move (${checkedIds.size})`}
           </Button>
         </div>
 
@@ -449,16 +452,18 @@ export default function Page() {
           >
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
-                <AipPageTableHeader columns={columnVisibility.orderedVisible as AipPageColumnDef[]} />
+                <AipPageTableHeader
+                  columns={columnVisibility.orderedVisible as AipPageColumnDef[]}
+                />
               </TableHeader>
               <TableBody>
                 {paddingTop > 0 ? (
                   <AipPageSpacerRow colCount={columnVisibility.visibleCount} height={paddingTop} />
                 ) : null}
 
-                {virtualRows.map(virtualRow => {
-                  const { node, depth } = visibleRows[virtualRow.index]!;
-                  const isGroup = node.type === "group";
+                {virtualRows.map((virtualRow) => {
+                  const {node, depth} = visibleRows[virtualRow.index]!;
+                  const isGroup = node.type === 'group';
                   const isExpanded = isGroup && expandedIds.has(node.id);
                   const isSelected = selectedId === node.id;
                   const isChecked = checkedIds.has(node.id);
@@ -494,13 +499,13 @@ export default function Page() {
                       id={`aip-row-${node.id}`}
                       key={node.id}
                       data-index={virtualRow.index}
-                      data-state={isSelected ? "selected" : undefined}
+                      data-state={isSelected ? 'selected' : undefined}
                       className={cn(
-                        "cursor-pointer",
+                        'cursor-pointer',
                         isSelected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : virtualRow.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
+                            ? 'bg-muted hover:bg-muted/50'
                             : undefined,
                       )}
                       onClick={() => setSelectedId(node.id)}
@@ -515,7 +520,10 @@ export default function Page() {
                 })}
 
                 {paddingBottom > 0 ? (
-                  <AipPageSpacerRow colCount={columnVisibility.visibleCount} height={paddingBottom} />
+                  <AipPageSpacerRow
+                    colCount={columnVisibility.visibleCount}
+                    height={paddingBottom}
+                  />
                 ) : null}
               </TableBody>
             </Table>
@@ -544,9 +552,9 @@ export default function Page() {
       />
 
       <AipFormDialog
-        key={selectedNode?.id ?? "aip-edit-empty"}
+        key={selectedNode?.id ?? 'aip-edit-empty'}
         mode="edit"
-        entryType={selectedNode?.type ?? "group"}
+        entryType={selectedNode?.type ?? 'group'}
         editItem={selectedNode ?? undefined}
         open={editOpen}
         onOpenChange={setEditOpen}

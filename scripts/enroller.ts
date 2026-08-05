@@ -1,17 +1,16 @@
-import "dotenv/config";
+import 'dotenv/config';
+import {and, eq} from 'drizzle-orm';
 
-import { and, eq } from "drizzle-orm";
-
-import { auth } from "@/lib/auth";
-import { cacheManager } from "@/lib/cache";
-import { db } from "@/lib/db";
-import { generatePassword } from "@/lib/generators/password-generator";
-import { office, officePosition, user } from "@/lib/db/schema";
-import * as permissions from "@/lib/db/permissions";
+import {auth} from '@/lib/auth';
+import {cacheManager} from '@/lib/cache';
+import {db} from '@/lib/db';
+import * as permissions from '@/lib/db/permissions';
+import {office, officePosition, user} from '@/lib/db/schema';
+import {generatePassword} from '@/lib/generators/password-generator';
 
 async function enroller(flags: Set<string>) {
   // Create office and roles first
-  const { oId, rId } = await checkOrCreateEnrollerRole();
+  const {oId, rId} = await checkOrCreateEnrollerRole();
 
   // Get the enroller user.
   let [enrollerUser] = await db
@@ -20,24 +19,19 @@ async function enroller(flags: Set<string>) {
       enabled: user.emailVerified,
     })
     .from(user)
-    .where(
-      and(
-        eq(user.officeId, oId),
-        eq(user.officePositionId, rId),
-      ),
-    );
+    .where(and(eq(user.officeId, oId), eq(user.officePositionId, rId)));
 
-  if (flags.has("--enable")) {
+  if (flags.has('--enable')) {
     // If there are no enroller user...
     if (!enrollerUser) {
-      console.log("Creating account...");
+      console.log('Creating account...');
 
       const password = await generatePassword(16);
       const admin = await auth.api.signUpEmail({
         returnHeaders: false,
         body: {
-          name: "internal system",
-          email: "sys@laboratories-internal.local",
+          name: 'internal system',
+          email: 'sys@laboratories-internal.local',
           password,
           officeId: oId,
           officePositionId: rId,
@@ -49,84 +43,77 @@ async function enroller(flags: Set<string>) {
         enabled: false,
       };
 
-      console.log("Your account has been generated.");
-      console.log("");
-      console.log("  Email:    sys@laboratories-internal.local");
-      console.log("  Password: %s", password);
-      console.log("  User ID:  %s", admin.user.id);
-      console.log("");
-      console.log("Your account credentials appear only once. Please take note of this.");
+      console.log('Your account has been generated.');
+      console.log('');
+      console.log('  Email:    sys@laboratories-internal.local');
+      console.log('  Password: %s', password);
+      console.log('  User ID:  %s', admin.user.id);
+      console.log('');
+      console.log('Your account credentials appear only once. Please take note of this.');
     }
 
     // Activate
-    console.log("Activating...");
-    await db.update(user)
-      .set({ emailVerified: true })
-      .where(eq(user.id, enrollerUser.id));
+    console.log('Activating...');
+    await db.update(user).set({emailVerified: true}).where(eq(user.id, enrollerUser.id));
 
-    console.log("Account successfully activated.");
+    console.log('Account successfully activated.');
     return;
   }
 
-  if (flags.has("--disable")) {
+  if (flags.has('--disable')) {
     if (!enrollerUser) {
-      console.error("No enroller user found. Try running with --enable again.");
+      console.error('No enroller user found. Try running with --enable again.');
       return;
     }
 
     // Deactivate
-    console.log("Deactivating...");
-    await db.update(user)
-      .set({ emailVerified: false })
-      .where(eq(user.id, enrollerUser.id));
+    console.log('Deactivating...');
+    await db.update(user).set({emailVerified: false}).where(eq(user.id, enrollerUser.id));
 
     // Clear caches
     await cacheManager.delete(`user:${enrollerUser.id}`);
 
-    console.log("Account successfully deactivated.");
+    console.log('Account successfully deactivated.');
 
     // Exit the process forcefully since redis will keep this running forever...
     return process.exit(0);
   }
 
-  console.log("enroller [options]");
-  console.log("");
-  console.log("  --enable         Create or re-enable enroller account.");
-  console.log("  --disable        Disable enroller account.");
-  console.log("  --help           This help.");
-  console.log("");
+  console.log('enroller [options]');
+  console.log('');
+  console.log('  --enable         Create or re-enable enroller account.');
+  console.log('  --disable        Disable enroller account.');
+  console.log('  --help           This help.');
+  console.log('');
 }
 
 async function checkOrCreateEnrollerRole() {
   // Create or get the office first.
   let [enrollerOffice] = await db
-    .select({ id: office.id })
+    .select({id: office.id})
     .from(office)
-    .where(eq(office.name, "Cardinal Administrators"));
+    .where(eq(office.name, 'Cardinal Administrators'));
   if (!enrollerOffice) {
     [enrollerOffice] = await db
       .insert(office)
       .values({
-        name: "Cardinal Administrators",
+        name: 'Cardinal Administrators',
         prohibitedAssignment: true,
       })
       .returning();
   }
 
   let [enrollerRole] = await db
-    .select({ id: officePosition.id })
+    .select({id: officePosition.id})
     .from(officePosition)
     .where(
-      and(
-        eq(officePosition.name, "Heathcliff"),
-        eq(officePosition.officeId, enrollerOffice.id),
-      ),
+      and(eq(officePosition.name, 'Heathcliff'), eq(officePosition.officeId, enrollerOffice.id)),
     );
   if (!enrollerRole) {
     [enrollerRole] = await db
       .insert(officePosition)
       .values({
-        name: "Heathcliff",
+        name: 'Heathcliff',
         officeId: enrollerOffice.id,
         permissions: [
           permissions.APPROVALS_ACCOUNT_READ,
@@ -138,9 +125,8 @@ async function checkOrCreateEnrollerRole() {
       .returning();
   }
 
-  return { oId: enrollerOffice.id, rId: enrollerRole.id };
+  return {oId: enrollerOffice.id, rId: enrollerRole.id};
 }
 
 const flags = new Set([...process.argv.slice(2)]);
-enroller(flags)
-  .catch(console.error);
+enroller(flags).catch(console.error);

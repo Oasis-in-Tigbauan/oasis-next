@@ -1,17 +1,16 @@
-import type { NextRequest } from "next/server";
-
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import * as saaob from "@/lib/saaob";
-import { Failure, oneOf } from "@/lib/one-of";
+import type {NextRequest} from 'next/server';
 
 import {
   parseTemplateTypeFromBody,
   parseTemplateUploadFormData,
   readFormData,
-} from "@/app/api/saaob/templates/utils";
+} from '@/app/api/saaob/templates/utils';
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import {Failure, oneOf} from '@/lib/one-of';
+import * as saaob from '@/lib/saaob';
 
 export async function GET() {
   const session = await auth.verify([permission.SAAOB_DATA_READ]);
@@ -21,15 +20,15 @@ export async function GET() {
 
   const result = await saaob.getMainDataTemplates();
   return oneOf(result).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
 export async function POST(req: NextRequest) {
   const session = await auth.verify(
     [permission.SAAOB_DATA_READ, permission.SAAOB_DATA_WRITE],
-    "and",
+    'and',
   );
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
@@ -47,15 +46,15 @@ export async function POST(req: NextRequest) {
 
   const result = await saaob.uploadMainDataTemplate(parsed.value);
   return oneOf(result).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
 export async function PATCH(req: NextRequest) {
   const session = await auth.verify(
     [permission.SAAOB_DATA_READ, permission.SAAOB_DATA_WRITE],
-    "and",
+    'and',
   );
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
@@ -73,25 +72,26 @@ export async function PATCH(req: NextRequest) {
 
   const result = await saaob.modifyMainDataTemplate(parsed.value);
   return oneOf(result).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
 export async function DELETE(req: NextRequest) {
   const session = await auth.verify(
     [permission.SAAOB_DATA_READ, permission.SAAOB_DATA_WRITE],
-    "and",
+    'and',
   );
   if (!session || session.code !== SessionCode.Ok) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
-  const body = await tryParseJson<{ type?: unknown }>(req);
+  const body = await tryParseJson<{type?: unknown}>(req);
   if (!body) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid payload.',
+    ).build();
   }
 
   const typeResult = parseTemplateTypeFromBody(body.type);
@@ -102,6 +102,6 @@ export async function DELETE(req: NextRequest) {
   const result = await saaob.removeMainDataTemplate(typeResult.value);
   return oneOf(result).match(
     () => ApiResponseBuilder.create(StatusCodes.Status204NoContent).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }

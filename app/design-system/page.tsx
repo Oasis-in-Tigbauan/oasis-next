@@ -1,5 +1,4 @@
-import type { Metadata } from "next";
-import type { LucideIcon } from "lucide-react";
+import type {LucideIcon} from 'lucide-react';
 import {
   AlertCircle,
   ArrowRight,
@@ -16,92 +15,108 @@ import {
   Sparkles,
   TriangleAlert,
   UserCheck,
-} from "lucide-react";
+} from 'lucide-react';
+import type {Metadata} from 'next';
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { oasisTokens } from "@/lib/tokens";
-import { cn } from "@/lib/utils";
+import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Input} from '@/components/ui/input';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import {oasisTokens} from '@/lib/tokens';
+import {cn} from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: "Oasis Design System",
-  description: "Design tokens, component guidance, and implementation rules for Oasis-Next.",
+  title: 'Oasis Design System',
+  description: 'Design tokens, component guidance, and implementation rules for Oasis-Next.',
 };
 
 const navItems = [
-  "Tokens",
-  "Guidelines",
-  "Button",
-  "Input",
-  "Card",
-  "Badge",
-  "Alert",
-  "Table",
-  "Workflow",
-  "Agent Rules",
+  'Tokens',
+  'Guidelines',
+  'Button',
+  'Input',
+  'Card',
+  'Badge',
+  'Alert',
+  'Table',
+  'Workflow',
+  'Agent Rules',
 ];
 
 const colorGroups = [
-  { name: "brand", tokens: oasisTokens.color.brand },
-  { name: "semantic", tokens: oasisTokens.color.semantic },
-  { name: "surface", tokens: oasisTokens.color.surface },
+  {name: 'brand', tokens: oasisTokens.color.brand},
+  {name: 'semantic', tokens: oasisTokens.color.semantic},
+  {name: 'surface', tokens: oasisTokens.color.surface},
 ];
 
 const statusBadges = [
-  { label: "Draft", className: "border-slate-300 bg-slate-100 text-slate-700" },
-  { label: "Pending", className: "border-[#FFB30F]/30 bg-[#FFF3D6] text-[#7A4B00]" },
-  { label: "Approved", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  { label: "Returned", className: "border-rose-200 bg-rose-50 text-rose-700" },
-  { label: "Posted", className: "border-[#29639F]/20 bg-[#EAF2FA] text-[#1F4F80]" },
+  {label: 'Draft', className: 'border-slate-300 bg-slate-100 text-slate-700'},
+  {label: 'Pending', className: 'border-[#FFB30F]/30 bg-[#FFF3D6] text-[#7A4B00]'},
+  {label: 'Approved', className: 'border-emerald-200 bg-emerald-50 text-emerald-700'},
+  {label: 'Returned', className: 'border-rose-200 bg-rose-50 text-rose-700'},
+  {label: 'Posted', className: 'border-[#29639F]/20 bg-[#EAF2FA] text-[#1F4F80]'},
 ];
 
 const componentRows = [
-  ["Button", "Trigger actions", "default, secondary, outline, destructive, ghost", "default, hover, focus, disabled, loading"],
-  ["Input", "Receive text and numeric data", "text, decimal string, code, disabled", "default, focus, error, disabled"],
-  ["Card", "Group related data or actions", "default, compact, summary, warning", "rest, hover, selected"],
-  ["Badge", "Expose status or category", "draft, pending, approved, returned, posted", "static, focus when interactive"],
-  ["Table", "Dense fiscal and administrative records", "sortable, selected, empty", "hover, selected, loading, empty"],
+  [
+    'Button',
+    'Trigger actions',
+    'default, secondary, outline, destructive, ghost',
+    'default, hover, focus, disabled, loading',
+  ],
+  [
+    'Input',
+    'Receive text and numeric data',
+    'text, decimal string, code, disabled',
+    'default, focus, error, disabled',
+  ],
+  [
+    'Card',
+    'Group related data or actions',
+    'default, compact, summary, warning',
+    'rest, hover, selected',
+  ],
+  [
+    'Badge',
+    'Expose status or category',
+    'draft, pending, approved, returned, posted',
+    'static, focus when interactive',
+  ],
+  [
+    'Table',
+    'Dense fiscal and administrative records',
+    'sortable, selected, empty',
+    'hover, selected, loading, empty',
+  ],
 ];
 
 const workflowSteps = [
   {
     icon: FileSpreadsheet,
-    title: "Request",
-    description: "The originating office drafts an OBR, PPMP, travel order, or worksheet entry.",
+    title: 'Request',
+    description: 'The originating office drafts an OBR, PPMP, travel order, or worksheet entry.',
   },
   {
     icon: ShieldCheck,
-    title: "Review",
-    description: "Approvers verify budget, role permissions, and supporting details before moving forward.",
+    title: 'Review',
+    description:
+      'Approvers verify budget, role permissions, and supporting details before moving forward.',
   },
   {
     icon: CircleDollarSign,
-    title: "Commit",
-    description: "Financial records preserve decimal values as strings until service-layer casting is required.",
+    title: 'Commit',
+    description:
+      'Financial records preserve decimal values as strings until service-layer casting is required.',
   },
   {
     icon: CopyCheck,
-    title: "Archive",
-    description: "Final records remain searchable by office, reference, status, and UTC+8 display date.",
+    title: 'Archive',
+    description:
+      'Final records remain searchable by office, reference, status, and UTC+8 display date.',
   },
 ];
 
@@ -109,25 +124,25 @@ const summaryCards: {
   title: string;
   description: string;
   icon: LucideIcon;
-  tone: "primary" | "warning" | "success";
+  tone: 'primary' | 'warning' | 'success';
 }[] = [
   {
-    title: "OBR Requests",
-    description: "24 pending review",
+    title: 'OBR Requests',
+    description: '24 pending review',
     icon: FileSpreadsheet,
-    tone: "primary",
+    tone: 'primary',
   },
   {
-    title: "Account Approvals",
-    description: "6 users awaiting action",
+    title: 'Account Approvals',
+    description: '6 users awaiting action',
     icon: UserCheck,
-    tone: "warning",
+    tone: 'warning',
   },
   {
-    title: "System Integrity",
-    description: "All required services online",
+    title: 'System Integrity',
+    description: 'All required services online',
     icon: ShieldCheck,
-    tone: "success",
+    tone: 'success',
   },
 ];
 
@@ -176,7 +191,8 @@ export default function DesignSystemPage() {
               One civic interface language for financial operations.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-[#52657A]">
-              A human-readable and agent-usable source of truth for Oasis tokens, reusable UI primitives, workflow states, and implementation rules.
+              A human-readable and agent-usable source of truth for Oasis tokens, reusable UI
+              primitives, workflow states, and implementation rules.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button className="bg-[#29639F] hover:bg-[#1F4F80]">
@@ -196,7 +212,7 @@ export default function DesignSystemPage() {
           {navItems.map((item) => (
             <a
               key={item}
-              href={`#${item.toLowerCase().replaceAll(" ", "-")}`}
+              href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
               className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-[#52657A] transition-colors hover:bg-[#EAF2FA] hover:text-[#022551] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29639F]"
             >
               {item}
@@ -210,18 +226,22 @@ export default function DesignSystemPage() {
           <aside className="text-sm text-[#52657A]">
             <p className="font-semibold uppercase text-[#29639F]">For AI agents</p>
             <p className="mt-2 leading-6">
-              Use this page before creating or changing UI. It defines the expected component imports, token names, state coverage, and domain-specific constraints.
+              Use this page before creating or changing UI. It defines the expected component
+              imports, token names, state coverage, and domain-specific constraints.
             </p>
           </aside>
           <div className="grid gap-4 md:grid-cols-3">
             {[
-              "Import reusable UI from components/ui before writing custom primitives.",
-              "Use oasisTokens from lib/tokens.ts for color, spacing, radius, and typography decisions.",
-              "Represent financial values as strings and format timestamps for UTC+8 at the UI boundary.",
+              'Import reusable UI from components/ui before writing custom primitives.',
+              'Use oasisTokens from lib/tokens.ts for color, spacing, radius, and typography decisions.',
+              'Represent financial values as strings and format timestamps for UTC+8 at the UI boundary.',
             ].map((rule) => (
               <Card key={rule} className="rounded-lg border-[#D8E2EC] bg-white shadow-none">
                 <CardContent className="flex gap-3 pt-6">
-                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#15803D]" aria-hidden="true" />
+                  <CheckCircle2
+                    className="mt-0.5 size-5 shrink-0 text-[#15803D]"
+                    aria-hidden="true"
+                  />
                   <p className="text-sm leading-6 text-[#122033]">{rule}</p>
                 </CardContent>
               </Card>
@@ -261,7 +281,7 @@ export default function DesignSystemPage() {
               {Object.entries(oasisTokens.typography).map(([name, token]) => (
                 <div key={name} className="border-b border-[#D8E2EC] pb-3 last:border-0 last:pb-0">
                   <p className="text-sm font-semibold capitalize text-[#022551]">{name}</p>
-                  <p className={cn("mt-1 text-sm text-[#52657A]", name === "mono" && "font-mono")}>
+                  <p className={cn('mt-1 text-sm text-[#52657A]', name === 'mono' && 'font-mono')}>
                     {token.family} / weight {token.weight}
                   </p>
                   <p className="mt-1 text-xs text-[#7A8A9B]">{token.usage}</p>
@@ -280,16 +300,20 @@ export default function DesignSystemPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <Guideline icon={LockKeyhole} title="Permission visibility">
-            Navigation and actions must be gated by the same permission model used by the server route or API boundary.
+            Navigation and actions must be gated by the same permission model used by the server
+            route or API boundary.
           </Guideline>
           <Guideline icon={PhilippinePeso} title="Financial display">
-            Money is typed as a string in payloads. Components can align and format values, but arithmetic belongs in service logic with Decimal helpers.
+            Money is typed as a string in payloads. Components can align and format values, but
+            arithmetic belongs in service logic with Decimal helpers.
           </Guideline>
           <Guideline icon={Clock3} title="Date and time">
-            Display user-facing dates in UTC+8. Keep API values unchanged and centralize formatting through shared utilities.
+            Display user-facing dates in UTC+8. Keep API values unchanged and centralize formatting
+            through shared utilities.
           </Guideline>
           <Guideline icon={AlertCircle} title="State coverage">
-            Every form and workflow view must include loading, empty, disabled, validation error, and success states where applicable.
+            Every form and workflow view must include loading, empty, disabled, validation error,
+            and success states where applicable.
           </Guideline>
         </div>
 
@@ -302,7 +326,9 @@ export default function DesignSystemPage() {
         <ComponentShowcase code={codeSamples.button}>
           <div className="flex flex-wrap items-center gap-3">
             <Button className="bg-[#29639F] hover:bg-[#1F4F80]">Create request</Button>
-            <Button variant="outline" className="border-[#AEBFD0]">Save draft</Button>
+            <Button variant="outline" className="border-[#AEBFD0]">
+              Save draft
+            </Button>
             <Button variant="secondary">Review later</Button>
             <Button variant="destructive">Return request</Button>
             <Button disabled>Submitting</Button>
@@ -340,15 +366,20 @@ export default function DesignSystemPage() {
           description="Cards are for repeated summaries, dialogs, and compact tools. Do not nest page sections inside decorative cards."
         />
         <div className="grid gap-4 md:grid-cols-3">
-          {summaryCards.map(({ title, description, icon: Icon, tone }) => (
-            <Card key={title} className="rounded-lg border-[#D8E2EC] bg-white shadow-none transition-colors hover:border-[#AEBFD0]">
+          {summaryCards.map(({title, description, icon: Icon, tone}) => (
+            <Card
+              key={title}
+              className="rounded-lg border-[#D8E2EC] bg-white shadow-none transition-colors hover:border-[#AEBFD0]"
+            >
               <CardHeader>
-                <div className={cn(
-                  "mb-2 flex size-10 items-center justify-center rounded-lg",
-                  tone === "primary" && "bg-[#EAF2FA] text-[#29639F]",
-                  tone === "warning" && "bg-[#FFF3D6] text-[#B7791F]",
-                  tone === "success" && "bg-[#DCFCE7] text-[#15803D]",
-                )}>
+                <div
+                  className={cn(
+                    'mb-2 flex size-10 items-center justify-center rounded-lg',
+                    tone === 'primary' && 'bg-[#EAF2FA] text-[#29639F]',
+                    tone === 'warning' && 'bg-[#FFF3D6] text-[#B7791F]',
+                    tone === 'success' && 'bg-[#DCFCE7] text-[#15803D]',
+                  )}
+                >
                   <Icon className="size-5" aria-hidden="true" />
                 </div>
                 <CardTitle className="text-[#022551]">{title}</CardTitle>
@@ -367,7 +398,11 @@ export default function DesignSystemPage() {
         <ComponentShowcase code={codeSamples.status}>
           <div className="flex flex-wrap gap-3">
             {statusBadges.map((badge) => (
-              <Badge key={badge.label} variant="outline" className={cn("px-3 py-1", badge.className)}>
+              <Badge
+                key={badge.label}
+                variant="outline"
+                className={cn('px-3 py-1', badge.className)}
+              >
                 {badge.label}
               </Badge>
             ))}
@@ -384,12 +419,17 @@ export default function DesignSystemPage() {
           <Alert className="border-[#D8E2EC] bg-white">
             <Info className="size-4 text-[#2563EB]" aria-hidden="true" />
             <AlertTitle>Invite token generated</AlertTitle>
-            <AlertDescription>Send the token through the approved invitation flow. Do not expose it in public channels.</AlertDescription>
+            <AlertDescription>
+              Send the token through the approved invitation flow. Do not expose it in public
+              channels.
+            </AlertDescription>
           </Alert>
           <Alert variant="destructive" className="border-[#FEE4E2] bg-[#FFF8F7]">
             <TriangleAlert className="size-4" aria-hidden="true" />
             <AlertTitle>Cannot approve request</AlertTitle>
-            <AlertDescription>The request exceeds the available allotment for this office and fiscal period.</AlertDescription>
+            <AlertDescription>
+              The request exceeds the available allotment for this office and fiscal period.
+            </AlertDescription>
           </Alert>
         </div>
 
@@ -412,15 +452,21 @@ export default function DesignSystemPage() {
               </TableHeader>
               <TableBody>
                 {[
-                  ["OBR-2026-0007", "Accounting", "Pending", "125,000.00"],
-                  ["OBR-2026-0008", "Engineering", "Approved", "78,450.50"],
-                  ["TO-2026-0014", "Mayor's Office", "Draft", "9,800.00"],
+                  ['OBR-2026-0007', 'Accounting', 'Pending', '125,000.00'],
+                  ['OBR-2026-0008', 'Engineering', 'Approved', '78,450.50'],
+                  ['TO-2026-0014', "Mayor's Office", 'Draft', '9,800.00'],
                 ].map(([reference, office, status, amount]) => (
                   <TableRow key={reference}>
                     <TableCell className="font-mono text-xs text-[#022551]">{reference}</TableCell>
                     <TableCell>{office}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn("px-2", statusBadges.find((item) => item.label === status)?.className)}>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'px-2',
+                          statusBadges.find((item) => item.label === status)?.className,
+                        )}
+                      >
                         {status}
                       </Badge>
                     </TableCell>
@@ -440,7 +486,10 @@ export default function DesignSystemPage() {
         />
         <div className="grid gap-4 md:grid-cols-4">
           {workflowSteps.map((step, index) => (
-            <div key={step.title} className="relative rounded-lg border border-[#D8E2EC] bg-white p-5">
+            <div
+              key={step.title}
+              className="relative rounded-lg border border-[#D8E2EC] bg-white p-5"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex size-10 items-center justify-center rounded-lg bg-[#EAF2FA] text-[#29639F]">
                   <step.icon className="size-5" aria-hidden="true" />
@@ -494,14 +543,17 @@ export default function DesignSystemPage() {
           <TabsContent value="checks">
             <div className="grid gap-3 md:grid-cols-2">
               {[
-                "All actions have loading and disabled affordances.",
-                "All hidden inputs preserve visible focus treatment.",
-                "No frontend view calls service functions directly; use API routes.",
-                "Permission-gated UI mirrors server verification rules.",
-                "Empty states say what happened and what the user can do next.",
-                "Amounts are strings and displayed with stable decimal formatting.",
+                'All actions have loading and disabled affordances.',
+                'All hidden inputs preserve visible focus treatment.',
+                'No frontend view calls service functions directly; use API routes.',
+                'Permission-gated UI mirrors server verification rules.',
+                'Empty states say what happened and what the user can do next.',
+                'Amounts are strings and displayed with stable decimal formatting.',
               ].map((item) => (
-                <label key={item} className="flex items-start gap-3 rounded-lg border border-[#D8E2EC] bg-white p-4">
+                <label
+                  key={item}
+                  className="flex items-start gap-3 rounded-lg border border-[#D8E2EC] bg-white p-4"
+                >
                   <Checkbox className="mt-0.5" />
                   <span className="text-sm leading-6 text-[#122033]">{item}</span>
                 </label>
@@ -535,16 +587,18 @@ function SectionHeader({
   return (
     <section id={id} className="scroll-m-20 pb-5 pt-16">
       <p className="text-sm font-semibold uppercase text-[#29639F]">{kicker}</p>
-      <h2 className="mt-2 max-w-3xl text-3xl font-bold tracking-normal text-[#022551] md:text-4xl">{title}</h2>
+      <h2 className="mt-2 max-w-3xl text-3xl font-bold tracking-normal text-[#022551] md:text-4xl">
+        {title}
+      </h2>
       <p className="mt-3 max-w-3xl text-base leading-7 text-[#52657A]">{description}</p>
     </section>
   );
 }
 
-function ColorSwatch({ name, value }: { name: string; value: string }) {
+function ColorSwatch({name, value}: {name: string; value: string}) {
   return (
     <Card className="overflow-hidden rounded-lg border-[#D8E2EC] bg-white py-0 shadow-none">
-      <div className="h-24 border-b border-[#D8E2EC]" style={{ backgroundColor: value }} />
+      <div className="h-24 border-b border-[#D8E2EC]" style={{backgroundColor: value}} />
       <CardContent className="p-4">
         <p className="font-medium text-[#022551]">{splitCamel(name)}</p>
         <p className="mt-1 font-mono text-xs text-[#52657A]">{value}</p>
@@ -553,7 +607,7 @@ function ColorSwatch({ name, value }: { name: string; value: string }) {
   );
 }
 
-function TokenPanel({ title, items }: { title: string; items: [string, string][] }) {
+function TokenPanel({title, items}: {title: string; items: [string, string][]}) {
   return (
     <Card className="rounded-lg border-[#D8E2EC] bg-white shadow-none">
       <CardHeader>
@@ -562,7 +616,10 @@ function TokenPanel({ title, items }: { title: string; items: [string, string][]
       </CardHeader>
       <CardContent className="space-y-3">
         {items.map(([name, value]) => (
-          <div key={name} className="flex items-center justify-between border-b border-[#D8E2EC] pb-2 last:border-0 last:pb-0">
+          <div
+            key={name}
+            className="flex items-center justify-between border-b border-[#D8E2EC] pb-2 last:border-0 last:pb-0"
+          >
             <span className="font-mono text-sm text-[#022551]">{name}</span>
             <span className="font-mono text-sm text-[#52657A]">{value}</span>
           </div>
@@ -596,15 +653,7 @@ function Guideline({
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint: string;
-  children: React.ReactNode;
-}) {
+function Field({label, hint, children}: {label: string; hint: string; children: React.ReactNode}) {
   return (
     <label className="block">
       <span className="mb-2 flex items-center justify-between gap-4 text-sm font-medium text-[#022551]">
@@ -616,13 +665,7 @@ function Field({
   );
 }
 
-function ComponentShowcase({
-  children,
-  code,
-}: {
-  children: React.ReactNode;
-  code: string;
-}) {
+function ComponentShowcase({children, code}: {children: React.ReactNode; code: string}) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
       <div className="rounded-lg border border-[#D8E2EC] bg-white p-6">{children}</div>
@@ -631,7 +674,7 @@ function ComponentShowcase({
   );
 }
 
-function CodeBlock({ code }: { code: string }) {
+function CodeBlock({code}: {code: string}) {
   return (
     <pre className="overflow-x-auto rounded-lg border border-[#D8E2EC] bg-[#122033] p-4 text-sm leading-6 text-[#DDF6FF]">
       <code>{code}</code>
@@ -679,5 +722,5 @@ function IdentityMosaic() {
 }
 
 function splitCamel(value: string) {
-  return value.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
+  return value.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase());
 }

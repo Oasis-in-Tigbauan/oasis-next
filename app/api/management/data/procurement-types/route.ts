@@ -1,12 +1,12 @@
-import type { NextRequest } from "next/server";
+import type {NextRequest} from 'next/server';
 
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as modeOfProcurements from "@/lib/field-types/mode-of-procurements";
-import { oneOf } from "@/lib/one-of";
-import * as permissions from "@/lib/db/permissions";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import { validator } from "@/lib/validators";
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permissions from '@/lib/db/permissions';
+import * as modeOfProcurements from '@/lib/field-types/mode-of-procurements';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import {oneOf} from '@/lib/one-of';
+import {validator} from '@/lib/validators';
 
 export async function GET() {
   const session = await auth.verify();
@@ -16,8 +16,8 @@ export async function GET() {
 
   const data = await modeOfProcurements.all();
   return oneOf(data).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
@@ -32,31 +32,35 @@ export async function POST(req: NextRequest) {
 
   const body = await tryParseJson<PostPayload>(req);
   if (!body) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid payload.',
+    ).build();
   }
 
   const validation = await validator.validate<PostPayload>(body, {
     properties: {
-      name: { type: "string", formatter: "non-empty-string" },
-      description: { type: "string", formatter: "non-empty-string" },
+      name: {type: 'string', formatter: 'non-empty-string'},
+      description: {type: 'string', formatter: 'non-empty-string'},
     },
-    requiredProperties: ["name"],
+    requiredProperties: ['name'],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validation.errors!)
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      validation.errors!,
+    ).build();
   }
 
   const data = await modeOfProcurements.create(body);
   return oneOf(data).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
 type PostPayload = {
   name: string;
   description: Optional<string>;
-}
+};

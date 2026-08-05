@@ -1,18 +1,17 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
-import { DateTime } from "luxon";
-import { Decimal } from "decimal.js";
-import { v7 as uuidv7 } from "uuid";
+import {Decimal} from 'decimal.js';
+import {and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL} from 'drizzle-orm';
+import {DateTime} from 'luxon';
+import {v7 as uuidv7} from 'uuid';
 
-import * as templateBucket from "@/lib/buckets/templates";
-import * as casts from "@/lib/types/casts";
-import { db } from "@/lib/db";
-import { publishEvent } from "@/lib/events";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
 import {
   amountToWords,
   buildChargesString,
   type ObrFormSignerBlock,
-} from "@/common/obr/form-export-layout";
+} from '@/common/obr/form-export-layout';
+import {type User} from '@/lib/accounts';
+import * as templateBucket from '@/lib/buckets/templates';
+import {db} from '@/lib/db';
+import * as permissions from '@/lib/db/permissions';
 import {
   aipReferences,
   esre,
@@ -33,13 +32,14 @@ import {
   saaobEntries,
   user,
   user as userSchema,
-} from "@/lib/db/schema";
-import * as permissions from "@/lib/db/permissions";
-import { validatorUtilities } from "@/lib/validators";
-import { type User } from "@/lib/accounts";
+} from '@/lib/db/schema';
+import {publishEvent} from '@/lib/events';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
+import {validatorUtilities} from '@/lib/validators';
 
-export const OBR_FORM_TEMPLATE_IDENTIFIER = "obr.form";
-export const OBR_DV_FORM_TEMPLATE_IDENTIFIER = "obr.dv.form";
+export const OBR_FORM_TEMPLATE_IDENTIFIER = 'obr.form';
+export const OBR_DV_FORM_TEMPLATE_IDENTIFIER = 'obr.dv.form';
 
 const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS
 
@@ -70,7 +70,10 @@ const _MERGE_CELL_TYPE = 1; // ValueType.Merge in ExcelTS
  * - Responsibility centers and expense codes are validated before the transaction is committed.
  * - Requests always wait until a disbursement is created before entering the approval queue.
  */
-export async function createRequest(req: CreateNewRequestType, user: User): Promise<Result<ObrRequestType>> {
+export async function createRequest(
+  req: CreateNewRequestType,
+  user: User,
+): Promise<Result<ObrRequestType>> {
   try {
     const submittedForApproval = false;
 
@@ -87,52 +90,53 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
       })
       .from(officePosition);
 
-    const budgetOfficerPosition = positions.find(p =>
+    const budgetOfficerPosition = positions.find((p) =>
       p.permissions.includes(permissions.OBR_APPROVER_BASIC_HIGH_WRITE),
     );
 
-    const basicWritePosition = positions.find(p =>
-      p.officeId === user.office.id &&
-      p.permissions.includes(permissions.OBR_APPROVER_BASIC_WRITE),
+    const basicWritePosition = positions.find(
+      (p) =>
+        p.officeId === user.office.id &&
+        p.permissions.includes(permissions.OBR_APPROVER_BASIC_WRITE),
     );
 
     const higherUpSigners = isAdvanced
-      ? positions.filter(p =>
-        p.permissions.includes(permissions.OBR_APPROVER_ADVANCED_WRITE),
-      ).slice(0, 1)
+      ? positions
+          .filter((p) => p.permissions.includes(permissions.OBR_APPROVER_ADVANCED_WRITE))
+          .slice(0, 1)
       : [];
 
     if (!budgetOfficerPosition) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "User does not have a budget officer position in the office.",
-        { req, userId: user.id },
+        'User does not have a budget officer position in the office.',
+        {req, userId: user.id},
       );
     }
 
     if (!basicWritePosition) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "No basic approver position found in the requesting office.",
-        { req, userId: user.id },
+        'No basic approver position found in the requesting office.',
+        {req, userId: user.id},
       );
     }
 
     if (isAdvanced && higherUpSigners.length === 0) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "User does not have a signer for higher up approvals.",
-        { req, userId: user.id },
+        'User does not have a signer for higher up approvals.',
+        {req, userId: user.id},
       );
     }
 
     // Preload all FK references
-    const responsibilityIds = req.requestItems.map(i => i.responsibilityCenterId);
-    const expenseIds = req.requestItems.map(i => i.expenseCodeId);
+    const responsibilityIds = req.requestItems.map((i) => i.responsibilityCenterId);
+    const expenseIds = req.requestItems.map((i) => i.expenseCodeId);
 
     const [responsibilityCenters, expenseCodes] = await Promise.all([
       db
-        .select({ id: officeCodes.id, aa: officeCodes.aa })
+        .select({id: officeCodes.id, aa: officeCodes.aa})
         .from(officeCodes)
         .where(inArray(officeCodes.id, responsibilityIds)),
 
@@ -147,35 +151,29 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         .where(inArray(expenseClasses.id, expenseIds)),
     ]);
 
-    const rcMap = new Map(responsibilityCenters.map(r => [r.id, r]));
-    const ecMap = new Map(expenseCodes.map(e => [e.id, e]));
+    const rcMap = new Map(responsibilityCenters.map((r) => [r.id, r]));
+    const ecMap = new Map(expenseCodes.map((e) => [e.id, e]));
 
     // Validate all exist
     for (const item of req.requestItems) {
       if (!rcMap.has(item.responsibilityCenterId)) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "Invalid responsibility center.",
-          { req, userId: user.id },
-        );
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid responsibility center.', {
+          req,
+          userId: user.id,
+        });
       }
       if (!ecMap.has(item.expenseCodeId)) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "Invalid expense code.",
-          { req, userId: user.id },
-        );
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid expense code.', {
+          req,
+          userId: user.id,
+        });
       }
     }
 
-    const approverPositions = [
-      budgetOfficerPosition,
-      basicWritePosition,
-      ...higherUpSigners,
-    ];
+    const approverPositions = [budgetOfficerPosition, basicWritePosition, ...higherUpSigners];
 
-    const transaction = await db.transaction(async tx => {
-      const requestType = isAdvanced ? "advanced" : "basic";
+    const transaction = await db.transaction(async (tx) => {
+      const requestType = isAdvanced ? 'advanced' : 'basic';
 
       const [request] = await tx
         .insert(obrRequests)
@@ -196,20 +194,20 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         })
         .returning();
 
-      if (!request) throw new Error("Failed to create request");
+      if (!request) throw new Error('Failed to create request');
 
       await tx.insert(obrRequestApprovers).values(
-        approverPositions.map(p => ({
+        approverPositions.map((p) => ({
           requestId: request.id,
           positionId: p.id,
-          status: "pending" as const,
+          status: 'pending' as const,
         })),
       );
 
       const insertedItems = await tx
         .insert(obrRequestItems)
         .values(
-          req.requestItems.map(item => ({
+          req.requestItems.map((item) => ({
             particulars: item.particulars,
             amount: casts.castToDecimal(item.amount),
             requestId: request.id,
@@ -220,7 +218,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         .returning();
 
       // Map items (no extra DB calls)
-      const items = insertedItems.map(i => ({
+      const items = insertedItems.map((i) => ({
         id: i.id,
         particulars: i.particulars,
         amount: i.amount,
@@ -236,7 +234,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         },
       }));
 
-      return { ...request, items };
+      return {...request, items};
     });
 
     // Mapping
@@ -261,10 +259,10 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
         id: user.id,
         name: user.fullName,
       },
-      approvers: approverPositions.map(p => ({
-        status: "pending" as const,
+      approvers: approverPositions.map((p) => ({
+        status: 'pending' as const,
         reason: null,
-        position: { id: p.id, name: p.name },
+        position: {id: p.id, name: p.name},
         signer: null,
         signedAt: null,
       })),
@@ -272,7 +270,7 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
 
     return new Success(createdRequest);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create a request", { req, userId: user.id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create a request', {req, userId: user.id}, e);
   }
 }
 
@@ -304,17 +302,26 @@ export async function createRequest(req: CreateNewRequestType, user: User): Prom
  * - On budget officer approval, autofills the originating office basic approver and, for advanced requests, the vice
  *   mayor (first user with advanced write permission) using their own user records rather than the acting user.
  */
-export async function setApproverState(entryId: string, user: User, status: "pending" | "approved" | "binned", reason?: string): Promise<Result<ApproverObject>> {
+export async function setApproverState(
+  entryId: string,
+  user: User,
+  status: 'pending' | 'approved' | 'binned',
+  reason?: string,
+): Promise<Result<ApproverObject>> {
   try {
     const [role] = await db
-      .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
+      .select({
+        id: officePosition.id,
+        name: officePosition.name,
+        permissions: officePosition.permissions,
+      })
       .from(officePosition)
       .where(eq(officePosition.id, user.office.role.id));
     if (!role) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
-        "You cannot change the approval state of this request due to lack of permission. Contact your Budget Officer for assistance.",
-        { entryId, userId: user.id, status },
+        'You cannot change the approval state of this request due to lack of permission. Contact your Budget Officer for assistance.',
+        {entryId, userId: user.id, status},
       );
     }
 
@@ -322,8 +329,8 @@ export async function setApproverState(entryId: string, user: User, status: "pen
     if (!permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
-        "Only the budget officer may approve or reject this request.",
-        { entryId, userId: user.id, permissions: user.office.role.permissions, status },
+        'Only the budget officer may approve or reject this request.',
+        {entryId, userId: user.id, permissions: user.office.role.permissions, status},
       );
     }
 
@@ -344,16 +351,16 @@ export async function setApproverState(entryId: string, user: User, status: "pen
     if (!approverObject) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
-        "You are not in the signing personnel of this request. Contact your Budget Officer for assistance.",
-        { entryId, userId: user.id, status },
+        'You are not in the signing personnel of this request. Contact your Budget Officer for assistance.',
+        {entryId, userId: user.id, status},
       );
     }
 
-    if (approverObject.status !== "pending" && approverObject.actorId !== null) {
+    if (approverObject.status !== 'pending' && approverObject.actorId !== null) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "This request has already been signed. Contact your Budget Officer for assistance.",
-        { entryId, userId: user.id, status },
+        'This request has already been signed. Contact your Budget Officer for assistance.',
+        {entryId, userId: user.id, status},
       );
     }
 
@@ -367,7 +374,7 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       .where(eq(obrRequests.id, entryId))
       .limit(1);
     if (!requestRow) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { entryId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such request found.', {entryId});
     }
 
     const allPositions = await db
@@ -378,20 +385,22 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       })
       .from(officePosition);
 
-    const basicWritePosition = allPositions.find(p =>
-      p.officeId === requestRow.originatingOfficeId &&
-      p.permissions.includes(permissions.OBR_APPROVER_BASIC_WRITE),
+    const basicWritePosition = allPositions.find(
+      (p) =>
+        p.officeId === requestRow.originatingOfficeId &&
+        p.permissions.includes(permissions.OBR_APPROVER_BASIC_WRITE),
     );
-    const advancedWritePosition = requestRow.type === "advanced"
-      ? allPositions.find(p => p.permissions.includes(permissions.OBR_APPROVER_ADVANCED_WRITE))
-      : undefined;
+    const advancedWritePosition =
+      requestRow.type === 'advanced'
+        ? allPositions.find((p) => p.permissions.includes(permissions.OBR_APPROVER_ADVANCED_WRITE))
+        : undefined;
 
     const [basicWriteSigner, advancedWriteSigner] = await Promise.all([
       basicWritePosition
         ? findFirstUserWithApprovalPermission(
-          permissions.OBR_APPROVER_BASIC_WRITE,
-          requestRow.originatingOfficeId,
-        )
+            permissions.OBR_APPROVER_BASIC_WRITE,
+            requestRow.originatingOfficeId,
+          )
         : Promise.resolve(null),
       advancedWritePosition
         ? findFirstUserWithApprovalPermission(permissions.OBR_APPROVER_ADVANCED_WRITE)
@@ -400,27 +409,27 @@ export async function setApproverState(entryId: string, user: User, status: "pen
 
     const autoFillEntries = [
       basicWritePosition && basicWriteSigner
-        ? { positionId: basicWritePosition.id, actedUserId: basicWriteSigner.id }
+        ? {positionId: basicWritePosition.id, actedUserId: basicWriteSigner.id}
         : null,
       advancedWritePosition && advancedWriteSigner
-        ? { positionId: advancedWritePosition.id, actedUserId: advancedWriteSigner.id }
+        ? {positionId: advancedWritePosition.id, actedUserId: advancedWriteSigner.id}
         : null,
-    ].filter((entry): entry is { positionId: string; actedUserId: string } => entry !== null);
+    ].filter((entry): entry is {positionId: string; actedUserId: string} => entry !== null);
 
     const actedAt = DateTime.utc().toJSDate();
 
-    const [result] = await db.transaction(async tx => {
+    const [result] = await db.transaction(async (tx) => {
       const [updated] = await tx
         .update(obrRequestApprovers)
         .set({
           actedUserId: user.id,
           actedAt,
           status,
-          ...(validatorUtilities.isNotEmpty(reason) ? { reason } : {}),
+          ...(validatorUtilities.isNotEmpty(reason) ? {reason} : {}),
         })
         .where(eq(obrRequestApprovers.id, approverObject.id))
         .returning();
-      if (!updated) throw new Error("Unable to set approver state");
+      if (!updated) throw new Error('Unable to set approver state');
 
       if (autoFillEntries.length > 0) {
         for (const entry of autoFillEntries) {
@@ -430,7 +439,7 @@ export async function setApproverState(entryId: string, user: User, status: "pen
               actedUserId: entry.actedUserId,
               actedAt,
               status,
-              ...(validatorUtilities.isNotEmpty(reason) ? { reason } : {}),
+              ...(validatorUtilities.isNotEmpty(reason) ? {reason} : {}),
             })
             .where(
               and(
@@ -450,7 +459,7 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       .select({
         requestNumber: obrRequests.requestNumber,
         officeId: obrRequests.originatingOfficeId,
-        approvers: sql<({ status: ApprovalState; positionId: string })[]>`COALESCE(
+        approvers: sql<{status: ApprovalState; positionId: string}[]>`COALESCE(
           (
             SELECT json_agg(
               json_build_object(
@@ -475,7 +484,7 @@ export async function setApproverState(entryId: string, user: User, status: "pen
 
     if (requestSummary) {
       await publishEvent({
-        type: "obr.request.approval-moved",
+        type: 'obr.request.approval-moved',
         payload: {
           requestId: entryId,
           requestNumber: requestSummary.requestNumber,
@@ -484,7 +493,7 @@ export async function setApproverState(entryId: string, user: User, status: "pen
           status,
           overallStatus: getSummaryOfStates(requestSummary.approvers),
           nextApproverPositionIds: requestSummary.approvers
-            .filter((approver) => approver.status === "pending")
+            .filter((approver) => approver.status === 'pending')
             .map((approver) => approver.positionId),
         },
       });
@@ -504,7 +513,12 @@ export async function setApproverState(entryId: string, user: User, status: "pen
       signedAt: result.actedAt,
     } satisfies ApproverObject);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to set approver state", { entryId, userId: user.id, status }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to set approver state',
+      {entryId, userId: user.id, status},
+      e,
+    );
   }
 }
 
@@ -537,8 +551,8 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
     if (validate.error) {
       return new Failure(
         validate.error,
-        "Unable to list requests",
-        { userId: user.id },
+        'Unable to list requests',
+        {userId: user.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -557,19 +571,24 @@ export async function list(user: User): Promise<Result<Array<ObrRequestSummaryTy
       )!,
     );
 
-    return new Success(all.map(i => ({
-      id: i.id,
-      type: i.type,
-      requestNumber: i.requestNumber,
-      payee: i.payee,
-      officeAddress: i.officeAddress,
-      obrNumber: i.obrNumber,
-      prNumber: i.prNumber,
-      requestItemsCount: i.requestItemsCount,
-      approvalStatus: getSummaryOfStates(i.approvers),
-    } satisfies ObrRequestSummaryType)));
+    return new Success(
+      all.map(
+        (i) =>
+          ({
+            id: i.id,
+            type: i.type,
+            requestNumber: i.requestNumber,
+            payee: i.payee,
+            officeAddress: i.officeAddress,
+            obrNumber: i.obrNumber,
+            prNumber: i.prNumber,
+            requestItemsCount: i.requestItemsCount,
+            approvalStatus: getSummaryOfStates(i.approvers),
+          }) satisfies ObrRequestSummaryType,
+      ),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to list requests", { userId: user.id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to list requests', {userId: user.id}, e);
   }
 }
 
@@ -602,8 +621,8 @@ export async function updateObrRequestItem(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to update the request item.",
-        { requestId, itemId, userId: user.id },
+        'Unable to update the request item.',
+        {requestId, itemId, userId: user.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -611,16 +630,16 @@ export async function updateObrRequestItem(
     if (await isRequestPromoted(requestId)) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "This request has already been promoted and can no longer be edited.",
-        { requestId, itemId },
+        'This request has already been promoted and can no longer be edited.',
+        {requestId, itemId},
       );
     }
 
     if (await _hasApprovedDisbursementForRequest(requestId)) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "The disbursement for this request has already been approved and can no longer be edited.",
-        { requestId, itemId },
+        'The disbursement for this request has already been approved and can no longer be edited.',
+        {requestId, itemId},
       );
     }
 
@@ -633,30 +652,33 @@ export async function updateObrRequestItem(
         expenseCodeId: obrRequestItems.expenseCodeId,
       })
       .from(obrRequestItems)
-      .where(
-        and(
-          eq(obrRequestItems.id, itemId),
-          eq(obrRequestItems.requestId, requestId),
-        ),
-      )
+      .where(and(eq(obrRequestItems.id, itemId), eq(obrRequestItems.requestId, requestId)))
       .limit(1);
     if (!item) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request item found.", { requestId, itemId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such request item found.', {
+        requestId,
+        itemId,
+      });
     }
 
     const updatePayload = {
-      ...(validatorUtilities.isNotEmpty(payload.particulars) ? { particulars: payload.particulars! } : {}),
-      ...(validatorUtilities.isNumber(payload.amount) ? { amount: casts.castToDecimal(payload.amount!) } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.particulars)
+        ? {particulars: payload.particulars!}
+        : {}),
+      ...(validatorUtilities.isNumber(payload.amount)
+        ? {amount: casts.castToDecimal(payload.amount!)}
+        : {}),
     };
     if (Object.keys(updatePayload).length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "No updatable fields provided.", { requestId, itemId, payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'No updatable fields provided.', {
+        requestId,
+        itemId,
+        payload,
+      });
     }
 
-    await db.transaction(async tx => {
-      await tx
-        .update(obrRequestItems)
-        .set(updatePayload)
-        .where(eq(obrRequestItems.id, itemId));
+    await db.transaction(async (tx) => {
+      await tx.update(obrRequestItems).set(updatePayload).where(eq(obrRequestItems.id, itemId));
 
       const dvUpdate: Record<string, unknown> = {};
       if (updatePayload.particulars) dvUpdate.particulars = updatePayload.particulars;
@@ -670,14 +692,14 @@ export async function updateObrRequestItem(
           .where(
             and(
               eq(obrDisbursementVouchers.requestItemId, itemId),
-              eq(obrDisbursementVouchers.accountantSigningStatus, "pending"),
+              eq(obrDisbursementVouchers.accountantSigningStatus, 'pending'),
             ),
           );
       }
     });
 
     const [rc] = await db
-      .select({ id: officeCodes.id, aa: officeCodes.aa })
+      .select({id: officeCodes.id, aa: officeCodes.aa})
       .from(officeCodes)
       .where(eq(officeCodes.id, item.responsibilityCenterId))
       .limit(1);
@@ -708,7 +730,7 @@ export async function updateObrRequestItem(
       id: updated!.id,
       particulars: updated!.particulars,
       amount: updated!.amount,
-      responsibilityCenter: { id: rc!.id, name: rc!.aa },
+      responsibilityCenter: {id: rc!.id, name: rc!.aa},
       expenseCode: {
         id: ec!.id,
         name: ec!.name,
@@ -717,7 +739,12 @@ export async function updateObrRequestItem(
       },
     } satisfies ObrRequestItemObject);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update request item.", { requestId, itemId, userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to update request item.',
+      {requestId, itemId, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -743,8 +770,8 @@ export async function listPendingDisbursementsForAccountant(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to list pending disbursements.",
-        { userId: user.id },
+        'Unable to list pending disbursements.',
+        {userId: user.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -785,16 +812,13 @@ export async function listPendingDisbursementsForAccountant(
       .leftJoin(fundTypes, eq(fundTypes.id, obrDisbursementVouchers.fundTypeId))
       .where(
         and(
-          eq(obrDisbursementVouchers.accountantSigningStatus, "pending"),
-          or(
-            isNull(obrDisbursementVouchers.requestId),
-            eq(obrRequests.submittedForApproval, true),
-          ),
+          eq(obrDisbursementVouchers.accountantSigningStatus, 'pending'),
+          or(isNull(obrDisbursementVouchers.requestId), eq(obrRequests.submittedForApproval, true)),
         ),
       )
       .orderBy(desc(obrDisbursementVouchers.createdAt));
 
-    type PendingRow = typeof rows[number];
+    type PendingRow = (typeof rows)[number];
 
     const mapRow = (row: PendingRow): PendingDisbursementForAccountant => ({
       id: row.id,
@@ -820,22 +844,20 @@ export async function listPendingDisbursementsForAccountant(
         aa: row.responsibilityCenterAA,
       },
       fundType: validatorUtilities.isNotEmpty(row.fundTypeId)
-        ? { id: row.fundTypeId!, name: row.fundTypeName!, description: row.fundTypeDescription! }
+        ? {id: row.fundTypeId!, name: row.fundTypeName!, description: row.fundTypeDescription!}
         : null,
-      request: row.requestId
-        ? { id: row.requestId, requestNumber: row.requestNumber! }
-        : null,
+      request: row.requestId ? {id: row.requestId, requestNumber: row.requestNumber!} : null,
       requestItem: row.requestItemId
         ? {
-          id: row.requestItemId,
-          particulars: row.requestItemParticulars!,
-          amount: row.requestItemAmount!,
-        }
+            id: row.requestItemId,
+            particulars: row.requestItemParticulars!,
+            amount: row.requestItemAmount!,
+          }
         : {
-          id: row.id,
-          particulars: row.particulars,
-          amount: row.grossAmount ?? "0",
-        },
+            id: row.id,
+            particulars: row.particulars,
+            amount: row.grossAmount ?? '0',
+          },
       prNumber: validatorUtilities.isNotEmpty(row.prNumber) ? row.prNumber : null,
     });
 
@@ -848,7 +870,8 @@ export async function listPendingDisbursementsForAccountant(
         existing.items.push(item);
         existing.itemCount += 1;
         if (validatorUtilities.isNotEmpty(item.grossAmount)) {
-          existing.totalGrossAmount = casts.castFromDecimal(existing.totalGrossAmount)
+          existing.totalGrossAmount = casts
+            .castFromDecimal(existing.totalGrossAmount)
             .add(casts.castFromDecimal(item.grossAmount!))
             .toString();
         }
@@ -863,7 +886,9 @@ export async function listPendingDisbursementsForAccountant(
           isOneForAll: row.isOneForAll,
           withCheque: row.withCheque,
           accountantSigningStatus: row.accountantSigningStatus,
-          totalGrossAmount: validatorUtilities.isNotEmpty(item.grossAmount) ? item.grossAmount! : "0",
+          totalGrossAmount: validatorUtilities.isNotEmpty(item.grossAmount)
+            ? item.grossAmount!
+            : '0',
           itemCount: 1,
           items: [item],
           requestItems: [],
@@ -875,8 +900,8 @@ export async function listPendingDisbursementsForAccountant(
     const oneForAllRequestIds = [
       ...new Set(
         batches
-          .filter(batch => batch.isOneForAll && validatorUtilities.isNotEmpty(batch.requestId))
-          .map(batch => batch.requestId!),
+          .filter((batch) => batch.isOneForAll && validatorUtilities.isNotEmpty(batch.requestId))
+          .map((batch) => batch.requestId!),
       ),
     ];
 
@@ -895,13 +920,16 @@ export async function listPendingDisbursementsForAccountant(
         .innerJoin(expenseClasses, eq(expenseClasses.id, obrRequestItems.expenseCodeId))
         .where(inArray(obrRequestItems.requestId, oneForAllRequestIds));
 
-      const requestItemsByRequestId = new Map<string, Array<{
-        id: string;
-        particulars: string;
-        amount: string;
-        responsibilityCenter: string;
-        expenseName: string;
-      }>>();
+      const requestItemsByRequestId = new Map<
+        string,
+        Array<{
+          id: string;
+          particulars: string;
+          amount: string;
+          responsibilityCenter: string;
+          expenseName: string;
+        }>
+      >();
 
       for (const requestItem of requestItemRows) {
         const existing = requestItemsByRequestId.get(requestItem.requestId) ?? [];
@@ -924,7 +952,12 @@ export async function listPendingDisbursementsForAccountant(
 
     return new Success(batches);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to list pending disbursements.", { userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to list pending disbursements.',
+      {userId: user.id},
+      e,
+    );
   }
 }
 
@@ -950,7 +983,7 @@ export async function listPendingDisbursementsForAccountant(
 export async function approveDisbursementsForRequest(
   requestId: string,
   user: User,
-  status: "pending" | "approved" | "binned",
+  status: 'pending' | 'approved' | 'binned',
   reason?: string,
 ): Promise<Result<ObrDisbursementVoucher[]>> {
   try {
@@ -958,8 +991,8 @@ export async function approveDisbursementsForRequest(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to approve the disbursement vouchers.",
-        { requestId, userId: user.id },
+        'Unable to approve the disbursement vouchers.',
+        {requestId, userId: user.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -974,13 +1007,13 @@ export async function approveDisbursementsForRequest(
       .where(eq(obrRequests.id, requestId))
       .limit(1);
     if (!requestRow) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such request found.', {requestId});
     }
     if (!requestRow.submittedForApproval) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "This request has not been submitted for approval yet.",
-        { requestId },
+        'This request has not been submitted for approval yet.',
+        {requestId},
       );
     }
 
@@ -997,36 +1030,43 @@ export async function approveDisbursementsForRequest(
     if (vouchers.length === 0) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "No disbursement vouchers found for this request.",
-        { requestId },
+        'No disbursement vouchers found for this request.',
+        {requestId},
       );
     }
 
-    if (vouchers.some(v => v.accountantSigningStatus !== "pending")) {
+    if (vouchers.some((v) => v.accountantSigningStatus !== 'pending')) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "One or more disbursement vouchers on this request have already been reviewed.",
-        { requestId },
+        'One or more disbursement vouchers on this request have already been reviewed.',
+        {requestId},
       );
     }
 
-    if (status === "approved" && vouchers.some(v => !validatorUtilities.isNotEmpty(v.fundTypeId))) {
+    if (
+      status === 'approved' &&
+      vouchers.some((v) => !validatorUtilities.isNotEmpty(v.fundTypeId))
+    ) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "A funding source must be assigned to every disbursement voucher before approving.",
-        { requestId },
+        'A funding source must be assigned to every disbursement voucher before approving.',
+        {requestId},
       );
     }
 
-    const mayorSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE);
-    const treasurerSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE);
+    const mayorSigner = await findFirstUserWithDisbursementPermission(
+      permissions.OBR_DISBURSEMENT_MAYOR_APPROVE,
+    );
+    const treasurerSigner = await findFirstUserWithDisbursementPermission(
+      permissions.OBR_DISBURSEMENT_TREASURER_APPROVE,
+    );
     const headSigner = vouchers[0]?.headUserId
       ? null
       : await findOfficeHeadByOffice(requestRow.originatingOfficeId);
 
     const actedAt = DateTime.utc().toJSDate();
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       for (const voucher of vouchers) {
         const updatePayload: Record<string, unknown> = {
           accountantSigningStatus: status,
@@ -1037,7 +1077,7 @@ export async function approveDisbursementsForRequest(
           accountantPositionName: user.office.role.name,
         };
 
-        if (status === "approved") {
+        if (status === 'approved') {
           if (mayorSigner) {
             updatePayload.mayorId = mayorSigner.id;
             updatePayload.mayorName = mayorSigner.name;
@@ -1062,7 +1102,7 @@ export async function approveDisbursementsForRequest(
       }
     });
 
-    if (status === "approved") {
+    if (status === 'approved') {
       await checkAndPromoteRequest(requestId);
     }
 
@@ -1074,7 +1114,12 @@ export async function approveDisbursementsForRequest(
 
     return new Success(updated);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to approve disbursements.", { requestId, userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to approve disbursements.',
+      {requestId, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -1084,14 +1129,16 @@ export async function approveDisbursementsForRequest(
 export async function approveDisbursement(
   dvId: string,
   user: User,
-  status: "pending" | "approved" | "binned",
+  status: 'pending' | 'approved' | 'binned',
   reason?: string,
 ): Promise<Result<ObrDisbursementVoucher>> {
   const result = await approveDisbursementsForRequest(dvId, user, status, reason);
   if (result instanceof Failure) return result;
   const first = result.value[0];
   if (!first) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated disbursement voucher.", { dvId });
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated disbursement voucher.', {
+      dvId,
+    });
   }
   return new Success(first);
 }
@@ -1117,7 +1164,7 @@ export async function approveDisbursement(
 export async function approveDisbursementsForBatch(
   batchId: string,
   user: User,
-  status: "pending" | "approved" | "binned",
+  status: 'pending' | 'approved' | 'binned',
   reason?: string,
 ): Promise<Result<ObrDisbursementVoucher[]>> {
   try {
@@ -1125,8 +1172,8 @@ export async function approveDisbursementsForBatch(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to approve the disbursement vouchers.",
-        { batchId, userId: user.id },
+        'Unable to approve the disbursement vouchers.',
+        {batchId, userId: user.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -1148,40 +1195,53 @@ export async function approveDisbursementsForBatch(
       );
 
     if (vouchers.length === 0) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such standalone disbursement batch found.", { batchId });
-    }
-
-    if (vouchers.some(v => v.accountantSigningStatus !== "pending")) {
       return new Failure(
-        ErrorCodes.ValidationFailure,
-        "One or more disbursement vouchers in this batch have already been reviewed.",
-        { batchId },
+        ErrorCodes.ResourceNotFound,
+        'No such standalone disbursement batch found.',
+        {batchId},
       );
     }
 
-    if (status === "approved" && vouchers.some(v => !validatorUtilities.isNotEmpty(v.fundTypeId))) {
+    if (vouchers.some((v) => v.accountantSigningStatus !== 'pending')) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "A funding source must be assigned to every disbursement voucher before approving.",
-        { batchId },
+        'One or more disbursement vouchers in this batch have already been reviewed.',
+        {batchId},
+      );
+    }
+
+    if (
+      status === 'approved' &&
+      vouchers.some((v) => !validatorUtilities.isNotEmpty(v.fundTypeId))
+    ) {
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'A funding source must be assigned to every disbursement voucher before approving.',
+        {batchId},
       );
     }
 
     const [disburser] = await db
-      .select({ officeId: userSchema.officeId })
+      .select({officeId: userSchema.officeId})
       .from(userSchema)
       .where(eq(userSchema.id, vouchers[0]!.disbursedBy))
       .limit(1);
 
-    const mayorSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE);
-    const treasurerSigner = await findFirstUserWithDisbursementPermission(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE);
+    const mayorSigner = await findFirstUserWithDisbursementPermission(
+      permissions.OBR_DISBURSEMENT_MAYOR_APPROVE,
+    );
+    const treasurerSigner = await findFirstUserWithDisbursementPermission(
+      permissions.OBR_DISBURSEMENT_TREASURER_APPROVE,
+    );
     const headSigner = vouchers[0]?.headUserId
       ? null
-      : (disburser ? await findOfficeHeadByOffice(disburser.officeId) : null);
+      : disburser
+        ? await findOfficeHeadByOffice(disburser.officeId)
+        : null;
 
     const actedAt = DateTime.utc().toJSDate();
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       for (const voucher of vouchers) {
         const updatePayload: Record<string, unknown> = {
           accountantSigningStatus: status,
@@ -1192,7 +1252,7 @@ export async function approveDisbursementsForBatch(
           accountantPositionName: user.office.role.name,
         };
 
-        if (status === "approved") {
+        if (status === 'approved') {
           if (mayorSigner) {
             updatePayload.mayorId = mayorSigner.id;
             updatePayload.mayorName = mayorSigner.name;
@@ -1216,7 +1276,7 @@ export async function approveDisbursementsForBatch(
           .where(eq(obrDisbursementVouchers.id, voucher.id));
       }
 
-      if (status === "approved") {
+      if (status === 'approved') {
         await _createEsreForStandaloneBatch(batchId, tx);
       }
     });
@@ -1229,7 +1289,12 @@ export async function approveDisbursementsForBatch(
 
     return new Success(updated);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to approve standalone disbursements.", { batchId, userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to approve standalone disbursements.',
+      {batchId, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -1268,8 +1333,8 @@ export async function createDisbursement(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to create disbursement vouchers.",
-        { requestId, userId: actor.id },
+        'Unable to create disbursement vouchers.',
+        {requestId, userId: actor.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -1291,16 +1356,16 @@ export async function createDisbursement(
       .limit(1);
 
     if (!request) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such request found.', {requestId});
     }
     if (request.originatingOfficeId !== actor.office.id) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such request found.', {requestId});
     }
     if (request.submittedForApproval) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "A disbursement has already been created for this request.",
-        { requestId },
+        'A disbursement has already been created for this request.',
+        {requestId},
       );
     }
 
@@ -1315,79 +1380,89 @@ export async function createDisbursement(
       .where(eq(obrRequestItems.requestId, requestId));
 
     if (requestItems.length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "This request has no line items.", { requestId });
+      return new Failure(ErrorCodes.ValidationFailure, 'This request has no line items.', {
+        requestId,
+      });
     }
 
-    const itemIdSet = new Set(requestItems.map(i => i.id));
+    const itemIdSet = new Set(requestItems.map((i) => i.id));
 
     if (input.oneForAll) {
       if (!validatorUtilities.isNotEmpty(input.particulars)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Particulars are required.", { requestId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Particulars are required.', {requestId});
       }
       if (!validatorUtilities.isNotEmpty(input.explanation)) {
-        return new Failure(ErrorCodes.ValidationFailure, "An explanation is required.", { requestId });
+        return new Failure(ErrorCodes.ValidationFailure, 'An explanation is required.', {
+          requestId,
+        });
       }
       if (!validatorUtilities.isNumber(input.grossAmount, false, false)) {
-        return new Failure(ErrorCodes.ValidationFailure, "A valid gross amount is required.", { requestId });
+        return new Failure(ErrorCodes.ValidationFailure, 'A valid gross amount is required.', {
+          requestId,
+        });
       }
       const oneForAllTaxType = parseTaxType(input.taxType);
       if (validatorUtilities.isNotEmpty(input.taxType) && !oneForAllTaxType) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid tax type.", { requestId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid tax type.', {requestId});
       }
-      if (validatorUtilities.isExisty(input.vatableAmount) && !validatorUtilities.isNumber(input.vatableAmount, false, false)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid vatable amount.", { requestId });
+      if (
+        validatorUtilities.isExisty(input.vatableAmount) &&
+        !validatorUtilities.isNumber(input.vatableAmount, false, false)
+      ) {
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid vatable amount.', {requestId});
       }
     } else {
       if (input.items.length !== requestItems.length) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "An entry is required for every request item.",
-          { requestId },
+          'An entry is required for every request item.',
+          {requestId},
         );
       }
       for (const entry of input.items) {
         if (!itemIdSet.has(entry.requestItemId)) {
           return new Failure(
             ErrorCodes.ValidationFailure,
-            "One or more request items do not belong to this request.",
-            { requestId, requestItemId: entry.requestItemId },
+            'One or more request items do not belong to this request.',
+            {requestId, requestItemId: entry.requestItemId},
           );
         }
         if (!validatorUtilities.isNotEmpty(entry.explanation)) {
           return new Failure(
             ErrorCodes.ValidationFailure,
-            "Each disbursement item requires an explanation.",
-            { requestId, requestItemId: entry.requestItemId },
+            'Each disbursement item requires an explanation.',
+            {requestId, requestItemId: entry.requestItemId},
           );
         }
         const entryTaxType = parseTaxType(entry.taxType);
         if (validatorUtilities.isNotEmpty(entry.taxType) && !entryTaxType) {
-          return new Failure(
-            ErrorCodes.ValidationFailure,
-            "Invalid tax type.",
-            { requestId, requestItemId: entry.requestItemId },
-          );
+          return new Failure(ErrorCodes.ValidationFailure, 'Invalid tax type.', {
+            requestId,
+            requestItemId: entry.requestItemId,
+          });
         }
-        if (validatorUtilities.isExisty(entry.vatableAmount) && !validatorUtilities.isNumber(entry.vatableAmount, false, false)) {
-          return new Failure(
-            ErrorCodes.ValidationFailure,
-            "Invalid vatable amount.",
-            { requestId, requestItemId: entry.requestItemId },
-          );
+        if (
+          validatorUtilities.isExisty(entry.vatableAmount) &&
+          !validatorUtilities.isNumber(entry.vatableAmount, false, false)
+        ) {
+          return new Failure(ErrorCodes.ValidationFailure, 'Invalid vatable amount.', {
+            requestId,
+            requestItemId: entry.requestItemId,
+          });
         }
       }
     }
 
-    const itemPayloadById = new Map(input.items.map(i => [i.requestItemId, i]));
+    const itemPayloadById = new Map(input.items.map((i) => [i.requestItemId, i]));
     const createdIds: string[] = [];
     const batchId = uuidv7();
 
     const approverPositions = await db
-      .select({ positionId: obrRequestApprovers.positionId })
+      .select({positionId: obrRequestApprovers.positionId})
       .from(obrRequestApprovers)
       .where(eq(obrRequestApprovers.requestId, requestId));
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       const baseSequence = await _getNextDisbursementVoucherSequence(tx);
       const baseDvNumber = String(baseSequence);
 
@@ -1405,18 +1480,20 @@ export async function createDisbursement(
             withCheque,
             disbursementBatchId: batchId,
             grossAmount: casts.castToDecimal(input.grossAmount!),
-            ...(oneForAllTaxType ? { taxType: oneForAllTaxType } : {}),
+            ...(oneForAllTaxType ? {taxType: oneForAllTaxType} : {}),
             ...(validatorUtilities.isNumber(input.vatableAmount, false, false)
-              ? { vatableAmount: casts.castToDecimal(input.vatableAmount!) }
+              ? {vatableAmount: casts.castToDecimal(input.vatableAmount!)}
               : {}),
             responsibilityCenterId: requestItems[0]!.responsibilityCenterId,
             requestId: request.id,
             disbursedBy: actor.id,
-            status: "PREPARATION",
-            accountantSigningStatus: "pending",
-            ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
+            status: 'PREPARATION',
+            accountantSigningStatus: 'pending',
+            ...(validatorUtilities.isNotEmpty(request.prNumber)
+              ? {prNumber: request.prNumber}
+              : {}),
           })
-          .returning({ id: obrDisbursementVouchers.id });
+          .returning({id: obrDisbursementVouchers.id});
 
         createdIds.push(created!.id);
       } else {
@@ -1440,19 +1517,21 @@ export async function createDisbursement(
               withCheque,
               disbursementBatchId: batchId,
               grossAmount: item.amount,
-              ...(entryTaxType ? { taxType: entryTaxType } : {}),
+              ...(entryTaxType ? {taxType: entryTaxType} : {}),
               ...(validatorUtilities.isNumber(entry.vatableAmount, false, false)
-                ? { vatableAmount: casts.castToDecimal(entry.vatableAmount!) }
+                ? {vatableAmount: casts.castToDecimal(entry.vatableAmount!)}
                 : {}),
               responsibilityCenterId: item.responsibilityCenterId,
               requestId: request.id,
               requestItemId: item.id,
               disbursedBy: actor.id,
-              status: "PREPARATION",
-              accountantSigningStatus: "pending",
-              ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
+              status: 'PREPARATION',
+              accountantSigningStatus: 'pending',
+              ...(validatorUtilities.isNotEmpty(request.prNumber)
+                ? {prNumber: request.prNumber}
+                : {}),
             })
-            .returning({ id: obrDisbursementVouchers.id });
+            .returning({id: obrDisbursementVouchers.id});
 
           createdIds.push(created!.id);
         }
@@ -1460,18 +1539,18 @@ export async function createDisbursement(
 
       await tx
         .update(obrRequests)
-        .set({ submittedForApproval: true })
+        .set({submittedForApproval: true})
         .where(eq(obrRequests.id, requestId));
     });
 
     await publishEvent({
-      type: "obr.request.submitted",
+      type: 'obr.request.submitted',
       payload: {
         requestId: request.id,
         requestNumber: request.requestNumber,
         officeId: request.originatingOfficeId,
         actorName: actor.fullName,
-        approverPositionIds: approverPositions.map(p => p.positionId),
+        approverPositionIds: approverPositions.map((p) => p.positionId),
       },
     });
 
@@ -1483,7 +1562,12 @@ export async function createDisbursement(
 
     return new Success(createdVouchers);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create disbursement.", { requestId, userId: actor.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create disbursement.',
+      {requestId, userId: actor.id},
+      e,
+    );
   }
 }
 
@@ -1518,51 +1602,76 @@ export async function createStandaloneDisbursement(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to create standalone disbursement vouchers.",
-        { userId: actor.id },
+        'Unable to create standalone disbursement vouchers.',
+        {userId: actor.id},
         validate.stack ? validate.stack : undefined,
       );
     }
 
     if (!validatorUtilities.isNotEmpty(input.payee)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Payee is required.", { userId: actor.id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Payee is required.', {userId: actor.id});
     }
     if (!validatorUtilities.isNotEmpty(input.officeAddress)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Office address is required.", { userId: actor.id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Office address is required.', {
+        userId: actor.id,
+      });
     }
     if (!validatorUtilities.isUuid(input.responsibilityCenterId)) {
-      return new Failure(ErrorCodes.ValidationFailure, "A valid responsibility center is required.", { userId: actor.id });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'A valid responsibility center is required.',
+        {userId: actor.id},
+      );
     }
     if (input.items.length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "At least one explanation line is required.", { userId: actor.id });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'At least one explanation line is required.',
+        {userId: actor.id},
+      );
     }
 
     for (const item of input.items) {
       if (!validatorUtilities.isNotEmpty(item.particulars)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Each line requires particulars.", { userId: actor.id });
+        return new Failure(ErrorCodes.ValidationFailure, 'Each line requires particulars.', {
+          userId: actor.id,
+        });
       }
       if (!validatorUtilities.isNotEmpty(item.explanation)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Each line requires an explanation.", { userId: actor.id });
+        return new Failure(ErrorCodes.ValidationFailure, 'Each line requires an explanation.', {
+          userId: actor.id,
+        });
       }
       if (!validatorUtilities.isNumber(item.grossAmount, false, false)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Each line requires a valid gross amount.", { userId: actor.id });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'Each line requires a valid gross amount.',
+          {userId: actor.id},
+        );
       }
       const itemTaxType = parseTaxType(item.taxType);
       if (validatorUtilities.isNotEmpty(item.taxType) && !itemTaxType) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid tax type.", { userId: actor.id });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid tax type.', {userId: actor.id});
       }
-      if (validatorUtilities.isExisty(item.vatableAmount) && !validatorUtilities.isNumber(item.vatableAmount, false, false)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid vatable amount.", { userId: actor.id });
+      if (
+        validatorUtilities.isExisty(item.vatableAmount) &&
+        !validatorUtilities.isNumber(item.vatableAmount, false, false)
+      ) {
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid vatable amount.', {
+          userId: actor.id,
+        });
       }
     }
 
     const [rc] = await db
-      .select({ id: officeCodes.id })
+      .select({id: officeCodes.id})
       .from(officeCodes)
       .where(eq(officeCodes.id, input.responsibilityCenterId))
       .limit(1);
     if (!rc) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid responsibility center.", { userId: actor.id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid responsibility center.', {
+        userId: actor.id,
+      });
     }
 
     const withCheque = input.withCheque ?? true;
@@ -1570,7 +1679,7 @@ export async function createStandaloneDisbursement(
     const createdIds: string[] = [];
     const isMulti = input.items.length > 1;
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       const baseSequence = await _getNextDisbursementVoucherSequence(tx);
       const baseDvNumber = String(baseSequence);
 
@@ -1591,17 +1700,17 @@ export async function createStandaloneDisbursement(
             withCheque,
             disbursementBatchId: batchId,
             grossAmount: casts.castToDecimal(item.grossAmount),
-            ...(itemTaxType ? { taxType: itemTaxType } : {}),
+            ...(itemTaxType ? {taxType: itemTaxType} : {}),
             ...(validatorUtilities.isNumber(item.vatableAmount, false, false)
-              ? { vatableAmount: casts.castToDecimal(item.vatableAmount!) }
+              ? {vatableAmount: casts.castToDecimal(item.vatableAmount!)}
               : {}),
             responsibilityCenterId: input.responsibilityCenterId,
             disbursedBy: actor.id,
-            status: "PREPARATION",
-            accountantSigningStatus: "pending",
-            ...(validatorUtilities.isNotEmpty(input.prNumber) ? { prNumber: input.prNumber } : {}),
+            status: 'PREPARATION',
+            accountantSigningStatus: 'pending',
+            ...(validatorUtilities.isNotEmpty(input.prNumber) ? {prNumber: input.prNumber} : {}),
           })
-          .returning({ id: obrDisbursementVouchers.id });
+          .returning({id: obrDisbursementVouchers.id});
 
         createdIds.push(created!.id);
       }
@@ -1615,7 +1724,12 @@ export async function createStandaloneDisbursement(
 
     return new Success(createdVouchers);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create standalone disbursement.", { userId: actor.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create standalone disbursement.',
+      {userId: actor.id},
+      e,
+    );
   }
 }
 
@@ -1641,8 +1755,8 @@ export async function listRequestsPendingDisbursement(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to list requests pending disbursement.",
-        { userId: actor.id },
+        'Unable to list requests pending disbursement.',
+        {userId: actor.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -1654,19 +1768,29 @@ export async function listRequestsPendingDisbursement(
       )!,
     );
 
-    return new Success(all.map(i => ({
-      id: i.id,
-      type: i.type,
-      requestNumber: i.requestNumber,
-      payee: i.payee,
-      officeAddress: i.officeAddress,
-      obrNumber: i.obrNumber,
-      prNumber: i.prNumber,
-      requestItemsCount: i.requestItemsCount,
-      approvalStatus: getSummaryOfStates(i.approvers),
-    } satisfies ObrRequestSummaryType)));
+    return new Success(
+      all.map(
+        (i) =>
+          ({
+            id: i.id,
+            type: i.type,
+            requestNumber: i.requestNumber,
+            payee: i.payee,
+            officeAddress: i.officeAddress,
+            obrNumber: i.obrNumber,
+            prNumber: i.prNumber,
+            requestItemsCount: i.requestItemsCount,
+            approvalStatus: getSummaryOfStates(i.approvers),
+          }) satisfies ObrRequestSummaryType,
+      ),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to list requests pending disbursement.", { userId: actor.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to list requests pending disbursement.',
+      {userId: actor.id},
+      e,
+    );
   }
 }
 
@@ -1698,8 +1822,8 @@ export async function updateObrRequestHeader(
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to update the request header.",
-        { requestId, userId: actor.id },
+        'Unable to update the request header.',
+        {requestId, userId: actor.id},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -1707,34 +1831,36 @@ export async function updateObrRequestHeader(
     if (await isRequestPromoted(requestId)) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "This request has already been promoted and can no longer be edited.",
-        { requestId },
+        'This request has already been promoted and can no longer be edited.',
+        {requestId},
       );
     }
 
     if (await _hasApprovedDisbursementForRequest(requestId)) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "The disbursement for this request has already been approved and can no longer be edited.",
-        { requestId },
+        'The disbursement for this request has already been approved and can no longer be edited.',
+        {requestId},
       );
     }
 
     const updatePayload = {
-      ...(validatorUtilities.isNotEmpty(payload.payee) ? { payee: payload.payee! } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.officeAddress) ? { officeAddress: payload.officeAddress! } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.obrNumber) ? { obrNumber: payload.obrNumber! } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.prNumber) ? { prNumber: payload.prNumber! } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.payee) ? {payee: payload.payee!} : {}),
+      ...(validatorUtilities.isNotEmpty(payload.officeAddress)
+        ? {officeAddress: payload.officeAddress!}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.obrNumber) ? {obrNumber: payload.obrNumber!} : {}),
+      ...(validatorUtilities.isNotEmpty(payload.prNumber) ? {prNumber: payload.prNumber!} : {}),
     };
     if (Object.keys(updatePayload).length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "No updatable fields provided.", { requestId, payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'No updatable fields provided.', {
+        requestId,
+        payload,
+      });
     }
 
-    await db.transaction(async tx => {
-      await tx
-        .update(obrRequests)
-        .set(updatePayload)
-        .where(eq(obrRequests.id, requestId));
+    await db.transaction(async (tx) => {
+      await tx.update(obrRequests).set(updatePayload).where(eq(obrRequests.id, requestId));
 
       const dvUpdate: Record<string, unknown> = {};
       if (updatePayload.payee !== undefined) dvUpdate.payee = updatePayload.payee;
@@ -1748,7 +1874,7 @@ export async function updateObrRequestHeader(
           .where(
             and(
               eq(obrDisbursementVouchers.requestId, requestId),
-              eq(obrDisbursementVouchers.accountantSigningStatus, "pending"),
+              eq(obrDisbursementVouchers.accountantSigningStatus, 'pending'),
             ),
           );
       }
@@ -1758,7 +1884,12 @@ export async function updateObrRequestHeader(
     if (updated instanceof Failure) return updated;
     return updated;
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update request header.", { requestId, userId: actor.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to update request header.',
+      {requestId, userId: actor.id},
+      e,
+    );
   }
 }
 
@@ -1787,8 +1918,8 @@ export async function listAllValidForObrMainDataCreate(): Promise<Result<ObrRequ
     );
 
     const filtered: ObrRequestSummaryType[] = all
-      .filter(i => getSummaryOfStates(i.approvers) === "approved")
-      .map(i => ({
+      .filter((i) => getSummaryOfStates(i.approvers) === 'approved')
+      .map((i) => ({
         id: i.id,
         type: i.type,
         requestNumber: i.requestNumber,
@@ -1802,7 +1933,12 @@ export async function listAllValidForObrMainDataCreate(): Promise<Result<ObrRequ
 
     return new Success(filtered);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to list requests for OBR main data creation.", {}, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to list requests for OBR main data creation.',
+      {},
+      e,
+    );
   }
 }
 
@@ -1830,35 +1966,37 @@ export async function listAllValidForObrMainDataCreate(): Promise<Result<ObrRequ
  * - Users with office-limited access can only retrieve requests from their own office.
  * - The returned request includes publisher, originating office, request items, and approver/signing details.
  */
-export async function getObrRequestById(requestId: string, user: User): Promise<Result<ObrRequestType>> {
+export async function getObrRequestById(
+  requestId: string,
+  user: User,
+): Promise<Result<ObrRequestType>> {
   try {
     const validate = await isAccessingUserValidAsRequestReader(user);
     if (validate.error) {
       return new Failure(
         validate.error,
-        "Unable to get the object you requested.",
-        { userId: user.id, requestId },
+        'Unable to get the object you requested.',
+        {userId: user.id, requestId},
         validate.stack ? validate.stack : undefined,
       );
     }
 
     // Get the initial values
-    const whereQuery: SQL[] = [
-      eq(obrRequests.id, requestId),
-    ];
-    if (validate.officeLimited) whereQuery.push(eq(obrRequests.originatingOfficeId, user.office.id));
+    const whereQuery: SQL[] = [eq(obrRequests.id, requestId)];
+    if (validate.officeLimited)
+      whereQuery.push(eq(obrRequests.originatingOfficeId, user.office.id));
 
     const result: ObrRequestType | null = await _getObrRequestById(requestId, whereQuery);
     if (!result) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such request found.', {requestId});
     }
 
     return new Success(result);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to fetch the obr request due to an error.",
-      { requestId, userId: user.id },
+      'Unable to fetch the obr request due to an error.',
+      {requestId, userId: user.id},
       e,
     );
   }
@@ -1871,7 +2009,7 @@ export async function getObrRequestById(requestId: string, user: User): Promise<
  * @returns {Result<ObrTemplateType>} Parsed type or validation failure.
  */
 export function parseObrTemplateType(type: unknown): Result<ObrTemplateType> {
-  if (type !== "header" && type !== "footer") {
+  if (type !== 'header' && type !== 'footer') {
     return new Failure(
       ErrorCodes.ValidationFailure,
       "Invalid template type. Must be 'header' or 'footer'.",
@@ -2082,12 +2220,15 @@ export async function removeObrDvFormTemplate(type: ObrTemplateType): Promise<Re
  * @param {User} user - User requesting the export.
  * @returns {Promise<Result<Buffer>>} Workbook bytes on success, or a failure result.
  */
-export async function exportObrRequestFormToBuffer(requestId: string, user: User): Promise<Result<Buffer>> {
+export async function exportObrRequestFormToBuffer(
+  requestId: string,
+  user: User,
+): Promise<Result<Buffer>> {
   try {
     const requestResult = await getObrRequestById(requestId, user);
     if (requestResult instanceof Failure) return requestResult;
 
-    const headerPathResult = await _getTemplatePath(OBR_FORM_TEMPLATE_IDENTIFIER, "header");
+    const headerPathResult = await _getTemplatePath(OBR_FORM_TEMPLATE_IDENTIFIER, 'header');
     if (headerPathResult instanceof Failure) return headerPathResult;
 
     const buffer = await _buildObrFormExcelBuffer(requestResult.value, headerPathResult.value);
@@ -2095,8 +2236,8 @@ export async function exportObrRequestFormToBuffer(requestId: string, user: User
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Failed to export OBR request form.",
-      { requestId, userId: user.id },
+      'Failed to export OBR request form.',
+      {requestId, userId: user.id},
       e,
     );
   }
@@ -2119,41 +2260,45 @@ export async function exportObrRequestFormToBuffer(requestId: string, user: User
  * @param {User} actor - User requesting the export.
  * @returns {Promise<Result<Buffer>>} Workbook bytes on success, or a failure result.
  */
-export async function exportDisbursementVoucherToBuffer(id: string, actor: User): Promise<Result<Buffer>> {
+export async function exportDisbursementVoucherToBuffer(
+  id: string,
+  actor: User,
+): Promise<Result<Buffer>> {
   try {
     const validate = await isWriterUserValidForDisbursement(actor);
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to export the object you requested.",
-        { id, userId: actor.id },
+        'Unable to export the object you requested.',
+        {id, userId: actor.id},
         validate.stack ? validate.stack : undefined,
       );
     }
 
     const voucher = await _getDisbursementVoucherById(id);
     if (!voucher) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such disbursement voucher found.",
-        { id, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such disbursement voucher found.', {
+        id,
+        userId: actor.id,
+      });
     }
 
-    const headerPathResult = await _getTemplatePath(OBR_DV_FORM_TEMPLATE_IDENTIFIER, "header");
+    const headerPathResult = await _getTemplatePath(OBR_DV_FORM_TEMPLATE_IDENTIFIER, 'header');
     if (headerPathResult instanceof Failure) return headerPathResult;
 
-    const elecData = voucher.hasElecData
-      ? await _getElecDataForVoucher(voucher.id)
-      : [];
+    const elecData = voucher.hasElecData ? await _getElecDataForVoucher(voucher.id) : [];
 
-    const buffer = await _buildDisbursementVoucherExcelBuffer(voucher, elecData, headerPathResult.value);
+    const buffer = await _buildDisbursementVoucherExcelBuffer(
+      voucher,
+      elecData,
+      headerPathResult.value,
+    );
     return new Success(buffer);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Failed to export disbursement voucher form.",
-      { id, userId: actor.id },
+      'Failed to export disbursement voucher form.',
+      {id, userId: actor.id},
       e,
     );
   }
@@ -2186,14 +2331,18 @@ export async function exportDisbursementVoucherToBuffer(id: string, actor: User)
  * - Referenced fund types are validated before being assigned.
  * - Tax breakdown is recomputed from the updated voucher values before returning the response.
  */
-export async function updateDisbursementVoucher(id: string, payload: UpdateDisbursementVoucherPayload, actor: User): Promise<Result<ObrDisbursementVoucher>> {
+export async function updateDisbursementVoucher(
+  id: string,
+  payload: UpdateDisbursementVoucherPayload,
+  actor: User,
+): Promise<Result<ObrDisbursementVoucher>> {
   try {
     const validate = await isWriterOrAccountantValidForDisbursement(actor);
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to update the object you requested.",
-        { actorId: actor.id, id, payload },
+        'Unable to update the object you requested.',
+        {actorId: actor.id, id, payload},
         validate.stack ? validate.stack : undefined,
       );
     }
@@ -2216,55 +2365,63 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
         disbursedByName: user.name,
       })
       .from(obrDisbursementVouchers)
-      .innerJoin(
-        officeCodes,
-        eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId),
-      )
-      .leftJoin(
-        fundTypes,
-        eq(fundTypes.id, obrDisbursementVouchers.fundTypeId),
-      )
-      .innerJoin(
-        user,
-        eq(user.id, obrDisbursementVouchers.disbursedBy),
-      )
+      .innerJoin(officeCodes, eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId))
+      .leftJoin(fundTypes, eq(fundTypes.id, obrDisbursementVouchers.fundTypeId))
+      .innerJoin(user, eq(user.id, obrDisbursementVouchers.disbursedBy))
       .where(eq(obrDisbursementVouchers.id, id))
       .limit(1);
     if (!ref) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such disbursement voucher found.",
-        { id, payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such disbursement voucher found.', {
+        id,
+        payload,
+        userId: actor.id,
+      });
     }
 
-    if (ref.accountantSigningStatus === "approved") {
+    if (ref.accountantSigningStatus === 'approved') {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "This disbursement voucher has already been approved and can no longer be edited.",
-        { id, payload, userId: actor.id },
+        'This disbursement voucher has already been approved and can no longer be edited.',
+        {id, payload, userId: actor.id},
       );
     }
 
     const updatePayload = {
-      ...(validatorUtilities.isNotEmpty(payload.particulars) ? { particulars: payload.particulars! } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.explanation) ? { explanation: payload.explanation! } : {}),
-      ...(validatorUtilities.isNumber(payload.grossAmount) ? { grossAmount: casts.castToDecimal(payload.grossAmount!) } : {}),
-      ...(validatorUtilities.isNumber(payload.vatableAmount) ? { vatableAmount: casts.castToDecimal(payload.vatableAmount!) } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.taxType) ? { taxType: payload.taxType as TaxType } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.fundTypeId) ? { fundTypeId: payload.fundTypeId } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.status) ? { status: payload.status as DisbursementStatus } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.particulars)
+        ? {particulars: payload.particulars!}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.explanation)
+        ? {explanation: payload.explanation!}
+        : {}),
+      ...(validatorUtilities.isNumber(payload.grossAmount)
+        ? {grossAmount: casts.castToDecimal(payload.grossAmount!)}
+        : {}),
+      ...(validatorUtilities.isNumber(payload.vatableAmount)
+        ? {vatableAmount: casts.castToDecimal(payload.vatableAmount!)}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.taxType)
+        ? {taxType: payload.taxType as TaxType}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.fundTypeId)
+        ? {fundTypeId: payload.fundTypeId}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.status)
+        ? {status: payload.status as DisbursementStatus}
+        : {}),
     };
-    if (Object.keys(updatePayload).length === 0 && !validatorUtilities.isNotEmpty(payload.obrItemId)) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "No updatable payload found.",
-        { actorId: actor.id, payload, id },
-      );
+    if (
+      Object.keys(updatePayload).length === 0 &&
+      !validatorUtilities.isNotEmpty(payload.obrItemId)
+    ) {
+      return new Failure(ErrorCodes.ValidationFailure, 'No updatable payload found.', {
+        actorId: actor.id,
+        payload,
+        id,
+      });
     }
 
     // Check if the fund type exists
-    let fundType: Optional<{ id: string; name: string; description: Optional<string> }> = null;
+    let fundType: Optional<{id: string; name: string; description: Optional<string>}> = null;
     if (updatePayload.fundTypeId) {
       const [fundTypeResult] = await db
         .select({
@@ -2276,11 +2433,11 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
         .where(eq(fundTypes.id, updatePayload.fundTypeId))
         .limit(1);
       if (!fundTypeResult) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "No such fund type found.",
-          { actorId: actor.id, payload, id },
-        );
+        return new Failure(ErrorCodes.ValidationFailure, 'No such fund type found.', {
+          actorId: actor.id,
+          payload,
+          id,
+        });
       }
 
       fundType = fundTypeResult;
@@ -2290,52 +2447,56 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
     let newObrItemId: string | null = null;
     if (validatorUtilities.isNotEmpty(payload.obrItemId)) {
       const [newObrItem] = await db
-        .select({ id: obrItems.id, requestId: obrItems.requestId, disbursementRefId: obrItems.disbursementRefId })
+        .select({
+          id: obrItems.id,
+          requestId: obrItems.requestId,
+          disbursementRefId: obrItems.disbursementRefId,
+        })
         .from(obrItems)
         .where(eq(obrItems.id, payload.obrItemId!))
         .limit(1);
       if (!newObrItem) {
-        return new Failure(
-          ErrorCodes.ResourceNotFound,
-          "No such OBR item found.",
-          { actorId: actor.id, payload, id },
-        );
+        return new Failure(ErrorCodes.ResourceNotFound, 'No such OBR item found.', {
+          actorId: actor.id,
+          payload,
+          id,
+        });
       }
       if (newObrItem.requestId !== ref.requestId) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "The specified OBR item does not belong to the same request as this disbursement voucher.",
-          { actorId: actor.id, payload, id },
+          'The specified OBR item does not belong to the same request as this disbursement voucher.',
+          {actorId: actor.id, payload, id},
         );
       }
       if (validatorUtilities.isNotEmpty(newObrItem.disbursementRefId)) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "The specified OBR item is already linked to a disbursement voucher.",
-          { actorId: actor.id, payload, id },
+          'The specified OBR item is already linked to a disbursement voucher.',
+          {actorId: actor.id, payload, id},
         );
       }
       newObrItemId = newObrItem.id;
     }
 
     const [elecData] = await db
-      .select({ id: obrDisbursementElectronic.id })
+      .select({id: obrDisbursementElectronic.id})
       .from(obrDisbursementElectronic)
       .where(eq(obrDisbursementElectronic.voucherId, ref.id))
       .limit(1);
 
-    const [result] = await db.transaction(async tx => {
+    const [result] = await db.transaction(async (tx) => {
       if (newObrItemId !== null) {
         // Unlink whichever obrItem currently points to this voucher
         await tx
           .update(obrItems)
-          .set({ disbursementRefId: null })
+          .set({disbursementRefId: null})
           .where(eq(obrItems.disbursementRefId, ref.id));
 
         // Link the new obrItem
         await tx
           .update(obrItems)
-          .set({ disbursementRefId: ref.id })
+          .set({disbursementRefId: ref.id})
           .where(eq(obrItems.id, newObrItemId));
       }
 
@@ -2343,7 +2504,7 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
         .update(obrDisbursementVouchers)
         .set({
           ...updatePayload,
-          ...(validatorUtilities.isExisty(fundType) ? { fundTypeId: fundType!.id } : {}),
+          ...(validatorUtilities.isExisty(fundType) ? {fundTypeId: fundType!.id} : {}),
         })
         .where(eq(obrDisbursementVouchers.id, ref.id))
         .returning();
@@ -2351,7 +2512,10 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       const requestItemUpdate: Record<string, unknown> = {};
       if (updatePayload.particulars) requestItemUpdate.particulars = updatePayload.particulars;
       if (updatePayload.grossAmount) requestItemUpdate.amount = updatePayload.grossAmount;
-      if (Object.keys(requestItemUpdate).length > 0 && validatorUtilities.isNotEmpty(ref.requestItemId)) {
+      if (
+        Object.keys(requestItemUpdate).length > 0 &&
+        validatorUtilities.isNotEmpty(ref.requestItemId)
+      ) {
         await tx
           .update(obrRequestItems)
           .set(requestItemUpdate)
@@ -2375,7 +2539,9 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
       requestId: result.requestId,
       requestItemId: result.requestItemId,
       grossAmount: validatorUtilities.isNotEmpty(result.grossAmount) ? result.grossAmount! : null,
-      vatableAmount: validatorUtilities.isNotEmpty(result.vatableAmount) ? result.vatableAmount! : null,
+      vatableAmount: validatorUtilities.isNotEmpty(result.vatableAmount)
+        ? result.vatableAmount!
+        : null,
       taxType: result.taxType ?? null,
       taxBreakdown: createTaxBreakdown(
         validatorUtilities.isNotEmpty(result.vatableAmount) ? result.vatableAmount! : null,
@@ -2386,16 +2552,30 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
         aa: ref.responsibilityCenterAA,
       },
       signers: {
-        accountant: mapSignerField(result.accountantId, result.accountantName, result.accountantPositionName),
-        treasurer: mapSignerField(result.treasurerId, result.treasurerName, result.treasurerPositionName),
+        accountant: mapSignerField(
+          result.accountantId,
+          result.accountantName,
+          result.accountantPositionName,
+        ),
+        treasurer: mapSignerField(
+          result.treasurerId,
+          result.treasurerName,
+          result.treasurerPositionName,
+        ),
         mayor: mapSignerField(result.mayorId, result.mayorName, result.mayorPositionName),
-        headOfOffice: mapSignerField(result.headUserId, result.headUserName, result.headUserPositionName),
+        headOfOffice: mapSignerField(
+          result.headUserId,
+          result.headUserName,
+          result.headUserPositionName,
+        ),
       },
       accountantSigningStatus: result.accountantSigningStatus,
       fundType: validatorUtilities.isNotEmpty(result.fundTypeId)
-        ? (result.fundTypeId === ref.fundTypeId
-          ? { id: ref.fundTypeId!, name: ref.fundTypeName!, description: ref.fundTypeDescription! }
-          : (fundType ? { id: fundType.id, name: fundType.name, description: fundType.description } : null))
+        ? result.fundTypeId === ref.fundTypeId
+          ? {id: ref.fundTypeId!, name: ref.fundTypeName!, description: ref.fundTypeDescription!}
+          : fundType
+            ? {id: fundType.id, name: fundType.name, description: fundType.description}
+            : null
         : null,
       status: validatorUtilities.isNotEmpty(result.status) ? result.status : null,
       prNumber: validatorUtilities.isNotEmpty(result.prNumber) ? result.prNumber : null,
@@ -2404,8 +2584,8 @@ export async function updateDisbursementVoucher(id: string, payload: UpdateDisbu
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to update the disbursement voucher.",
-      { id, payload, actorId: actor.id },
+      'Unable to update the disbursement voucher.',
+      {id, payload, actorId: actor.id},
       e,
     );
   }
@@ -2417,43 +2597,40 @@ export async function deleteDisbursementVoucher(id: string, actor: User): Promis
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to delete the object you requested.",
-        { actorId: actor.id, id },
+        'Unable to delete the object you requested.',
+        {actorId: actor.id, id},
         validate.stack ? validate.stack : undefined,
       );
     }
 
     const [ref] = await db
-      .select({ id: obrDisbursementVouchers.id })
+      .select({id: obrDisbursementVouchers.id})
       .from(obrDisbursementVouchers)
       .where(eq(obrDisbursementVouchers.id, id))
       .limit(1);
     if (!ref) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such disbursement voucher found.",
-        { id, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such disbursement voucher found.', {
+        id,
+        userId: actor.id,
+      });
     }
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       // Unlink any obrItems pointing to this voucher before deleting
       await tx
         .update(obrItems)
-        .set({ disbursementRefId: null })
+        .set({disbursementRefId: null})
         .where(eq(obrItems.disbursementRefId, id));
 
-      await tx
-        .delete(obrDisbursementVouchers)
-        .where(eq(obrDisbursementVouchers.id, id));
+      await tx.delete(obrDisbursementVouchers).where(eq(obrDisbursementVouchers.id, id));
     });
 
     return new Success(undefined);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to delete the disbursement voucher.",
-      { id, actorId: actor.id },
+      'Unable to delete the disbursement voucher.',
+      {id, actorId: actor.id},
       e,
     );
   }
@@ -2461,7 +2638,7 @@ export async function deleteDisbursementVoucher(id: string, actor: User): Promis
 
 async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementVoucher | null> {
   const [hasElecData] = await db
-    .select({ voucherId: obrDisbursementElectronic.voucherId })
+    .select({voucherId: obrDisbursementElectronic.voucherId})
     .from(obrDisbursementElectronic)
     .where(eq(obrDisbursementElectronic.voucherId, id))
     .limit(1);
@@ -2511,14 +2688,8 @@ async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementV
       createdAt: obrDisbursementVouchers.createdAt,
     })
     .from(obrDisbursementVouchers)
-    .innerJoin(
-      officeCodes,
-      eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId),
-    )
-    .leftJoin(
-      fundTypes,
-      eq(fundTypes.id, obrDisbursementVouchers.fundTypeId),
-    )
+    .innerJoin(officeCodes, eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId))
+    .leftJoin(fundTypes, eq(fundTypes.id, obrDisbursementVouchers.fundTypeId))
     .where(eq(obrDisbursementVouchers.id, id))
     .limit(1);
 
@@ -2558,7 +2729,7 @@ async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementV
     },
     accountantSigningStatus: ref.accountantSigningStatus,
     fundType: validatorUtilities.isNotEmpty(ref.fundTypeId)
-      ? { id: ref.fundTypeId!, name: ref.fundTypeName!, description: ref.fundTypeDescription! }
+      ? {id: ref.fundTypeId!, name: ref.fundTypeName!, description: ref.fundTypeDescription!}
       : null,
     status: validatorUtilities.isNotEmpty(ref.status) ? ref.status : null,
     prNumber: validatorUtilities.isNotEmpty(ref.prNumber) ? ref.prNumber : null,
@@ -2566,7 +2737,9 @@ async function _getDisbursementVoucherById(id: string): Promise<ObrDisbursementV
   } satisfies ObrDisbursementVoucher;
 }
 
-async function _getElecDataForVoucher(voucherId: string): Promise<Array<ObrDisbursementElectronicItem>> {
+async function _getElecDataForVoucher(
+  voucherId: string,
+): Promise<Array<ObrDisbursementElectronicItem>> {
   const rows = await db
     .select({
       id: obrDisbursementElectronic.id,
@@ -2581,7 +2754,7 @@ async function _getElecDataForVoucher(voucherId: string): Promise<Array<ObrDisbu
     .where(eq(obrDisbursementElectronic.voucherId, voucherId))
     .orderBy(asc(obrDisbursementElectronic.createdAt));
 
-  return rows.map(row => ({
+  return rows.map((row) => ({
     id: row.id,
     billingName: row.billingName,
     meterSerial: row.meterSerial,
@@ -2615,22 +2788,24 @@ async function _getElecDataForVoucher(voucherId: string): Promise<Array<ObrDisbu
  * - Includes fund type information when assigned.
  * - Tax breakdowns are computed from each voucher's saved values.
  */
-export async function getAllDisbursementVouchers(actor: User): Promise<Result<Array<ObrDisbursementVoucher>>> {
+export async function getAllDisbursementVouchers(
+  actor: User,
+): Promise<Result<Array<ObrDisbursementVoucher>>> {
   try {
     const validate = await isWriterOrAccountantValidForDisbursement(actor);
     if (validate?.error) {
       return new Failure(
         validate.error,
-        "Unable to fetch disbursement items",
-        { userId: actor.id },
+        'Unable to fetch disbursement items',
+        {userId: actor.id},
         validate.stack ? validate.stack : undefined,
       );
     }
 
     const elecItems = await db
-      .select({ voucherId: obrDisbursementElectronic.voucherId })
+      .select({voucherId: obrDisbursementElectronic.voucherId})
       .from(obrDisbursementElectronic);
-    const allElecItems = new Set(elecItems.map(x => x.voucherId));
+    const allElecItems = new Set(elecItems.map((x) => x.voucherId));
 
     const all = await db
       .select({
@@ -2680,68 +2855,76 @@ export async function getAllDisbursementVouchers(actor: User): Promise<Result<Ar
         createdAt: obrDisbursementVouchers.createdAt,
       })
       .from(obrDisbursementVouchers)
-      .innerJoin(
-        officeCodes,
-        eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId),
-      )
-      .leftJoin(
-        fundTypes,
-        eq(fundTypes.id, obrDisbursementVouchers.fundTypeId),
-      )
-      .innerJoin(
-        user,
-        eq(user.id, obrDisbursementVouchers.disbursedBy),
-      )
+      .innerJoin(officeCodes, eq(officeCodes.id, obrDisbursementVouchers.responsibilityCenterId))
+      .leftJoin(fundTypes, eq(fundTypes.id, obrDisbursementVouchers.fundTypeId))
+      .innerJoin(user, eq(user.id, obrDisbursementVouchers.disbursedBy))
       .where(eq(user.officeId, actor.office.id));
 
-    return new Success(all.map(ref => ({
-      id: ref.id,
-      disbursementVoucherNumber: ref.disbursementVoucherNumber,
-      createdAt: ref.createdAt,
-      payee: ref.payee,
-      address: ref.address,
-      particulars: ref.particulars,
-      explanation: validatorUtilities.isNotEmpty(ref.explanation) ? ref.explanation : null,
-      isOneForAll: ref.isOneForAll,
-      withCheque: ref.withCheque,
-      disbursementBatchId: ref.disbursementBatchId,
-      requestId: ref.requestId,
-      requestItemId: ref.requestItemId,
-      grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? ref.grossAmount! : null,
-      vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
-      taxType: ref.taxType ?? null,
-      taxBreakdown: createTaxBreakdown(
-        validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
-        ref.taxType ?? null,
+    return new Success(
+      all.map(
+        (ref) =>
+          ({
+            id: ref.id,
+            disbursementVoucherNumber: ref.disbursementVoucherNumber,
+            createdAt: ref.createdAt,
+            payee: ref.payee,
+            address: ref.address,
+            particulars: ref.particulars,
+            explanation: validatorUtilities.isNotEmpty(ref.explanation) ? ref.explanation : null,
+            isOneForAll: ref.isOneForAll,
+            withCheque: ref.withCheque,
+            disbursementBatchId: ref.disbursementBatchId,
+            requestId: ref.requestId,
+            requestItemId: ref.requestItemId,
+            grossAmount: validatorUtilities.isNotEmpty(ref.grossAmount) ? ref.grossAmount! : null,
+            vatableAmount: validatorUtilities.isNotEmpty(ref.vatableAmount)
+              ? ref.vatableAmount!
+              : null,
+            taxType: ref.taxType ?? null,
+            taxBreakdown: createTaxBreakdown(
+              validatorUtilities.isNotEmpty(ref.vatableAmount) ? ref.vatableAmount! : null,
+              ref.taxType ?? null,
+            ),
+            responsibilityCenter: {
+              id: ref.responsibilityCenterId,
+              aa: ref.responsibilityCenterAA,
+            },
+            signers: {
+              accountant: mapSignerField(
+                ref.accountantId,
+                ref.accountantName,
+                ref.accountantPositionName,
+              ),
+              treasurer: mapSignerField(
+                ref.treasurerId,
+                ref.treasurerName,
+                ref.treasurerPositionName,
+              ),
+              mayor: mapSignerField(ref.mayorId, ref.mayorName, ref.mayorPositionName),
+              headOfOffice: mapSignerField(
+                ref.headUserId,
+                ref.headUserName,
+                ref.headUserPositionName,
+              ),
+            },
+            accountantSigningStatus: ref.accountantSigningStatus,
+            fundType: validatorUtilities.isNotEmpty(ref.fundTypeId)
+              ? {
+                  id: ref.fundTypeId!,
+                  name: ref.fundTypeName!,
+                  description: ref.fundTypeDescription!,
+                }
+              : null,
+            status: validatorUtilities.isNotEmpty(ref.status) ? ref.status : null,
+            prNumber: validatorUtilities.isNotEmpty(ref.prNumber) ? ref.prNumber : null,
+            hasElecData: allElecItems.has(ref.id),
+          }) satisfies ObrDisbursementVoucher,
       ),
-      responsibilityCenter: {
-        id: ref.responsibilityCenterId,
-        aa: ref.responsibilityCenterAA,
-      },
-      signers: {
-        accountant: mapSignerField(ref.accountantId, ref.accountantName, ref.accountantPositionName),
-        treasurer: mapSignerField(ref.treasurerId, ref.treasurerName, ref.treasurerPositionName),
-        mayor: mapSignerField(ref.mayorId, ref.mayorName, ref.mayorPositionName),
-        headOfOffice: mapSignerField(ref.headUserId, ref.headUserName, ref.headUserPositionName),
-      },
-      accountantSigningStatus: ref.accountantSigningStatus,
-      fundType: validatorUtilities.isNotEmpty(ref.fundTypeId)
-        ? { id: ref.fundTypeId!, name: ref.fundTypeName!, description: ref.fundTypeDescription! }
-        : null,
-      status: validatorUtilities.isNotEmpty(ref.status) ? ref.status : null,
-      prNumber: validatorUtilities.isNotEmpty(ref.prNumber) ? ref.prNumber : null,
-      hasElecData: allElecItems.has(ref.id),
-    } satisfies ObrDisbursementVoucher)));
-  } catch (e) {
-    return new Failure(
-      ErrorCodes.Fatal,
-      "Unable to fetch disbursement items",
-      {},
-      e,
     );
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch disbursement items', {}, e);
   }
 }
-
 
 /**
  * Retrieves OBR items for the actor's originating office.
@@ -2781,16 +2964,13 @@ export async function getObrItems(actor: User): Promise<Result<ObrItem[]>> {
       })
       .from(obrItems)
       .innerJoin(obrRequests, eq(obrRequests.id, obrItems.requestId))
-      .leftJoin(
-        obrDisbursementVouchers,
-        eq(obrDisbursementVouchers.id, obrItems.disbursementRefId),
-      )
+      .leftJoin(obrDisbursementVouchers, eq(obrDisbursementVouchers.id, obrItems.disbursementRefId))
       .where(eq(obrRequests.originatingOfficeId, actor.office.id));
 
     if (items.length === 0) return new Success([]);
 
     const userIds = Array.from(
-      new Set(items.flatMap(i => [i.requestingOfficialId, i.publishedBy])),
+      new Set(items.flatMap((i) => [i.requestingOfficialId, i.publishedBy])),
     );
 
     const [users, officeItems] = await Promise.all([
@@ -2819,10 +2999,15 @@ export async function getObrItems(actor: User): Promise<Result<ObrItem[]>> {
         .from(obrOfficeItem)
         .innerJoin(officeCodes, eq(officeCodes.id, obrOfficeItem.responsibilityCenterId))
         .innerJoin(expenseClasses, eq(expenseClasses.id, obrOfficeItem.expenseCodeId))
-        .where(inArray(obrOfficeItem.itemId, items.map(i => i.id))),
+        .where(
+          inArray(
+            obrOfficeItem.itemId,
+            items.map((i) => i.id),
+          ),
+        ),
     ]);
 
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
     const officeItemsByItem = new Map<string, ObrItemOfficeData[]>();
     for (const oi of officeItems) {
@@ -2830,7 +3015,7 @@ export async function getObrItems(actor: User): Promise<Result<ObrItem[]>> {
       existing.push({
         id: oi.id,
         amount: oi.amount,
-        responsibilityCenter: { id: oi.rcId, name: oi.rcName },
+        responsibilityCenter: {id: oi.rcId, name: oi.rcName},
         expenseCode: {
           id: oi.ecId,
           name: oi.ecName,
@@ -2847,29 +3032,34 @@ export async function getObrItems(actor: User): Promise<Result<ObrItem[]>> {
       overallAmountByItem.set(itemId, sum.toFixed(2));
     }
 
-    return new Success(items.map(i => ({
-      id: i.id,
-      obrRefNumber: i.obrRefNumber,
-      dvRefNumber: i.dvRefNumber,
-      date: i.date,
-      payee: i.payee,
-      address: i.address,
-      particulars: i.particulars,
-      amounts: officeItemsByItem.get(i.id) ?? [],
-      overallAmount: overallAmountByItem.get(i.id) ?? "0.00",
-      requestingOfficial: {
-        id: i.requestingOfficialId,
-        name: userMap.get(i.requestingOfficialId)?.name ?? "Unknown",
-        position: userMap.get(i.requestingOfficialId)?.positionName ?? "Unknown",
-      },
-      publisher: {
-        id: i.publishedBy,
-        name: userMap.get(i.publishedBy)?.name ?? "Unknown",
-        position: userMap.get(i.publishedBy)?.positionName ?? "Unknown",
-      },
-    } satisfies ObrItem)));
+    return new Success(
+      items.map(
+        (i) =>
+          ({
+            id: i.id,
+            obrRefNumber: i.obrRefNumber,
+            dvRefNumber: i.dvRefNumber,
+            date: i.date,
+            payee: i.payee,
+            address: i.address,
+            particulars: i.particulars,
+            amounts: officeItemsByItem.get(i.id) ?? [],
+            overallAmount: overallAmountByItem.get(i.id) ?? '0.00',
+            requestingOfficial: {
+              id: i.requestingOfficialId,
+              name: userMap.get(i.requestingOfficialId)?.name ?? 'Unknown',
+              position: userMap.get(i.requestingOfficialId)?.positionName ?? 'Unknown',
+            },
+            publisher: {
+              id: i.publishedBy,
+              name: userMap.get(i.publishedBy)?.name ?? 'Unknown',
+              position: userMap.get(i.publishedBy)?.positionName ?? 'Unknown',
+            },
+          }) satisfies ObrItem,
+      ),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch list of OBR items", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch list of OBR items', {}, e);
   }
 }
 
@@ -2908,30 +3098,32 @@ export async function createObrMainData(
     // Validate requestId if provided (existence check only)
     if (validatorUtilities.isUuid(payload.requestId)) {
       const [requestRow] = await db
-        .select({ id: obrRequests.id })
+        .select({id: obrRequests.id})
         .from(obrRequests)
         .where(eq(obrRequests.id, payload.requestId!))
         .limit(1);
       if (!requestRow) {
-        return new Failure(ErrorCodes.ResourceNotFound, "No such request found.", { requestId: payload.requestId });
+        return new Failure(ErrorCodes.ResourceNotFound, 'No such request found.', {
+          requestId: payload.requestId,
+        });
       }
     }
 
     // Bulk-validate responsibility centers and expense codes across all items
-    const uniqueRcIds = [...new Set(payload.items.map(i => i.responsibilityCenterId))];
-    const uniqueEcIds = [...new Set(payload.items.map(i => i.expenseCodeId))];
+    const uniqueRcIds = [...new Set(payload.items.map((i) => i.responsibilityCenterId))];
+    const uniqueEcIds = [...new Set(payload.items.map((i) => i.expenseCodeId))];
 
     const rcRows = await db
-      .select({ id: officeCodes.id })
+      .select({id: officeCodes.id})
       .from(officeCodes)
       .where(inArray(officeCodes.id, uniqueRcIds));
-    const rcSet = new Set(rcRows.map(r => r.id));
+    const rcSet = new Set(rcRows.map((r) => r.id));
 
     const ecRows = await db
-      .select({ id: expenseClasses.id, class: expenseClasses.class })
+      .select({id: expenseClasses.id, class: expenseClasses.class})
       .from(expenseClasses)
       .where(inArray(expenseClasses.id, uniqueEcIds));
-    const ecClassMap = new Map(ecRows.map(r => [r.id, r.class ?? ""]));
+    const ecClassMap = new Map(ecRows.map((r) => [r.id, r.class ?? '']));
 
     for (let i = 0; i < payload.items.length; i++) {
       const item = payload.items[i]!;
@@ -2939,75 +3131,79 @@ export async function createObrMainData(
         return new Failure(
           ErrorCodes.ValidationFailure,
           `Invalid responsibility center in item ${i + 1}.`,
-          { responsibilityCenterId: item.responsibilityCenterId },
+          {responsibilityCenterId: item.responsibilityCenterId},
         );
       }
       if (!ecClassMap.has(item.expenseCodeId)) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          `Invalid expense code in item ${i + 1}.`,
-          { expenseCodeId: item.expenseCodeId },
-        );
+        return new Failure(ErrorCodes.ValidationFailure, `Invalid expense code in item ${i + 1}.`, {
+          expenseCodeId: item.expenseCodeId,
+        });
       }
     }
 
     // Bulk-validate SAAOB entries
     const uniqueSaaobIds = [
       ...new Set(
-        payload.items
-          .filter(i => validatorUtilities.isUuid(i.saaobId))
-          .map(i => i.saaobId!),
+        payload.items.filter((i) => validatorUtilities.isUuid(i.saaobId)).map((i) => i.saaobId!),
       ),
     ];
     if (uniqueSaaobIds.length > 0) {
       const saaobRows = await db
-        .select({ id: saaobEntries.id })
+        .select({id: saaobEntries.id})
         .from(saaobEntries)
         .where(inArray(saaobEntries.id, uniqueSaaobIds));
-      const saaobSet = new Set(saaobRows.map(r => r.id));
+      const saaobSet = new Set(saaobRows.map((r) => r.id));
       for (let i = 0; i < payload.items.length; i++) {
         const item = payload.items[i]!;
         if (validatorUtilities.isUuid(item.saaobId) && !saaobSet.has(item.saaobId!)) {
-          return new Failure(ErrorCodes.ValidationFailure, `Invalid SAAOB entry in item ${i + 1}.`, { saaobId: item.saaobId });
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            `Invalid SAAOB entry in item ${i + 1}.`,
+            {saaobId: item.saaobId},
+          );
         }
       }
     }
 
     // Bulk-validate and resolve AIP references across all items
-    const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
+    const aipRefMap = new Map<string, {id: string; code: string; description: string}>();
     const allAipIds = [
-      ...new Set(payload.items.flatMap(i => (i.aipReferences ?? []).map(a => a.aipId))),
+      ...new Set(payload.items.flatMap((i) => (i.aipReferences ?? []).map((a) => a.aipId))),
     ];
     if (allAipIds.length > 0) {
       const refs = await db
-        .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
+        .select({
+          id: aipReferences.id,
+          code: aipReferences.aipReferenceCode,
+          description: aipReferences.description,
+        })
         .from(aipReferences)
         .where(inArray(aipReferences.id, allAipIds));
       for (const ref of refs) {
-        aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
+        aipRefMap.set(ref.id, {id: ref.id, code: ref.code, description: ref.description});
       }
       for (let i = 0; i < payload.items.length; i++) {
-        for (const aip of (payload.items[i]?.aipReferences ?? [])) {
+        for (const aip of payload.items[i]?.aipReferences ?? []) {
           if (!aipRefMap.has(aip.aipId)) {
             return new Failure(
               ErrorCodes.ValidationFailure,
               `Invalid AIP reference in item ${i + 1}.`,
-              { aipId: aip.aipId },
+              {aipId: aip.aipId},
             );
           }
         }
       }
     }
 
-    const now = DateTime.now().setZone("Asia/Manila");
-    const yy = now.toFormat("yy");
-    const mm = now.toFormat("MM");
+    const now = DateTime.now().setZone('Asia/Manila');
+    const yy = now.toFormat('yy');
+    const mm = now.toFormat('MM');
 
-    const createdIds = await db.transaction(async tx => {
+    const createdIds = await db.transaction(async (tx) => {
       const mainDataValues = payload.items.map((item, idx) => {
         const obrNumber = isMulti ? `${payload.obrNumber}-${idx + 1}` : payload.obrNumber;
-        const expenseClass = ecClassMap.get(item.expenseCodeId) ?? "";
-        const alobs = [expenseClass, yy, mm, obrNumber].join("-");
+        const expenseClass = ecClassMap.get(item.expenseCodeId) ?? '';
+        const alobs = [expenseClass, yy, mm, obrNumber].join('-');
 
         return {
           obrNumber,
@@ -3019,17 +3215,21 @@ export async function createObrMainData(
           responsibilityCenterId: item.responsibilityCenterId,
           expenseCodeId: item.expenseCodeId,
           authorId: author.id,
-          ...(validatorUtilities.isNotEmpty(item.prNumber) ? { prNumber: item.prNumber } : {}),
-          ...(validatorUtilities.isNumber(item.prAmount) ? { prAmount: casts.castToDecimal(item.prAmount!) } : {}),
-          ...(validatorUtilities.isUuid(item.saaobId) ? { saaobId: item.saaobId } : {}),
-          ...(validatorUtilities.isUuid(payload.requestId) ? { requestSourceId: payload.requestId } : {}),
+          ...(validatorUtilities.isNotEmpty(item.prNumber) ? {prNumber: item.prNumber} : {}),
+          ...(validatorUtilities.isNumber(item.prAmount)
+            ? {prAmount: casts.castToDecimal(item.prAmount!)}
+            : {}),
+          ...(validatorUtilities.isUuid(item.saaobId) ? {saaobId: item.saaobId} : {}),
+          ...(validatorUtilities.isUuid(payload.requestId)
+            ? {requestSourceId: payload.requestId}
+            : {}),
         };
       });
 
       const inserted = await tx
         .insert(obrMainData)
         .values(mainDataValues)
-        .returning({ id: obrMainData.id });
+        .returning({id: obrMainData.id});
 
       // Insert AIP references for each item
       const aipValues = inserted.flatMap((row, idx) =>
@@ -3053,12 +3253,14 @@ export async function createObrMainData(
           .update(obrRequests)
           .set({
             obrNumber: payload.obrNumber,
-            ...(validatorUtilities.isNotEmpty(firstItem?.prNumber) ? { prNumber: firstItem!.prNumber } : {}),
+            ...(validatorUtilities.isNotEmpty(firstItem?.prNumber)
+              ? {prNumber: firstItem!.prNumber}
+              : {}),
           })
           .where(eq(obrRequests.id, payload.requestId!));
       }
 
-      return inserted.map(r => r.id);
+      return inserted.map((r) => r.id);
     });
 
     const mapped = await _fetchObrMainDataItems(inArray(obrMainData.id, createdIds));
@@ -3076,7 +3278,7 @@ export async function createObrMainData(
 
       if (requestInfo) {
         await publishEvent({
-          type: "obr.request.main-data-created",
+          type: 'obr.request.main-data-created',
           payload: {
             requestId: requestInfo.id,
             requestNumber: requestInfo.requestNumber,
@@ -3091,8 +3293,8 @@ export async function createObrMainData(
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to create OBR main data.",
-      { payload, authorId: author.id },
+      'Unable to create OBR main data.',
+      {payload, authorId: author.id},
       e,
     );
   }
@@ -3118,7 +3320,7 @@ export async function getAllObrMainData(): Promise<Result<ObrMainDataItem[]>> {
     const items = await _fetchObrMainDataItems();
     return new Success(items);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch OBR main data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch OBR main data.', {}, e);
   }
 }
 
@@ -3164,7 +3366,7 @@ export async function updateObrMainData(
       .where(eq(obrMainData.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such OBR main data record found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such OBR main data record found.', {id});
     }
 
     // Build scalar update payload
@@ -3191,13 +3393,11 @@ export async function updateObrMainData(
     if (validatorUtilities.isNumber(payload.prAmount)) {
       updateFields.prAmount = casts.castToDecimal(payload.prAmount!);
     }
-    if ("saaobId" in payload) {
+    if ('saaobId' in payload) {
       updateFields.saaobId = payload.saaobId ?? null;
     }
-    if ("payee" in payload) {
-      updateFields.payee = validatorUtilities.isNotEmpty(payload.payee)
-        ? payload.payee!
-        : null;
+    if ('payee' in payload) {
+      updateFields.payee = validatorUtilities.isNotEmpty(payload.payee) ? payload.payee! : null;
     }
     if (validatorUtilities.isNotEmpty(payload.address)) {
       updateFields.address = payload.address!;
@@ -3212,12 +3412,15 @@ export async function updateObrMainData(
     // Validate and apply responsibility center if provided
     if (validatorUtilities.isUuid(payload.responsibilityCenterId)) {
       const [rcRow] = await db
-        .select({ id: officeCodes.id })
+        .select({id: officeCodes.id})
         .from(officeCodes)
         .where(eq(officeCodes.id, payload.responsibilityCenterId!))
         .limit(1);
       if (!rcRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid responsibility center.", { id, responsibilityCenterId: payload.responsibilityCenterId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid responsibility center.', {
+          id,
+          responsibilityCenterId: payload.responsibilityCenterId,
+        });
       }
       updateFields.responsibilityCenterId = payload.responsibilityCenterId!;
     }
@@ -3225,12 +3428,15 @@ export async function updateObrMainData(
     // Validate and apply expense code if provided
     if (validatorUtilities.isUuid(payload.expenseCodeId)) {
       const [ecRow] = await db
-        .select({ id: expenseClasses.id, class: expenseClasses.class })
+        .select({id: expenseClasses.id, class: expenseClasses.class})
         .from(expenseClasses)
         .where(eq(expenseClasses.id, payload.expenseCodeId!))
         .limit(1);
       if (!ecRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid expense code.", { id, expenseCodeId: payload.expenseCodeId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid expense code.', {
+          id,
+          expenseCodeId: payload.expenseCodeId,
+        });
       }
       updateFields.expenseCodeId = payload.expenseCodeId!;
     }
@@ -3243,44 +3449,53 @@ export async function updateObrMainData(
       const effectiveExpenseCodeId = updateFields.expenseCodeId ?? existing.expenseCodeId;
 
       const [ecRow] = await db
-        .select({ class: expenseClasses.class })
+        .select({class: expenseClasses.class})
         .from(expenseClasses)
         .where(eq(expenseClasses.id, effectiveExpenseCodeId))
         .limit(1);
-      const expenseClass = ecRow?.class ?? "";
+      const expenseClass = ecRow?.class ?? '';
 
-      const createdAt = DateTime.fromJSDate(existing.createdAt).setZone("Asia/Manila");
-      updateFields.alobs = [expenseClass, createdAt.toFormat("yy"), createdAt.toFormat("MM"), effectiveObrNumber].join("-");
+      const createdAt = DateTime.fromJSDate(existing.createdAt).setZone('Asia/Manila');
+      updateFields.alobs = [
+        expenseClass,
+        createdAt.toFormat('yy'),
+        createdAt.toFormat('MM'),
+        effectiveObrNumber,
+      ].join('-');
     }
 
     const hasScalarUpdates = Object.keys(updateFields).length > 0;
     const hasAipUpdates = Array.isArray(payload.aipReferences);
 
     if (!hasScalarUpdates && !hasAipUpdates) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "No updatable fields provided.",
-        { id, payload, actorId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'No updatable fields provided.', {
+        id,
+        payload,
+        actorId: actor.id,
+      });
     }
 
     // Validate AIP references if provided
-    const aipRefMap = new Map<string, { id: string; code: string; description: string }>();
+    const aipRefMap = new Map<string, {id: string; code: string; description: string}>();
     if (hasAipUpdates && payload.aipReferences!.length > 0) {
-      const aipIds = payload.aipReferences!.map(r => r.aipId);
+      const aipIds = payload.aipReferences!.map((r) => r.aipId);
       const refs = await db
-        .select({ id: aipReferences.id, code: aipReferences.aipReferenceCode, description: aipReferences.description })
+        .select({
+          id: aipReferences.id,
+          code: aipReferences.aipReferenceCode,
+          description: aipReferences.description,
+        })
         .from(aipReferences)
         .where(inArray(aipReferences.id, aipIds));
       for (const ref of refs) {
-        aipRefMap.set(ref.id, { id: ref.id, code: ref.code, description: ref.description });
+        aipRefMap.set(ref.id, {id: ref.id, code: ref.code, description: ref.description});
       }
       for (const aip of payload.aipReferences!) {
         if (!aipRefMap.has(aip.aipId)) {
           return new Failure(
             ErrorCodes.ValidationFailure,
-            "One or more AIP references are not valid.",
-            { id, aipId: aip.aipId },
+            'One or more AIP references are not valid.',
+            {id, aipId: aip.aipId},
           );
         }
       }
@@ -3289,28 +3504,26 @@ export async function updateObrMainData(
     // Validate saaobId if provided
     if (validatorUtilities.isUuid(payload.saaobId)) {
       const [saaobRow] = await db
-        .select({ id: saaobEntries.id })
+        .select({id: saaobEntries.id})
         .from(saaobEntries)
         .where(eq(saaobEntries.id, payload.saaobId!))
         .limit(1);
       if (!saaobRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { id, saaobId: payload.saaobId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid SAAOB entry.', {
+          id,
+          saaobId: payload.saaobId,
+        });
       }
     }
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       if (hasScalarUpdates) {
-        await tx
-          .update(obrMainData)
-          .set(updateFields)
-          .where(eq(obrMainData.id, id));
+        await tx.update(obrMainData).set(updateFields).where(eq(obrMainData.id, id));
       }
 
       if (hasAipUpdates) {
         // Delete all existing AIP references then re-insert
-        await tx
-          .delete(obrMainAipReferences)
-          .where(eq(obrMainAipReferences.obrId, id));
+        await tx.delete(obrMainAipReferences).where(eq(obrMainAipReferences.obrId, id));
 
         if (payload.aipReferences!.length > 0) {
           await tx.insert(obrMainAipReferences).values(
@@ -3329,43 +3542,38 @@ export async function updateObrMainData(
 
     const [updated] = await _fetchObrMainDataItems(eq(obrMainData.id, id));
     if (!updated) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated OBR main data.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated OBR main data.', {id});
     }
 
     return new Success(updated);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to update OBR main data.",
-      { id, payload, actorId: actor.id },
+      'Unable to update OBR main data.',
+      {id, payload, actorId: actor.id},
       e,
     );
   }
 }
 
-export async function deleteObrMainData(
-  id: string,
-  actor: User,
-): Promise<Result<void>> {
+export async function deleteObrMainData(id: string, actor: User): Promise<Result<void>> {
   try {
     const [existing] = await db
-      .select({ id: obrMainData.id, requestSourceId: obrMainData.requestSourceId })
+      .select({id: obrMainData.id, requestSourceId: obrMainData.requestSourceId})
       .from(obrMainData)
       .where(eq(obrMainData.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such OBR main data record found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such OBR main data record found.', {id});
     }
 
-    await db.transaction(async tx => {
-      await tx
-        .delete(obrMainData)
-        .where(eq(obrMainData.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(obrMainData).where(eq(obrMainData.id, id));
 
       if (existing.requestSourceId) {
         await tx
           .update(obrRequests)
-          .set({ obrNumber: null, prNumber: null })
+          .set({obrNumber: null, prNumber: null})
           .where(eq(obrRequests.id, existing.requestSourceId));
       }
     });
@@ -3374,8 +3582,8 @@ export async function deleteObrMainData(
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to delete OBR main data.",
-      { id, actorId: actor.id },
+      'Unable to delete OBR main data.',
+      {id, actorId: actor.id},
       e,
     );
   }
@@ -3398,7 +3606,9 @@ export async function deleteObrMainData(
  * @returns {Promise<Result<ObrMainDataSearchResultItem[]>>} A result wrapper containing matching records on success,
  *                                                           or a failure result on error.
  */
-export async function searchObrItems(query: string): Promise<Result<ObrMainDataSearchResultItem[]>> {
+export async function searchObrItems(
+  query: string,
+): Promise<Result<ObrMainDataSearchResultItem[]>> {
   try {
     const normalized = query.trim();
     if (!validatorUtilities.isNotEmpty(normalized)) {
@@ -3440,25 +3650,30 @@ export async function searchObrItems(query: string): Promise<Result<ObrMainDataS
       .orderBy(asc(obrMainData.obrNumber));
 
     return new Success(
-      items.map(i => ({
-        id: i.id,
-        alobs: i.alobs,
-        date: DateTime.fromJSDate(i.createdAt).setZone("Asia/Manila").toISO()!,
-        particulars: i.particulars,
-        obrNumber: i.obrNumber,
-        address: i.address,
-        payee: i.payee,
-        expenseClass: i.ecId ? {
-          id: i.ecId,
-          accountName: i.ecAccountName!,
-          accountCode: i.ecAccountCode ?? null,
-          subClassification: i.ecSubClassification ?? null,
-        } : null,
-        office: i.officeId ? { id: i.officeId, name: i.officeName! } : null,
-      } satisfies ObrMainDataSearchResultItem)),
+      items.map(
+        (i) =>
+          ({
+            id: i.id,
+            alobs: i.alobs,
+            date: DateTime.fromJSDate(i.createdAt).setZone('Asia/Manila').toISO()!,
+            particulars: i.particulars,
+            obrNumber: i.obrNumber,
+            address: i.address,
+            payee: i.payee,
+            expenseClass: i.ecId
+              ? {
+                  id: i.ecId,
+                  accountName: i.ecAccountName!,
+                  accountCode: i.ecAccountCode ?? null,
+                  subClassification: i.ecSubClassification ?? null,
+                }
+              : null,
+            office: i.officeId ? {id: i.officeId, name: i.officeName!} : null,
+          }) satisfies ObrMainDataSearchResultItem,
+      ),
     );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to search OBR main data", { query }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to search OBR main data', {query}, e);
   }
 }
 
@@ -3486,18 +3701,18 @@ export async function searchObrItems(query: string): Promise<Result<ObrMainDataS
  */
 export async function getValidUsersAsApprovers(
   filter: ValidApproverPermissionType,
-): Promise<Result<{ id: string; name: string; }[]>> {
+): Promise<Result<{id: string; name: string}[]>> {
   try {
     if (
-      filter !== "obr.disbursement.mayor.approve" &&
-      filter !== "obr.disbursement.accountant.approve" &&
-      filter !== "obr.disbursement.treasurer.approve"
+      filter !== 'obr.disbursement.mayor.approve' &&
+      filter !== 'obr.disbursement.accountant.approve' &&
+      filter !== 'obr.disbursement.treasurer.approve'
     ) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid filter.", { filter });
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid filter.', {filter});
     }
 
     const users = await db
-      .select({ id: user.id, name: user.name })
+      .select({id: user.id, name: user.name})
       .from(user)
       .innerJoin(officePosition, eq(user.officePositionId, officePosition.id))
       .where(
@@ -3511,7 +3726,7 @@ export async function getValidUsersAsApprovers(
 
     return new Success(users);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch valid users.", { filter }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch valid users.', {filter}, e);
   }
 }
 
@@ -3534,17 +3749,19 @@ export async function getValidUsersAsApprovers(
  * - Mixed is returned when completed approver states differ.
  * - The function expects at least one state entry.
  */
-function getSummaryOfStates(states: Array<{ status: "pending" | "approved" | "binned" }>): ApprovalStateResponseType {
-  if (states.length === 0) return "pending";
+function getSummaryOfStates(
+  states: Array<{status: 'pending' | 'approved' | 'binned'}>,
+): ApprovalStateResponseType {
+  if (states.length === 0) return 'pending';
 
-  const isEqualState = states.every(s => s.status === states[0].status);
+  const isEqualState = states.every((s) => s.status === states[0].status);
   if (isEqualState) return states[0].status;
 
   // If binned is present among completed states, treat it as mixed for summary purposes.
-  const hasBinned = states.some(s => s.status === "binned");
-  if (hasBinned) return "mixed";
+  const hasBinned = states.some((s) => s.status === 'binned');
+  if (hasBinned) return 'mixed';
 
-  return "pending";
+  return 'pending';
 }
 
 /**
@@ -3569,15 +3786,21 @@ function getSummaryOfStates(states: Array<{ status: "pending" | "approved" | "bi
  * - Accepts users with direct OBR request read permission.
  * - `officeLimited` is enabled when the user has direct OBR request read permission.
  */
-async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRequestReaderValidationResult> {
+async function isAccessingUserValidAsRequestReader(
+  user: User,
+): Promise<AccessRequestReaderValidationResult> {
   try {
     // Fetch the position of the user in the office
     const [role] = await db
-      .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
+      .select({
+        id: officePosition.id,
+        name: officePosition.name,
+        permissions: officePosition.permissions,
+      })
       .from(officePosition)
       .where(eq(officePosition.id, user.office.role.id));
     if (!role) {
-      return { error: ErrorCodes.InsufficientPermissions };
+      return {error: ErrorCodes.InsufficientPermissions};
     }
 
     // Check for the position if the user contains the required permissions.
@@ -3590,7 +3813,7 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
       !permissionSet.has(permissions.OBR_DISBURSEMENT_CREATE) &&
       !permissionSet.has(permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE)
     ) {
-      return { error: ErrorCodes.InsufficientPermissions };
+      return {error: ErrorCodes.InsufficientPermissions};
     }
 
     // There's a conflict of the permission between OBR_APPROVERS_* where sometimes there are
@@ -3601,9 +3824,10 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
     // OBR_REQUEST_READ && OBR_APPROVER_BASIC_HIGH_WRITE => false
     // OBR_REQUEST_READ && OBR_APPROVER_ADVANCED_READ    => false
     // OBR_REQUEST_READ                                  => true
-    const isOfficeLimited = permissionSet.has(permissions.OBR_REQUEST_READ)
-      && !permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)
-      && !permissionSet.has(permissions.OBR_APPROVER_ADVANCED_READ);
+    const isOfficeLimited =
+      permissionSet.has(permissions.OBR_REQUEST_READ) &&
+      !permissionSet.has(permissions.OBR_APPROVER_BASIC_HIGH_WRITE) &&
+      !permissionSet.has(permissions.OBR_APPROVER_ADVANCED_READ);
     return {
       officeLimited: isOfficeLimited,
       positionId: isOfficeLimited ? undefined : role.id,
@@ -3637,26 +3861,32 @@ async function isAccessingUserValidAsRequestReader(user: User): Promise<AccessRe
  * - Requires the configured budget-officer approval write permission.
  * - Intended to be used as a guard before disbursement write operations.
  */
-async function isWriterUserValidForDisbursement(user: User): Promise<null | AccessRequestValidationResult> {
+async function isWriterUserValidForDisbursement(
+  user: User,
+): Promise<null | AccessRequestValidationResult> {
   try {
     // Fetch the position of the user in the office
     const [role] = await db
-      .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
+      .select({
+        id: officePosition.id,
+        name: officePosition.name,
+        permissions: officePosition.permissions,
+      })
       .from(officePosition)
       .where(eq(officePosition.id, user.office.role.id));
     if (!role) {
-      return { error: ErrorCodes.InsufficientPermissions };
+      return {error: ErrorCodes.InsufficientPermissions};
     }
 
     // Check for the position if the user contains the required permissions.
     const permissionSet = new Set(role.permissions);
     if (!permissionSet.has(permissions.OBR_DISBURSEMENT_CREATE)) {
-      return { error: ErrorCodes.InsufficientPermissions };
+      return {error: ErrorCodes.InsufficientPermissions};
     }
 
     return null;
   } catch (e) {
-    return { error: ErrorCodes.Fatal, stack: e };
+    return {error: ErrorCodes.Fatal, stack: e};
   }
 }
 
@@ -3680,13 +3910,16 @@ async function isWriterUserValidForDisbursement(user: User): Promise<null | Acce
  */
 function parseTaxType(value: Optional<string>): TaxType | null {
   if (!validatorUtilities.isNotEmpty(value)) return null;
-  if (value === "vat-g" || value === "vat-s" || value === "nvat-g" || value === "nvat-s") {
+  if (value === 'vat-g' || value === 'vat-s' || value === 'nvat-g' || value === 'nvat-s') {
     return value;
   }
   return null;
 }
 
-function createTaxBreakdown(vat: Optional<string>, type: Optional<TaxType>): ObrDisbursementTaxBreakdown {
+function createTaxBreakdown(
+  vat: Optional<string>,
+  type: Optional<TaxType>,
+): ObrDisbursementTaxBreakdown {
   if (!validatorUtilities.isNumber(vat) || !validatorUtilities.isNotEmpty(type)) {
     return {
       tax: null,
@@ -3700,9 +3933,9 @@ function createTaxBreakdown(vat: Optional<string>, type: Optional<TaxType>): Obr
 
   const vatDecimal = casts.castFromDecimal(vat!);
 
-  let tax: Optional<string> = "PT 3%";
-  if (type === "vat-g" || type === "vat-s") {
-    tax = "VAT 5%";
+  let tax: Optional<string> = 'PT 3%';
+  if (type === 'vat-g' || type === 'vat-s') {
+    tax = 'VAT 5%';
   }
 
   let vat5: Optional<Decimal> = null;
@@ -3711,34 +3944,28 @@ function createTaxBreakdown(vat: Optional<string>, type: Optional<TaxType>): Obr
   let ewt1: Optional<Decimal> = null;
   let netAmount: Optional<Decimal> = null;
 
-  if (tax === "VAT 5%") {
-    vat5 =  vatDecimal!
-      .div("1.12")
-      .mul("0.05");
+  if (tax === 'VAT 5%') {
+    vat5 = vatDecimal!.div('1.12').mul('0.05');
   }
 
-  if (tax === "PT 3%") {
-    pt3 = vatDecimal.mul("0.02");
+  if (tax === 'PT 3%') {
+    pt3 = vatDecimal.mul('0.02');
   }
 
-  if (type === "vat-s") {
-    ewt2 = vatDecimal
-      .div("1.12")
-      .mul("0.02");
+  if (type === 'vat-s') {
+    ewt2 = vatDecimal.div('1.12').mul('0.02');
   }
 
-  if (type === "nvat-s") {
-    ewt2 = vatDecimal.mul("0.02");
+  if (type === 'nvat-s') {
+    ewt2 = vatDecimal.mul('0.02');
   }
 
-  if (type === "vat-g") {
-    ewt1 = vatDecimal
-      .div("1.12")
-      .mul("0.01");
+  if (type === 'vat-g') {
+    ewt1 = vatDecimal.div('1.12').mul('0.01');
   }
 
-  if (type === "nvat-g") {
-    ewt1 = vatDecimal.mul("0.01");
+  if (type === 'nvat-g') {
+    ewt1 = vatDecimal.mul('0.01');
   }
 
   netAmount = [vat5, pt3, ewt2, ewt1]
@@ -3755,45 +3982,51 @@ function createTaxBreakdown(vat: Optional<string>, type: Optional<TaxType>): Obr
   };
 }
 
-async function isAccountantValidForDisbursement(user: User): Promise<null | AccessRequestValidationResult> {
+async function isAccountantValidForDisbursement(
+  user: User,
+): Promise<null | AccessRequestValidationResult> {
   try {
     const [role] = await db
-      .select({ permissions: officePosition.permissions })
+      .select({permissions: officePosition.permissions})
       .from(officePosition)
       .where(eq(officePosition.id, user.office.role.id));
     if (!role?.permissions.includes(permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE)) {
-      return { error: ErrorCodes.InsufficientPermissions };
+      return {error: ErrorCodes.InsufficientPermissions};
     }
     return null;
   } catch (e) {
-    return { error: ErrorCodes.Fatal, stack: e };
+    return {error: ErrorCodes.Fatal, stack: e};
   }
 }
 
-async function isWriterOrAccountantValidForDisbursement(user: User): Promise<null | AccessRequestValidationResult> {
+async function isWriterOrAccountantValidForDisbursement(
+  user: User,
+): Promise<null | AccessRequestValidationResult> {
   const writer = await isWriterUserValidForDisbursement(user);
   if (!writer?.error) return null;
   return isAccountantValidForDisbursement(user);
 }
 
-async function isBudgetOfficerValidForRequestEdit(user: User): Promise<null | AccessRequestValidationResult> {
+async function isBudgetOfficerValidForRequestEdit(
+  user: User,
+): Promise<null | AccessRequestValidationResult> {
   try {
     const [role] = await db
-      .select({ permissions: officePosition.permissions })
+      .select({permissions: officePosition.permissions})
       .from(officePosition)
       .where(eq(officePosition.id, user.office.role.id));
     if (!role?.permissions.includes(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)) {
-      return { error: ErrorCodes.InsufficientPermissions };
+      return {error: ErrorCodes.InsufficientPermissions};
     }
     return null;
   } catch (e) {
-    return { error: ErrorCodes.Fatal, stack: e };
+    return {error: ErrorCodes.Fatal, stack: e};
   }
 }
 
 async function isRequestPromoted(requestId: string): Promise<boolean> {
   const [row] = await db
-    .select({ id: obrMainData.id })
+    .select({id: obrMainData.id})
     .from(obrMainData)
     .where(eq(obrMainData.requestSourceId, requestId))
     .limit(1);
@@ -3813,12 +4046,12 @@ async function isRequestPromoted(requestId: string): Promise<boolean> {
  */
 async function _hasApprovedDisbursementForRequest(requestId: string): Promise<boolean> {
   const [row] = await db
-    .select({ id: obrDisbursementVouchers.id })
+    .select({id: obrDisbursementVouchers.id})
     .from(obrDisbursementVouchers)
     .where(
       and(
         eq(obrDisbursementVouchers.requestId, requestId),
-        eq(obrDisbursementVouchers.accountantSigningStatus, "approved"),
+        eq(obrDisbursementVouchers.accountantSigningStatus, 'approved'),
       ),
     )
     .limit(1);
@@ -3829,7 +4062,7 @@ type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function _getNextDisbursementVoucherSequence(tx: DbTransaction): Promise<number> {
   const rows = await tx
-    .select({ number: obrDisbursementVouchers.disbursementVoucherNumber })
+    .select({number: obrDisbursementVouchers.disbursementVoucherNumber})
     .from(obrDisbursementVouchers);
   let max = 0;
   for (const row of rows) {
@@ -3870,9 +4103,7 @@ function parseObrBaseNumber(obrNumber: string): number | null {
 }
 
 async function _getNextObrNumberSequence(tx: DbTransaction): Promise<number> {
-  const rows = await tx
-    .select({ obrNumber: obrMainData.obrNumber })
-    .from(obrMainData);
+  const rows = await tx.select({obrNumber: obrMainData.obrNumber}).from(obrMainData);
   let max = 0;
   for (const row of rows) {
     const parsed = parseObrBaseNumber(row.obrNumber);
@@ -3882,9 +4113,7 @@ async function _getNextObrNumberSequence(tx: DbTransaction): Promise<number> {
 }
 
 async function _getNextChequeNumberSequence(tx: DbTransaction): Promise<number> {
-  const rows = await tx
-    .select({ checkNumber: esre.checkNumber })
-    .from(esre);
+  const rows = await tx.select({checkNumber: esre.checkNumber}).from(esre);
   let max = 0;
   for (const row of rows) {
     if (!validatorUtilities.isNotEmpty(row.checkNumber)) continue;
@@ -3897,7 +4126,7 @@ async function _getNextChequeNumberSequence(tx: DbTransaction): Promise<number> 
 async function findFirstUserWithApprovalPermission(
   permissionFilter: string,
   officeId?: string,
-): Promise<{ id: string; name: string; positionName: string } | null> {
+): Promise<{id: string; name: string; positionName: string} | null> {
   try {
     const [target] = await db
       .select({
@@ -3919,14 +4148,19 @@ async function findFirstUserWithApprovalPermission(
       .limit(1);
     return target ?? null;
   } catch (e) {
-    void new Failure(ErrorCodes.Fatal, "Unable to find approval signer.", { permissionFilter, officeId }, e);
+    void new Failure(
+      ErrorCodes.Fatal,
+      'Unable to find approval signer.',
+      {permissionFilter, officeId},
+      e,
+    );
     return null;
   }
 }
 
 async function findFirstUserWithDisbursementPermission(
   permissionFilter: string,
-): Promise<{ id: string; name: string; positionName: string } | null> {
+): Promise<{id: string; name: string; positionName: string} | null> {
   try {
     const [target] = await db
       .select({
@@ -3947,7 +4181,12 @@ async function findFirstUserWithDisbursementPermission(
       .limit(1);
     return target ?? null;
   } catch (e) {
-    void new Failure(ErrorCodes.Fatal, "Unable to find disbursement signer.", { permissionFilter }, e);
+    void new Failure(
+      ErrorCodes.Fatal,
+      'Unable to find disbursement signer.',
+      {permissionFilter},
+      e,
+    );
     return null;
   }
 }
@@ -3969,14 +4208,14 @@ async function _createEsreForStandaloneBatch(batchId: string, tx: DbTransaction)
       and(
         eq(obrDisbursementVouchers.disbursementBatchId, batchId),
         isNull(obrDisbursementVouchers.requestId),
-        eq(obrDisbursementVouchers.accountantSigningStatus, "approved"),
+        eq(obrDisbursementVouchers.accountantSigningStatus, 'approved'),
       ),
     );
 
   if (vouchers.length === 0) return;
 
   let chequeSequence = 0;
-  if (vouchers.some(v => v.withCheque)) {
+  if (vouchers.some((v) => v.withCheque)) {
     chequeSequence = await _getNextChequeNumberSequence(tx);
   }
 
@@ -3990,9 +4229,11 @@ async function _createEsreForStandaloneBatch(batchId: string, tx: DbTransaction)
       fundingSourceId: dv.fundTypeId,
       dvOrPayrollNumber: dv.disbursementVoucherNumber,
       payee: dv.payee,
-      natureOfPayment: validatorUtilities.isNotEmpty(dv.explanation) ? dv.explanation! : dv.particulars,
+      natureOfPayment: validatorUtilities.isNotEmpty(dv.explanation)
+        ? dv.explanation!
+        : dv.particulars,
       amount: casts.castToDecimal(dv.grossAmount!),
-      checkStatus: "FOR RELEASE",
+      checkStatus: 'FOR RELEASE',
     });
   }
 }
@@ -4016,10 +4257,10 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
   if (await isRequestPromoted(requestId)) return;
 
   const approvers = await db
-    .select({ status: obrRequestApprovers.status })
+    .select({status: obrRequestApprovers.status})
     .from(obrRequestApprovers)
     .where(eq(obrRequestApprovers.requestId, requestId));
-  if (getSummaryOfStates(approvers) !== "approved") return;
+  if (getSummaryOfStates(approvers) !== 'approved') return;
 
   const requestItems = await db
     .select({
@@ -4051,26 +4292,26 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
     .where(eq(obrDisbursementVouchers.requestId, requestId));
 
   if (disbursements.length === 0) return;
-  if (disbursements.some(d => d.accountantSigningStatus !== "approved")) return;
+  if (disbursements.some((d) => d.accountantSigningStatus !== 'approved')) return;
 
   const ecRows = await db
-    .select({ id: expenseClasses.id, class: expenseClasses.class })
+    .select({id: expenseClasses.id, class: expenseClasses.class})
     .from(expenseClasses)
-    .where(inArray(expenseClasses.id, [...new Set(requestItems.map(i => i.expenseCodeId))]));
-  const ecClassMap = new Map(ecRows.map(r => [r.id, r.class ?? ""]));
+    .where(inArray(expenseClasses.id, [...new Set(requestItems.map((i) => i.expenseCodeId))]));
+  const ecClassMap = new Map(ecRows.map((r) => [r.id, r.class ?? '']));
 
   const officeHead = await findOfficeHeadByOffice(request.originatingOfficeId);
   const defaultRequestingOfficialId = officeHead?.id ?? request.publisherId;
 
-  const now = DateTime.now().setZone("Asia/Manila");
-  const yy = now.toFormat("yy");
-  const mm = now.toFormat("MM");
+  const now = DateTime.now().setZone('Asia/Manila');
+  const yy = now.toFormat('yy');
+  const mm = now.toFormat('MM');
 
   let promoted = false;
 
-  await db.transaction(async tx => {
+  await db.transaction(async (tx) => {
     const [existingMain] = await tx
-      .select({ id: obrMainData.id })
+      .select({id: obrMainData.id})
       .from(obrMainData)
       .where(eq(obrMainData.requestSourceId, requestId))
       .limit(1);
@@ -4079,27 +4320,24 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
     const baseSequence = await _getNextObrNumberSequence(tx);
     const baseObrNumber = String(baseSequence);
     const isMulti = requestItems.length > 1;
-    const isOneForAll = disbursements.some(d => d.isOneForAll);
+    const isOneForAll = disbursements.some((d) => d.isOneForAll);
     let chequeSequence = 0;
     const anyWithCheque = isOneForAll
       ? (disbursements[0]?.withCheque ?? false)
-      : disbursements.some(d => d.withCheque);
+      : disbursements.some((d) => d.withCheque);
     if (anyWithCheque) {
       chequeSequence = await _getNextChequeNumberSequence(tx);
     }
     const sharedChequeNumber = isOneForAll && anyWithCheque ? String(chequeSequence) : null;
 
-    const resolveDisbursementForItem = (itemId: string) => (
-      isOneForAll
-        ? disbursements[0]
-        : disbursements.find(d => d.requestItemId === itemId)
-    );
+    const resolveDisbursementForItem = (itemId: string) =>
+      isOneForAll ? disbursements[0] : disbursements.find((d) => d.requestItemId === itemId);
 
     for (let idx = 0; idx < requestItems.length; idx++) {
       const item = requestItems[idx]!;
       const obrNumber = isMulti ? `${baseObrNumber}-${idx + 1}` : baseObrNumber;
-      const expenseClass = ecClassMap.get(item.expenseCodeId) ?? "";
-      const alobs = [expenseClass, yy, mm, obrNumber].join("-");
+      const expenseClass = ecClassMap.get(item.expenseCodeId) ?? '';
+      const alobs = [expenseClass, yy, mm, obrNumber].join('-');
 
       const [mainRow] = await tx
         .insert(obrMainData)
@@ -4114,14 +4352,16 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
           expenseCodeId: item.expenseCodeId,
           authorId: request.publisherId,
           requestSourceId: requestId,
-          ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
+          ...(validatorUtilities.isNotEmpty(request.prNumber) ? {prNumber: request.prNumber} : {}),
         })
-        .returning({ id: obrMainData.id });
+        .returning({id: obrMainData.id});
 
       const dv = resolveDisbursementForItem(item.id);
       if (dv?.fundTypeId) {
         const checkNumber = dv.withCheque
-          ? (isOneForAll ? sharedChequeNumber : String(chequeSequence++))
+          ? isOneForAll
+            ? sharedChequeNumber
+            : String(chequeSequence++)
           : null;
 
         await tx.insert(esre).values({
@@ -4130,9 +4370,11 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
           dvOrPayrollNumber: dv.disbursementVoucherNumber,
           obrItemId: mainRow!.id,
           payee: request.payee,
-          natureOfPayment: validatorUtilities.isNotEmpty(dv.explanation) ? dv.explanation! : item.particulars,
+          natureOfPayment: validatorUtilities.isNotEmpty(dv.explanation)
+            ? dv.explanation!
+            : item.particulars,
           amount: casts.castToDecimal(item.amount),
-          checkStatus: "FOR RELEASE",
+          checkStatus: 'FOR RELEASE',
         });
       }
     }
@@ -4153,7 +4395,7 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
           requestId,
           requestItemId: item.id,
         })
-        .returning({ id: obrItems.id });
+        .returning({id: obrItems.id});
 
       await tx.insert(obrOfficeItem).values({
         amount: casts.castToDecimal(item.amount),
@@ -4167,7 +4409,7 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
       .update(obrRequests)
       .set({
         obrNumber: baseObrNumber,
-        ...(validatorUtilities.isNotEmpty(request.prNumber) ? { prNumber: request.prNumber } : {}),
+        ...(validatorUtilities.isNotEmpty(request.prNumber) ? {prNumber: request.prNumber} : {}),
       })
       .where(eq(obrRequests.id, requestId));
 
@@ -4180,16 +4422,16 @@ async function checkAndPromoteRequest(requestId: string): Promise<void> {
     requestId: request.id,
     requestNumber: request.requestNumber,
     officeId: request.originatingOfficeId,
-    actorName: "System",
+    actorName: 'System',
   };
 
   await publishEvent({
-    type: "obr.request.main-data-created",
+    type: 'obr.request.main-data-created',
     payload: movementPayload,
   });
 
   await publishEvent({
-    type: "obr.request.items-created",
+    type: 'obr.request.items-created',
     payload: movementPayload,
   });
 }
@@ -4202,7 +4444,9 @@ function mapSignerField(id: string | null, name: string | null, position: string
   };
 }
 
-async function findOfficeHeadByOffice(officeId: string): Promise<{ id: string; name: string; positionName: string; } | null> {
+async function findOfficeHeadByOffice(
+  officeId: string,
+): Promise<{id: string; name: string; positionName: string} | null> {
   try {
     const [officeHead] = await db
       .select({
@@ -4212,18 +4456,20 @@ async function findOfficeHeadByOffice(officeId: string): Promise<{ id: string; n
       })
       .from(user)
       .innerJoin(officePosition, eq(officePosition.id, user.officePositionId))
-      .where(and(
-        eq(user.officeId, officeId),
-        eq(user.emailVerified, true),
-        eq(user.banned, false),
-        eq(user.shadowBanned, false),
-        sql`${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions})`,
-      ))
+      .where(
+        and(
+          eq(user.officeId, officeId),
+          eq(user.emailVerified, true),
+          eq(user.banned, false),
+          eq(user.shadowBanned, false),
+          sql`${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions})`,
+        ),
+      )
       .limit(1);
 
     return officeHead ?? null;
   } catch (e) {
-    void new Failure(ErrorCodes.Fatal, "Unable to find office head by office.", { officeId }, e);
+    void new Failure(ErrorCodes.Fatal, 'Unable to find office head by office.', {officeId}, e);
     return null;
   }
 }
@@ -4249,7 +4495,10 @@ async function findOfficeHeadByOffice(officeId: string): Promise<{ id: string; n
  * - The returned request includes publisher, originating office, request items, and approver/signing details.
  * - Related records are fetched in parallel after the base request is resolved.
  */
-async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise<ObrRequestType | null> {
+async function _getObrRequestById(
+  requestId: string,
+  whereQuery: SQL[],
+): Promise<ObrRequestType | null> {
   const [result] = await db
     .select({
       id: obrRequests.id,
@@ -4262,7 +4511,15 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
       submittedForApproval: obrRequests.submittedForApproval,
       publisherId: obrRequests.publisherId,
       officeId: obrRequests.originatingOfficeId,
-      requestItems: sql<({ id: string, particulars: string, amount: string, responsibilityCenterId: string, expenseCodeId: string })[]>`(
+      requestItems: sql<
+        {
+          id: string;
+          particulars: string;
+          amount: string;
+          responsibilityCenterId: string;
+          expenseCodeId: string;
+        }[]
+      >`(
           SELECT COALESCE(
             json_agg(
               json_build_object(
@@ -4281,7 +4538,15 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
       requestItemsCount: sql<number>`(
           SELECT COUNT(*) FROM ${obrRequestItems} WHERE ${obrRequestItems.requestId} = ${requestId}
         )`,
-      approvers: sql<({ status: ApprovalState, positionId: string, reason?: string, actedUserId?: string, actedAt?: Date })[]>`(
+      approvers: sql<
+        {
+          status: ApprovalState;
+          positionId: string;
+          reason?: string;
+          actedUserId?: string;
+          actedAt?: Date;
+        }[]
+      >`(
           SELECT COALESCE(
             json_agg(
               json_build_object(
@@ -4306,60 +4571,62 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
   const disbursementApproved = await _hasApprovedDisbursementForRequest(requestId);
 
   // Get the codes, user, positions and originating office
-  const rcIds = [...new Set(result.requestItems.map(o => o.responsibilityCenterId))];
-  const ecIds = [...new Set(result.requestItems.map(e => e.expenseCodeId))];
+  const rcIds = [...new Set(result.requestItems.map((o) => o.responsibilityCenterId))];
+  const ecIds = [...new Set(result.requestItems.map((e) => e.expenseCodeId))];
 
-  const [responsibilityCenters, expenseCodes, users, positions, originatingOffice] = await Promise.all([
-    db
-      .select({ id: officeCodes.id, aa: officeCodes.aa })
-      .from(officeCodes)
-      .where(inArray(officeCodes.id, rcIds)),
+  const [responsibilityCenters, expenseCodes, users, positions, originatingOffice] =
+    await Promise.all([
+      db
+        .select({id: officeCodes.id, aa: officeCodes.aa})
+        .from(officeCodes)
+        .where(inArray(officeCodes.id, rcIds)),
 
-    db
-      .select({
-        id: expenseClasses.id,
-        name: expenseClasses.accountName,
-        fpp: expenseClasses.fpp,
-        accountCode: expenseClasses.accountCode,
-      })
-      .from(expenseClasses)
-      .where(inArray(expenseClasses.id, ecIds)),
+      db
+        .select({
+          id: expenseClasses.id,
+          name: expenseClasses.accountName,
+          fpp: expenseClasses.fpp,
+          accountCode: expenseClasses.accountCode,
+        })
+        .from(expenseClasses)
+        .where(inArray(expenseClasses.id, ecIds)),
 
-    db
-      .select({ id: userSchema.id, name: userSchema.name })
-      .from(userSchema)
-      .where(
-        inArray(
-          userSchema.id,
-          [
+      db
+        .select({id: userSchema.id, name: userSchema.name})
+        .from(userSchema)
+        .where(
+          inArray(userSchema.id, [
             result.publisherId,
             ...result.approvers
-              .filter(a => validatorUtilities.isNotEmpty(a.actedUserId))
-              .map(a => a.actedUserId!),
-          ],
+              .filter((a) => validatorUtilities.isNotEmpty(a.actedUserId))
+              .map((a) => a.actedUserId!),
+          ]),
         ),
-      ),
 
-    db
-      .select({ id: officePosition.id, name: officePosition.name, permissions: officePosition.permissions })
-      .from(officePosition)
-      .where(
-        inArray(
-          officePosition.id,
-          result.approvers.map(a => a.positionId),
+      db
+        .select({
+          id: officePosition.id,
+          name: officePosition.name,
+          permissions: officePosition.permissions,
+        })
+        .from(officePosition)
+        .where(
+          inArray(
+            officePosition.id,
+            result.approvers.map((a) => a.positionId),
+          ),
         ),
-      ),
 
-    db
-      .select({ id: office.id, name: office.name })
-      .from(office)
-      .where(eq(office.id, result.officeId)),
-  ]);
+      db
+        .select({id: office.id, name: office.name})
+        .from(office)
+        .where(eq(office.id, result.officeId)),
+    ]);
 
-  const rcMap = new Map(responsibilityCenters.map(r => [r.id, r]));
-  const ecMap = new Map(expenseCodes.map(e => [e.id, e]));
-  const uMap = new Map(users.map(u => [u.id, u]));
-  const pMap = new Map(positions.map(p => [p.id, p]));
+  const rcMap = new Map(responsibilityCenters.map((r) => [r.id, r]));
+  const ecMap = new Map(expenseCodes.map((e) => [e.id, e]));
+  const uMap = new Map(users.map((u) => [u.id, u]));
+  const pMap = new Map(positions.map((p) => [p.id, p]));
   const visibleApprovers = result.approvers.filter((approver) => {
     const position = pMap.get(approver.positionId);
     return !position?.permissions?.includes(permissions.OFFICE_HEAD);
@@ -4386,7 +4653,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
       name: originatingOffice[0].name,
     },
     requestItemsCount: result.requestItemsCount,
-    requestItems: result.requestItems.map(i => ({
+    requestItems: result.requestItems.map((i) => ({
       id: i.id,
       particulars: i.particulars,
       amount: casts.castToDecimal(String(i.amount)),
@@ -4401,7 +4668,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
         name: rcMap.get(i.responsibilityCenterId)!.aa,
       },
     })),
-    approvers: visibleApprovers.map(a => ({
+    approvers: visibleApprovers.map((a) => ({
       status: a.status,
       reason: a.reason,
       position: {
@@ -4409,7 +4676,7 @@ async function _getObrRequestById(requestId: string, whereQuery: SQL[]): Promise
         name: pMap.get(a.positionId)!.name,
       },
       signer: validatorUtilities.isNotEmpty(a.actedUserId)
-        ? { id: uMap.get(a.actedUserId!)!.id, name: uMap.get(a.actedUserId!)!.name }
+        ? {id: uMap.get(a.actedUserId!)!.id, name: uMap.get(a.actedUserId!)!.name}
         : null,
       signedAt: a.actedAt,
     })),
@@ -4445,29 +4712,29 @@ async function _getAllObrRequestAsSummaries(filter: SQL) {
   const requestItemCountSubquery = db
     .select({
       requestId: obrRequestItems.requestId,
-      requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as("requestItemsCount"),
+      requestItemsCount: sql<number>`CAST(COUNT(*) AS INT)`.as('requestItemsCount'),
     })
     .from(obrRequestItems)
     .groupBy(obrRequestItems.requestId)
-    .as("request_item_count_subquery");
+    .as('request_item_count_subquery');
 
   const requestApproversSubquery = db
     .select({
       requestId: obrRequestApprovers.requestId,
-      approvers: sql<({ status: ApprovalState })[]>`COALESCE(
+      approvers: sql<{status: ApprovalState}[]>`COALESCE(
           json_agg(
             json_build_object(
               'status', ${obrRequestApprovers.status}
             )
           ),
           '[]'::json
-        )`.as("approvers"),
+        )`.as('approvers'),
     })
     .from(obrRequestApprovers)
     .innerJoin(officePosition, eq(officePosition.id, obrRequestApprovers.positionId))
     .where(sql`NOT (${permissions.OFFICE_HEAD} = ANY(${officePosition.permissions}))`)
     .groupBy(obrRequestApprovers.requestId)
-    .as("request_approvers_subquery");
+    .as('request_approvers_subquery');
 
   // Fetch all items
   const all = await db
@@ -4480,17 +4747,13 @@ async function _getAllObrRequestAsSummaries(filter: SQL) {
       obrNumber: obrRequests.obrNumber,
       prNumber: obrRequests.prNumber,
       requestItemsCount: sql<number>`COALESCE(${requestItemCountSubquery.requestItemsCount}, 0)`,
-      approvers: sql<({ status: ApprovalState })[]>`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
+      approvers: sql<
+        {status: ApprovalState}[]
+      >`COALESCE(${requestApproversSubquery.approvers}, '[]'::json)`,
     })
     .from(obrRequests)
-    .leftJoin(
-      requestItemCountSubquery,
-      eq(requestItemCountSubquery.requestId, obrRequests.id),
-    )
-    .leftJoin(
-      requestApproversSubquery,
-      eq(requestApproversSubquery.requestId, obrRequests.id),
-    )
+    .leftJoin(requestItemCountSubquery, eq(requestItemCountSubquery.requestId, obrRequests.id))
+    .leftJoin(requestApproversSubquery, eq(requestApproversSubquery.requestId, obrRequests.id))
     .where(filter)
     .orderBy(desc(obrRequests.createdAt));
 
@@ -4558,7 +4821,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
 
   if (rows.length === 0) return [];
 
-  const ids = rows.map(r => r.id);
+  const ids = rows.map((r) => r.id);
 
   const [aipRefs, esreSums] = await Promise.all([
     db
@@ -4584,27 +4847,34 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       .groupBy(esre.obrItemId),
   ]);
 
-  const aipRefsByItem = new Map<string, Array<{ id: string; aipReferenceId: string; aipCode: string; aipDescription: string; amount: string }>>();
+  const aipRefsByItem = new Map<
+    string,
+    Array<{
+      id: string;
+      aipReferenceId: string;
+      aipCode: string;
+      aipDescription: string;
+      amount: string;
+    }>
+  >();
   for (const ref of aipRefs) {
     const existing = aipRefsByItem.get(ref.obrId) ?? [];
     existing.push({
       id: ref.id,
-      aipReferenceId: ref.aipReferenceId ?? "",
-      aipCode: ref.aipReferenceCode ?? "",
-      aipDescription: ref.aipDescription ?? "",
-      amount: ref.amount ?? "0",
+      aipReferenceId: ref.aipReferenceId ?? '',
+      aipCode: ref.aipReferenceCode ?? '',
+      aipDescription: ref.aipDescription ?? '',
+      amount: ref.amount ?? '0',
     });
     aipRefsByItem.set(ref.obrId, existing);
   }
 
   const esreByItem = new Map<string, string>(
-    esreSums
-      .filter(e => e.obrItemId !== null)
-      .map(e => [e.obrItemId!, e.total]),
+    esreSums.filter((e) => e.obrItemId !== null).map((e) => [e.obrItemId!, e.total]),
   );
 
-  return rows.map(r => {
-    const disbursedStr = esreByItem.get(r.id) ?? "0";
+  return rows.map((r) => {
+    const disbursedStr = esreByItem.get(r.id) ?? '0';
     const aipRefsForItem = aipRefsByItem.get(r.id) ?? [];
     const aipTotal = aipRefsForItem.reduce(
       (acc, ref) => acc.plus(new Decimal(ref.amount)),
@@ -4612,7 +4882,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
     );
     const obligatedDec = casts.castFromDecimal(r.obligated);
     const disbursedDec = new Decimal(disbursedStr);
-    const dt = DateTime.fromJSDate(r.createdAt).setZone("Asia/Manila");
+    const dt = DateTime.fromJSDate(r.createdAt).setZone('Asia/Manila');
 
     return {
       id: r.id,
@@ -4622,7 +4892,7 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
       payee: r.payee ?? null,
       address: r.address,
       requestSourceId: r.requestSourceId ?? null,
-      saaob: r.saaobId ? { id: r.saaobId, name: r.saaobName ?? "" } : null,
+      saaob: r.saaobId ? {id: r.saaobId, name: r.saaobName ?? ''} : null,
       responsibilityCenter: {
         id: r.rcId,
         name: r.rcName,
@@ -4636,10 +4906,10 @@ async function _fetchObrMainDataItems(filter?: SQL): Promise<ObrMainDataItem[]> 
         subClassification: r.ecSubClassification,
         expenseClass: r.ecClass,
       },
-      prNumber: r.prNumber ?? "",
+      prNumber: r.prNumber ?? '',
       particulars: r.particulars,
       obligated: r.obligated,
-      prAmount: r.prAmount ?? "0",
+      prAmount: r.prAmount ?? '0',
       disbursed: disbursedDec.toFixed(2),
       varianceDisbursed: obligatedDec.minus(disbursedDec).toFixed(2),
       remarks: null,
@@ -4667,7 +4937,7 @@ async function _getObrTemplateSlot(
   identifier: string,
   type: ObrTemplateType,
 ): Promise<Result<ObrTemplateInfo | null>> {
-  const result = await templateBucket.get({ identifier, type });
+  const result = await templateBucket.get({identifier, type});
   if (result instanceof Success) {
     return new Success(_mapObrTemplate(result.value));
   }
@@ -4678,10 +4948,10 @@ async function _getObrTemplateSlot(
 }
 
 async function _fetchObrTemplatesBundle(identifier: string): Promise<Result<ObrTemplatesBundle>> {
-  const headerResult = await _getObrTemplateSlot(identifier, "header");
+  const headerResult = await _getObrTemplateSlot(identifier, 'header');
   if (headerResult instanceof Failure) return headerResult;
 
-  const footerResult = await _getObrTemplateSlot(identifier, "footer");
+  const footerResult = await _getObrTemplateSlot(identifier, 'footer');
   if (footerResult instanceof Failure) return footerResult;
 
   return new Success({
@@ -4690,8 +4960,11 @@ async function _fetchObrTemplatesBundle(identifier: string): Promise<Result<ObrT
   });
 }
 
-async function _getTemplatePath(identifier: string, type: ObrTemplateType): Promise<Result<string | null>> {
-  const result = await templateBucket.get({ identifier, type });
+async function _getTemplatePath(
+  identifier: string,
+  type: ObrTemplateType,
+): Promise<Result<string | null>> {
+  const result = await templateBucket.get({identifier, type});
   if (result instanceof Success) return new Success(result.value.templatePath);
   if (result.type === ErrorCodes.ResourceNotFound) return new Success(null);
   return result;
@@ -4704,7 +4977,7 @@ function _toMoneyNumber(value: string): number {
 }
 
 function _applyCellBorder(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
   colStart: number,
@@ -4712,21 +4985,21 @@ function _applyCellBorder(
 ) {
   for (let col = colStart; col <= colEnd; col++) {
     ws.getCell(row, col).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" },
+      top: {style: 'thin'},
+      left: {style: 'thin'},
+      bottom: {style: 'thin'},
+      right: {style: 'thin'},
     };
     ws.getCell(row, col).alignment = {
-      vertical: "middle",
-      horizontal: "left",
+      vertical: 'middle',
+      horizontal: 'left',
       wrapText: true,
     };
   }
 }
 
 function _renderSignerBlock(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   startRow: number,
   colStart: number,
@@ -4740,25 +5013,30 @@ function _renderSignerBlock(
     }
   }
 
-  ws.getCell(startRow, colStart).value = "Signature";
-  ws.getCell(startRow + 1, colStart).value = "Printed Name";
+  ws.getCell(startRow, colStart).value = 'Signature';
+  ws.getCell(startRow + 1, colStart).value = 'Printed Name';
   ws.getCell(startRow + 1, colStart + 1).value = signer.printedName;
-  ws.getCell(startRow + 2, colStart).value = "Position";
+  ws.getCell(startRow + 2, colStart).value = 'Position';
   ws.getCell(startRow + 2, colStart + 1).value = signer.position;
   ws.getCell(startRow + 3, colStart + 1).value = signer.roleLabel;
-  ws.getCell(startRow + 4, colStart).value = "Date";
+  ws.getCell(startRow + 4, colStart).value = 'Date';
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 function _resolveTemplateValue(cellValue: any): unknown {
   if (cellValue === null || cellValue === undefined) return cellValue;
 
-  if (typeof cellValue === "object") {
-    if ("error" in cellValue) return null;
-    if ("formula" in cellValue || "sharedFormula" in cellValue) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (typeof cellValue === 'object') {
+    if ('error' in cellValue) return null;
+    if ('formula' in cellValue || 'sharedFormula' in cellValue) {
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (cellValue as any).result;
-      if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+      if (
+        result !== null &&
+        result !== undefined &&
+        typeof result === 'object' &&
+        'error' in result
+      ) {
         return null;
       }
       return result ?? null;
@@ -4775,9 +5053,9 @@ function _offsetMergeRange(range: string, rowOffset: number): string | null {
 }
 
 async function _copyTemplateRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   srcWorkbook: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   destWorksheet: any,
   startRow: number,
 ): Promise<number> {
@@ -4787,11 +5065,11 @@ async function _copyTemplateRows(
   const rowOffset = startRow - 1;
   let currentRow = startRow;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  srcWs.eachRow({ includeEmpty: true }, (row: any) => {
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWs.eachRow({includeEmpty: true}, (row: any) => {
     const destRow = destWorksheet.getRow(currentRow);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    row.eachCell({ includeEmpty: true }, (cell: any, colNum: number) => {
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell({includeEmpty: true}, (cell: any, colNum: number) => {
       if (cell.type === _MERGE_CELL_TYPE) return;
 
       const destCell = destRow.getCell(colNum);
@@ -4807,7 +5085,7 @@ async function _copyTemplateRows(
     currentRow++;
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const merges: string[] = (srcWs.model as any)?.mergeCells ?? [];
   for (const range of merges) {
     const adjusted = _offsetMergeRange(range, rowOffset);
@@ -4819,24 +5097,22 @@ async function _copyTemplateRows(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const destWorkbook = destWorksheet.workbook as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const srcImages: any[] = srcWs.getImages();
   for (const image of srcImages) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     const imageModel = image.model as any;
-    if (imageModel.type !== "image") continue;
+    if (imageModel.type !== 'image') continue;
 
     const srcImageData = srcWorkbook.getImage(imageModel.imageId);
     if (!srcImageData) continue;
 
     const newImageId = destWorkbook.addImage(srcImageData);
     const srcRange = imageModel.range;
-    const srcExt = srcRange.ext as Optional<{ width: number; height: number }>;
-    const squareSize = srcExt
-      ? Math.min(srcExt.width, srcExt.height)
-      : 52;
+    const srcExt = srcRange.ext as Optional<{width: number; height: number}>;
+    const squareSize = srcExt ? Math.min(srcExt.width, srcExt.height) : 52;
 
     const adjustedRange: {
       tl: {
@@ -4882,7 +5158,7 @@ function _toDecimal(value: Optional<string>): Decimal {
 }
 
 function _formatNumber(value: Decimal): string {
-  return Number(value.toFixed(2)).toLocaleString("en-PH", {
+  return Number(value.toFixed(2)).toLocaleString('en-PH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -4893,43 +5169,44 @@ function _formatParens(value: Decimal): string {
 }
 
 function _taxTypeLabel(type: Optional<string>): string {
-  if (type === "vat-s") return "VAT - Services";
-  if (type === "vat-g") return "VAT - Goods";
-  if (type === "nvat-s") return "Non-VAT - Services";
-  if (type === "nvat-g") return "Non-VAT - Goods";
-  return "-";
+  if (type === 'vat-s') return 'VAT - Services';
+  if (type === 'vat-g') return 'VAT - Goods';
+  if (type === 'nvat-s') return 'Non-VAT - Services';
+  if (type === 'nvat-g') return 'Non-VAT - Goods';
+  return '-';
 }
 
 function _withholdingRows(grossAmount: Decimal, taxType: Optional<string>) {
-  let vatLabel = "PT 3%";
+  let vatLabel = 'PT 3%';
   if (!validatorUtilities.isNotEmpty(taxType)) {
-    vatLabel = "-";
-  } else if (taxType === "vat-g" || taxType === "vat-s") {
-    vatLabel = "VAT 5%";
+    vatLabel = '-';
+  } else if (taxType === 'vat-g' || taxType === 'vat-s') {
+    vatLabel = 'VAT 5%';
   }
 
-  let ewtLabel = "EWT 2%";
+  let ewtLabel = 'EWT 2%';
   if (!validatorUtilities.isNotEmpty(taxType)) {
-    ewtLabel = "-";
-  } else if (taxType === "vat-g" || taxType === "nvat-g") {
-    ewtLabel = "EWT 1%";
+    ewtLabel = '-';
+  } else if (taxType === 'vat-g' || taxType === 'nvat-g') {
+    ewtLabel = 'EWT 1%';
   }
 
-  const vatAmount = vatLabel === "VAT 5%"
-    ? grossAmount.div("1.12").mul("0.05")
-    : vatLabel === "PT 3%"
-      ? grossAmount.mul("0.03")
-      : new Decimal(0);
+  const vatAmount =
+    vatLabel === 'VAT 5%'
+      ? grossAmount.div('1.12').mul('0.05')
+      : vatLabel === 'PT 3%'
+        ? grossAmount.mul('0.03')
+        : new Decimal(0);
 
   let ewtAmount = new Decimal(0);
-  if (taxType === "vat-g") {
-    ewtAmount = grossAmount.div("1.12").mul("0.01");
-  } else if (taxType === "vat-s") {
-    ewtAmount = grossAmount.div("1.12").mul("0.02");
-  } else if (taxType === "nvat-g") {
-    ewtAmount = grossAmount.mul("0.01");
-  } else if (taxType === "nvat-s") {
-    ewtAmount = grossAmount.mul("0.02");
+  if (taxType === 'vat-g') {
+    ewtAmount = grossAmount.div('1.12').mul('0.01');
+  } else if (taxType === 'vat-s') {
+    ewtAmount = grossAmount.div('1.12').mul('0.02');
+  } else if (taxType === 'nvat-g') {
+    ewtAmount = grossAmount.mul('0.01');
+  } else if (taxType === 'nvat-s') {
+    ewtAmount = grossAmount.mul('0.02');
   }
 
   const totalWithholding = vatAmount.add(ewtAmount);
@@ -4946,22 +5223,22 @@ function _withholdingRows(grossAmount: Decimal, taxType: Optional<string>) {
 }
 
 function _applyDisbursementBorder(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
   colStart: number,
   colEnd: number,
-  horizontal: "left" | "center" | "right" = "left",
+  horizontal: 'left' | 'center' | 'right' = 'left',
 ) {
   for (let col = colStart; col <= colEnd; col++) {
     ws.getCell(row, col).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" },
+      top: {style: 'thin'},
+      left: {style: 'thin'},
+      bottom: {style: 'thin'},
+      right: {style: 'thin'},
     };
     ws.getCell(row, col).alignment = {
-      vertical: "middle",
+      vertical: 'middle',
       horizontal,
       wrapText: true,
     };
@@ -4969,7 +5246,7 @@ function _applyDisbursementBorder(
 }
 
 function _applyDisbursementSectionBox(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   rowStart: number,
   rowEnd: number,
@@ -4979,15 +5256,15 @@ function _applyDisbursementSectionBox(
   for (let row = rowStart; row <= rowEnd; row++) {
     for (let col = colStart; col <= colEnd; col++) {
       ws.getCell(row, col).border = {
-        top: { style: row === rowStart ? "medium" : "thin", color: { argb: "FF000000" } },
-        left: { style: col === colStart ? "medium" : "thin", color: { argb: "FF000000" } },
-        bottom: { style: row === rowEnd ? "medium" : "thin", color: { argb: "FF000000" } },
-        right: { style: col === colEnd ? "medium" : "thin", color: { argb: "FF000000" } },
+        top: {style: row === rowStart ? 'medium' : 'thin', color: {argb: 'FF000000'}},
+        left: {style: col === colStart ? 'medium' : 'thin', color: {argb: 'FF000000'}},
+        bottom: {style: row === rowEnd ? 'medium' : 'thin', color: {argb: 'FF000000'}},
+        right: {style: col === colEnd ? 'medium' : 'thin', color: {argb: 'FF000000'}},
       };
       if (!ws.getCell(row, col).alignment) {
         ws.getCell(row, col).alignment = {
-          vertical: "middle",
-          horizontal: "left",
+          vertical: 'middle',
+          horizontal: 'left',
           wrapText: true,
         };
       }
@@ -5000,10 +5277,10 @@ async function _buildDisbursementVoucherExcelBuffer(
   elecData: Array<ObrDisbursementElectronicItem>,
   headerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("Disbursement Voucher");
+  const ws = wb.addWorksheet('Disbursement Voucher');
   ws.getColumn(1).width = 14;
   ws.getColumn(2).width = 22;
   ws.getColumn(3).width = 14;
@@ -5057,17 +5334,17 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
   ws.getCell(row, headerRightStartCol).value = voucher.disbursementVoucherNumber;
-  ws.getCell(row, headerRightStartCol).font = { bold: true, size: 16, color: { argb: "FFFF0000" } };
-  ws.getCell(row, headerRightStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(row, headerRightStartCol).font = {bold: true, size: 16, color: {argb: 'FFFF0000'}};
+  ws.getCell(row, headerRightStartCol).alignment = {horizontal: 'right', vertical: 'middle'};
   row++;
 
   // DISBURSEMENT VOUCHER title spanning 2 rows; Fund on the right
   ws.mergeCells(row, headerLeftStartCol, row + 1, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row + 1, headerRightEndCol);
-  ws.getCell(row, headerLeftStartCol).value = "DISBURSEMENT VOUCHER";
-  ws.getCell(row, headerLeftStartCol).font = { bold: true, size: 18 };
-  ws.getCell(row, headerLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(row, headerRightStartCol).value = `Fund: ${voucher.fundType?.name ?? ""}`;
+  ws.getCell(row, headerLeftStartCol).value = 'DISBURSEMENT VOUCHER';
+  ws.getCell(row, headerLeftStartCol).font = {bold: true, size: 18};
+  ws.getCell(row, headerLeftStartCol).alignment = {horizontal: 'center', vertical: 'middle'};
+  ws.getCell(row, headerRightStartCol).value = `Fund: ${voucher.fundType?.name ?? ''}`;
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   _applyDisbursementBorder(ws, row + 1, headerLeftStartCol, headerRightEndCol);
   row += 2;
@@ -5075,49 +5352,58 @@ async function _buildDisbursementVoucherExcelBuffer(
   // Mode of Payment + DV No.
   ws.mergeCells(row, headerLeftStartCol, row, headerLeftEndCol);
   ws.mergeCells(row, headerRightStartCol, row, headerRightEndCol);
-  ws.getCell(row, headerLeftStartCol).value = "Mode of Payment:      \u2610 Check      \u2610 Cash      \u2610 Others";
+  ws.getCell(row, headerLeftStartCol).value =
+    'Mode of Payment:      \u2610 Check      \u2610 Cash      \u2610 Others';
   ws.getCell(row, headerRightStartCol).value = `DV No.: ${voucher.disbursementVoucherNumber}`;
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Payee row 1 of 2: label + value (rowspan 2) + ID No./TIN
-  ws.getCell(row, 1).value = "Payee:";
+  ws.getCell(row, 1).value = 'Payee:';
   ws.mergeCells(row, payeeValueStartCol, row + 1, payeeValueEndCol);
-  ws.getCell(row, payeeValueStartCol).value = voucher.payee ?? "";
-  ws.getCell(row, payeeValueStartCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+  ws.getCell(row, payeeValueStartCol).value = voucher.payee ?? '';
+  ws.getCell(row, payeeValueStartCol).alignment = {
+    horizontal: 'left',
+    vertical: 'middle',
+    wrapText: true,
+  };
   ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
-  ws.getCell(row, rightMetaStartCol).value = "ID No./TIN:";
+  ws.getCell(row, rightMetaStartCol).value = 'ID No./TIN:';
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Payee row 2 of 2: OBR No.
   ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
-  ws.getCell(row, rightMetaStartCol).value = `OBR No.: ${voucher.prNumber ?? ""}`;
+  ws.getCell(row, rightMetaStartCol).value = `OBR No.: ${voucher.prNumber ?? ''}`;
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Address row 1 of 3: label + value (rowspan 3) + Responsibility Center header
-  ws.getCell(row, 1).value = "Address:";
+  ws.getCell(row, 1).value = 'Address:';
   ws.mergeCells(row, payeeValueStartCol, row + 2, payeeValueEndCol);
   ws.getCell(row, payeeValueStartCol).value = voucher.address;
-  ws.getCell(row, payeeValueStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.getCell(row, payeeValueStartCol).alignment = {
+    horizontal: 'left',
+    vertical: 'top',
+    wrapText: true,
+  };
   ws.mergeCells(row, rightMetaStartCol, row, rightMetaEndCol);
-  ws.getCell(row, rightMetaStartCol).value = "Responsibility Center:";
+  ws.getCell(row, rightMetaStartCol).value = 'Responsibility Center:';
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Address row 2 of 3: Office/Unit/Project | Code column headers
-  ws.getCell(row, rightMetaStartCol).value = "Office/Unit/Project";
-  ws.getCell(row, rightMetaStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, rightMetaStartCol).value = 'Office/Unit/Project';
+  ws.getCell(row, rightMetaStartCol).alignment = {horizontal: 'center', vertical: 'middle'};
   ws.mergeCells(row, rightMetaCodeStartCol, row, rightMetaEndCol);
-  ws.getCell(row, rightMetaCodeStartCol).value = "Code";
-  ws.getCell(row, rightMetaCodeStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, rightMetaCodeStartCol).value = 'Code';
+  ws.getCell(row, rightMetaCodeStartCol).alignment = {horizontal: 'center', vertical: 'middle'};
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
 
   // Address row 3 of 3: RC value
   ws.getCell(row, rightMetaStartCol).value = voucher.responsibilityCenter.aa;
-  ws.getCell(row, rightMetaStartCol).alignment = { horizontal: "left", vertical: "middle" };
+  ws.getCell(row, rightMetaStartCol).alignment = {horizontal: 'left', vertical: 'middle'};
   ws.mergeCells(row, rightMetaCodeStartCol, row, rightMetaEndCol);
   _applyDisbursementBorder(ws, row, headerLeftStartCol, headerRightEndCol);
   row++;
@@ -5125,12 +5411,12 @@ async function _buildDisbursementVoucherExcelBuffer(
   // EXPLANATION header
   ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
   ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
-  ws.getCell(row, explanationLeftStartCol).value = "EXPLANATION";
-  ws.getCell(row, explanationAmountStartCol).value = "Amount";
-  _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol, "center");
-  _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "center");
-  ws.getCell(row, explanationLeftStartCol).font = { bold: true };
-  ws.getCell(row, explanationAmountStartCol).font = { bold: true };
+  ws.getCell(row, explanationLeftStartCol).value = 'EXPLANATION';
+  ws.getCell(row, explanationAmountStartCol).value = 'Amount';
+  _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol, 'center');
+  _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, 'center');
+  ws.getCell(row, explanationLeftStartCol).font = {bold: true};
+  ws.getCell(row, explanationAmountStartCol).font = {bold: true};
   row++;
 
   const grossAmount = _toDecimal(voucher.grossAmount);
@@ -5141,16 +5427,34 @@ async function _buildDisbursementVoucherExcelBuffer(
   const explanationText = validatorUtilities.isNotEmpty(voucher.explanation)
     ? voucher.explanation!
     : voucher.particulars;
-  ws.mergeCells(explanationStart, explanationLeftStartCol, explanationStart + explanationRows, explanationLeftEndCol);
+  ws.mergeCells(
+    explanationStart,
+    explanationLeftStartCol,
+    explanationStart + explanationRows,
+    explanationLeftEndCol,
+  );
   ws.getCell(explanationStart, explanationLeftStartCol).value = explanationText;
-  ws.getCell(explanationStart, explanationLeftStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
-  ws.mergeCells(explanationStart, explanationAmountStartCol, explanationStart + explanationRows, explanationAmountEndCol);
-  ws.getCell(explanationStart, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
-  ws.getCell(explanationStart, explanationAmountStartCol).font = { bold: true, size: 13 };
-  ws.getCell(explanationStart, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(explanationStart, explanationLeftStartCol).alignment = {
+    horizontal: 'left',
+    vertical: 'top',
+    wrapText: true,
+  };
+  ws.mergeCells(
+    explanationStart,
+    explanationAmountStartCol,
+    explanationStart + explanationRows,
+    explanationAmountEndCol,
+  );
+  ws.getCell(explanationStart, explanationAmountStartCol).value =
+    `${_formatNumber(withholdings.netAmount)}`;
+  ws.getCell(explanationStart, explanationAmountStartCol).font = {bold: true, size: 13};
+  ws.getCell(explanationStart, explanationAmountStartCol).alignment = {
+    horizontal: 'right',
+    vertical: 'middle',
+  };
   for (let rr = explanationStart; rr <= explanationStart + explanationRows; rr++) {
     _applyDisbursementBorder(ws, rr, explanationLeftStartCol, explanationLeftEndCol);
-    _applyDisbursementBorder(ws, rr, explanationAmountStartCol, explanationAmountEndCol, "right");
+    _applyDisbursementBorder(ws, rr, explanationAmountStartCol, explanationAmountEndCol, 'right');
   }
   row = explanationStart + explanationRows + 1;
 
@@ -5166,24 +5470,25 @@ async function _buildDisbursementVoucherExcelBuffer(
     const netStartCol = evatCol + 1;
     const netEndCol = netStartCol;
 
-    const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+    const clamp = (value: number, min: number, max: number): number =>
+      Math.min(max, Math.max(min, value));
     const maxBillingLen = Math.max(
-      "BILLING NAME".length,
-      ...elecData.map((item) => (item.billingName ?? "").trim().length),
+      'BILLING NAME'.length,
+      ...elecData.map((item) => (item.billingName ?? '').trim().length),
     );
     const maxMeterLen = Math.max(
-      "METER SERIAL#".length,
-      ...elecData.map((item) => (item.meterSerial ?? "").trim().length),
+      'METER SERIAL#'.length,
+      ...elecData.map((item) => (item.meterSerial ?? '').trim().length),
     );
     const maxAccountLen = Math.max(
-      "ACCOUNT".length,
-      ...elecData.map((item) => (item.account ?? "").trim().length),
+      'ACCOUNT'.length,
+      ...elecData.map((item) => (item.account ?? '').trim().length),
     );
     const numberLens = elecData.map((item) => {
       const itemGross = _toDecimal(item.gross);
       const itemVatable = _toDecimal(item.vatableSales);
-      const itemVat = itemVatable.mul("0.05");
-      const itemEvat = itemVatable.mul("0.02");
+      const itemVat = itemVatable.mul('0.05');
+      const itemEvat = itemVatable.mul('0.02');
       const itemNet = itemGross.sub(itemVat).sub(itemEvat);
 
       return {
@@ -5194,11 +5499,14 @@ async function _buildDisbursementVoucherExcelBuffer(
         net: _formatNumber(itemNet).length,
       };
     });
-    const maxGrossLen = Math.max("GROSS".length, ...numberLens.map((item) => item.gross));
-    const maxVatableLen = Math.max("VATABLE SALES".length, ...numberLens.map((item) => item.vatable));
-    const maxVatLen = Math.max("VAT 5%".length, ...numberLens.map((item) => item.vat));
-    const maxEvatLen = Math.max("EVAT 2%".length, ...numberLens.map((item) => item.evat));
-    const maxNetLen = Math.max("NET".length, ...numberLens.map((item) => item.net));
+    const maxGrossLen = Math.max('GROSS'.length, ...numberLens.map((item) => item.gross));
+    const maxVatableLen = Math.max(
+      'VATABLE SALES'.length,
+      ...numberLens.map((item) => item.vatable),
+    );
+    const maxVatLen = Math.max('VAT 5%'.length, ...numberLens.map((item) => item.vat));
+    const maxEvatLen = Math.max('EVAT 2%'.length, ...numberLens.map((item) => item.evat));
+    const maxNetLen = Math.max('NET'.length, ...numberLens.map((item) => item.net));
 
     const desiredWidths = {
       billing: clamp(Math.round(maxBillingLen * 0.9 + 6), 30, 54),
@@ -5225,7 +5533,7 @@ async function _buildDisbursementVoucherExcelBuffer(
       net: clamp(Math.round(desiredWidths.net * widthScale), 14, 24),
     };
 
-    const col5Width = Math.max(9, Math.round(scaled.billing * 0.20));
+    const col5Width = Math.max(9, Math.round(scaled.billing * 0.2));
     const col2Adjusted = Math.max(9, Math.round(scaled.billing * 0.35));
     const col3Adjusted = Math.max(8, Math.round(scaled.billing * 0.23));
     const col4Adjusted = Math.max(8, scaled.billing - col2Adjusted - col3Adjusted - col5Width);
@@ -5248,28 +5556,52 @@ async function _buildDisbursementVoucherExcelBuffer(
     const billingCombinedWidth = col2Adjusted + col3Adjusted + col4Adjusted + col5Width;
     const billingCharsPerLine = Math.max(24, Math.floor(billingCombinedWidth * 1.5));
 
-    ws.getCell(row, billingStartCol).value = "BILLING NAME";
+    ws.getCell(row, billingStartCol).value = 'BILLING NAME';
     ws.mergeCells(row, billingStartCol, row, billingEndCol);
-    ws.getCell(row, meterCol).value = "METER SERIAL#";
-    ws.getCell(row, accountCol).value = "ACCOUNT";
-    ws.getCell(row, grossCol).value = "GROSS";
-    ws.getCell(row, vatableCol).value = "VATABLE SALES";
-    ws.getCell(row, vatCol).value = "VAT 5%";
-    ws.getCell(row, evatCol).value = "EVAT 2%";
+    ws.getCell(row, meterCol).value = 'METER SERIAL#';
+    ws.getCell(row, accountCol).value = 'ACCOUNT';
+    ws.getCell(row, grossCol).value = 'GROSS';
+    ws.getCell(row, vatableCol).value = 'VATABLE SALES';
+    ws.getCell(row, vatCol).value = 'VAT 5%';
+    ws.getCell(row, evatCol).value = 'EVAT 2%';
     ws.mergeCells(row, netStartCol, row, netEndCol);
-    ws.getCell(row, netStartCol).value = "NET";
-    ws.getCell(row, billingStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, meterCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, accountCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, grossCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, vatableCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, vatCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, evatCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    ws.getCell(row, netStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    _applyDisbursementBorder(ws, row, 2, 12, "center");
-    _applyDisbursementBorder(ws, row, 13, 15, "right");
-    for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = { bold: true };
-    ws.getCell(row, netStartCol).font = { bold: true };
+    ws.getCell(row, netStartCol).value = 'NET';
+    ws.getCell(row, billingStartCol).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+    ws.getCell(row, meterCol).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+    ws.getCell(row, accountCol).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+    ws.getCell(row, grossCol).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+    ws.getCell(row, vatableCol).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+    ws.getCell(row, vatCol).alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
+    ws.getCell(row, evatCol).alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
+    ws.getCell(row, netStartCol).alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
+    _applyDisbursementBorder(ws, row, 2, 12, 'center');
+    _applyDisbursementBorder(ws, row, 13, 15, 'right');
+    for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = {bold: true};
+    ws.getCell(row, netStartCol).font = {bold: true};
     ws.getRow(row).height = 30;
     row++;
 
@@ -5282,10 +5614,10 @@ async function _buildDisbursementVoucherExcelBuffer(
     for (const item of elecData) {
       const itemGross = _toDecimal(item.gross);
       const itemVatable = _toDecimal(item.vatableSales);
-      const itemVat = itemVatable.mul("0.05");
-      const itemEvat = itemVatable.mul("0.02");
+      const itemVat = itemVatable.mul('0.05');
+      const itemEvat = itemVatable.mul('0.02');
       const itemNet = itemGross.sub(itemVat).sub(itemEvat);
-      const billingName = item.billingName?.trim() ?? "";
+      const billingName = item.billingName?.trim() ?? '';
       const billingLines = Math.max(1, Math.ceil(billingName.length / billingCharsPerLine));
       const rowHeight = Math.max(28, billingLines * 16);
 
@@ -5299,16 +5631,40 @@ async function _buildDisbursementVoucherExcelBuffer(
       ws.getCell(row, evatCol).value = _formatNumber(itemEvat);
       ws.mergeCells(row, netStartCol, row, netEndCol);
       ws.getCell(row, netStartCol).value = _formatNumber(itemNet);
-      ws.getCell(row, billingStartCol).alignment = { horizontal: "left", vertical: "top", wrapText: true };
-      ws.getCell(row, meterCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      ws.getCell(row, accountCol).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      ws.getCell(row, grossCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
-      ws.getCell(row, vatableCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
-      ws.getCell(row, vatCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
-      ws.getCell(row, evatCol).alignment = { horizontal: "right", vertical: "middle", wrapText: true };
-      ws.getCell(row, netStartCol).alignment = { horizontal: "right", vertical: "middle" };
+      ws.getCell(row, billingStartCol).alignment = {
+        horizontal: 'left',
+        vertical: 'top',
+        wrapText: true,
+      };
+      ws.getCell(row, meterCol).alignment = {
+        horizontal: 'left',
+        vertical: 'middle',
+        wrapText: true,
+      };
+      ws.getCell(row, accountCol).alignment = {
+        horizontal: 'left',
+        vertical: 'middle',
+        wrapText: true,
+      };
+      ws.getCell(row, grossCol).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+        wrapText: true,
+      };
+      ws.getCell(row, vatableCol).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+        wrapText: true,
+      };
+      ws.getCell(row, vatCol).alignment = {horizontal: 'right', vertical: 'middle', wrapText: true};
+      ws.getCell(row, evatCol).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+        wrapText: true,
+      };
+      ws.getCell(row, netStartCol).alignment = {horizontal: 'right', vertical: 'middle'};
       _applyDisbursementBorder(ws, row, 2, 12);
-      _applyDisbursementBorder(ws, row, 13, 15, "right");
+      _applyDisbursementBorder(ws, row, 13, 15, 'right');
       ws.getRow(row).height = rowHeight;
 
       totalGross = totalGross.add(itemGross);
@@ -5319,7 +5675,7 @@ async function _buildDisbursementVoucherExcelBuffer(
       row++;
     }
 
-    ws.getCell(row, billingStartCol).value = "TOTAL";
+    ws.getCell(row, billingStartCol).value = 'TOTAL';
     ws.mergeCells(row, billingStartCol, row, accountCol);
     ws.getCell(row, grossCol).value = _formatNumber(totalGross);
     ws.getCell(row, vatableCol).value = _formatNumber(totalVatableSales);
@@ -5327,29 +5683,33 @@ async function _buildDisbursementVoucherExcelBuffer(
     ws.getCell(row, evatCol).value = _formatNumber(totalEvat);
     ws.mergeCells(row, netStartCol, row, netEndCol);
     ws.getCell(row, netStartCol).value = _formatNumber(totalNet);
-    ws.getCell(row, netStartCol).alignment = { horizontal: "right", vertical: "middle" };
+    ws.getCell(row, netStartCol).alignment = {horizontal: 'right', vertical: 'middle'};
     _applyDisbursementBorder(ws, row, 2, 12);
-    _applyDisbursementBorder(ws, row, 13, 15, "right");
-    for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = { bold: true };
-    ws.getCell(row, netStartCol).font = { bold: true };
+    _applyDisbursementBorder(ws, row, 13, 15, 'right');
+    for (let c = 2; c <= 12; c++) ws.getCell(row, c).font = {bold: true};
+    ws.getCell(row, netStartCol).font = {bold: true};
     ws.getRow(row).height = 30;
     row++;
   }
 
-  const breakdownRows: Array<{ label: string; value: string; bold?: boolean }> = [
-    { label: "GROSS AMOUNT", value: _formatNumber(grossAmount), bold: true },
-    { label: "Less: Withholding Taxes", value: "" },
-    { label: _taxTypeLabel(voucher.taxType), value: "" },
+  const breakdownRows: Array<{label: string; value: string; bold?: boolean}> = [
+    {label: 'GROSS AMOUNT', value: _formatNumber(grossAmount), bold: true},
+    {label: 'Less: Withholding Taxes', value: ''},
+    {label: _taxTypeLabel(voucher.taxType), value: ''},
     {
       label: withholdings.vatLabel,
-      value: withholdings.vatLabel === "-" ? "-" : _formatParens(withholdings.vatAmount),
+      value: withholdings.vatLabel === '-' ? '-' : _formatParens(withholdings.vatAmount),
     },
     {
       label: withholdings.ewtLabel,
-      value: withholdings.ewtLabel === "-" ? "-" : _formatParens(withholdings.ewtAmount),
+      value: withholdings.ewtLabel === '-' ? '-' : _formatParens(withholdings.ewtAmount),
     },
-    { label: "TOTAL WITHHOLDING TAXES", value: _formatParens(withholdings.totalWithholding), bold: true },
-    { label: "NET AMOUNT", value: _formatNumber(withholdings.netAmount), bold: true },
+    {
+      label: 'TOTAL WITHHOLDING TAXES',
+      value: _formatParens(withholdings.totalWithholding),
+      bold: true,
+    },
+    {label: 'NET AMOUNT', value: _formatNumber(withholdings.netAmount), bold: true},
   ];
 
   for (const item of breakdownRows) {
@@ -5357,48 +5717,56 @@ async function _buildDisbursementVoucherExcelBuffer(
     ws.getCell(row, explanationLeftStartCol).value = item.label;
     ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
     ws.getCell(row, explanationAmountStartCol).value = item.value;
-    ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+    ws.getCell(row, explanationAmountStartCol).alignment = {
+      horizontal: 'right',
+      vertical: 'middle',
+    };
     _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
-    _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
+    _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, 'right');
     if (item.bold) {
-      ws.getCell(row, explanationLeftStartCol).font = { bold: true };
-      ws.getCell(row, explanationAmountStartCol).font = { bold: true };
+      ws.getCell(row, explanationLeftStartCol).font = {bold: true};
+      ws.getCell(row, explanationAmountStartCol).font = {bold: true};
     }
     row++;
   }
 
   ws.mergeCells(row, explanationLeftStartCol, row, explanationLeftEndCol);
   ws.mergeCells(row, explanationAmountStartCol, row, explanationAmountEndCol);
-  ws.getCell(row, explanationLeftStartCol).value = "Amount Due";
-  ws.getCell(row, explanationLeftStartCol).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, explanationLeftStartCol).value = 'Amount Due';
+  ws.getCell(row, explanationLeftStartCol).alignment = {horizontal: 'center', vertical: 'middle'};
   ws.getCell(row, explanationAmountStartCol).value = `${_formatNumber(withholdings.netAmount)}`;
-  ws.getCell(row, explanationAmountStartCol).font = { bold: true, size: 13, color: { argb: "FF0000FF" } };
-  ws.getCell(row, explanationAmountStartCol).alignment = { horizontal: "right", vertical: "middle" };
+  ws.getCell(row, explanationAmountStartCol).font = {
+    bold: true,
+    size: 13,
+    color: {argb: 'FF0000FF'},
+  };
+  ws.getCell(row, explanationAmountStartCol).alignment = {horizontal: 'right', vertical: 'middle'};
   _applyDisbursementBorder(ws, row, explanationLeftStartCol, explanationLeftEndCol);
-  _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, "right");
+  _applyDisbursementBorder(ws, row, explanationAmountStartCol, explanationAmountEndCol, 'right');
   row++;
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "A. Certified";
-  ws.getCell(row, signerRightStartCol).value = "B. Certified";
-  ws.getCell(row, signerLeftStartCol).font = { bold: true };
-  ws.getCell(row, signerRightStartCol).font = { bold: true };
+  ws.getCell(row, signerLeftStartCol).value = 'A. Certified';
+  ws.getCell(row, signerRightStartCol).value = 'B. Certified';
+  ws.getCell(row, signerLeftStartCol).font = {bold: true};
+  ws.getCell(row, signerRightStartCol).font = {bold: true};
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "\u2611 Allotment obligated for the purpose as indicated above";
-  ws.getCell(row, signerRightStartCol).value = "\u2611 Funds Available";
+  ws.getCell(row, signerLeftStartCol).value =
+    '\u2611 Allotment obligated for the purpose as indicated above';
+  ws.getCell(row, signerRightStartCol).value = '\u2611 Funds Available';
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "\u2610 Supporting documents complete";
+  ws.getCell(row, signerLeftStartCol).value = '\u2610 Supporting documents complete';
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
@@ -5409,33 +5777,49 @@ async function _buildDisbursementVoucherExcelBuffer(
     _applyDisbursementBorder(ws, row + i, signerLeftStartCol, signerLeftEndCol);
     _applyDisbursementBorder(ws, row + i, signerRightStartCol, signerRightEndCol);
   }
-  ws.getCell(row, signerLeftStartCol).value = "Signature:";
-  ws.getCell(row, signerRightStartCol).value = "Signature:";
-  const signersApproved = voucher.accountantSigningStatus === "approved";
-  ws.getCell(row + 1, signerLeftStartCol).value = "Printed Name:";
+  ws.getCell(row, signerLeftStartCol).value = 'Signature:';
+  ws.getCell(row, signerRightStartCol).value = 'Signature:';
+  const signersApproved = voucher.accountantSigningStatus === 'approved';
+  ws.getCell(row + 1, signerLeftStartCol).value = 'Printed Name:';
   ws.getCell(row + 1, signerLeftValueStartCol).value = signersApproved
-    ? (voucher.signers.accountant.name ?? "").toUpperCase()
-    : "";
-  ws.getCell(row + 1, signerLeftValueStartCol).font = { bold: true };
-  ws.getCell(row + 1, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 1, signerRightStartCol).value = "Printed Name:";
+    ? (voucher.signers.accountant.name ?? '').toUpperCase()
+    : '';
+  ws.getCell(row + 1, signerLeftValueStartCol).font = {bold: true};
+  ws.getCell(row + 1, signerLeftValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
+  ws.getCell(row + 1, signerRightStartCol).value = 'Printed Name:';
   ws.getCell(row + 1, signerRightValueStartCol).value = signersApproved
-    ? (voucher.signers.treasurer.name ?? "").toUpperCase()
-    : "";
-  ws.getCell(row + 1, signerRightValueStartCol).font = { bold: true };
-  ws.getCell(row + 1, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 2, signerLeftStartCol).value = "Position:";
+    ? (voucher.signers.treasurer.name ?? '').toUpperCase()
+    : '';
+  ws.getCell(row + 1, signerRightValueStartCol).font = {bold: true};
+  ws.getCell(row + 1, signerRightValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
+  ws.getCell(row + 2, signerLeftStartCol).value = 'Position:';
   ws.getCell(row + 2, signerLeftValueStartCol).value = signersApproved
-    ? (voucher.signers.accountant.position ?? "")
-    : "";
-  ws.getCell(row + 2, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 2, signerRightStartCol).value = "Position:";
+    ? (voucher.signers.accountant.position ?? '')
+    : '';
+  ws.getCell(row + 2, signerLeftValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
+  ws.getCell(row + 2, signerRightStartCol).value = 'Position:';
   ws.getCell(row + 2, signerRightValueStartCol).value = signersApproved
-    ? (voucher.signers.treasurer.position ?? "")
-    : "";
-  ws.getCell(row + 2, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 3, signerLeftStartCol).value = "Date:";
-  ws.getCell(row + 3, signerRightStartCol).value = "Date:";
+    ? (voucher.signers.treasurer.position ?? '')
+    : '';
+  ws.getCell(row + 2, signerRightValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
+  ws.getCell(row + 3, signerLeftStartCol).value = 'Date:';
+  ws.getCell(row + 3, signerRightStartCol).value = 'Date:';
   ws.getRow(row).height = 28;
   ws.getRow(row + 1).height = 34;
   ws.getRow(row + 2).height = 30;
@@ -5444,10 +5828,10 @@ async function _buildDisbursementVoucherExcelBuffer(
 
   ws.mergeCells(row, signerLeftStartCol, row, signerLeftEndCol);
   ws.mergeCells(row, signerRightStartCol, row, signerRightEndCol);
-  ws.getCell(row, signerLeftStartCol).value = "C. Approved for Payment";
-  ws.getCell(row, signerRightStartCol).value = "D. Received Payment";
-  ws.getCell(row, signerLeftStartCol).font = { bold: true };
-  ws.getCell(row, signerRightStartCol).font = { bold: true };
+  ws.getCell(row, signerLeftStartCol).value = 'C. Approved for Payment';
+  ws.getCell(row, signerRightStartCol).value = 'D. Received Payment';
+  ws.getCell(row, signerLeftStartCol).font = {bold: true};
+  ws.getCell(row, signerRightStartCol).font = {bold: true};
   _applyDisbursementBorder(ws, row, signerLeftStartCol, signerLeftEndCol);
   _applyDisbursementBorder(ws, row, signerRightStartCol, signerRightEndCol);
   row++;
@@ -5460,34 +5844,50 @@ async function _buildDisbursementVoucherExcelBuffer(
     _applyDisbursementBorder(ws, row + i, signerRightStartCol, signerRightEndCol);
   }
 
-  ws.getCell(row, signerLeftStartCol).value = "Signature:/ Printed Name:";
-  ws.getCell(row, signerRightStartCol).value = "Check No./ Date";
-  ws.getCell(row, signerRightValueStartCol).value = "Bank Name";
+  ws.getCell(row, signerLeftStartCol).value = 'Signature:/ Printed Name:';
+  ws.getCell(row, signerRightStartCol).value = 'Check No./ Date';
+  ws.getCell(row, signerRightValueStartCol).value = 'Bank Name';
 
-  ws.getCell(row + 1, signerLeftStartCol).value = "Position:";
+  ws.getCell(row + 1, signerLeftStartCol).value = 'Position:';
   ws.getCell(row + 1, signerLeftValueStartCol).value = signersApproved
-    ? (voucher.signers.mayor.name ?? "").toUpperCase()
-    : "";
-  ws.getCell(row + 1, signerLeftValueStartCol).font = { bold: true };
-  ws.getCell(row + 1, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 1, signerRightStartCol).value = "Signature/ Printed Name/ Date";
+    ? (voucher.signers.mayor.name ?? '').toUpperCase()
+    : '';
+  ws.getCell(row + 1, signerLeftValueStartCol).font = {bold: true};
+  ws.getCell(row + 1, signerLeftValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
+  ws.getCell(row + 1, signerRightStartCol).value = 'Signature/ Printed Name/ Date';
   ws.getCell(row + 1, signerRightValueStartCol).value = signersApproved
-    ? (voucher.payee ?? "").toUpperCase()
-    : "";
-  ws.getCell(row + 1, signerRightValueStartCol).font = { bold: true };
-  ws.getCell(row + 1, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ? (voucher.payee ?? '').toUpperCase()
+    : '';
+  ws.getCell(row + 1, signerRightValueStartCol).font = {bold: true};
+  ws.getCell(row + 1, signerRightValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
 
-  ws.getCell(row + 2, signerLeftStartCol).value = "Date:";
+  ws.getCell(row + 2, signerLeftStartCol).value = 'Date:';
   ws.getCell(row + 2, signerLeftValueStartCol).value = signersApproved
-    ? (voucher.signers.mayor.position ?? "")
-    : "";
-  ws.getCell(row + 2, signerLeftValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getCell(row + 2, signerRightStartCol).value = "OR/Other Documents";
-  ws.getCell(row + 2, signerRightValueStartCol).value = "JEV No./ Date";
-  ws.getCell(row + 2, signerRightValueStartCol).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ? (voucher.signers.mayor.position ?? '')
+    : '';
+  ws.getCell(row + 2, signerLeftValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
+  ws.getCell(row + 2, signerRightStartCol).value = 'OR/Other Documents';
+  ws.getCell(row + 2, signerRightValueStartCol).value = 'JEV No./ Date';
+  ws.getCell(row + 2, signerRightValueStartCol).alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true,
+  };
 
-  ws.getCell(row + 3, signerLeftStartCol).value = "";
-  ws.getCell(row + 3, signerRightStartCol).value = "";
+  ws.getCell(row + 3, signerLeftStartCol).value = '';
+  ws.getCell(row + 3, signerRightStartCol).value = '';
 
   ws.getRow(row).height = 40;
   ws.getRow(row + 1).height = 52;
@@ -5495,18 +5895,30 @@ async function _buildDisbursementVoucherExcelBuffer(
   ws.getRow(row + 3).height = 34;
 
   const sectionCEnd = row + 3;
-  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, signerLeftStartCol, signerLeftEndCol);
-  _applyDisbursementSectionBox(ws, sectionCStart, sectionCEnd, signerRightStartCol, signerRightEndCol);
+  _applyDisbursementSectionBox(
+    ws,
+    sectionCStart,
+    sectionCEnd,
+    signerLeftStartCol,
+    signerLeftEndCol,
+  );
+  _applyDisbursementSectionBox(
+    ws,
+    sectionCStart,
+    sectionCEnd,
+    signerRightStartCol,
+    signerRightEndCol,
+  );
   row += 4;
 
   for (let r = 1; r <= row; r++) {
     for (let c = 1; c <= 15; c++) {
       // Ensure a consistent export typography while preserving style attributes.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any
       const cell = ws.getCell(r, c) as any;
       cell.font = {
         ...(cell.font ?? {}),
-        name: "Arial Narrow",
+        name: 'Arial Narrow',
       };
     }
     ws.getRow(r).commit();
@@ -5517,11 +5929,14 @@ async function _buildDisbursementVoucherExcelBuffer(
   return Buffer.from(rawBuffer as unknown as Uint8Array);
 }
 
-async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplatePath: string | null): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+async function _buildObrFormExcelBuffer(
+  request: ObrRequestType,
+  headerTemplatePath: string | null,
+): Promise<Buffer> {
+  const {Workbook} = await import('@cj-tech-master/excelts');
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("OBR Form");
+  const ws = wb.addWorksheet('OBR Form');
   ws.getColumn(1).width = 14;
   ws.getColumn(2).width = 18;
   ws.getColumn(3).width = 18;
@@ -5538,47 +5953,47 @@ async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplateP
   }
 
   ws.mergeCells(row, 1, row, 7);
-  ws.getCell(row, 1).value = "OBLIGATION REQUEST";
-  ws.getCell(row, 1).font = { bold: true, size: 20, name: "Times New Roman" };
-  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, 1).value = 'OBLIGATION REQUEST';
+  ws.getCell(row, 1).font = {bold: true, size: 20, name: 'Times New Roman'};
+  ws.getCell(row, 1).alignment = {horizontal: 'center', vertical: 'middle'};
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
   ws.getCell(row, 1).value = `Request: ${request.requestNumber}`;
-  ws.getCell(row, 5).value = `Obligation No.: ${request.obrNumber ?? ""}`;
+  ws.getCell(row, 5).value = `Obligation No.: ${request.obrNumber ?? ''}`;
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
-  ws.getCell(row, 1).value = `Payee: ${request.payee ?? ""}`;
-  ws.getCell(row, 5).value = `PR No.: ${request.prNumber ?? ""}`;
+  ws.getCell(row, 1).value = `Payee: ${request.payee ?? ''}`;
+  ws.getCell(row, 5).value = `PR No.: ${request.prNumber ?? ''}`;
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
   ws.getCell(row, 1).value = `Office: ${request.officeAddress}`;
-  ws.getCell(row, 5).value = "Date:";
+  ws.getCell(row, 5).value = 'Date:';
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 7);
-  ws.getCell(row, 1).value = "Address:";
+  ws.getCell(row, 1).value = 'Address:';
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 2, row, 4);
-  ws.getCell(row, 1).value = "RC";
-  ws.getCell(row, 2).value = "PARTICULARS";
-  ws.getCell(row, 5).value = "FPP";
-  ws.getCell(row, 6).value = "ACCOUNT CODE";
-  ws.getCell(row, 7).value = "AMOUNT";
+  ws.getCell(row, 1).value = 'RC';
+  ws.getCell(row, 2).value = 'PARTICULARS';
+  ws.getCell(row, 5).value = 'FPP';
+  ws.getCell(row, 6).value = 'ACCOUNT CODE';
+  ws.getCell(row, 7).value = 'AMOUNT';
   _applyCellBorder(ws, row, 1, 7);
   for (let col = 1; col <= 7; col++) {
-    ws.getCell(row, col).font = { bold: true };
-    ws.getCell(row, col).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.getCell(row, col).font = {bold: true};
+    ws.getCell(row, col).alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   }
   row++;
 
@@ -5591,9 +6006,9 @@ async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplateP
     ws.getCell(row, 1).value = item.responsibilityCenter.name;
     ws.getCell(row, 2).value = item.particulars;
     ws.getCell(row, 5).value = item.expenseCode.name;
-    ws.getCell(row, 6).value = item.expenseCode.accountCode ?? "-";
+    ws.getCell(row, 6).value = item.expenseCode.accountCode ?? '-';
     ws.getCell(row, 7).value = amount;
-    ws.getCell(row, 7).numFmt = "#,##0.00";
+    ws.getCell(row, 7).numFmt = '#,##0.00';
     _applyCellBorder(ws, row, 1, 7);
     row++;
   }
@@ -5608,63 +6023,77 @@ async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplateP
       singleItem.amount,
     )}`;
   }
-  ws.getCell(row, 5).value = "Total Amount Requested:";
+  ws.getCell(row, 5).value = 'Total Amount Requested:';
   ws.getCell(row, 7).value = totalAmount;
-  ws.getCell(row, 7).numFmt = "#,##0.00";
-  ws.getCell(row, 5).font = { bold: true };
-  ws.getCell(row, 7).font = { bold: true };
+  ws.getCell(row, 7).numFmt = '#,##0.00';
+  ws.getCell(row, 5).font = {bold: true};
+  ws.getCell(row, 7).font = {bold: true};
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
-  ws.getCell(row, 1).value = "Amount in Words:";
+  ws.getCell(row, 1).value = 'Amount in Words:';
   ws.getCell(row, 5).value = amountToWords(totalAmount).toUpperCase();
-  ws.getCell(row, 5).font = { bold: true, color: { argb: "FF0000FF" } };
+  ws.getCell(row, 5).font = {bold: true, color: {argb: 'FF0000FF'}};
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
-  ws.getCell(row, 1).value = "Certified:";
-  ws.getCell(row, 5).value = "Certified:";
+  ws.getCell(row, 1).value = 'Certified:';
+  ws.getCell(row, 5).value = 'Certified:';
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
-  ws.getCell(row, 1).value = "☁ECharges to appropriation/allotment necessary, lawful and under my direct supervision";
-  ws.getCell(row, 5).value = "☁EExistence of available appropriation";
+  ws.getCell(row, 1).value =
+    '☁ECharges to appropriation/allotment necessary, lawful and under my direct supervision';
+  ws.getCell(row, 5).value = '☁EExistence of available appropriation';
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   ws.mergeCells(row, 1, row, 4);
   ws.mergeCells(row, 5, row, 7);
-  ws.getCell(row, 1).value = "☁ESupporting documents valid, proper and legal";
+  ws.getCell(row, 1).value = '☁ESupporting documents valid, proper and legal';
   _applyCellBorder(ws, row, 1, 7);
   row++;
 
   const signerBlocks: ObrFormSignerBlock[] = request.approvers.slice(0, 3).map((approver, idx) => ({
-    printedName: approver.signer?.name ?? "-",
+    printedName: approver.signer?.name ?? '-',
     position: approver.position.name,
-    roleLabel: idx === 0
-      ? "Head, Requesting Office/Authorized Representative"
-      : idx === 1
-        ? "Head, Budget Unit/Authorized Representative"
-        : "Local Chief Executive/Authorized Representative",
+    roleLabel:
+      idx === 0
+        ? 'Head, Requesting Office/Authorized Representative'
+        : idx === 1
+          ? 'Head, Budget Unit/Authorized Representative'
+          : 'Local Chief Executive/Authorized Representative',
   }));
 
   if (signerBlocks.length <= 2) {
-    _renderSignerBlock(ws, row, 1, 4, signerBlocks[0] ?? {
-      printedName: "-",
-      position: "-",
-      roleLabel: "Head, Requesting Office/Authorized Representative",
-    });
-    _renderSignerBlock(ws, row, 5, 7, signerBlocks[1] ?? {
-      printedName: "-",
-      position: "-",
-      roleLabel: "Head, Budget Unit/Authorized Representative",
-    });
+    _renderSignerBlock(
+      ws,
+      row,
+      1,
+      4,
+      signerBlocks[0] ?? {
+        printedName: '-',
+        position: '-',
+        roleLabel: 'Head, Requesting Office/Authorized Representative',
+      },
+    );
+    _renderSignerBlock(
+      ws,
+      row,
+      5,
+      7,
+      signerBlocks[1] ?? {
+        printedName: '-',
+        position: '-',
+        roleLabel: 'Head, Budget Unit/Authorized Representative',
+      },
+    );
   } else {
     _renderSignerBlock(ws, row, 1, 2, signerBlocks[0]);
     _renderSignerBlock(ws, row, 3, 5, signerBlocks[1]);
@@ -5675,11 +6104,11 @@ async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplateP
   for (let r = 1; r <= row; r++) {
     for (let c = 1; c <= 7; c++) {
       // Ensure a consistent export typography while preserving style attributes.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any
       const cell = ws.getCell(r, c) as any;
       cell.font = {
         ...(cell.font ?? {}),
-        name: "Arial Narrow",
+        name: 'Arial Narrow',
       };
     }
   }
@@ -5694,17 +6123,17 @@ async function _buildObrFormExcelBuffer(request: ObrRequestType, headerTemplateP
 }
 
 type AccessRequestReaderValidationResult = {
-  error?: ErrorCodes | null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stack?: any,
-  officeLimited?: boolean,
-  positionId?: string,
-}
+  error?: ErrorCodes | null;
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+  stack?: any;
+  officeLimited?: boolean;
+  positionId?: string;
+};
 
-type AccessRequestValidationResult = Omit<AccessRequestReaderValidationResult, "officeLimited">;
+type AccessRequestValidationResult = Omit<AccessRequestReaderValidationResult, 'officeLimited'>;
 
-type ApprovalState = "pending" | "approved" | "binned";
-type ApprovalStateResponseType = ApprovalState | "mixed";
+type ApprovalState = 'pending' | 'approved' | 'binned';
+type ApprovalStateResponseType = ApprovalState | 'mixed';
 
 type CreateNewRequestType = {
   requestNumber: string;
@@ -5717,20 +6146,20 @@ type CreateNewRequestType = {
     expenseCodeId: string;
     particulars: string;
     amount: string;
-  }>
-}
+  }>;
+};
 
 type UpdateObrRequestItemPayload = {
   particulars?: string;
   amount?: string;
-}
+};
 
 type UpdateObrRequestHeaderPayload = {
   payee?: string;
   officeAddress?: string;
   obrNumber?: string;
   prNumber?: string;
-}
+};
 
 type CreateDisbursementItemPayload = {
   requestItemId: string;
@@ -5748,7 +6177,7 @@ type CreateDisbursementPayload = {
   taxType?: string;
   vatableAmount?: string;
   items: CreateDisbursementItemPayload[];
-}
+};
 
 type CreateStandaloneDisbursementItemPayload = {
   particulars: string;
@@ -5765,7 +6194,7 @@ type CreateStandaloneDisbursementPayload = {
   prNumber?: string;
   withCheque?: boolean;
   items: CreateStandaloneDisbursementItemPayload[];
-}
+};
 
 type ObrRequestItemObject = {
   id: string;
@@ -5776,7 +6205,7 @@ type ObrRequestItemObject = {
     id: string;
     name: string;
   };
-}
+};
 
 type PendingDisbursementForAccountant = {
   id: string;
@@ -5794,8 +6223,8 @@ type PendingDisbursementForAccountant = {
   taxBreakdown: ObrDisbursementTaxBreakdown;
   status: Optional<string>;
   accountantSigningStatus: string;
-  responsibilityCenter: { id: string; aa: string };
-  fundType: Optional<{ id: string; name: string; description: Optional<string> }>;
+  responsibilityCenter: {id: string; aa: string};
+  fundType: Optional<{id: string; name: string; description: Optional<string>}>;
   prNumber: Optional<string>;
   request: {
     id: string;
@@ -5859,10 +6288,10 @@ type BaseObrRequestType = {
   obrNumber: Optional<string>;
   prNumber: Optional<string>;
   requestItemsCount: number;
-}
+};
 
 type ObrRequestSummaryType = {
-  approvalStatus:  "pending" | "approved" | "binned" | "mixed"
+  approvalStatus: 'pending' | 'approved' | 'binned' | 'mixed';
 } & BaseObrRequestType;
 
 type ExpenseCodeObject = {
@@ -5870,7 +6299,7 @@ type ExpenseCodeObject = {
   name: string;
   fpp: Optional<string>;
   accountCode: Optional<string>;
-}
+};
 
 type ObrRequestType = {
   submittedForApproval: boolean;
@@ -5879,7 +6308,7 @@ type ObrRequestType = {
   office: {
     id: string;
     name: string;
-  }
+  };
   requestItems: Array<{
     id: string;
     particulars: string;
@@ -5888,13 +6317,13 @@ type ObrRequestType = {
     responsibilityCenter: {
       id: string;
       name: string;
-    }
-  }>
+    };
+  }>;
   publisher: {
     id: string;
     name: string;
-  }
-  approvers: Array<ApproverObject>
+  };
+  approvers: Array<ApproverObject>;
 } & BaseObrRequestType;
 
 type ApproverObject = {
@@ -5903,13 +6332,13 @@ type ApproverObject = {
   position: {
     id: string;
     name: string;
-  }
+  };
   signer: Optional<{
     id: string;
     name: string;
-  }>
+  }>;
   signedAt: Optional<Date>;
-}
+};
 
 type ObrDisbursementTaxBreakdown = {
   tax: Optional<string>;
@@ -5918,7 +6347,7 @@ type ObrDisbursementTaxBreakdown = {
   ewt2: Optional<string>;
   ewt1: Optional<string>;
   netAmount: Optional<string>;
-}
+};
 
 type ObrDisbursementVoucher = {
   id: string;
@@ -5936,43 +6365,43 @@ type ObrDisbursementVoucher = {
   grossAmount: Optional<string>;
   vatableAmount: Optional<string>;
   taxType: Optional<string>;
-  taxBreakdown: ObrDisbursementTaxBreakdown,
+  taxBreakdown: ObrDisbursementTaxBreakdown;
   responsibilityCenter: {
     id: string;
     aa: string;
-  }
+  };
   signers: {
     accountant: {
       id: string | null;
       name: string | null;
       position: string | null;
-    }
+    };
     treasurer: {
       id: string | null;
       name: string | null;
       position: string | null;
-    }
+    };
     mayor: {
       id: string | null;
       name: string | null;
       position: string | null;
-    }
+    };
     headOfOffice: {
       id: string | null;
       name: string | null;
       position: string | null;
-    }
-  }
+    };
+  };
   accountantSigningStatus: string;
   fundType: Optional<{
     id: string;
     name: string;
     description: Optional<string>;
-  }>
+  }>;
   status: Optional<string>;
   prNumber: Optional<string>;
   hasElecData: boolean;
-}
+};
 
 type ObrDisbursementElectronicItem = {
   id: string;
@@ -5982,15 +6411,15 @@ type ObrDisbursementElectronicItem = {
   gross: string;
   vatableSales: string;
   taxType: TaxType;
-}
+};
 
 export type ValidApproverPermissionType =
-  | "obr.disbursement.accountant.approve"
-  | "obr.disbursement.treasurer.approve"
-  | "obr.disbursement.mayor.approve";
+  | 'obr.disbursement.accountant.approve'
+  | 'obr.disbursement.treasurer.approve'
+  | 'obr.disbursement.mayor.approve';
 
-type TaxType = "vat-g" | "vat-s" | "nvat-g" | "nvat-s";
-type DisbursementStatus = "PREPARATION" | "PROCESSING" | "ON HOLD" | "FOR RELEASE" | "PAID";
+type TaxType = 'vat-g' | 'vat-s' | 'nvat-g' | 'nvat-s';
+type DisbursementStatus = 'PREPARATION' | 'PROCESSING' | 'ON HOLD' | 'FOR RELEASE' | 'PAID';
 
 type UpdateDisbursementVoucherPayload = {
   particulars?: Optional<string>;
@@ -6001,7 +6430,7 @@ type UpdateDisbursementVoucherPayload = {
   fundTypeId: Optional<string>;
   status: Optional<DisbursementStatus>;
   obrItemId: Optional<string>;
-}
+};
 
 type ObrItemOfficeData = {
   id: string;
@@ -6009,9 +6438,9 @@ type ObrItemOfficeData = {
   responsibilityCenter: {
     id: string;
     name: string;
-  }
+  };
   expenseCode: ExpenseCodeObject;
-}
+};
 
 type ObrItem = {
   id: string;
@@ -6027,12 +6456,12 @@ type ObrItem = {
     id: string;
     name: string;
     position: string;
-  }
+  };
   publisher: {
     id: string;
     name: string;
     position: string;
-  }
+  };
 };
 
 export type ObrSearchResultItem = {
@@ -6062,7 +6491,7 @@ export type ObrMainDataItem = {
   payee: Optional<string>;
   address: string;
   requestSourceId: string | null;
-  saaob: { id: string; name: string } | null;
+  saaob: {id: string; name: string} | null;
   responsibilityCenter: {
     id: string;
     name: string;

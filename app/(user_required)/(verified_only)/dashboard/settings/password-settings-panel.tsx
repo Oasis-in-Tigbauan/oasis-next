@@ -1,27 +1,20 @@
-"use client";
+'use client';
 
-import { Check, Eye, EyeOff, X } from "lucide-react";
-import { type SyntheticEvent, useMemo, useState } from "react";
+import {Check, Eye, EyeOff, X} from 'lucide-react';
+import {type SyntheticEvent, useMemo, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-
-import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
+import {Button} from '@/components/ui/button';
+import {Field, FieldContent, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Spinner} from '@/components/ui/spinner';
+import {$fetch} from '@/lib/http/client/fetch';
 
 const PASSWORD_REQUIREMENTS = [
-  { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
-  { label: "At least 2 lowercase", regex: /(.*[a-z]){2,}/ },
-  { label: "At least 2 uppercase", regex: /(.*[A-Z]){2,}/ },
-  { label: "At least 2 numbers", regex: /(.*\d){2,}/ },
-  { label: "At least 2 symbols", regex: /(.*[!@#$%^&*(),.?":{}|<>]){2,}/ },
+  {label: 'At least 8 characters', test: (value: string) => value.length >= 8},
+  {label: 'At least 2 lowercase', regex: /(.*[a-z]){2,}/},
+  {label: 'At least 2 uppercase', regex: /(.*[A-Z]){2,}/},
+  {label: 'At least 2 numbers', regex: /(.*\d){2,}/},
+  {label: 'At least 2 symbols', regex: /(.*[!@#$%^&*(),.?":{}|<>]){2,}/},
 ] as const;
 
 function isStrongPassword(value: string): boolean {
@@ -30,10 +23,10 @@ function isStrongPassword(value: string): boolean {
   }
 
   return (
-    (value.match(/[a-z]/g) ?? []).length >= 2
-    && (value.match(/[A-Z]/g) ?? []).length >= 2
-    && (value.match(/[0-9]/g) ?? []).length >= 2
-    && (value.match(/[!"#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]/g) ?? []).length >= 2
+    (value.match(/[a-z]/g) ?? []).length >= 2 &&
+    (value.match(/[A-Z]/g) ?? []).length >= 2 &&
+    (value.match(/[0-9]/g) ?? []).length >= 2 &&
+    (value.match(/[!"#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]/g) ?? []).length >= 2
   );
 }
 
@@ -46,18 +39,20 @@ export default function PasswordSettingsPanel() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [onNewPasswordFocus, setOnNewPasswordFocus] = useState(false);
   const [credentials, setCredentials] = useState<ChangePasswordFormState>({
-    oldPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
   });
 
   const requirements = useMemo(
-    () => PASSWORD_REQUIREMENTS.map((req) => ({
-      label: req.label,
-      isMet: "test" in req
-        ? req.test(credentials.newPassword)
-        : req.regex.test(credentials.newPassword),
-    })),
+    () =>
+      PASSWORD_REQUIREMENTS.map((req) => ({
+        label: req.label,
+        isMet:
+          'test' in req
+            ? req.test(credentials.newPassword)
+            : req.regex.test(credentials.newPassword),
+      })),
     [credentials.newPassword],
   );
 
@@ -77,21 +72,21 @@ export default function PasswordSettingsPanel() {
     setSuccessMessage(null);
 
     if (credentials.newPassword !== credentials.confirmPassword) {
-      setErrorMessage("New password and confirmation do not match.");
+      setErrorMessage('New password and confirmation do not match.');
       return;
     }
 
     if (!isStrongPassword(credentials.newPassword)) {
       setErrorMessage(
-        "Password must contain at least 2 lowercase, uppercase, numbers and symbols.",
+        'Password must contain at least 2 lowercase, uppercase, numbers and symbols.',
       );
       return;
     }
 
     setIsLoading(true);
     try {
-      const { error } = await $fetch("/api/account/change-password", {
-        method: "POST",
+      const {error} = await $fetch('/api/account/change-password', {
+        method: 'POST',
         body: {
           oldPassword: credentials.oldPassword,
           newPassword: credentials.newPassword,
@@ -101,21 +96,20 @@ export default function PasswordSettingsPanel() {
       if (error) {
         setSuccessMessage(null);
         setErrorMessage(
-          typeof error.message === "string" && error.message.length > 0
+          typeof error.message === 'string' && error.message.length > 0
             ? error.message
-            : "Unable to change your password. Please try again.",
+            : 'Unable to change your password. Please try again.',
         );
         return;
       }
 
       setCredentials({
-        oldPassword: "",
-        newPassword: "",
-        confirmPassword: "",
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
       });
-      setSuccessMessage("Your password has been changed successfully.");
-    }
-    finally {
+      setSuccessMessage('Your password has been changed successfully.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -157,10 +151,10 @@ export default function PasswordSettingsPanel() {
               <Input
                 id="old-password"
                 className="pr-9"
-                type={showCurrentPassword ? "text" : "password"}
+                type={showCurrentPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 value={credentials.oldPassword}
-                onInput={(e) => onFieldUpdate(e, "oldPassword")}
+                onInput={(e) => onFieldUpdate(e, 'oldPassword')}
                 disabled={isLoading}
                 required
               />
@@ -169,7 +163,7 @@ export default function PasswordSettingsPanel() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                 onClick={() => setShowCurrentPassword((v) => !v)}
                 disabled={isLoading}
-                aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
               >
                 {showCurrentPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
@@ -189,12 +183,12 @@ export default function PasswordSettingsPanel() {
               <Input
                 id="new-password"
                 className="pr-9"
-                type={showNewPassword ? "text" : "password"}
+                type={showNewPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 value={credentials.newPassword}
                 onFocus={() => setOnNewPasswordFocus(true)}
                 onBlur={() => setOnNewPasswordFocus(false)}
-                onInput={(e) => onFieldUpdate(e, "newPassword")}
+                onInput={(e) => onFieldUpdate(e, 'newPassword')}
                 disabled={isLoading}
                 required
               />
@@ -203,7 +197,7 @@ export default function PasswordSettingsPanel() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                 onClick={() => setShowNewPassword((v) => !v)}
                 disabled={isLoading}
-                aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
               >
                 {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
@@ -211,20 +205,13 @@ export default function PasswordSettingsPanel() {
             {onNewPasswordFocus && (
               <ul className="mt-2 grid grid-cols-1 gap-1.5">
                 {requirements.map((req) => (
-                  <li
-                    key={req.label}
-                    className="flex items-center gap-2 text-sm transition-colors"
-                  >
+                  <li key={req.label} className="flex items-center gap-2 text-sm transition-colors">
                     {req.isMet ? (
                       <Check className="size-4 text-green-500" />
                     ) : (
                       <X className="size-4 text-muted-foreground/50" />
                     )}
-                    <span
-                      className={
-                        req.isMet ? "text-foreground" : "text-muted-foreground"
-                      }
-                    >
+                    <span className={req.isMet ? 'text-foreground' : 'text-muted-foreground'}>
                       {req.label}
                     </span>
                   </li>
@@ -246,10 +233,10 @@ export default function PasswordSettingsPanel() {
               <Input
                 id="confirm-password"
                 className="pr-9"
-                type={showConfirmPassword ? "text" : "password"}
+                type={showConfirmPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 value={credentials.confirmPassword}
-                onInput={(e) => onFieldUpdate(e, "confirmPassword")}
+                onInput={(e) => onFieldUpdate(e, 'confirmPassword')}
                 disabled={isLoading}
                 required
               />
@@ -258,14 +245,12 @@ export default function PasswordSettingsPanel() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                 onClick={() => setShowConfirmPassword((v) => !v)}
                 disabled={isLoading}
-                aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
               >
                 {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
-            <FieldDescription>
-              Re-enter your new password to confirm.
-            </FieldDescription>
+            <FieldDescription>Re-enter your new password to confirm.</FieldDescription>
           </FieldContent>
         </Field>
       </FieldGroup>
@@ -273,7 +258,7 @@ export default function PasswordSettingsPanel() {
       <div className="col-start-2">
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading && <Spinner />}
-          {isLoading ? "Saving..." : "Change password"}
+          {isLoading ? 'Saving...' : 'Change password'}
         </Button>
       </div>
     </form>

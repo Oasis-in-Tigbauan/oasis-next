@@ -1,6 +1,6 @@
-import { createClient } from "redis";
-import { DateTime } from "luxon";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
+import {DateTime} from 'luxon';
+import {createClient} from 'redis';
 
 const REDIS_URL = process.env.REDIS_URL;
 
@@ -10,8 +10,8 @@ const globalForRedis = global as unknown as {
 };
 
 async function createRedisClient() {
-  return await createClient({ url: REDIS_URL })
-    .on("error", (e) => Sentry.captureException(e))
+  return await createClient({url: REDIS_URL})
+    .on('error', (e) => Sentry.captureException(e))
     .connect();
 }
 
@@ -72,7 +72,7 @@ class CacheManager {
 
     // Set lifetime
     if (options?.lifetime && options.lifetime > 0) {
-      await client.expire(key, options.lifetime * 60, "NX");
+      await client.expire(key, options.lifetime * 60, 'NX');
     }
   }
 
@@ -118,11 +118,11 @@ class CacheManager {
       return;
     }
 
-    const result = await client.json.set(key, "$", value);
+    const result = await client.json.set(key, '$', value);
 
-    if (result === "OK" && options?.lifetime && options.lifetime > 0) {
-      const time = DateTime.utc().plus({ minutes: options.lifetime }).toJSDate();
-      client.expireAt(key, time, "NX");
+    if (result === 'OK' && options?.lifetime && options.lifetime > 0) {
+      const time = DateTime.utc().plus({minutes: options.lifetime}).toJSDate();
+      client.expireAt(key, time, 'NX');
     }
   }
 
@@ -157,7 +157,7 @@ class CacheManager {
    */
   async getJson<T>(key: string): Promise<T | null> {
     const client = await this.getClient();
-    const json = await client.json.get(key, { path: "$" });
+    const json = await client.json.get(key, {path: '$'});
 
     if (!json) return null;
     if (Array.isArray(json) && json.length === 1) {
@@ -179,7 +179,7 @@ class CacheManager {
    */
   async getJsonAtomic<T>(key: string, path: string): Promise<T | null> {
     const client = await this.getClient();
-    const json = await client.json.get(key, { path });
+    const json = await client.json.get(key, {path});
 
     if (!json) return null;
     if (Array.isArray(json) && json.length === 0) return null;
@@ -211,7 +211,7 @@ class CacheManager {
     const client = await this.getClient();
     const exists = await client.exists(key);
     if (exists) {
-      await client.json.del(key, { path });
+      await client.json.del(key, {path});
     }
   }
 }
@@ -227,13 +227,13 @@ export type CacheOptions = Partial<{
    * @remarks The value represents in minutes.
    */
   lifetime: number;
-}>
+}>;
 
 export const cacheManager = globalForRedis.cacheManager ?? new CacheManager();
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== 'production') {
   globalForRedis.cacheManager = cacheManager;
 }
 
 type RedisClient = ReturnType<typeof createClient>;
-export type ValueType = Parameters<RedisClient["json"]["set"]>[2];
+export type ValueType = Parameters<RedisClient['json']['set']>[2];

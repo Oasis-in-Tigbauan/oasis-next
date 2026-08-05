@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 type Response = {
   id: string;
@@ -9,8 +9,8 @@ type Response = {
     role: {
       id: string;
       name: string;
-    }
-  }
+    };
+  };
   errors?: object;
 };
 

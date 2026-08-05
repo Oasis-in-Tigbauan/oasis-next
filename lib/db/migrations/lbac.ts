@@ -1,10 +1,10 @@
-import { count } from "drizzle-orm";
-import fsp from "fs/promises";
-import { DateTime } from "luxon";
-import path from "path";
-import { v7 as uuidv7 } from "uuid";
+import fsp from 'fs/promises';
+import path from 'path';
 
-import type { MigratorFn } from "@/lib/db/types";
+import {count} from 'drizzle-orm';
+import {DateTime} from 'luxon';
+import {v7 as uuidv7} from 'uuid';
+
 import {
   aipReferences,
   aroOfficeDefinitions,
@@ -13,36 +13,43 @@ import {
   lbacQuarterlyReport,
   officeCodes,
   saaobEntries,
-} from "@/lib/db/schema";
+} from '@/lib/db/schema';
+import type {MigratorFn} from '@/lib/db/types';
 
 export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
-  console.log("Migrating LBAC Data...");
+  console.log('Migrating LBAC Data...');
 
   // Check if there are items. Skip if there are items.
-  const [result] = await client
-    .select({ count: count(lbacItems.id)})
-    .from(lbacItems);
+  const [result] = await client.select({count: count(lbacItems.id)}).from(lbacItems);
   if (Number(result.count) > 0) {
-    console.log("-> Skipped due to LBAC items exists");
+    console.log('-> Skipped due to LBAC items exists');
     return;
   }
 
   // Fetch lookup tables
-  const allOfficeCodes = await client.select({ id: officeCodes.id, aa: officeCodes.aa }).from(officeCodes);
-  const allAipReferences = await client.select({ id: aipReferences.id, code: aipReferences.aipReferenceCode }).from(aipReferences);
+  const allOfficeCodes = await client
+    .select({id: officeCodes.id, aa: officeCodes.aa})
+    .from(officeCodes);
+  const allAipReferences = await client
+    .select({id: aipReferences.id, code: aipReferences.aipReferenceCode})
+    .from(aipReferences);
 
-  const officeCodeByAa = new Map(allOfficeCodes.map(r => [r.aa.trim().toLowerCase(), r.id]));
-  const aipRefByCode = new Map(allAipReferences.map(r => [r.code.trim().toLowerCase(), r.id]));
+  const officeCodeByAa = new Map(allOfficeCodes.map((r) => [r.aa.trim().toLowerCase(), r.id]));
+  const aipRefByCode = new Map(allAipReferences.map((r) => [r.code.trim().toLowerCase(), r.id]));
 
-  const allSaaobEntries = await client.select({ id: saaobEntries.id, refCode: saaobEntries.refCode, expenseCodeId: saaobEntries.expenseCodeId }).from(saaobEntries);
+  const allSaaobEntries = await client
+    .select({
+      id: saaobEntries.id,
+      refCode: saaobEntries.refCode,
+      expenseCodeId: saaobEntries.expenseCodeId,
+    })
+    .from(saaobEntries);
   const saaobByRefCode = new Map(
-    allSaaobEntries
-      .filter(r => r.refCode)
-      .map(r => [r.refCode!.trim().toUpperCase(), r]),
+    allSaaobEntries.filter((r) => r.refCode).map((r) => [r.refCode!.trim().toUpperCase(), r]),
   );
 
   const allAroOffices = await client
-    .select({ id: aroOfficeDefinitions.id, name: aroOfficeDefinitions.name })
+    .select({id: aroOfficeDefinitions.id, name: aroOfficeDefinitions.name})
     .from(aroOfficeDefinitions);
   // Multiple rows may share the same name — keep the first encountered (topmost)
   const aroByName = new Map<string, string>();
@@ -59,20 +66,13 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
   const flatItems: FlatItem[] = [];
 
   for (const officeGroup of lbacObjects) {
-    collectGroupsAndItems(
-      officeGroup,
-      null,
-      usr.id,
-      aipRefByCode,
-      flatGroups,
-      flatItems,
-    );
+    collectGroupsAndItems(officeGroup, null, usr.id, aipRefByCode, flatGroups, flatItems);
   }
 
   // Batch insert all groups in one call (parents are always before children)
   if (flatGroups.length > 0) {
     await client.insert(lbacGroups).values(
-      flatGroups.map(g => ({
+      flatGroups.map((g) => ({
         id: g.id,
         name: g.name,
         parentId: g.parentId,
@@ -84,102 +84,122 @@ export const lbacMigration: MigratorFn = async (client, usr): Promise<void> => {
   }
 
   // Attach pre-generated quarterly report UUIDs to each item
-  const flatItemsWithQrId = flatItems.map(fi => ({ ...fi, qrId: uuidv7() }));
+  const flatItemsWithQrId = flatItems.map((fi) => ({...fi, qrId: uuidv7()}));
 
   // Batch insert all quarterly reports in one call
   if (flatItemsWithQrId.length > 0) {
     await client.insert(lbacQuarterlyReport).values(
-      flatItemsWithQrId.map(({ qrId, item }) => ({
+      flatItemsWithQrId.map(({qrId, item}) => ({
         id: qrId,
-        priorYearAccomplishments: item["Prior Year Accomplishments  (Actual 2025)"] || null,
-        physicalTargetQ1: item["PHYSICAL TARGETS:1ST QUARTER"] || null,
-        physicalTargetQ2: item["PHYSICAL TARGETS:2ND QUARTER"] || null,
-        physicalTargetQ3: item["PHYSICAL TARGETS:3RD QUARTER"] || null,
-        physicalTargetQ4: item["PHYSICAL TARGETS:4TH QUARTER"] || null,
-        physicalTargetTotal: item["PHYSICAL TARGETS:TOTAL"] || null,
-        actualPhysicalPerformanceQ1: item["ACTUAL PHYSICAL PERFORMANCE:1ST QUARTER"] || null,
-        actualPhysicalPerformanceQ2: item["ACTUAL PHYSICAL PERFORMANCE:2ND QUARTER"] || null,
-        actualPhysicalPerformanceQ3: item["ACTUAL PHYSICAL PERFORMANCE:3RD QUARTER"] || null,
-        actualPhysicalPerformanceQ4: item["ACTUAL PHYSICAL PERFORMANCE:4TH QUARTER"] || null,
-        actualPhysicalPerformanceTotal: item["ACTUAL PHYSICAL PERFORMANCE:TOTAL"] || null,
-        variance: item["Variance as of (2)"] || null,
-        accomplishmentPercentage: item["% of Accomplishment"] || null,
-        remarks: item["Remarks (3)"] || null,
-        targetForBudgetYear: item["Target for the Budget Year  (Quantity, Quality & Time)"] || null,
+        priorYearAccomplishments: item['Prior Year Accomplishments  (Actual 2025)'] || null,
+        physicalTargetQ1: item['PHYSICAL TARGETS:1ST QUARTER'] || null,
+        physicalTargetQ2: item['PHYSICAL TARGETS:2ND QUARTER'] || null,
+        physicalTargetQ3: item['PHYSICAL TARGETS:3RD QUARTER'] || null,
+        physicalTargetQ4: item['PHYSICAL TARGETS:4TH QUARTER'] || null,
+        physicalTargetTotal: item['PHYSICAL TARGETS:TOTAL'] || null,
+        actualPhysicalPerformanceQ1: item['ACTUAL PHYSICAL PERFORMANCE:1ST QUARTER'] || null,
+        actualPhysicalPerformanceQ2: item['ACTUAL PHYSICAL PERFORMANCE:2ND QUARTER'] || null,
+        actualPhysicalPerformanceQ3: item['ACTUAL PHYSICAL PERFORMANCE:3RD QUARTER'] || null,
+        actualPhysicalPerformanceQ4: item['ACTUAL PHYSICAL PERFORMANCE:4TH QUARTER'] || null,
+        actualPhysicalPerformanceTotal: item['ACTUAL PHYSICAL PERFORMANCE:TOTAL'] || null,
+        variance: item['Variance as of (2)'] || null,
+        accomplishmentPercentage: item['% of Accomplishment'] || null,
+        remarks: item['Remarks (3)'] || null,
+        targetForBudgetYear: item['Target for the Budget Year  (Quantity, Quality & Time)'] || null,
       })),
     );
 
     // Batch insert all lbac items in one call
     await client.insert(lbacItems).values(
-      flatItemsWithQrId.map(({ qrId, item, groupId }) => {
-        const aipRefCodeRaw = item["AIP REF CODE"]?.trim();
-        const aipRefId = aipRefCodeRaw ? (aipRefByCode.get(aipRefCodeRaw.toLowerCase()) ?? null) : null;
-        const implementingUnitRaw = item["Implementing Unit"]?.trim();
+      flatItemsWithQrId.map(({qrId, item, groupId}) => {
+        const aipRefCodeRaw = item['AIP REF CODE']?.trim();
+        const aipRefId = aipRefCodeRaw
+          ? (aipRefByCode.get(aipRefCodeRaw.toLowerCase()) ?? null)
+          : null;
+        const implementingUnitRaw = item['Implementing Unit']?.trim();
         const implementingUnitId = implementingUnitRaw
           ? (officeCodeByAa.get(implementingUnitRaw.toLowerCase()) ?? null)
           : null;
 
         return {
           aipRefCode: aipRefId,
-          mfoPpa: (item["MFO/ PPA"] || item["MFO/PPA"] || "").trim(),
-          majorFinalOutput: item["Major Final Output"] || null,
-          performanceOutputIndicator: item["Performance/Output Indicator"] || null,
-          targetForBudgetYear: item["Target for the Budget Year  (Quantity, Quality & Time)"] || null,
-          proposedBudgetPS: tryGetDecimal(item["Proposed Budget for the Budget Year:PS"]) ?? "0",
-          proposedBudgetMOOE: tryGetDecimal(item["Proposed Budget for the Budget Year:MOOE"]) ?? "0",
-          proposedBudgetFE: tryGetDecimal(item["Proposed Budget for the Budget Year:FE"]) ?? "0",
-          proposedBudgetCO: tryGetDecimal(item["Proposed Budget for the Budget Year:CO"]) ?? "0",
-          remarks: item["Remarks"] || null,
-          gadable: (item["GADABLE"] || "").trim().toLowerCase() === "yes",
-          tagging: item["TAGGING"] || null,
-          amountAttributed: tryGetDecimal(item["AMOUNT ATTRIBUTED"]),
+          mfoPpa: (item['MFO/ PPA'] || item['MFO/PPA'] || '').trim(),
+          majorFinalOutput: item['Major Final Output'] || null,
+          performanceOutputIndicator: item['Performance/Output Indicator'] || null,
+          targetForBudgetYear:
+            item['Target for the Budget Year  (Quantity, Quality & Time)'] || null,
+          proposedBudgetPS: tryGetDecimal(item['Proposed Budget for the Budget Year:PS']) ?? '0',
+          proposedBudgetMOOE:
+            tryGetDecimal(item['Proposed Budget for the Budget Year:MOOE']) ?? '0',
+          proposedBudgetFE: tryGetDecimal(item['Proposed Budget for the Budget Year:FE']) ?? '0',
+          proposedBudgetCO: tryGetDecimal(item['Proposed Budget for the Budget Year:CO']) ?? '0',
+          remarks: item['Remarks'] || null,
+          gadable: (item['GADABLE'] || '').trim().toLowerCase() === 'yes',
+          tagging: item['TAGGING'] || null,
+          amountAttributed: tryGetDecimal(item['AMOUNT ATTRIBUTED']),
           implementingUnitId,
-          expenseCodeId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.expenseCodeId ?? null,
-          saaobId: saaobByRefCode.get((item["CHARGES"] ?? "").trim().toUpperCase())?.id ?? null,
-          aroType: mapAroType(item["ARO (2)"]),
-          budgetType: mapBudgetType(item["BUDGET TYPE"]),
-          aroLink: aroByName.get((item["DEPARTMENT/OFFICE"] ?? "").trim().toUpperCase()) ?? null,
+          expenseCodeId:
+            saaobByRefCode.get((item['CHARGES'] ?? '').trim().toUpperCase())?.expenseCodeId ?? null,
+          saaobId: saaobByRefCode.get((item['CHARGES'] ?? '').trim().toUpperCase())?.id ?? null,
+          aroType: mapAroType(item['ARO (2)']),
+          budgetType: mapBudgetType(item['BUDGET TYPE']),
+          aroLink: aroByName.get((item['DEPARTMENT/OFFICE'] ?? '').trim().toUpperCase()) ?? null,
           quarterlyReportId: qrId,
           parentId: groupId,
           authorId: usr.id,
-          createdAt: DateTime.fromFormat((item["ISSUE DATE"] ?? "").trim(), "MMMM d, yyyy", { zone: "Asia/Manila" }).toUTC().toJSDate(),
+          createdAt: DateTime.fromFormat((item['ISSUE DATE'] ?? '').trim(), 'MMMM d, yyyy', {
+            zone: 'Asia/Manila',
+          })
+            .toUTC()
+            .toJSDate(),
         };
       }),
     );
   }
 
-  console.log(`LBAC migration complete: ${flatGroups.length} groups, ${flatItemsWithQrId.length} items inserted.`);
+  console.log(
+    `LBAC migration complete: ${flatGroups.length} groups, ${flatItemsWithQrId.length} items inserted.`,
+  );
 };
 
 function tryGetDecimal(value: string | undefined): string | null {
   if (!value) return null;
-  const cleaned = value.replace(/,/g, "").trim();
+  const cleaned = value.replace(/,/g, '').trim();
   const num = Number(cleaned);
   if (!Number.isFinite(num)) return null;
   return num.toString();
 }
 
-function mapAroType(value: string | undefined): "ps" | "mooe" | "finex" | "capex" | null {
-  switch ((value ?? "").trim().toLowerCase()) {
-  case "ps":    return "ps";
-  case "mooe":  return "mooe";
-  case "finex": return "finex";
-  case "capex": return "capex";
-  default:      return null;
+function mapAroType(value: string | undefined): 'ps' | 'mooe' | 'finex' | 'capex' | null {
+  switch ((value ?? '').trim().toLowerCase()) {
+    case 'ps':
+      return 'ps';
+    case 'mooe':
+      return 'mooe';
+    case 'finex':
+      return 'finex';
+    case 'capex':
+      return 'capex';
+    default:
+      return null;
   }
 }
 
-function mapBudgetType(value: string | undefined): "ab" | "sb" | "rb" | null {
-  switch ((value ?? "").trim().toUpperCase()) {
-  case "ANNUAL BUDGET":       return "ab";
-  case "SUPPLEMENTAL BUDGET": return "sb";
-  case "REENACTED BUDGET":    return "rb";
-  default:                    return null;
+function mapBudgetType(value: string | undefined): 'ab' | 'sb' | 'rb' | null {
+  switch ((value ?? '').trim().toUpperCase()) {
+    case 'ANNUAL BUDGET':
+      return 'ab';
+    case 'SUPPLEMENTAL BUDGET':
+      return 'sb';
+    case 'REENACTED BUDGET':
+      return 'rb';
+    default:
+      return null;
   }
 }
 
 function isLbacGroup(item: LbacGroup | LbacItem): item is LbacGroup {
-  return (item as LbacGroup).$type === "group";
+  return (item as LbacGroup).$type === 'group';
 }
 
 /**
@@ -196,24 +216,24 @@ function collectGroupsAndItems(
   flatItems: FlatItem[],
 ): void {
   const id = uuidv7();
-  const aipRefCodeRaw = group["AIP REF CODE"]?.trim();
+  const aipRefCodeRaw = group['AIP REF CODE']?.trim();
   const aipRefId = aipRefCodeRaw ? (aipRefByCode.get(aipRefCodeRaw.toLowerCase()) ?? null) : null;
 
   // Push this group before its children so parentId references are always valid
-  flatGroups.push({ id, name: group["MFO/PPA"], parentId, aipRefId, authorId });
+  flatGroups.push({id, name: group['MFO/PPA'], parentId, aipRefId, authorId});
 
   for (const child of group.items) {
     if (isLbacGroup(child)) {
       collectGroupsAndItems(child, id, authorId, aipRefByCode, flatGroups, flatItems);
     } else {
-      flatItems.push({ groupId: id, item: child });
+      flatItems.push({groupId: id, item: child});
     }
   }
 }
 
 export async function parseLbacEntries(): Promise<LbacGroup[]> {
-  const rows = await readTsvRows(path.join(__dirname, "data/lbac.tsv"));
-  const quarterlyRows = await readTsvRows(path.join(__dirname, "data/lbac-quarterly.tsv"));
+  const rows = await readTsvRows(path.join(__dirname, 'data/lbac.tsv'));
+  const quarterlyRows = await readTsvRows(path.join(__dirname, 'data/lbac-quarterly.tsv'));
 
   const schemaKeys = buildSchemaKeys(rows[0], rows[1]);
   const quarterlySchemaKeys = buildSchemaKeys(quarterlyRows[0], quarterlyRows[1]);
@@ -223,16 +243,16 @@ export async function parseLbacEntries(): Promise<LbacGroup[]> {
   const quarterlyLookup = buildQuarterlyLookup(quarterlyEntries, quarterlySchemaKeys);
 
   return groupOfficeBlocks(entries)
-    .map(block => mapOfficeBlock(schemaKeys, block, quarterlyLookup))
+    .map((block) => mapOfficeBlock(schemaKeys, block, quarterlyLookup))
     .filter((group): group is LbacGroup => group !== null);
 }
 
 async function readTsvRows(filePath: string): Promise<string[][]> {
-  return (await fsp.readFile(filePath, "utf-8"))
+  return (await fsp.readFile(filePath, 'utf-8'))
     .split(/\r?\n/)
-    .map(line => line.split("\t"))
+    .map((line) => line.split('\t'))
     .slice(4)
-    .filter(row => row.some(column => normalizeText(column) !== null));
+    .filter((row) => row.some((column) => normalizeText(column) !== null));
 }
 
 function buildSchemaKeys(primaryHeader: string[], secondaryHeader: string[]): Array<string | null> {
@@ -312,9 +332,9 @@ function mapOfficeBlock(
   }
 
   const officeGroup: LbacGroup = {
-    $type: "group",
-    "AIP REF CODE": officeCode,
-    "MFO/PPA": officeName,
+    $type: 'group',
+    'AIP REF CODE': officeCode,
+    'MFO/PPA': officeName,
     items: [],
   };
 
@@ -333,8 +353,8 @@ function mapOfficeBlock(
 
     if (isItemRow(row)) {
       currentSection ??= {
-        $type: "group",
-        "MFO/PPA": inferItemSectionName(row) ?? officeName,
+        $type: 'group',
+        'MFO/PPA': inferItemSectionName(row) ?? officeName,
         items: [],
       };
 
@@ -348,14 +368,14 @@ function mapOfficeBlock(
     }
 
     if (currentSection && currentSection.items.length === 0) {
-      currentSection["MFO/PPA"] = sectionTitle;
+      currentSection['MFO/PPA'] = sectionTitle;
       continue;
     }
 
     currentSection = pushSection(officeGroup, currentSection);
     currentSection = {
-      $type: "group",
-      "MFO/PPA": sectionTitle,
+      $type: 'group',
+      'MFO/PPA': sectionTitle,
       items: [],
     };
   }
@@ -386,7 +406,7 @@ function mapEntry(
       continue;
     }
 
-    item[key] = row[index] ?? "";
+    item[key] = row[index] ?? '';
   }
 
   if (quarterlyLookup) {
@@ -400,13 +420,13 @@ function mapEntry(
 
 function normalizeCanonicalFields(item: LbacItem): void {
   const priorYearValue = pickFirstNonEmpty(
-    item["Prior Year Accomplishments  (Actual 2025)"],
-    item["Prior Year Accomplishments  (Actual 2024)"],
-    item["ACCOUNT CODE:Prior Year Accomplishments  (Actual 2025)"],
-    item["ACCOUNT CODE:Prior Year Accomplishments  (Actual 2024)"],
+    item['Prior Year Accomplishments  (Actual 2025)'],
+    item['Prior Year Accomplishments  (Actual 2024)'],
+    item['ACCOUNT CODE:Prior Year Accomplishments  (Actual 2025)'],
+    item['ACCOUNT CODE:Prior Year Accomplishments  (Actual 2024)'],
   );
 
-  item["Prior Year Accomplishments  (Actual 2025)"] = priorYearValue ?? "";
+  item['Prior Year Accomplishments  (Actual 2025)'] = priorYearValue ?? '';
 }
 
 function buildQuarterlyLookup(
@@ -456,8 +476,8 @@ function buildQuarterlyLookup(
 
 function applyQuarterlyOverlay(item: LbacItem, quarterlyLookup: QuarterlyLookup): void {
   const overlay = buildJoinKeys(item)
-    .map(joinKey => quarterlyLookup.get(joinKey))
-    .find(candidate => candidate !== undefined);
+    .map((joinKey) => quarterlyLookup.get(joinKey))
+    .find((candidate) => candidate !== undefined);
 
   if (!overlay) {
     return;
@@ -483,7 +503,7 @@ function applyQuarterlyOverlay(item: LbacItem, quarterlyLookup: QuarterlyLookup)
 }
 
 function buildJoinKeys(item: LbacItem): string[] {
-  const values = QUARTERLY_JOIN_KEYS.map(key => normalizeJoinValue(item[key]));
+  const values = QUARTERLY_JOIN_KEYS.map((key) => normalizeJoinValue(item[key]));
 
   const aip = values[0];
   const mfo = values[1];
@@ -495,12 +515,12 @@ function buildJoinKeys(item: LbacItem): string[] {
   const keys: string[] = [];
 
   if (mfo && implementingUnit) {
-    keys.push([aip, mfo, implementingUnit, ...values.slice(3)].join("|"));
-    keys.push([aip, mfo, implementingUnit].join("|"));
+    keys.push([aip, mfo, implementingUnit, ...values.slice(3)].join('|'));
+    keys.push([aip, mfo, implementingUnit].join('|'));
   }
 
   if (mfo) {
-    keys.push([aip, mfo].join("|"));
+    keys.push([aip, mfo].join('|'));
   }
 
   keys.push(aip);
@@ -510,14 +530,14 @@ function buildJoinKeys(item: LbacItem): string[] {
 
 function normalizeJoinValue(value?: string): string {
   const normalized = normalizeText(value);
-  return normalized ? normalized.toLowerCase() : "";
+  return normalized ? normalized.toLowerCase() : '';
 }
 
 function canonicalizeKey(key: string): string {
   return key
-    .replace(/\b20\d{2}\b/g, "")
-    .replace(/\s*\(\d+\)\s*$/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/\b20\d{2}\b/g, '')
+    .replace(/\s*\(\d+\)\s*$/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
 }
@@ -527,17 +547,21 @@ function selectTargetKey(canonicalKey: string, candidates: string[]): string | n
     return null;
   }
 
-  if (canonicalKey === "REMARKS") {
-    return candidates.find(key => key === "Remarks (3)")
-      ?? candidates.find(key => key === "Remarks (2)")
-      ?? candidates.find(key => key === "Remarks")
-      ?? candidates[candidates.length - 1];
+  if (canonicalKey === 'REMARKS') {
+    return (
+      candidates.find((key) => key === 'Remarks (3)') ??
+      candidates.find((key) => key === 'Remarks (2)') ??
+      candidates.find((key) => key === 'Remarks') ??
+      candidates[candidates.length - 1]
+    );
   }
 
-  if (canonicalKey === "VARIANCE AS OF") {
-    return candidates.find(key => key === "Variance as of (2)")
-      ?? candidates.find(key => key === "Variance as of")
-      ?? candidates[candidates.length - 1];
+  if (canonicalKey === 'VARIANCE AS OF') {
+    return (
+      candidates.find((key) => key === 'Variance as of (2)') ??
+      candidates.find((key) => key === 'Variance as of') ??
+      candidates[candidates.length - 1]
+    );
   }
 
   return candidates[0];
@@ -587,16 +611,16 @@ function getDescription(row: string[]): string | null {
 }
 
 function isGrandTotalRow(row: string[]): boolean {
-  return (getDescription(row) ?? "").startsWith("GRAND TOTAL");
+  return (getDescription(row) ?? '').startsWith('GRAND TOTAL');
 }
 
 function isTotalRow(row: string[]): boolean {
-  return (getDescription(row) ?? "").startsWith("TOTAL");
+  return (getDescription(row) ?? '').startsWith('TOTAL');
 }
 
 function isItemRow(row: string[]): boolean {
   const value = normalizeText(row[2]);
-  return value !== null && value !== "-0";
+  return value !== null && value !== '-0';
 }
 
 function inferSectionTitle(row: string[]): string | null {
@@ -610,7 +634,7 @@ function inferItemSectionName(row: string[]): string | null {
 function pickFirstText(...values: Array<string | undefined>): string | null {
   for (const value of values) {
     const normalized = normalizeText(value);
-    if (normalized && normalized !== "-0") {
+    if (normalized && normalized !== '-0') {
       return normalized;
     }
   }
@@ -638,19 +662,19 @@ type QuarterlyLookup = Map<string, QuarterlyOverlay>;
 
 const QUARTERLY_OVERLAY_START_INDEX = 8;
 const QUARTERLY_JOIN_KEYS = [
-  "AIP REF CODE",
-  "MFO/ PPA",
-  "Implementing Unit",
-  "Appropriation:Continuing/ Supplemental/ Augmentation",
-  "Appropriation:Current",
-  "Appropriation:TOTAL",
-  "OBLIGATION:As of the cut-off month",
-  "BALANCE",
+  'AIP REF CODE',
+  'MFO/ PPA',
+  'Implementing Unit',
+  'Appropriation:Continuing/ Supplemental/ Augmentation',
+  'Appropriation:Current',
+  'Appropriation:TOTAL',
+  'OBLIGATION:As of the cut-off month',
+  'BALANCE',
 ] as const;
 
 type LbacGroup = {
-  $type: "group";
-  "AIP REF CODE"?: string;
-  "MFO/PPA": string;
+  $type: 'group';
+  'AIP REF CODE'?: string;
+  'MFO/PPA': string;
   items: Array<LbacGroup | LbacItem>;
 };

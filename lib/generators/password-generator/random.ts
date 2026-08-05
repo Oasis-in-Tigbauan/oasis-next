@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import {createHmac, randomBytes} from 'node:crypto';
 
 type RandomBytes = (length: number) => Promise<Uint8Array>;
 
@@ -15,11 +15,9 @@ type RandomBytes = (length: number) => Promise<Uint8Array>;
  * @param {number} length - Number of random bytes to generate.
  * @returns {Promise<Uint8Array>} A buffer containing `length` random bytes.
  */
-export const getRandomBytes: RandomBytes = async (
-  length: number,
-): Promise<Uint8Array> => {
+export const getRandomBytes: RandomBytes = async (length: number): Promise<Uint8Array> => {
   if (!Number.isFinite(length) || length < 0) {
-    throw new RangeError("length must be a non-negative finite number");
+    throw new RangeError('length must be a non-negative finite number');
   }
 
   return new Uint8Array(randomBytes(length));
@@ -42,11 +40,9 @@ export const getRandomBytes: RandomBytes = async (
  * @remarks
  * - The returned function throws a {@link RangeError} for invalid length values, matching {@link getRandomBytes}.
  */
-export const createDeterministicRandomBytes = async (
-  entropy: Uint8Array,
-): Promise<RandomBytes> => {
+export const createDeterministicRandomBytes = async (entropy: Uint8Array): Promise<RandomBytes> => {
   if (entropy.length === 0) {
-    throw new RangeError("entropy must not be empty");
+    throw new RangeError('entropy must not be empty');
   }
 
   const key = Buffer.from(entropy);
@@ -55,7 +51,7 @@ export const createDeterministicRandomBytes = async (
   const counterBytes = Buffer.alloc(8);
   const deterministicRandomBytes: RandomBytes = async (length: number) => {
     if (!Number.isFinite(length) || length < 0) {
-      throw new RangeError("length must be a non-negative finite number");
+      throw new RangeError('length must be a non-negative finite number');
     }
 
     const buffer = new Uint8Array(length);
@@ -64,7 +60,7 @@ export const createDeterministicRandomBytes = async (
     while (offset < length) {
       counterBytes.writeBigUInt64LE(counter);
       counter += 1n;
-      const block = createHmac("sha256", key).update(counterBytes).digest();
+      const block = createHmac('sha256', key).update(counterBytes).digest();
       const take = Math.min(block.length, length - offset);
       buffer.set(block.subarray(0, take), offset);
       offset += take;
@@ -103,10 +99,10 @@ export const randomInt = async (
   randomBytesFn: RandomBytes = getRandomBytes,
 ): Promise<number> => {
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    throw new RangeError("min and max must be finite numbers");
+    throw new RangeError('min and max must be finite numbers');
   }
   if (max <= min) {
-    throw new RangeError("max must be greater than min");
+    throw new RangeError('max must be greater than min');
   }
 
   const range = max - min;

@@ -1,23 +1,22 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { redirect, RedirectType } from "next/navigation";
-import { type SyntheticEvent, useState } from "react";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import {KeyRound, ShieldCheck} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import {redirect, RedirectType} from 'next/navigation';
+import {type SyntheticEvent, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldContent, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Field, FieldContent, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Spinner} from '@/components/ui/spinner';
+import {$fetch} from '@/lib/http/client/fetch';
 
 export default function TwoFactorPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [trustDevice, setTrustDevice] = useState(false);
 
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
@@ -26,8 +25,8 @@ export default function TwoFactorPage() {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const { error } = await $fetch("/api/auth/two-factor", {
-        method: "POST",
+      const {error} = await $fetch('/api/auth/two-factor', {
+        method: 'POST',
         body: {
           code,
           trustDevice,
@@ -35,13 +34,12 @@ export default function TwoFactorPage() {
       });
 
       if (error) {
-        setErrorMessage("The verification code you entered is incorrect.");
+        setErrorMessage('The verification code you entered is incorrect.');
         return;
       }
 
-      redirect("/auth/check", RedirectType.replace);
-    }
-    finally {
+      redirect('/auth/check', RedirectType.replace);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -104,7 +102,11 @@ export default function TwoFactorPage() {
                         maxLength={6}
                         autoComplete="one-time-code"
                         value={code}
-                        onInput={(e) => setCode((e.target as HTMLInputElement).value.replace(/\D/g, "").slice(0, 6))}
+                        onInput={(e) =>
+                          setCode(
+                            (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6),
+                          )
+                        }
                         disabled={isLoading}
                         required
                       />
@@ -116,7 +118,7 @@ export default function TwoFactorPage() {
                       id="trust-device"
                       name="trust-device"
                       checked={trustDevice}
-                      onCheckedChange={() => setTrustDevice(prev => !prev)}
+                      onCheckedChange={() => setTrustDevice((prev) => !prev)}
                       disabled={isLoading}
                     />
                     <FieldContent>
@@ -128,7 +130,7 @@ export default function TwoFactorPage() {
 
                   <Button className="h-10 w-full" disabled={isLoading || code.length !== 6}>
                     {isLoading && <Spinner />}
-                    {isLoading ? "Verifying..." : "Verify"}
+                    {isLoading ? 'Verifying...' : 'Verify'}
                   </Button>
                 </FieldGroup>
                 <Button className="mt-4 ml-auto mr-auto text-center w-full" variant="link" asChild>

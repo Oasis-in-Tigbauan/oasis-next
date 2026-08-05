@@ -1,125 +1,118 @@
-"use client";
+'use client';
 
-import Link from "next/link";
+import {ArrowRight, FolderCog} from 'lucide-react';
+import Link from 'next/link';
+import useSWR from 'swr';
+
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
 import {
-  ArrowRight,
-  FolderCog,
-} from "lucide-react";
-import useSWR from "swr";
-
-import { $fetch } from "@/lib/http/client/fetch";
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import * as permissions from '@/lib/db/permissions';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
   ApiResponseException,
   BetterFetchResponse,
   SaaobStatisticsDataResponse,
   UserResponse,
-} from "@/lib/http/client/responses";
-import * as permissions from "@/lib/db/permissions";
+} from '@/lib/http/client/responses';
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-import SaaobReadOnlyStatistics from "./saaob-read-only-statistics";
-import SaaobReadOnlySummary from "./saaob-read-only-summary";
+import SaaobReadOnlyStatistics from './saaob-read-only-statistics';
+import SaaobReadOnlySummary from './saaob-read-only-summary';
 
 export default function Page() {
-  const { data, error, isLoading } = useSWR<BetterFetchResponse<UserResponse, ApiResponseException>>(
-    "/api/account/me",
+  const {data, error, isLoading} = useSWR<BetterFetchResponse<UserResponse, ApiResponseException>>(
+    '/api/account/me',
     $fetch,
   );
 
-  const {
-    data: budgetStatisticsData,
-    error: budgetStatisticsError,
-  } = useSWR<BetterFetchResponse<SaaobStatisticsDataResponse, ApiResponseException>>(
-    "/api/saaob/statistics/budget",
-    $fetch,
-  );
+  const {data: budgetStatisticsData, error: budgetStatisticsError} = useSWR<
+    BetterFetchResponse<SaaobStatisticsDataResponse, ApiResponseException>
+  >('/api/saaob/statistics/budget', $fetch);
 
-  const {
-    data: summaryPerSectorData,
-    error: summaryPerSectorError,
-  } = useSWR<BetterFetchResponse<SaaobStatisticsDataResponse, ApiResponseException>>(
-    "/api/saaob/statistics/summary-sector",
-    $fetch,
-  );
+  const {data: summaryPerSectorData, error: summaryPerSectorError} = useSWR<
+    BetterFetchResponse<SaaobStatisticsDataResponse, ApiResponseException>
+  >('/api/saaob/statistics/summary-sector', $fetch);
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error || !data?.data?.data) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const permissionSet = new Set(data.data.data.office.role.permissions);
   const canReadSaaobData = permissionSet.has(permissions.SAAOB_DATA_READ);
   const canWriteSaaobData = permissionSet.has(permissions.SAAOB_DATA_WRITE);
 
-  const menuItems = allMenuItems.filter(item =>
-    item.required.every(required => permissionSet.has(required)),
+  const menuItems = allMenuItems.filter((item) =>
+    item.required.every((required) => permissionSet.has(required)),
   );
 
   return (
     <div className="p-4 pt-0 w-full">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {
-          menuItems.map(item => {
-            const Icon = item.icon;
+        {menuItems.map((item) => {
+          const Icon = item.icon;
 
-            return (
-              <Card key={item.title} className="justify-between">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-2">
-                      <CardTitle>{item.title}</CardTitle>
-                      <CardDescription>{item.description}</CardDescription>
-                    </div>
-                    <div className="rounded-md border p-2 text-muted-foreground">
-                      <Icon className="size-5" />
-                    </div>
+          return (
+            <Card key={item.title} className="justify-between">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <CardTitle>{item.title}</CardTitle>
+                    <CardDescription>{item.description}</CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="flex items-center gap-2">
-                  <Badge variant="secondary">Available</Badge>
-                </CardContent>
-                <CardFooter className="flex flex-row gap-2">
-                  <Button asChild className="grow">
-                    <Link href={item.href}>
-                      {item.primaryLabel ?? "Go to page"}
+                  <div className="rounded-md border p-2 text-muted-foreground">
+                    <Icon className="size-5" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex items-center gap-2">
+                <Badge variant="secondary">Available</Badge>
+              </CardContent>
+              <CardFooter className="flex flex-row gap-2">
+                <Button asChild className="grow">
+                  <Link href={item.href}>
+                    {item.primaryLabel ?? 'Go to page'}
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+                {item.secondaryHref && (
+                  <Button asChild variant="outline" className="grow">
+                    <Link href={item.secondaryHref}>
+                      {item.secondaryLabel ?? item.secondaryHref}
                       <ArrowRight className="size-4" />
                     </Link>
                   </Button>
-                  {item.secondaryHref && (
-                    <Button asChild variant="outline" className="grow">
-                      <Link href={item.secondaryHref}>
-                        {item.secondaryLabel ?? item.secondaryHref}
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            );
-          })
-        }
+                )}
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
 
-      {
-        menuItems.length === 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>No Available SAAOB Modules</CardTitle>
-              <CardDescription>
-                You do not currently have permissions for any SAAOB pages. Contact an administrator if access is expected.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )
-      }
+      {menuItems.length === 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>No Available SAAOB Modules</CardTitle>
+            <CardDescription>
+              You do not currently have permissions for any SAAOB pages. Contact an administrator if
+              access is expected.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       {canReadSaaobData && (
         <div className="mt-6">
@@ -127,37 +120,35 @@ export default function Page() {
             <Typography variant="h4">Summary per Sector</Typography>
             {canWriteSaaobData && (
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/saaob/statistics">
-                  Edit
-                </Link>
+                <Link href="/dashboard/saaob/statistics">Edit</Link>
               </Button>
             )}
           </div>
-          {summaryPerSectorError || summaryPerSectorData?.error
-            ? <DeadHamster />
-            : <SaaobReadOnlyStatistics data={summaryPerSectorData?.data?.data ?? []} />}
+          {summaryPerSectorError || summaryPerSectorData?.error ? (
+            <DeadHamster />
+          ) : (
+            <SaaobReadOnlyStatistics data={summaryPerSectorData?.data?.data ?? []} />
+          )}
 
           <div className="flex items-center justify-between mb-3 mt-6">
             <Typography variant="h4">Budget Statistics</Typography>
             {canWriteSaaobData && (
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/saaob/statistics">
-                  Edit
-                </Link>
+                <Link href="/dashboard/saaob/statistics">Edit</Link>
               </Button>
             )}
           </div>
-          {budgetStatisticsError || budgetStatisticsData?.error
-            ? <DeadHamster />
-            : <SaaobReadOnlyStatistics data={budgetStatisticsData?.data?.data ?? []} />}
+          {budgetStatisticsError || budgetStatisticsData?.error ? (
+            <DeadHamster />
+          ) : (
+            <SaaobReadOnlyStatistics data={budgetStatisticsData?.data?.data ?? []} />
+          )}
 
           <div className="flex items-center justify-between mb-3 mt-6">
             <Typography variant="h4">Summary of Accounts</Typography>
             {canWriteSaaobData && (
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/saaob/accounts-summary">
-                  Edit
-                </Link>
+                <Link href="/dashboard/saaob/accounts-summary">Edit</Link>
               </Button>
             )}
           </div>
@@ -170,23 +161,18 @@ export default function Page() {
 
 const allMenuItems: Array<MenuItem> = [
   {
-    title: "Office",
-    description: "View office specific SAAOB for your office.",
-    href: "/dashboard/saaob/office",
+    title: 'Office',
+    description: 'View office specific SAAOB for your office.',
+    href: '/dashboard/saaob/office',
     icon: FolderCog,
-    required: [
-      permissions.SAAOB_OFFICE_READ,
-    ],
+    required: [permissions.SAAOB_OFFICE_READ],
   },
   {
-    title: "Main Data",
-    description: "Manage SAAOB Data",
-    href: "/dashboard/saaob/data",
+    title: 'Main Data',
+    description: 'Manage SAAOB Data',
+    href: '/dashboard/saaob/data',
     icon: FolderCog,
-    required: [
-      permissions.SAAOB_DATA_READ,
-      permissions.SAAOB_DATA_WRITE,
-    ],
+    required: [permissions.SAAOB_DATA_READ, permissions.SAAOB_DATA_WRITE],
   },
 ];
 
@@ -197,6 +183,6 @@ type MenuItem = {
   primaryLabel?: string;
   secondaryHref?: string;
   secondaryLabel?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{className?: string}>;
   required: permissions.Permissions[];
-}
+};

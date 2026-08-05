@@ -1,5 +1,5 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
-import type { LbacAipRef, LbacImplementingUnit } from "@/lib/http/client/responses/LbacDataResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
+import type {LbacAipRef, LbacImplementingUnit} from '@/lib/http/client/responses/LbacDataResponse';
 
 export type LbacQuarterlyItemResponse = {
   id: string;

@@ -1,19 +1,18 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { redirect, RedirectType } from "next/navigation";
-import { type SyntheticEvent, useRef, useState } from "react";
-import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import {Turnstile, TurnstileInstance} from '@marsidev/react-turnstile';
+import {Eye, EyeOff, LockKeyhole, Mail, ShieldCheck} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import {redirect, RedirectType} from 'next/navigation';
+import {type SyntheticEvent, useRef, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldContent, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import Link from "next/link";
-import { Turnstile, TurnstileInstance } from "@marsidev/react-turnstile";
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Field, FieldContent, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Spinner} from '@/components/ui/spinner';
+import {$fetch} from '@/lib/http/client/fetch';
 
 export default function SigninPage() {
   const turnstileComponent = useRef<TurnstileInstance | null>(null);
@@ -22,13 +21,13 @@ export default function SigninPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<SigninPageState>({
-    email: "",
-    password: "",
+    email: '',
+    password: '',
     rememberMe: false,
   });
 
   const onFieldUpdate = (e: SyntheticEvent<HTMLInputElement>, key: keyof SigninPageState) => {
-    setCredentials(l => ({ ...l, [key]: (e.target as HTMLInputElement).value }));
+    setCredentials((l) => ({...l, [key]: (e.target as HTMLInputElement).value}));
   };
 
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
@@ -41,20 +40,20 @@ export default function SigninPage() {
       const widget = turnstileComponent.current;
       if (!widget) {
         setIsLoading(false);
-        setErrorMessage("Turnstile is not loaded. Please refresh the page and try again.");
+        setErrorMessage('Turnstile is not loaded. Please refresh the page and try again.');
 
         return;
       }
 
       if (widget.isExpired()) {
         setIsLoading(false);
-        setErrorMessage("Turnstile expired. Please refresh and try again.");
+        setErrorMessage('Turnstile expired. Please refresh and try again.');
 
         return;
       }
 
-      const { data, error } = await $fetch("/api/auth/sign-in", {
-        method: "POST",
+      const {data, error} = await $fetch('/api/auth/sign-in', {
+        method: 'POST',
         body: {
           ...credentials,
           token: widget.getResponse(),
@@ -62,7 +61,7 @@ export default function SigninPage() {
       });
 
       if (error) {
-        setErrorMessage("The email or password you entered is incorrect.");
+        setErrorMessage('The email or password you entered is incorrect.');
         widget.reset();
 
         return;
@@ -71,12 +70,11 @@ export default function SigninPage() {
       if ((data as SignInApiResponse | null)?.data?.twoFactorRequired) {
         widget.reset();
 
-        redirect("/auth/two-factor", RedirectType.replace);
+        redirect('/auth/two-factor', RedirectType.replace);
       }
 
-      redirect("/auth/check", RedirectType.replace);
-    }
-    finally {
+      redirect('/auth/check', RedirectType.replace);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -138,7 +136,7 @@ export default function SigninPage() {
                         autoComplete="email"
                         autoCorrect="off"
                         value={credentials.email}
-                        onInput={e => onFieldUpdate(e, "email")}
+                        onInput={(e) => onFieldUpdate(e, 'email')}
                         disabled={isLoading}
                         required
                       />
@@ -152,19 +150,19 @@ export default function SigninPage() {
                       <Input
                         id="password"
                         className="h-10 pl-9 pr-9"
-                        type={showPassword ? "text" : "password"}
+                        type={showPassword ? 'text' : 'password'}
                         autoComplete="current-password"
                         value={credentials.password}
-                        onInput={e => onFieldUpdate(e, "password")}
+                        onInput={(e) => onFieldUpdate(e, 'password')}
                         disabled={isLoading}
                         required
                       />
                       <button
                         type="button"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                        onClick={() => setShowPassword(v => !v)}
+                        onClick={() => setShowPassword((v) => !v)}
                         disabled={isLoading}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
@@ -178,7 +176,7 @@ export default function SigninPage() {
                         name="remember-me"
                         checked={credentials.rememberMe}
                         onCheckedChange={() => {
-                          setCredentials(l => ({ ...l, rememberMe: !l.rememberMe }));
+                          setCredentials((l) => ({...l, rememberMe: !l.rememberMe}));
                         }}
                         disabled={isLoading}
                       />
@@ -199,7 +197,7 @@ export default function SigninPage() {
 
                   <Button className="h-10 w-full" disabled={isLoading}>
                     {isLoading && <Spinner />}
-                    {isLoading ? "Signing in..." : "Sign in"}
+                    {isLoading ? 'Signing in...' : 'Sign in'}
                   </Button>
                 </FieldGroup>
                 <Button className="mt-4 ml-auto mr-auto text-center w-full" variant="link" asChild>

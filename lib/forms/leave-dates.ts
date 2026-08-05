@@ -1,4 +1,4 @@
-import { DateTime } from "luxon";
+import {DateTime} from 'luxon';
 
 export type InclusiveLeaveDates = {
   start: DateTime;
@@ -20,7 +20,7 @@ export function calculateInclusiveLeaveDates(
   startDate: string,
   workingDays: string,
 ): InclusiveLeaveDates | null {
-  const start = DateTime.fromISO(startDate, { zone: "Asia/Manila" }).startOf("day");
+  const start = DateTime.fromISO(startDate, {zone: 'Asia/Manila'}).startOf('day');
   const days = Number.parseInt(workingDays, 10);
 
   if (!start.isValid || !/^[1-9]\d{0,3}$/.test(workingDays) || days <= 0 || start.weekday > 5) {
@@ -31,19 +31,19 @@ export function calculateInclusiveLeaveDates(
   let counted = 1;
 
   while (counted < days) {
-    end = end.plus({ days: 1 });
+    end = end.plus({days: 1});
     if (end.weekday <= 5) {
       counted++;
     }
   }
 
-  return { start, end };
+  return {start, end};
 }
 
 export function formatInclusiveLeaveDates(range: InclusiveLeaveDates | null): string {
-  if (!range) return "";
+  if (!range) return '';
 
-  const start = range.start.toFormat("M/d/yyyy");
-  const end = range.end.toFormat("M/d/yyyy");
+  const start = range.start.toFormat('M/d/yyyy');
+  const end = range.end.toFormat('M/d/yyyy');
   return start === end ? start : `${start}-${end}`;
 }

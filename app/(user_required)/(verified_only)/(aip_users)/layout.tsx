@@ -1,13 +1,11 @@
-import type { ReactNode } from "react";
-import { redirect, RedirectType } from "next/navigation";
+import {redirect, RedirectType} from 'next/navigation';
+import type {ReactNode} from 'react';
 
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permissions from "@/lib/db/permissions";
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permissions from '@/lib/db/permissions';
 
-export default async function AccountApprovalUsersGroupLayout({ children }: { children: ReactNode }) {
-  const session = await auth.verify([
-    permissions.AIP_READ,
-  ]);
+export default async function AccountApprovalUsersGroupLayout({children}: {children: ReactNode}) {
+  const session = await auth.verify([permissions.AIP_READ]);
 
   // Redirect back to the dashboard if not verified.
   if (session.redirectTo) {
@@ -16,8 +14,8 @@ export default async function AccountApprovalUsersGroupLayout({ children }: { ch
 
   // Invalid sessions
   if (session.code !== SessionCode.Ok) {
-    return redirect("/auth/signin");
+    return redirect('/auth/signin');
   }
 
-  return (<>{children}</>);
+  return <>{children}</>;
 }

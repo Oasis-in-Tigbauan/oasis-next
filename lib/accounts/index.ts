@@ -1,18 +1,18 @@
-import { and, count, eq, gt, not } from "drizzle-orm";
-import { DateTime } from "luxon";
-import * as Sentry from "@sentry/nextjs";
-import { v4 as uuidv4 } from "uuid";
+import * as Sentry from '@sentry/nextjs';
+import {and, count, eq, gt, not} from 'drizzle-orm';
+import {DateTime} from 'luxon';
+import {v4 as uuidv4} from 'uuid';
 
-import { auth } from "@/lib/auth";
-import { cacheManager } from "@/lib/cache";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, type Result, Success, unwrap } from "@/lib/one-of";
-import { generatePassword } from "@/lib/generators/password-generator";
-import { InvitationEmailHtml } from "@/lib/mailer/templates/InvitationMail";
-import { invitations, office, officePosition, user } from "@/lib/db/schema";
-import { Permissions } from "@/lib/db/permissions";
-import { send } from "@/lib/mailer";
-import { validatorUtilities } from "@/lib/validators";
+import {auth} from '@/lib/auth';
+import {cacheManager} from '@/lib/cache';
+import {db} from '@/lib/db';
+import {Permissions} from '@/lib/db/permissions';
+import {invitations, office, officePosition, user} from '@/lib/db/schema';
+import {generatePassword} from '@/lib/generators/password-generator';
+import {send} from '@/lib/mailer';
+import {InvitationEmailHtml} from '@/lib/mailer/templates/InvitationMail';
+import {ErrorCodes, Failure, type Result, Success, unwrap} from '@/lib/one-of';
+import {validatorUtilities} from '@/lib/validators';
 
 /**
  * Retrieves a user by id, using a cache-first strategy.
@@ -32,7 +32,7 @@ import { validatorUtilities } from "@/lib/validators";
  */
 export async function getUserById(id: string): Promise<Success<User> | Failure> {
   if (!validatorUtilities.isExisty(id)) {
-    return new Failure(ErrorCodes.ValidationFailure, "User ID is required.", { id });
+    return new Failure(ErrorCodes.ValidationFailure, 'User ID is required.', {id});
   }
 
   try {
@@ -66,7 +66,7 @@ export async function getUserById(id: string): Promise<Success<User> | Failure> 
       .leftJoin(office, eq(office.id, user.officeId))
       .limit(1);
     if (!account) {
-      return new Failure(ErrorCodes.ResourceNotFound, "User not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'User not found.', {id});
     }
 
     const payload: User = {
@@ -75,9 +75,9 @@ export async function getUserById(id: string): Promise<Success<User> | Failure> 
       email: account.email,
       activated: account.activated,
       banned: account.banned,
-      registrationDate: DateTime
-        .fromJSDate(account.createdAt, { zone: "Asia/Manila" })
-        .toFormat("MM/dd/yyyy HH:mm"),
+      registrationDate: DateTime.fromJSDate(account.createdAt, {zone: 'Asia/Manila'}).toFormat(
+        'MM/dd/yyyy HH:mm',
+      ),
       office: {
         id: account.officeId!,
         name: account.officeName!,
@@ -92,10 +92,10 @@ export async function getUserById(id: string): Promise<Success<User> | Failure> 
     };
 
     // Write to cache
-    await cacheManager.writeJson(key, payload, { lifetime: 5 });
+    await cacheManager.writeJson(key, payload, {lifetime: 5});
     return new Success<User>(payload);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during user lookup.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during user lookup.', {id}, e);
   }
 }
 
@@ -141,26 +141,21 @@ export async function getUnactivatedAccounts(): Promise<Result<Array<User>>> {
         createdAt: user.createdAt,
       })
       .from(user)
-      .where(
-        and(
-          eq(user.emailVerified, false),
-          eq(user.shadowBanned, false),
-        ),
-      )
+      .where(and(eq(user.emailVerified, false), eq(user.shadowBanned, false)))
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
       .leftJoin(office, eq(office.id, user.officeId));
 
     const mapped: Array<User> = accounts
-      .filter(a => a.officeName?.toLowerCase() !== "cardinal administrators")
-      .map(a => ({
+      .filter((a) => a.officeName?.toLowerCase() !== 'cardinal administrators')
+      .map((a) => ({
         id: a.id,
         fullName: a.fullName,
         email: a.email,
         activated: a.activated,
         banned: a.banned,
-        registrationDate: DateTime
-          .fromJSDate(a.createdAt, { zone: "Asia/Manila" })
-          .toFormat("MM/dd/yyyy HH:mm"),
+        registrationDate: DateTime.fromJSDate(a.createdAt, {zone: 'Asia/Manila'}).toFormat(
+          'MM/dd/yyyy HH:mm',
+        ),
         office: {
           id: a.officeId!,
           name: a.officeName!,
@@ -176,7 +171,7 @@ export async function getUnactivatedAccounts(): Promise<Result<Array<User>>> {
 
     return new Success(mapped);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during user lookup.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during user lookup.', {}, e);
   }
 }
 
@@ -199,7 +194,7 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
         id: office.id,
       })
       .from(office)
-      .where(eq(office.name, "Cardinal Administrators"))
+      .where(eq(office.name, 'Cardinal Administrators'))
       .limit(1);
 
     // Return
@@ -220,24 +215,19 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
         createdAt: user.createdAt,
       })
       .from(user)
-      .where(
-        and(
-          eq(user.emailVerified, true),
-          not(eq(user.officeId, cardinals.id)),
-        ),
-      )
+      .where(and(eq(user.emailVerified, true), not(eq(user.officeId, cardinals.id))))
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
       .leftJoin(office, eq(office.id, user.officeId));
 
-    const mapped: Array<User> = users.map(a => ({
+    const mapped: Array<User> = users.map((a) => ({
       id: a.id,
       fullName: a.fullName,
       email: a.email,
       activated: a.activated,
       banned: a.banned,
-      registrationDate: DateTime
-        .fromJSDate(a.createdAt, { zone: "Asia/Manila" })
-        .toFormat("MM/dd/yyyy HH:mm"),
+      registrationDate: DateTime.fromJSDate(a.createdAt, {zone: 'Asia/Manila'}).toFormat(
+        'MM/dd/yyyy HH:mm',
+      ),
       office: {
         id: a.officeId!,
         name: a.officeName!,
@@ -253,7 +243,7 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
 
     return new Success(mapped);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during user lookup.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during user lookup.', {}, e);
   }
 }
 
@@ -273,7 +263,9 @@ export async function getAllAccounts(): Promise<Result<Array<User>>> {
  *   the whole operation.
  * - Unexpected errors are wrapped in a fatal failure result.
  */
-export async function createNewInvitation(payload: CreateInvitationPayload): Promise<Result<SentInvitation>> {
+export async function createNewInvitation(
+  payload: CreateInvitationPayload,
+): Promise<Result<SentInvitation>> {
   try {
     // Check if that user with that email is already invited before.
     const [existingInvitation] = await db
@@ -286,59 +278,54 @@ export async function createNewInvitation(payload: CreateInvitationPayload): Pro
     if (existingInvitation) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "You cannot create an invitation for an existing user.",
+        'You cannot create an invitation for an existing user.',
       );
     }
 
     // Check if the user with that email is already registered.
     const [existingUser] = await db
-      .select({ id: user.id })
+      .select({id: user.id})
       .from(user)
       .where(eq(user.email, payload.email))
       .limit(1);
     if (existingUser) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "You cannot create an invitation for an existing user.",
+        'You cannot create an invitation for an existing user.',
       );
     }
 
     // Check if the office exists
     const [targetOffice] = await db
-      .select({ id: office.id, name: office.name })
+      .select({id: office.id, name: office.name})
       .from(office)
-      .where(
-        and(
-          eq(office.id, payload.officeId),
-          not(eq(office.name, "Cardinal Administrators")),
-        ),
-      )
+      .where(and(eq(office.id, payload.officeId), not(eq(office.name, 'Cardinal Administrators'))))
       .limit(1);
     if (!targetOffice) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { payload });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office not found.', {payload});
     }
 
     // Check if the office position exists
     const [targetOfficePosition] = await db
-      .select({ id: officePosition.id, name: officePosition.name })
+      .select({id: officePosition.id, name: officePosition.name})
       .from(officePosition)
       .where(
         and(
           eq(officePosition.id, payload.officePositionId),
           eq(officePosition.officeId, targetOffice.id),
-          not(eq(officePosition.name, "Heathcliff")),
-          not(eq(officePosition.name, "Default Users Group")),
+          not(eq(officePosition.name, 'Heathcliff')),
+          not(eq(officePosition.name, 'Default Users Group')),
         ),
       );
     if (!targetOfficePosition) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office Position not found.", { payload });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office Position not found.', {payload});
     }
 
     // Issue a new invitation.
     const token = uuidv4();
 
     // Expire the token after 24 hours.
-    const expiresAt = DateTime.utc().plus({ hours: 24 }).toJSDate();
+    const expiresAt = DateTime.utc().plus({hours: 24}).toJSDate();
 
     // Create the entry
     const [result] = await db
@@ -353,21 +340,20 @@ export async function createNewInvitation(payload: CreateInvitationPayload): Pro
       .returning();
 
     // Send the email to the user.
-    const { error } = await send({
+    const {error} = await send({
       to: [result.email],
-      subject: "Invitation to Join Municipality of Tigbauan",
+      subject: 'Invitation to Join Municipality of Tigbauan',
       html: InvitationEmailHtml({
         inviteUrl: `/enrollment/?token=${token}`,
-        expiresAt: DateTime
-          .fromJSDate(expiresAt, { zone: "UTC" })
-          .setZone("Asia/Manila")
-          .toFormat("MM/dd/yyyy HH:mm"),
+        expiresAt: DateTime.fromJSDate(expiresAt, {zone: 'UTC'})
+          .setZone('Asia/Manila')
+          .toFormat('MM/dd/yyyy HH:mm'),
       }),
     });
 
     // Report to sentry...
     if (error) {
-      Sentry.logger.error("Failed to send an email. See info.", error);
+      Sentry.logger.error('Failed to send an email. See info.', error);
     }
 
     return new Success({
@@ -382,12 +368,16 @@ export async function createNewInvitation(payload: CreateInvitationPayload): Pro
         },
       },
       ...(error
-        ? { errors: { message: "Failed to send the email. This issue has been reported." } }
-        : {}
-      ),
+        ? {errors: {message: 'Failed to send the email. This issue has been reported.'}}
+        : {}),
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create a new invitation due to an unexpected error", {}, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create a new invitation due to an unexpected error',
+      {},
+      e,
+    );
   }
 }
 
@@ -406,7 +396,9 @@ export async function createNewInvitation(payload: CreateInvitationPayload): Pro
  * - Email provider failures are logged for observability and returned as a non-fatal `errors` field.
  * - This does not create a new token or extend expiration; it reuses the existing token and validity window.
  */
-export async function resendInvitation(id: string): Promise<Result<{ ok: boolean, errors?: object }>> {
+export async function resendInvitation(
+  id: string,
+): Promise<Result<{ok: boolean; errors?: object}>> {
   try {
     const [result] = await db
       .select({
@@ -418,33 +410,39 @@ export async function resendInvitation(id: string): Promise<Result<{ ok: boolean
       .where(eq(invitations.id, id))
       .limit(1);
     if (!result) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Invitation not found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'Invitation not found.');
     }
 
     // Send the email to the user.
-    const { error } = await send({
+    const {error} = await send({
       to: [result.email],
-      subject: "Invitation to Join Municipality of Tigbauan",
+      subject: 'Invitation to Join Municipality of Tigbauan',
       html: InvitationEmailHtml({
         inviteUrl: `/enrollment/?token=${result.token}`,
-        expiresAt: DateTime
-          .fromJSDate(result.validUntil, { zone: "UTC" })
-          .setZone("Asia/Manila")
-          .toFormat("MM/dd/yyyy HH:mm"),
+        expiresAt: DateTime.fromJSDate(result.validUntil, {zone: 'UTC'})
+          .setZone('Asia/Manila')
+          .toFormat('MM/dd/yyyy HH:mm'),
       }),
     });
 
     // Report to sentry...
     if (error) {
-      Sentry.logger.error("Failed to send an email. See info.", error);
+      Sentry.logger.error('Failed to send an email. See info.', error);
     }
 
     return new Success({
       ok: true,
-      ...(error ? { errors: { message: "Failed to send the email. This issue has been reported." } } : {}),
+      ...(error
+        ? {errors: {message: 'Failed to send the email. This issue has been reported.'}}
+        : {}),
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to resend invitation due to an unexpected error", {}, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to resend invitation due to an unexpected error',
+      {},
+      e,
+    );
   }
 }
 
@@ -489,27 +487,27 @@ export async function getActiveInvitations(): Promise<Result<Array<Invitation>>>
       .from(invitations)
       .leftJoin(office, eq(office.id, invitations.officeId))
       .leftJoin(officePosition, eq(officePosition.id, invitations.officePositionId))
-      .where(and(
-        eq(invitations.consumed, false),
-        gt(invitations.validUntil, now),
-      ));
+      .where(and(eq(invitations.consumed, false), gt(invitations.validUntil, now)));
 
-    const r = list.map(x => ({
-      id: x.id,
-      email: x.email,
-      office: {
-        id: x.officeId,
-        name: x.officeName!,
-        role: {
-          id: x.officePositionId!,
-          name: x.officePositionName!,
-        },
-      },
-    } satisfies Invitation));
+    const r = list.map(
+      (x) =>
+        ({
+          id: x.id,
+          email: x.email,
+          office: {
+            id: x.officeId,
+            name: x.officeName!,
+            role: {
+              id: x.officePositionId!,
+              name: x.officePositionName!,
+            },
+          },
+        }) satisfies Invitation,
+    );
 
     return new Success(r);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during invitations lookup.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during invitations lookup.', {}, e);
   }
 }
 
@@ -537,7 +535,7 @@ export async function revokeInvitation(id: string): Promise<Success<null> | Fail
       .limit(1);
 
     if (!invitation) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Invitation not found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'Invitation not found.');
     }
 
     // Delete entry
@@ -545,7 +543,12 @@ export async function revokeInvitation(id: string): Promise<Success<null> | Fail
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during invitation revocation.", { id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'An exception occurred during invitation revocation.',
+      {id},
+      e,
+    );
   }
 }
 
@@ -567,45 +570,42 @@ export async function revokeInvitation(id: string): Promise<Success<null> | Fail
  *   activated: false,
  * }); // res are Success<CreateAccountType> or Failure
  */
-export async function createAccount(payload: CreateAccountPayload): Promise<Result<CreateAccountType>> {
+export async function createAccount(
+  payload: CreateAccountPayload,
+): Promise<Result<CreateAccountType>> {
   try {
     // Validate email.
     const [userAccountsWithEmail] = await db
-      .select({ count: count(user.id) })
+      .select({count: count(user.id)})
       .from(user)
       .where(eq(user.email, payload.email));
     if ((userAccountsWithEmail?.count ?? 0) > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Email is already been used.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'Email is already been used.', {payload});
     }
 
     // Validate office
     const [userOffice] = await db
-      .select({ id: office.id, name: office.name })
+      .select({id: office.id, name: office.name})
       .from(office)
-      .where(
-        and(
-          eq(office.id, payload.officeId),
-          not(eq(office.name, "Cardinal Administrators")),
-        ),
-      )
+      .where(and(eq(office.id, payload.officeId), not(eq(office.name, 'Cardinal Administrators'))))
       .limit(1);
     if (!userOffice) {
-      return new Failure(ErrorCodes.ValidationFailure, "Office doesn't exist!", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, "Office doesn't exist!", {payload});
     }
 
     const [userPosition] = await db
-      .select({ id: officePosition.id, name: officePosition.name })
+      .select({id: officePosition.id, name: officePosition.name})
       .from(officePosition)
       .where(
         and(
           eq(officePosition.id, payload.officePositionId),
           eq(officePosition.officeId, userOffice.id),
-          not(eq(officePosition.name, "Heathcliff")),
+          not(eq(officePosition.name, 'Heathcliff')),
         ),
       )
       .limit(1);
     if (!userPosition) {
-      return new Failure(ErrorCodes.ValidationFailure, "Office Position doesn't exist!", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, "Office Position doesn't exist!", {payload});
     }
 
     // Create the account
@@ -625,16 +625,18 @@ export async function createAccount(payload: CreateAccountPayload): Promise<Resu
     const uRes = await account.json();
 
     if (payload.activated) {
-      await db
-        .update(user)
-        .set({ emailVerified: true })
-        .where(eq(user.id, uRes.user.id));
+      await db.update(user).set({emailVerified: true}).where(eq(user.id, uRes.user.id));
     }
 
     const u = await unwrap(getUserById(uRes.user.id));
-    return new Success({ ...u, password });
+    return new Success({...u, password});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create an account due to an exception.", { payload }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create an account due to an exception.',
+      {payload},
+      e,
+    );
   }
 }
 
@@ -658,7 +660,7 @@ export async function createAccount(payload: CreateAccountPayload): Promise<Resu
 export async function getEligibility(token: string): Promise<Result<EligibilityResult>> {
   const check = validatorUtilities.isNotEmpty(token);
   if (!check) {
-    return new Failure(ErrorCodes.ValidationFailure, "Token is required.", {
+    return new Failure(ErrorCodes.ValidationFailure, 'Token is required.', {
       token,
     });
   }
@@ -678,12 +680,12 @@ export async function getEligibility(token: string): Promise<Result<EligibilityR
     .where(eq(invitations.token, token))
     .leftJoin(office, eq(office.id, invitations.officeId));
   if (!invitation) {
-    return new Failure(ErrorCodes.ResourceNotFound, "No such token found.");
+    return new Failure(ErrorCodes.ResourceNotFound, 'No such token found.');
   }
 
   const now = DateTime.utc().toJSDate();
   if (invitation.validUntil < now) {
-    return new Failure(ErrorCodes.ResourceExpired, "Token has expired.", {
+    return new Failure(ErrorCodes.ResourceExpired, 'Token has expired.', {
       token,
       invitation,
       now,
@@ -691,7 +693,7 @@ export async function getEligibility(token: string): Promise<Result<EligibilityR
   }
 
   if (invitation.consumed) {
-    return new Failure(ErrorCodes.ResourceExpired, "Token has already been consumed.", {
+    return new Failure(ErrorCodes.ResourceExpired, 'Token has already been consumed.', {
       invitation,
     });
   }
@@ -722,7 +724,7 @@ export async function getEligibility(token: string): Promise<Result<EligibilityR
  * @example
  * const res = await enroll(payload); // res are Success<{ ok: true }> or Failure
  */
-export async function enroll(payload: EnrollmentRequirements): Promise<Result<{ ok: true }>> {
+export async function enroll(payload: EnrollmentRequirements): Promise<Result<{ok: true}>> {
   try {
     // Check eligibility.
     const result = await unwrap(getEligibility(payload.token));
@@ -737,7 +739,7 @@ export async function enroll(payload: EnrollmentRequirements): Promise<Result<{ 
     });
 
     // After enrollment, we need to consume the token.
-    await db.update(invitations).set({ consumed: true }).where(eq(invitations.id, result.id));
+    await db.update(invitations).set({consumed: true}).where(eq(invitations.id, result.id));
 
     // We need to authenticate the user to mimic the autoSignIn behaviour.
     await auth.api.signInEmail({
@@ -747,11 +749,16 @@ export async function enroll(payload: EnrollmentRequirements): Promise<Result<{ 
       },
     });
 
-    return new Success({ ok: true });
+    return new Success({ok: true});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during enrollment.", {
-      payload,
-    }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'An exception occurred during enrollment.',
+      {
+        payload,
+      },
+      e,
+    );
   }
 }
 
@@ -776,7 +783,7 @@ export async function toggleBan(id: string): Promise<Result<User>> {
         id: office.id,
       })
       .from(office)
-      .where(eq(office.name, "Cardinal Administrators"))
+      .where(eq(office.name, 'Cardinal Administrators'))
       .limit(1);
 
     // Get the user
@@ -786,15 +793,10 @@ export async function toggleBan(id: string): Promise<Result<User>> {
         banned: user.banned,
       })
       .from(user)
-      .where(
-        and(
-          eq(user.id, id),
-          not(eq(user.officeId, cardinals.id)),
-        ),
-      )
+      .where(and(eq(user.id, id), not(eq(user.officeId, cardinals.id))))
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "User not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'User not found.', {id});
     }
 
     // Check if the user is saved on cache.
@@ -805,16 +807,13 @@ export async function toggleBan(id: string): Promise<Result<User>> {
     }
 
     // toggle ban
-    await db
-      .update(user)
-      .set({ banned: !target.banned })
-      .where(eq(user.id, target.id));
+    await db.update(user).set({banned: !target.banned}).where(eq(user.id, target.id));
 
     // Refetch for final output
     const u = await unwrap(getUserById(id));
     return new Success(u);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during user lookup.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during user lookup.', {}, e);
   }
 }
 
@@ -841,16 +840,10 @@ export async function approveUser(id: string): Promise<Result<User>> {
         shadowBanned: user.shadowBanned,
       })
       .from(user)
-      .where(
-        and(
-          eq(user.id, id),
-          eq(user.shadowBanned, false),
-          eq(user.emailVerified, false),
-        ),
-      )
+      .where(and(eq(user.id, id), eq(user.shadowBanned, false), eq(user.emailVerified, false)))
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "User not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'User not found.', {id});
     }
 
     // Delete cache entry
@@ -859,15 +852,12 @@ export async function approveUser(id: string): Promise<Result<User>> {
       await cacheManager.delete(key);
     }
 
-    await db
-      .update(user)
-      .set({ emailVerified: true })
-      .where(eq(user.id, target.id));
+    await db.update(user).set({emailVerified: true}).where(eq(user.id, target.id));
 
     const u = await unwrap(getUserById(id));
     return new Success(u);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during approval.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during approval.', {id}, e);
   }
 }
 
@@ -894,7 +884,7 @@ export async function rejectUser(id: string): Promise<Result<User>> {
         id: office.id,
       })
       .from(office)
-      .where(eq(office.name, "Cardinal Administrators"))
+      .where(eq(office.name, 'Cardinal Administrators'))
       .limit(1);
 
     // Get the user
@@ -913,7 +903,7 @@ export async function rejectUser(id: string): Promise<Result<User>> {
       )
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "User not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'User not found.', {id});
     }
 
     // Delete cache entry
@@ -922,15 +912,12 @@ export async function rejectUser(id: string): Promise<Result<User>> {
       await cacheManager.delete(key);
     }
 
-    await db
-      .update(user)
-      .set({ shadowBanned: true })
-      .where(eq(user.id, target.id));
+    await db.update(user).set({shadowBanned: true}).where(eq(user.id, target.id));
 
     const u = await unwrap(getUserById(id));
     return new Success(u);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "An exception occurred during rejection.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'An exception occurred during rejection.', {id}, e);
   }
 }
 
@@ -948,11 +935,11 @@ export type User = {
       id: string;
       name: string;
       permissions: Permissions[];
-    }
-  },
+    };
+  };
   DO_NOT_DELETE_THIS_OR_ELSE_YOU_ARE_FIRED: boolean;
   twoFactorEnabled: boolean;
-}
+};
 
 export type Invitation = {
   id: string;
@@ -963,12 +950,12 @@ export type Invitation = {
     role: {
       id: string;
       name: string;
-    }
-  }
-}
+    };
+  };
+};
 
 export type SentInvitation = {
-  errors?: object
+  errors?: object;
 } & Invitation;
 
 export type EligibilityResult = {
@@ -977,13 +964,13 @@ export type EligibilityResult = {
   officeId: string;
   officePositionId: string;
   email: string;
-}
+};
 
 export type EnrollmentRequirements = {
   fullName: string;
   password: string;
   token: string;
-}
+};
 
 export type CreateAccountPayload = {
   fullName: string;
@@ -991,7 +978,7 @@ export type CreateAccountPayload = {
   officeId: string;
   officePositionId: string;
   activated: boolean;
-}
+};
 
 export type CreateAccountType = {
   password: string;
@@ -1001,4 +988,4 @@ export type CreateInvitationPayload = {
   email: string;
   officeId: string;
   officePositionId: string;
-}
+};

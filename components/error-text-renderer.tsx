@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import type { ComponentProps } from "react";
+import type {ComponentProps} from 'react';
 
-export default function ErrorTextRenderer({ message, ...props }: ErrorTextRendererProps) {
-  if (message !== null && message !== undefined && typeof message !== "object") {
+export default function ErrorTextRenderer({message, ...props}: ErrorTextRendererProps) {
+  if (message !== null && message !== undefined && typeof message !== 'object') {
     return <p {...props}>Unknown exception occurred.</p>;
   }
 
-  if (typeof message === "string") return <p {...props}>{message}</p>;
+  if (typeof message === 'string') return <p {...props}>{message}</p>;
 
   return (
     <p {...props}>
@@ -18,6 +18,6 @@ export default function ErrorTextRenderer({ message, ...props }: ErrorTextRender
   );
 }
 
-interface ErrorTextRendererProps extends ComponentProps<"p"> {
+interface ErrorTextRendererProps extends ComponentProps<'p'> {
   message: Record<string, string> | string | null | undefined;
 }

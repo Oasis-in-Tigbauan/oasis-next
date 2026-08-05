@@ -1,27 +1,27 @@
-import Image from "next/image";
-import type { ReactNode } from "react";
-import { redirect, RedirectType } from "next/navigation";
+import Image from 'next/image';
+import {redirect, RedirectType} from 'next/navigation';
+import type {ReactNode} from 'react';
 
-import { session as auth, SessionCode } from "@/lib/auth";
+import {session as auth, SessionCode} from '@/lib/auth';
 
-export default async function UnverifiedLayout({ children }: { children: ReactNode}) {
+export default async function UnverifiedLayout({children}: {children: ReactNode}) {
   const session = await auth.verify();
 
   // No valid session → sign in
   if (session.code === SessionCode.SessionInvalid) {
-    return redirect("/auth/signin");
+    return redirect('/auth/signin');
   }
 
   // Banned users have their own page
   if (session.code === SessionCode.Banned) {
-    return redirect("/banned", RedirectType.replace);
+    return redirect('/banned', RedirectType.replace);
   }
 
   // Shadow-banned users are silently allowed through to appear as pending
 
   // Activated users don't belong here
   if (session.user?.activated) {
-    return redirect("/auth/check", RedirectType.replace);
+    return redirect('/auth/check', RedirectType.replace);
   }
 
   return (
@@ -44,9 +44,7 @@ export default async function UnverifiedLayout({ children }: { children: ReactNo
         </header>
 
         <div className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-[420px]">
-            {children}
-          </div>
+          <div className="w-full max-w-[420px]">{children}</div>
         </div>
       </section>
 

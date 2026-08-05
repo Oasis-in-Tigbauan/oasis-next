@@ -1,4 +1,4 @@
-export const ResetPasswordMail = ({ resetURL }: ResetMailProps) => `
+export const ResetPasswordMail = ({resetURL}: ResetMailProps) => `
 <!doctype html>
 <html lang="en">
   <head>
@@ -36,4 +36,4 @@ export const ResetPasswordMail = ({ resetURL }: ResetMailProps) => `
 
 type ResetMailProps = {
   resetURL: string;
-}
+};

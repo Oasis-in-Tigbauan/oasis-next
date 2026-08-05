@@ -1,8 +1,8 @@
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as office from "@/lib/office";
-import { oneOf } from "@/lib/one-of";
-import * as permission from "@/lib/db/permissions";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import * as office from '@/lib/office';
+import {oneOf} from '@/lib/one-of';
 
 export async function GET() {
   const session = await auth.verify([
@@ -15,7 +15,7 @@ export async function GET() {
 
   const offices = await office.getAssignableOfficesWithHeadUsers();
   return oneOf(offices).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }

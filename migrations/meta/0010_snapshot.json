@@ -110,12 +110,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -261,12 +257,8 @@
           "name": "invitations_office_id_office_id_fk",
           "tableFrom": "invitations",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -276,16 +268,12 @@
         "invitations_email_unique": {
           "name": "invitations_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "invitations_token_unique": {
           "name": "invitations_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -474,12 +462,8 @@
           "name": "office_position_office_id_office_id_fk",
           "tableFrom": "office_position",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -566,12 +550,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -581,9 +561,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -656,12 +634,8 @@
           "name": "two_factor_user_id_user_id_fk",
           "tableFrom": "two_factor",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -792,12 +766,8 @@
           "name": "user_office_id_office_id_fk",
           "tableFrom": "user",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -805,12 +775,8 @@
           "name": "user_office_position_id_office_position_id_fk",
           "tableFrom": "user",
           "tableTo": "office_position",
-          "columnsFrom": [
-            "office_position_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_position_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -820,9 +786,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},

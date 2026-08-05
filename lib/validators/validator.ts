@@ -1,4 +1,5 @@
-import { DateTime } from "luxon";
+import {DateTime} from 'luxon';
+
 import type {
   Schema,
   ValidationErrors,
@@ -6,35 +7,35 @@ import type {
   ValidationResult,
   ValidationTypes,
   ValidatorFormatterMetaData,
-} from "@/lib/validators/types";
+} from '@/lib/validators/types';
 
 export class Validator {
   private readonly _formatters: Record<string, ValidatorFormatterMetaData<ValidationTypes>> = {};
 
   /**
-     * Adds a new format to the internal list of formatters.
-     *
-     * @param {string} name - The name of the format to be added. Must be unique.
-     * @param {ValidatorFormatterMetaData<ValidationTypes>} metadata - The metadata associated with the specified format.
-     * @return {void} This method does not return a value.
-     */
+   * Adds a new format to the internal list of formatters.
+   *
+   * @param {string} name - The name of the format to be added. Must be unique.
+   * @param {ValidatorFormatterMetaData<ValidationTypes>} metadata - The metadata associated with the specified format.
+   * @return {void} This method does not return a value.
+   */
   addFormat(name: string, metadata: ValidatorFormatterMetaData<ValidationTypes>): void {
     // Do not accept if the same name of formatter already exists
     if (this._formatters[name]) {
       return;
     }
 
-    this._formatters[name] = { ...metadata };
+    this._formatters[name] = {...metadata};
   }
 
   /**
-     * Retrieves the formatter function associated with the provided name and validation type.
-     *
-     * @template T
-     * @param {ValidationTypes} typeOf - The type of validation the formatter is associated with.
-     * @param {string} name - The name of the formatter to retrieve.
-     * @return {ValidationFunction<T> | null} The formatter function if found and matched with the validation type; otherwise, null.
-     */
+   * Retrieves the formatter function associated with the provided name and validation type.
+   *
+   * @template T
+   * @param {ValidationTypes} typeOf - The type of validation the formatter is associated with.
+   * @param {string} name - The name of the formatter to retrieve.
+   * @return {ValidationFunction<T> | null} The formatter function if found and matched with the validation type; otherwise, null.
+   */
   getFormatterFunction<T>(typeOf: ValidationTypes, name: string): ValidationFunction<T> | null {
     // Get the name of the registered formatter.
     const formatter = this._formatters[name];
@@ -59,18 +60,18 @@ export class Validator {
    */
   private isTypeMatches<T>(type: ValidationTypes, value: T): boolean {
     // Check if the property is a type of Array
-    if (type === "array") {
+    if (type === 'array') {
       return Array.isArray(value);
     }
 
     // Check if the type is Date
-    if (type === "date") {
-      return value instanceof Date && value.toString() !== "Invalid Date";
+    if (type === 'date') {
+      return value instanceof Date && value.toString() !== 'Invalid Date';
     }
 
     // Check if the type is Number
-    if (type === "number") {
-      return typeof value === "number" && !isNaN(value);
+    if (type === 'number') {
+      return typeof value === 'number' && !isNaN(value);
     }
 
     // Other types
@@ -98,10 +99,15 @@ export class Validator {
    * @param max The optional maximum threshold for the value. For strings, it represents the maximum length.
    * @return Returns true if the value complies with the specified min and max constraints, or if the type is unsupported. Returns false otherwise.
    */
-  private checkMinMax<T>(type: ValidationTypes, value: T, min?: number, max?: number): MinMaxValidator {
+  private checkMinMax<T>(
+    type: ValidationTypes,
+    value: T,
+    min?: number,
+    max?: number,
+  ): MinMaxValidator {
     // Unsupported types get a free pass.
-    if (type !== "string" && type !== "number") {
-      return { ok: true };
+    if (type !== 'string' && type !== 'number') {
+      return {ok: true};
     }
 
     // Check for minimum values
@@ -109,7 +115,7 @@ export class Validator {
       const minValue = min as number;
 
       // Check for the minimum length if the type is string.
-      if (type === "string") {
+      if (type === 'string') {
         if ((value as string).length < minValue) {
           return {
             ok: false,
@@ -119,7 +125,7 @@ export class Validator {
       }
 
       // Check for the minimum value if the type is number.
-      if (type === "number") {
+      if (type === 'number') {
         if ((value as number) < minValue) {
           return {
             ok: false,
@@ -133,7 +139,7 @@ export class Validator {
     if (this.isExist(max)) {
       const maxValue = max as number;
 
-      if (type === "string") {
+      if (type === 'string') {
         if ((value as string).length > maxValue) {
           return {
             ok: false,
@@ -143,7 +149,7 @@ export class Validator {
       }
 
       // Check for the minimum value if the type is number.
-      if (type === "number") {
+      if (type === 'number') {
         if ((value as number) > maxValue) {
           return {
             ok: false,
@@ -153,7 +159,7 @@ export class Validator {
       }
     }
 
-    return { ok: true };
+    return {ok: true};
   }
 
   /**
@@ -165,10 +171,15 @@ export class Validator {
    * @param {DateTime} [max] The maximum allowed date. Optional.
    * @return {MinMaxValidator} An object indicating whether the validation was successful (OK: true) or failed (OK: false with an error message).
    */
-  private checkMinMaxDate(type: ValidationTypes, value: Date, min?: DateTime, max?: DateTime): MinMaxValidator {
+  private checkMinMaxDate(
+    type: ValidationTypes,
+    value: Date,
+    min?: DateTime,
+    max?: DateTime,
+  ): MinMaxValidator {
     // Pass if not date. Nothing to check.
-    if (type !== "date") {
-      return { ok: true };
+    if (type !== 'date') {
+      return {ok: true};
     }
 
     if (this.isExist(min)) {
@@ -195,7 +206,7 @@ export class Validator {
       }
     }
 
-    return { ok: true };
+    return {ok: true};
   }
 
   /**
@@ -218,10 +229,12 @@ export class Validator {
           errors: {} as ValidationErrors<T>,
         };
 
-        for (const extraProperty of objectProperties.filter((x) => !validatedProperties.includes(x))) {
+        for (const extraProperty of objectProperties.filter(
+          (x) => !validatedProperties.includes(x),
+        )) {
           result.errors[extraProperty as keyof T] = {
             message: `Property ${String(extraProperty)} is not allowed without validation.`,
-            from: "unvalidated",
+            from: 'unvalidated',
           } as ValidationErrors<T>[keyof T];
         }
 
@@ -238,13 +251,16 @@ export class Validator {
 
       // Fail when one of the properties is not present especially if its part of the
       // required properties
-      if (!this.isExist(object[property]) && schema.requiredProperties.includes(property as keyof T)) {
+      if (
+        !this.isExist(object[property]) &&
+        schema.requiredProperties.includes(property as keyof T)
+      ) {
         return {
           ok: false,
           errors: {
             [property]: {
               message: `Property ${String(property)} is required`,
-              from: "is-required",
+              from: 'is-required',
             },
           } as ValidationErrors<T>,
         };
@@ -264,19 +280,19 @@ export class Validator {
           errors: {
             [property]: {
               message: `Property ${String(property)} must be of type ${current.type}`,
-              from: "type-check",
+              from: 'type-check',
             },
           } as ValidationErrors<T>,
         };
       }
 
       // Range checks
-      if (current.type === "string" || current.type === "number") {
+      if (current.type === 'string' || current.type === 'number') {
         const minMaxCheck = this.checkMinMax(
           current.type,
           object[property],
-                    current.min as number,
-                    current.max as number,
+          current.min as number,
+          current.max as number,
         );
         if (!minMaxCheck.ok) {
           return {
@@ -284,14 +300,14 @@ export class Validator {
             errors: {
               [property]: {
                 message: minMaxCheck.error!,
-                from: "range-check",
+                from: 'range-check',
               },
             } as ValidationErrors<T>,
           };
         }
       }
 
-      if (current.type === "date") {
+      if (current.type === 'date') {
         const dateMinMax = this.checkMinMaxDate(
           current.type,
           object[property] as Date,
@@ -304,7 +320,7 @@ export class Validator {
             errors: {
               [property]: {
                 message: dateMinMax.error!,
-                from: "range-check",
+                from: 'range-check',
               },
             } as ValidationErrors<T>,
           };
@@ -321,13 +337,13 @@ export class Validator {
             errors: {
               [property]: {
                 message: runFormatter.error,
-                from: "formatter",
+                from: 'formatter',
               },
             } as ValidationErrors<T>,
           };
         }
 
-        return { ok: true, errors: {} as ValidationErrors<T> };
+        return {ok: true, errors: {} as ValidationErrors<T>};
       }
 
       // Built-in formatter options
@@ -341,20 +357,22 @@ export class Validator {
             errors: {
               [property]: {
                 message: `Property ${String(property)} has an invalid formatter`,
-                from: "formatter",
+                from: 'formatter',
               },
             } as ValidationErrors<T>,
           };
         }
 
-        const formatterResult = await formatter.formatterFn(object[property as keyof T] as ValidationTypes);
+        const formatterResult = await formatter.formatterFn(
+          object[property as keyof T] as ValidationTypes,
+        );
         if (!formatterResult.ok) {
           return {
             ok: false,
             errors: {
               [property]: {
                 message: formatterResult.error,
-                from: "formatter",
+                from: 'formatter',
               },
             } as ValidationErrors<T>,
           };
@@ -362,7 +380,7 @@ export class Validator {
       }
     }
 
-    return { ok: true, errors: {} as ValidationErrors<T> };
+    return {ok: true, errors: {} as ValidationErrors<T>};
   }
 
   toPlainErrors<T>(errors: ValidationErrors<T>): string {
@@ -370,12 +388,12 @@ export class Validator {
     for (const key in errors) {
       str.push(`${key}: ${errors[key].message} (in: ${errors[key].from})`);
     }
-    return str.join(", ");
+    return str.join(', ');
   }
 }
 
 // Internal non-exportable types
 interface MinMaxValidator {
-    ok: boolean;
-    error?: string;
+  ok: boolean;
+  error?: string;
 }

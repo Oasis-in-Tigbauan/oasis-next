@@ -1,32 +1,34 @@
-import { NextRequest } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
+import {NextRequest} from 'next/server';
 
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { auth } from "@/lib/auth";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import { validator } from "@/lib/validators";
+import {auth} from '@/lib/auth';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import {validator} from '@/lib/validators';
 
 export async function POST(req: NextRequest) {
   // Reset password
   const body = await tryParseJson<ResetPasswordRequest>(req);
   if (!body) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid Payload.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid Payload.',
+    ).build();
   }
 
   const validation = await validator.validate<ResetPasswordRequest>(body, {
     properties: {
-      password: { type: "string", formatter: "strong-password" },
-      token: { type: "string", formatter: "non-empty-string" },
+      password: {type: 'string', formatter: 'strong-password'},
+      token: {type: 'string', formatter: 'non-empty-string'},
     },
-    requiredProperties: ["password", "token"],
+    requiredProperties: ['password', 'token'],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, validation.errors!)
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      validation.errors!,
+    ).build();
   }
 
   try {
@@ -38,25 +40,26 @@ export async function POST(req: NextRequest) {
     });
 
     if (result.status) {
-      return ApiResponseBuilder
-        .create(StatusCodes.Status200Ok)
-        .withBody({ message: "Password has been reset. Try logging-in." })
+      return ApiResponseBuilder.create(StatusCodes.Status200Ok)
+        .withBody({message: 'Password has been reset. Try logging-in.'})
         .build();
     }
 
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid request")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid request',
+    ).build();
   } catch (e) {
     Sentry.captureException(e);
 
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid request")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid request',
+    ).build();
   }
 }
 
 type ResetPasswordRequest = {
   password: string;
   token: string;
-}
+};

@@ -1,33 +1,28 @@
-"use client";
+'use client';
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search } from "lucide-react";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {Search} from 'lucide-react';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
 
-import type {
-  SaaobStatisticGroupResponse,
-  SaaobStatisticItemResponse,
-} from "@/lib/http/client/responses";
 import {
   filterSaaobStatisticTreeByQuery,
   flattenSaaobStatisticVisible,
   type SaaobStatisticFlatRow,
-} from "@/common/saaob/client";
+} from '@/common/saaob/client';
 import {
   SaaobPageAggregateRow,
   SaaobPageGroupRow,
   SaaobPageSpacerRow,
   SaaobPageTableHeader,
   useSaaobColumnVisibility,
-} from "@/common/saaob/page-table";
-
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-} from "@/components/ui/table";
+} from '@/common/saaob/page-table';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import {Input} from '@/components/ui/input';
+import {Table, TableBody, TableHeader} from '@/components/ui/table';
+import type {
+  SaaobStatisticGroupResponse,
+  SaaobStatisticItemResponse,
+} from '@/lib/http/client/responses';
 
 type Props = {
   data: Array<SaaobStatisticGroupResponse | SaaobStatisticItemResponse>;
@@ -43,10 +38,10 @@ export default function SaaobReadOnlyStatistics({
   onRowDoubleClick,
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  const columnVisibility = useSaaobColumnVisibility("statistics");
+  const columnVisibility = useSaaobColumnVisibility('statistics');
 
   const filteredTree = useMemo(
     () => filterSaaobStatisticTreeByQuery(data, searchQuery),
@@ -54,13 +49,7 @@ export default function SaaobReadOnlyStatistics({
   );
 
   const flatRows = useMemo(
-    () =>
-      flattenSaaobStatisticVisible(
-        filteredTree,
-        collapsed,
-        0,
-        searchQuery.trim().length > 0,
-      ),
+    () => flattenSaaobStatisticVisible(filteredTree, collapsed, 0, searchQuery.trim().length > 0),
     [filteredTree, collapsed, searchQuery],
   );
 
@@ -76,12 +65,10 @@ export default function SaaobReadOnlyStatistics({
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
   const paddingBottom =
-    virtualRows.length > 0
-      ? totalSize - virtualRows[virtualRows.length - 1].end
-      : 0;
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -98,7 +85,7 @@ export default function SaaobReadOnlyStatistics({
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search statistics data..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <div className="ml-auto">
@@ -117,9 +104,7 @@ export default function SaaobReadOnlyStatistics({
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery
-              ? "No results match your search."
-              : "No statistics records found."}
+            {searchQuery ? 'No results match your search.' : 'No statistics records found.'}
           </div>
         ) : (
           <div
@@ -133,13 +118,16 @@ export default function SaaobReadOnlyStatistics({
 
               <TableBody>
                 {paddingTop > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingTop} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingTop}
+                  />
                 )}
 
-                {virtualRows.map(virtualRow => {
+                {virtualRows.map((virtualRow) => {
                   const row = flatRows[virtualRow.index] as SaaobStatisticFlatRow;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <SaaobPageGroupRow
@@ -171,7 +159,7 @@ export default function SaaobReadOnlyStatistics({
                       depth={row.depth}
                       isSelected={selectedRowId === row.id}
                       blankAccountAndRemarks
-                      rowClassName={virtualRow.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}
+                      rowClassName={virtualRow.index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''}
                       measureRef={rowVirtualizer.measureElement}
                       dataIndex={virtualRow.index}
                       onClick={() => onRowClick?.(row)}
@@ -181,7 +169,10 @@ export default function SaaobReadOnlyStatistics({
                 })}
 
                 {paddingBottom > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingBottom} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingBottom}
+                  />
                 )}
               </TableBody>
             </Table>

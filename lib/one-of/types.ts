@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
 
 export enum ErrorCodes {
   /**
@@ -30,7 +30,7 @@ export enum ErrorCodes {
 export type Result<T> = Success<T> | Failure;
 
 export class Success<T> {
-  constructor(public readonly value: T) { }
+  constructor(public readonly value: T) {}
 }
 
 export class Failure {
@@ -38,10 +38,10 @@ export class Failure {
     public readonly type: ErrorCodes,
     public readonly message: string,
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     public readonly additionalContext?: Record<string, any>,
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     public readonly trace?: any,
   ) {
     Sentry.logger.error(`Failure with type ID ${type}: ${message}`, additionalContext);

@@ -1,13 +1,12 @@
-import { and, asc, eq, ilike, inArray, lt } from "drizzle-orm";
-import { DateTime } from "luxon";
-import { Decimal } from "decimal.js";
+import {Decimal} from 'decimal.js';
+import {and, asc, eq, ilike, inArray, lt} from 'drizzle-orm';
+import {DateTime} from 'luxon';
 
-import * as templateBucket from "@/lib/buckets/templates";
-import type { TemplateBucketItem } from "@/lib/buckets/templates";
-import { SAAOB_EXPORT_COLUMNS, type SaaobExportColumnKey } from "@/common/saaob/client";
-import * as casts from "@/lib/types/casts";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
+import {SAAOB_EXPORT_COLUMNS, type SaaobExportColumnKey} from '@/common/saaob/client';
+import {type User} from '@/lib/accounts';
+import * as templateBucket from '@/lib/buckets/templates';
+import type {TemplateBucketItem} from '@/lib/buckets/templates';
+import {db} from '@/lib/db';
 import {
   esre,
   expenseClasses,
@@ -23,34 +22,47 @@ import {
   saaobStatisticItems,
   saaobStatisticSelectedGroups,
   supplemental,
-} from "@/lib/db/schema";
-import { type User } from "@/lib/accounts";
+} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
 
-export const SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER = "saaob.main-data";
-export const SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER = "saaob.office-data";
+export const SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER = 'saaob.main-data';
+export const SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER = 'saaob.office-data';
 
 /** ExcelTS numeric number format for monetary amounts. */
-const _NUM_FMT_AMOUNT = "#,##0.00";
+const _NUM_FMT_AMOUNT = '#,##0.00';
 /** ExcelTS number format for percentages stored as 0-100. */
-const _NUM_FMT_PCT = "0.00";
+const _NUM_FMT_PCT = '0.00';
 
 /** Thin border applied to all data cells. */
 const _THIN_BORDER = {
-  top: { style: "thin" as const },
-  left: { style: "thin" as const },
-  bottom: { style: "thin" as const },
-  right: { style: "thin" as const },
+  top: {style: 'thin' as const},
+  left: {style: 'thin' as const},
+  bottom: {style: 'thin' as const},
+  right: {style: 'thin' as const},
 };
 
 /** Blue accent color used for non-root group rows (ARGB). */
-const _BLUE_COLOR = { argb: "FF2F75B6" };
+const _BLUE_COLOR = {argb: 'FF2F75B6'};
 
 /** Light-blue fill used for root group rows. */
-const _ROOT_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFD9E1F2" } };
+const _ROOT_FILL = {
+  type: 'pattern' as const,
+  pattern: 'solid' as const,
+  fgColor: {argb: 'FFD9E1F2'},
+};
 /** Light-gray fill for column header row. */
-const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFE2EFDA" } };
+const _HEADER_FILL = {
+  type: 'pattern' as const,
+  pattern: 'solid' as const,
+  fgColor: {argb: 'FFE2EFDA'},
+};
 /** Light-yellow fill for prepended section header rows. */
-const _SECTION_HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFFFF2CC" } };
+const _SECTION_HEADER_FILL = {
+  type: 'pattern' as const,
+  pattern: 'solid' as const,
+  fgColor: {argb: 'FFFFF2CC'},
+};
 
 /**
  * In ExcelJS/ExcelTS, cells that belong to a merged range but are NOT the
@@ -83,7 +95,7 @@ export async function getAll(year?: number, month?: number): Promise<Result<Saao
     const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
     return new Success(_buildTree(groups, entriesByGroup));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve SAAOB entries.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve SAAOB entries.', {}, e);
   }
 }
 
@@ -113,30 +125,36 @@ export async function createGroup(
   try {
     if (parentId) {
       const [parent] = await db
-        .select({ id: saaobEntryGroup.id })
+        .select({id: saaobEntryGroup.id})
         .from(saaobEntryGroup)
         .where(eq(saaobEntryGroup.id, parentId))
         .limit(1);
       if (!parent) {
-        return new Failure(ErrorCodes.ResourceNotFound, "Parent group does not exist.", { parentId });
+        return new Failure(ErrorCodes.ResourceNotFound, 'Parent group does not exist.', {parentId});
       }
     }
 
     if (officeId !== undefined && officeId !== null) {
       const [officeExists] = await db
-        .select({ id: office.id })
+        .select({id: office.id})
         .from(office)
         .where(eq(office.id, officeId))
         .limit(1);
       if (!officeExists) {
-        return new Failure(ErrorCodes.ValidationFailure, "Assigned office does not exist.", { officeId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Assigned office does not exist.', {
+          officeId,
+        });
       }
     }
 
     const [created] = await db
       .insert(saaobEntryGroup)
-      .values({ name, parentId: parentId ?? null, officeId: officeId ?? null })
-      .returning({ id: saaobEntryGroup.id, name: saaobEntryGroup.name, officeId: saaobEntryGroup.officeId });
+      .values({name, parentId: parentId ?? null, officeId: officeId ?? null})
+      .returning({
+        id: saaobEntryGroup.id,
+        name: saaobEntryGroup.name,
+        officeId: saaobEntryGroup.officeId,
+      });
 
     return new Success({
       id: created.id,
@@ -146,7 +164,12 @@ export async function createGroup(
       children: [],
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create SAAOB group.", { name, parentId, officeId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create SAAOB group.',
+      {name, parentId, officeId},
+      e,
+    );
   }
 }
 
@@ -175,12 +198,12 @@ export async function createEntry(
 ): Promise<Result<SaaobEntry>> {
   try {
     const [parent] = await db
-      .select({ id: saaobEntryGroup.id })
+      .select({id: saaobEntryGroup.id})
       .from(saaobEntryGroup)
       .where(eq(saaobEntryGroup.id, parentId))
       .limit(1);
     if (!parent) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Parent group does not exist.", { parentId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Parent group does not exist.', {parentId});
     }
 
     let resolvedExpenseCodeId: string | null = null;
@@ -188,20 +211,24 @@ export async function createEntry(
 
     if (payload.expenseCodeId) {
       const [expClass] = await db
-        .select({ id: expenseClasses.id, accountCode: expenseClasses.accountCode })
+        .select({id: expenseClasses.id, accountCode: expenseClasses.accountCode})
         .from(expenseClasses)
         .where(eq(expenseClasses.id, payload.expenseCodeId))
         .limit(1);
       if (!expClass) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified expense code does not exist.", {
-          expenseCodeId: payload.expenseCodeId,
-        });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified expense code does not exist.',
+          {
+            expenseCodeId: payload.expenseCodeId,
+          },
+        );
       }
       resolvedExpenseCodeId = expClass.id;
       resolvedAccountCode = expClass.accountCode ?? null;
     } else {
       const [expClass] = await db
-        .select({ id: expenseClasses.id, accountCode: expenseClasses.accountCode })
+        .select({id: expenseClasses.id, accountCode: expenseClasses.accountCode})
         .from(expenseClasses)
         .where(ilike(expenseClasses.accountName, payload.name))
         .limit(1);
@@ -223,16 +250,20 @@ export async function createEntry(
         authorId: user.id,
         allotmentShouldCopyFromAppropriation: payload.allotmentShouldCopyFromAppropriation ?? false,
       })
-      .returning({ id: saaobEntries.id });
+      .returning({id: saaobEntries.id});
 
-    const entryRows = await _fetchAllEntries([parentId]).then(rows => rows.filter(r => r.id === created.id));
+    const entryRows = await _fetchAllEntries([parentId]).then((rows) =>
+      rows.filter((r) => r.id === created.id),
+    );
     const [computed] = await _fetchAndComputeEntries(entryRows);
     if (!computed) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve created SAAOB entry.", { entryId: created.id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve created SAAOB entry.', {
+        entryId: created.id,
+      });
     }
     return new Success(computed);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create SAAOB entry.", { parentId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create SAAOB entry.', {parentId}, e);
   }
 }
 
@@ -256,29 +287,33 @@ export async function moveGroup(id: string, target: string | null): Promise<Resu
   try {
     const allGroups = await _fetchAllGroups();
 
-    const existing = allGroups.find(g => g.id === id);
+    const existing = allGroups.find((g) => g.id === id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Group not found.', {id});
     }
 
     if (target !== null) {
-      const targetGroup = allGroups.find(g => g.id === target);
+      const targetGroup = allGroups.find((g) => g.id === target);
       if (!targetGroup) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { target });
+        return new Failure(ErrorCodes.ValidationFailure, 'Target group does not exist.', {target});
       }
       const descendants = _collectDescendantGroupIds(id, allGroups);
       if (descendants.includes(target)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Cannot move a group into one of its own descendants.", {
-          id,
-          target,
-        });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'Cannot move a group into one of its own descendants.',
+          {
+            id,
+            target,
+          },
+        );
       }
     }
 
-    await db.update(saaobEntryGroup).set({ parentId: target }).where(eq(saaobEntryGroup.id, id));
+    await db.update(saaobEntryGroup).set({parentId: target}).where(eq(saaobEntryGroup.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move SAAOB group.", { id, target }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to move SAAOB group.', {id, target}, e);
   }
 }
 
@@ -298,27 +333,27 @@ export async function moveGroup(id: string, target: string | null): Promise<Resu
 export async function moveEntry(id: string, target: string): Promise<Result<null>> {
   try {
     const [entry] = await db
-      .select({ id: saaobEntries.id })
+      .select({id: saaobEntries.id})
       .from(saaobEntries)
       .where(eq(saaobEntries.id, id))
       .limit(1);
     if (!entry) {
-      return new Failure(ErrorCodes.ResourceNotFound, "SAAOB entry not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'SAAOB entry not found.', {id});
     }
 
     const [targetGroup] = await db
-      .select({ id: saaobEntryGroup.id })
+      .select({id: saaobEntryGroup.id})
       .from(saaobEntryGroup)
       .where(eq(saaobEntryGroup.id, target))
       .limit(1);
     if (!targetGroup) {
-      return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { target });
+      return new Failure(ErrorCodes.ValidationFailure, 'Target group does not exist.', {target});
     }
 
-    await db.update(saaobEntries).set({ parentId: target }).where(eq(saaobEntries.id, id));
+    await db.update(saaobEntries).set({parentId: target}).where(eq(saaobEntries.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move SAAOB entry.", { id, target }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to move SAAOB entry.', {id, target}, e);
   }
 }
 
@@ -344,26 +379,33 @@ export async function updateGroup(
 ): Promise<Result<BaseSaaobGroup>> {
   try {
     const [existing] = await db
-      .select({ id: saaobEntryGroup.id, name: saaobEntryGroup.name, officeId: saaobEntryGroup.officeId })
+      .select({
+        id: saaobEntryGroup.id,
+        name: saaobEntryGroup.name,
+        officeId: saaobEntryGroup.officeId,
+      })
       .from(saaobEntryGroup)
       .where(eq(saaobEntryGroup.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Group not found.', {id});
     }
 
     if (officeId !== undefined && officeId !== null) {
       const [officeExists] = await db
-        .select({ id: office.id })
+        .select({id: office.id})
         .from(office)
         .where(eq(office.id, officeId))
         .limit(1);
       if (!officeExists) {
-        return new Failure(ErrorCodes.ValidationFailure, "Assigned office does not exist.", { officeId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Assigned office does not exist.', {
+          officeId,
+        });
       }
     }
 
-    const updateValues: Partial<Pick<typeof saaobEntryGroup.$inferInsert, "name" | "officeId">> = {};
+    const updateValues: Partial<Pick<typeof saaobEntryGroup.$inferInsert, 'name' | 'officeId'>> =
+      {};
     if (name !== undefined) {
       updateValues.name = name;
     }
@@ -385,7 +427,7 @@ export async function updateGroup(
       officeId: resolvedOfficeId ?? undefined,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update SAAOB group.", { id, officeId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update SAAOB group.', {id, officeId}, e);
   }
 }
 
@@ -404,7 +446,10 @@ export async function updateGroup(
  * @param {SaaobUpdateEntryPayload} payload - Fields to update (all optional).
  * @returns {Promise<Result<SaaobEntry>>} The updated and fully computed entry.
  */
-export async function updateEntry(id: string, payload: SaaobUpdateEntryPayload): Promise<Result<SaaobEntry>> {
+export async function updateEntry(
+  id: string,
+  payload: SaaobUpdateEntryPayload,
+): Promise<Result<SaaobEntry>> {
   try {
     const [existing] = await db
       .select({
@@ -416,34 +461,41 @@ export async function updateEntry(id: string, payload: SaaobUpdateEntryPayload):
       .where(eq(saaobEntries.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "SAAOB entry not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'SAAOB entry not found.', {id});
     }
 
     const updateValues: Record<string, unknown> = {};
 
     if (payload.name !== undefined) updateValues.name = payload.name;
-    if (payload.annualBudget !== undefined) updateValues.annualBudget = casts.castToDecimal(payload.annualBudget);
+    if (payload.annualBudget !== undefined)
+      updateValues.annualBudget = casts.castToDecimal(payload.annualBudget);
     if (payload.remarks !== undefined) updateValues.remarks = payload.remarks;
-    if (payload.allotmentShouldCopyFromAppropriation !== undefined) updateValues.allotmentShouldCopyFromAppropriation = payload.allotmentShouldCopyFromAppropriation;
+    if (payload.allotmentShouldCopyFromAppropriation !== undefined)
+      updateValues.allotmentShouldCopyFromAppropriation =
+        payload.allotmentShouldCopyFromAppropriation;
 
     const nameForLookup = payload.name ?? existing.name;
 
     if (payload.expenseCodeId !== undefined) {
       const [expClass] = await db
-        .select({ id: expenseClasses.id, accountCode: expenseClasses.accountCode })
+        .select({id: expenseClasses.id, accountCode: expenseClasses.accountCode})
         .from(expenseClasses)
         .where(eq(expenseClasses.id, payload.expenseCodeId))
         .limit(1);
       if (!expClass) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified expense code does not exist.", {
-          expenseCodeId: payload.expenseCodeId,
-        });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified expense code does not exist.',
+          {
+            expenseCodeId: payload.expenseCodeId,
+          },
+        );
       }
       updateValues.expenseCodeId = expClass.id;
       updateValues.accountCode = expClass.accountCode ?? null;
     } else if (payload.name !== undefined) {
       const [expClass] = await db
-        .select({ id: expenseClasses.id, accountCode: expenseClasses.accountCode })
+        .select({id: expenseClasses.id, accountCode: expenseClasses.accountCode})
         .from(expenseClasses)
         .where(ilike(expenseClasses.accountName, nameForLookup))
         .limit(1);
@@ -457,14 +509,16 @@ export async function updateEntry(id: string, payload: SaaobUpdateEntryPayload):
       await db.update(saaobEntries).set(updateValues).where(eq(saaobEntries.id, id));
     }
 
-    const entryRows = await _fetchAllEntries([existing.parentId]).then(rows => rows.filter(r => r.id === id));
+    const entryRows = await _fetchAllEntries([existing.parentId]).then((rows) =>
+      rows.filter((r) => r.id === id),
+    );
     const [computed] = await _fetchAndComputeEntries(entryRows);
     if (!computed) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated SAAOB entry.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated SAAOB entry.', {id});
     }
     return new Success(computed);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update SAAOB entry.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update SAAOB entry.', {id}, e);
   }
 }
 
@@ -488,16 +542,16 @@ export async function updateEntry(id: string, payload: SaaobUpdateEntryPayload):
 export async function deleteGroup(id: string): Promise<Result<null>> {
   try {
     const allGroups = await _fetchAllGroups();
-    const existing = allGroups.find(g => g.id === id);
+    const existing = allGroups.find((g) => g.id === id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Group not found.', {id});
     }
 
     const descendants = _collectDescendantGroupIds(id, allGroups);
     const allGroupIds = [id, ...descendants];
 
     const entriesInGroup = await db
-      .select({ id: saaobEntries.id })
+      .select({id: saaobEntries.id})
       .from(saaobEntries)
       .where(inArray(saaobEntries.parentId, allGroupIds))
       .limit(1);
@@ -505,23 +559,25 @@ export async function deleteGroup(id: string): Promise<Result<null>> {
     if (entriesInGroup.length > 0) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete a group that still contains entries. Remove all entries first.",
-        { id },
+        'Cannot delete a group that still contains entries. Remove all entries first.',
+        {id},
       );
     }
 
     const depthMap = new Map<string, number>();
     const computeDepth = (gId: string, depth: number) => {
       depthMap.set(gId, depth);
-      for (const child of allGroups.filter(g => g.parentId === gId)) {
+      for (const child of allGroups.filter((g) => g.parentId === gId)) {
         computeDepth(child.id, depth + 1);
       }
     };
     computeDepth(id, 0);
 
-    const sortedIds = [...allGroupIds].sort((a, b) => (depthMap.get(b) ?? 0) - (depthMap.get(a) ?? 0));
+    const sortedIds = [...allGroupIds].sort(
+      (a, b) => (depthMap.get(b) ?? 0) - (depthMap.get(a) ?? 0),
+    );
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       for (const gId of sortedIds) {
         await tx.delete(saaobEntryGroup).where(eq(saaobEntryGroup.id, gId));
       }
@@ -529,7 +585,7 @@ export async function deleteGroup(id: string): Promise<Result<null>> {
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete SAAOB group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete SAAOB group.', {id}, e);
   }
 }
 
@@ -548,18 +604,18 @@ export async function deleteGroup(id: string): Promise<Result<null>> {
 export async function deleteEntry(id: string): Promise<Result<null>> {
   try {
     const [entry] = await db
-      .select({ id: saaobEntries.id })
+      .select({id: saaobEntries.id})
       .from(saaobEntries)
       .where(eq(saaobEntries.id, id))
       .limit(1);
     if (!entry) {
-      return new Failure(ErrorCodes.ResourceNotFound, "SAAOB entry not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'SAAOB entry not found.', {id});
     }
 
     await db.delete(saaobEntries).where(eq(saaobEntries.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete SAAOB entry.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete SAAOB entry.', {id}, e);
   }
 }
 
@@ -583,24 +639,26 @@ export async function getAllByOffice(officeId: string): Promise<Result<SaaobElem
   try {
     const allGroups = await _fetchAllGroups();
 
-    const officeRoots = allGroups.filter(g => g.officeId === officeId);
+    const officeRoots = allGroups.filter((g) => g.officeId === officeId);
     if (officeRoots.length === 0) return new Success([]);
 
-    const relevantGroupIds = new Set<string>(officeRoots.map(g => g.id));
+    const relevantGroupIds = new Set<string>(officeRoots.map((g) => g.id));
     for (const root of officeRoots) {
       for (const desc of _collectDescendantGroupIds(root.id, allGroups)) {
         relevantGroupIds.add(desc);
       }
     }
 
-    const filteredGroups = allGroups.filter(g => relevantGroupIds.has(g.id));
+    const filteredGroups = allGroups.filter((g) => relevantGroupIds.has(g.id));
     const entryRows = await _fetchAllEntries([...relevantGroupIds]);
     const computedEntries = await _fetchAndComputeEntries(entryRows);
     const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
 
-    return new Success(_buildTree(filteredGroups, entriesByGroup, new Set(officeRoots.map(g => g.id))));
+    return new Success(
+      _buildTree(filteredGroups, entriesByGroup, new Set(officeRoots.map((g) => g.id))),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve office SAAOB entries.", { officeId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve office SAAOB entries.', {officeId}, e);
   }
 }
 
@@ -627,34 +685,41 @@ export async function getAllByOffice(officeId: string): Promise<Result<SaaobElem
  * @param {string} [officeId] - When provided, only groups and entries assigned to this office are searched.
  * @returns {Promise<Result<SaaobSearchResult>>} Pruned tree of matching results.
  */
-export async function searchItems(query: string, officeId?: string): Promise<Result<SaaobSearchResult>> {
+export async function searchItems(
+  query: string,
+  officeId?: string,
+): Promise<Result<SaaobSearchResult>> {
   try {
     const allGroupsRaw = await _fetchAllGroups();
 
     let allGroups = allGroupsRaw;
     if (officeId) {
-      const officeRoots = allGroupsRaw.filter(g => g.officeId === officeId);
+      const officeRoots = allGroupsRaw.filter((g) => g.officeId === officeId);
       if (officeRoots.length === 0) return new Success([]);
 
-      const relevantGroupIds = new Set<string>(officeRoots.map(g => g.id));
+      const relevantGroupIds = new Set<string>(officeRoots.map((g) => g.id));
       for (const root of officeRoots) {
         for (const desc of _collectDescendantGroupIds(root.id, allGroupsRaw)) {
           relevantGroupIds.add(desc);
         }
       }
 
-      allGroups = allGroupsRaw.filter(g => relevantGroupIds.has(g.id));
+      allGroups = allGroupsRaw.filter((g) => relevantGroupIds.has(g.id));
     }
 
-    const allEntries = await _fetchAllEntries(officeId ? allGroups.map(g => g.id) : undefined);
+    const allEntries = await _fetchAllEntries(officeId ? allGroups.map((g) => g.id) : undefined);
 
     const lowerQuery = query.toLowerCase();
-    const matchedGroupIds = new Set(allGroups.filter(g => g.name.toLowerCase().includes(lowerQuery)).map(g => g.id));
-    const matchedEntryIds = new Set(allEntries.filter(e => e.name.toLowerCase().includes(lowerQuery)).map(e => e.id));
+    const matchedGroupIds = new Set(
+      allGroups.filter((g) => g.name.toLowerCase().includes(lowerQuery)).map((g) => g.id),
+    );
+    const matchedEntryIds = new Set(
+      allEntries.filter((e) => e.name.toLowerCase().includes(lowerQuery)).map((e) => e.id),
+    );
 
     if (matchedGroupIds.size === 0 && matchedEntryIds.size === 0) return new Success([]);
 
-    const parentMap = new Map(allGroups.map(g => [g.id, g.parentId]));
+    const parentMap = new Map(allGroups.map((g) => [g.id, g.parentId]));
 
     const getAncestorChain = (groupId: string): string[] => {
       const chain: string[] = [];
@@ -680,7 +745,7 @@ export async function searchItems(query: string, officeId?: string): Promise<Res
     }
 
     for (const eId of matchedEntryIds) {
-      const entryRow = allEntries.find(e => e.id === eId);
+      const entryRow = allEntries.find((e) => e.id === eId);
       if (!entryRow) continue;
       const parentGroupId = entryRow.parentId;
       if (!expandedGroupIds.has(parentGroupId)) pathGroupIds.add(parentGroupId);
@@ -690,11 +755,11 @@ export async function searchItems(query: string, officeId?: string): Promise<Res
     }
 
     const includedEntryRows = allEntries.filter(
-      e => matchedEntryIds.has(e.id) || expandedGroupIds.has(e.parentId),
+      (e) => matchedEntryIds.has(e.id) || expandedGroupIds.has(e.parentId),
     );
 
     const computedEntries = await _fetchAndComputeEntries(includedEntryRows);
-    const computedEntryMap = new Map(computedEntries.map(e => [e.id, e]));
+    const computedEntryMap = new Map(computedEntries.map((e) => [e.id, e]));
 
     const childGroupsByParent = new Map<string, SaaobGroupRow[]>();
     for (const g of allGroups) {
@@ -707,24 +772,29 @@ export async function searchItems(query: string, officeId?: string): Promise<Res
 
     const buildPrunedGroup = (group: SaaobGroupRow): SaaobGroup => {
       const directChildGroups = childGroupsByParent.get(group.id) ?? [];
-      const directChildEntries = allEntries.filter(e => e.parentId === group.id);
+      const directChildEntries = allEntries.filter((e) => e.parentId === group.id);
 
       let builtChildren: Array<SaaobGroup | SaaobEntry>;
 
       if (expandedGroupIds.has(group.id)) {
         builtChildren = [
-          ...directChildGroups.map(cg => buildPrunedGroup(cg)),
-          ...directChildEntries.map(e => computedEntryMap.get(e.id)).filter((e): e is SaaobEntry => e !== undefined),
+          ...directChildGroups.map((cg) => buildPrunedGroup(cg)),
+          ...directChildEntries
+            .map((e) => computedEntryMap.get(e.id))
+            .filter((e): e is SaaobEntry => e !== undefined),
         ];
       } else {
         const relevantChildGroups = directChildGroups.filter(
-          cg => pathGroupIds.has(cg.id) || expandedGroupIds.has(cg.id),
+          (cg) => pathGroupIds.has(cg.id) || expandedGroupIds.has(cg.id),
         );
         const relevantEntries = directChildEntries
-          .filter(e => matchedEntryIds.has(e.id))
-          .map(e => computedEntryMap.get(e.id))
+          .filter((e) => matchedEntryIds.has(e.id))
+          .map((e) => computedEntryMap.get(e.id))
           .filter((e): e is SaaobEntry => e !== undefined);
-        builtChildren = [...relevantChildGroups.map(cg => buildPrunedGroup(cg)), ...relevantEntries];
+        builtChildren = [
+          ...relevantChildGroups.map((cg) => buildPrunedGroup(cg)),
+          ...relevantEntries,
+        ];
       }
 
       return {
@@ -736,36 +806,48 @@ export async function searchItems(query: string, officeId?: string): Promise<Res
       };
     };
 
-    const filteredGroupIdSet = new Set(allGroups.map(g => g.id));
+    const filteredGroupIdSet = new Set(allGroups.map((g) => g.id));
     const rootGroupsToInclude = allGroups.filter(
-      g => (!g.parentId || !filteredGroupIdSet.has(g.parentId)) &&
+      (g) =>
+        (!g.parentId || !filteredGroupIdSet.has(g.parentId)) &&
         (pathGroupIds.has(g.id) || expandedGroupIds.has(g.id)),
     );
 
-    return new Success(rootGroupsToInclude.map(rg => buildPrunedGroup(rg)));
+    return new Success(rootGroupsToInclude.map((rg) => buildPrunedGroup(rg)));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to search SAAOB items.", { query }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to search SAAOB items.', {query}, e);
   }
 }
 
-export async function getAllSummary(year?: number, month?: number): Promise<Result<SaaobSummaryElements>> {
+export async function getAllSummary(
+  year?: number,
+  month?: number,
+): Promise<Result<SaaobSummaryElements>> {
   try {
     const [summaryGroups, summaryItems, linkedGroupLinks] = await Promise.all([
-      db.select({
-        id: saaobSummaryOfAccountsGroup.id,
-        name: saaobSummaryOfAccountsGroup.name,
-        parentId: saaobSummaryOfAccountsGroup.parentId,
-        createdAt: saaobSummaryOfAccountsGroup.createdAt,
-      }).from(saaobSummaryOfAccountsGroup).orderBy(asc(saaobSummaryOfAccountsGroup.createdAt)),
-      db.select({
-        id: saaobSummaryOfAccounts.id,
-        name: saaobSummaryOfAccounts.name,
-        parentId: saaobSummaryOfAccounts.parentId,
-      }).from(saaobSummaryOfAccounts).orderBy(asc(saaobSummaryOfAccounts.createdAt)),
-      db.select({
-        entryId: saaobSummaryOfAccountsLinkedGroups.entryId,
-        groupRefId: saaobSummaryOfAccountsLinkedGroups.groupRefId,
-      }).from(saaobSummaryOfAccountsLinkedGroups),
+      db
+        .select({
+          id: saaobSummaryOfAccountsGroup.id,
+          name: saaobSummaryOfAccountsGroup.name,
+          parentId: saaobSummaryOfAccountsGroup.parentId,
+          createdAt: saaobSummaryOfAccountsGroup.createdAt,
+        })
+        .from(saaobSummaryOfAccountsGroup)
+        .orderBy(asc(saaobSummaryOfAccountsGroup.createdAt)),
+      db
+        .select({
+          id: saaobSummaryOfAccounts.id,
+          name: saaobSummaryOfAccounts.name,
+          parentId: saaobSummaryOfAccounts.parentId,
+        })
+        .from(saaobSummaryOfAccounts)
+        .orderBy(asc(saaobSummaryOfAccounts.createdAt)),
+      db
+        .select({
+          entryId: saaobSummaryOfAccountsLinkedGroups.entryId,
+          groupRefId: saaobSummaryOfAccountsLinkedGroups.groupRefId,
+        })
+        .from(saaobSummaryOfAccountsLinkedGroups),
     ]);
 
     const linkedGroupsByItem = new Map<string, string[]>();
@@ -786,7 +868,8 @@ export async function getAllSummary(year?: number, month?: number): Promise<Resu
       }
     }
 
-    const entryRows = allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
+    const entryRows =
+      allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
     const computedEntries = await _fetchAndComputeEntries(entryRows, year, month);
     const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
 
@@ -795,7 +878,12 @@ export async function getAllSummary(year?: number, month?: number): Promise<Resu
       const linkedGroupIds = linkedGroupsByItem.get(item.id) ?? [];
       const entries = _collectEntriesForGroups(linkedGroupIds, allSaaobGroups, entriesByGroup);
       const aggregate = _computeSummaryItemAggregate(entries);
-      const computedItem: SaaobSummaryItem = { id: item.id, name: item.name, linkedGroupIds, ...aggregate };
+      const computedItem: SaaobSummaryItem = {
+        id: item.id,
+        name: item.name,
+        linkedGroupIds,
+        ...aggregate,
+      };
       const arr = itemsByParentGroup.get(item.parentId) ?? [];
       arr.push(computedItem);
       itemsByParentGroup.set(item.parentId, arr);
@@ -803,7 +891,7 @@ export async function getAllSummary(year?: number, month?: number): Promise<Resu
 
     return new Success(_buildSummaryTree(summaryGroups, itemsByParentGroup));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve Summary of Accounts.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve Summary of Accounts.', {}, e);
   }
 }
 
@@ -814,23 +902,23 @@ export async function createSummaryGroup(
   try {
     if (parentId) {
       const [parent] = await db
-        .select({ id: saaobSummaryOfAccountsGroup.id })
+        .select({id: saaobSummaryOfAccountsGroup.id})
         .from(saaobSummaryOfAccountsGroup)
         .where(eq(saaobSummaryOfAccountsGroup.id, parentId))
         .limit(1);
       if (!parent) {
-        return new Failure(ErrorCodes.ResourceNotFound, "Parent group does not exist.", { parentId });
+        return new Failure(ErrorCodes.ResourceNotFound, 'Parent group does not exist.', {parentId});
       }
     }
 
     const [created] = await db
       .insert(saaobSummaryOfAccountsGroup)
-      .values({ name, parentId: parentId ?? null })
-      .returning({ id: saaobSummaryOfAccountsGroup.id, name: saaobSummaryOfAccountsGroup.name });
+      .values({name, parentId: parentId ?? null})
+      .returning({id: saaobSummaryOfAccountsGroup.id, name: saaobSummaryOfAccountsGroup.name});
 
-    return new Success({ id: created.id, name: created.name });
+    return new Success({id: created.id, name: created.name});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create Summary of Accounts group.", { name }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create Summary of Accounts group.', {name}, e);
   }
 }
 
@@ -840,37 +928,40 @@ export async function updateSummaryGroup(
 ): Promise<Result<BaseSaaobSummaryGroup>> {
   try {
     const [existing] = await db
-      .select({ id: saaobSummaryOfAccountsGroup.id })
+      .select({id: saaobSummaryOfAccountsGroup.id})
       .from(saaobSummaryOfAccountsGroup)
       .where(eq(saaobSummaryOfAccountsGroup.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Summary group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Summary group not found.', {id});
     }
 
-    await db.update(saaobSummaryOfAccountsGroup).set({ name }).where(eq(saaobSummaryOfAccountsGroup.id, id));
-    return new Success({ id, name });
+    await db
+      .update(saaobSummaryOfAccountsGroup)
+      .set({name})
+      .where(eq(saaobSummaryOfAccountsGroup.id, id));
+    return new Success({id, name});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update Summary of Accounts group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update Summary of Accounts group.', {id}, e);
   }
 }
 
 export async function deleteSummaryGroup(id: string): Promise<Result<null>> {
   try {
     const allSummaryGroups = await db
-      .select({ id: saaobSummaryOfAccountsGroup.id, parentId: saaobSummaryOfAccountsGroup.parentId })
+      .select({id: saaobSummaryOfAccountsGroup.id, parentId: saaobSummaryOfAccountsGroup.parentId})
       .from(saaobSummaryOfAccountsGroup);
 
-    const existing = allSummaryGroups.find(g => g.id === id);
+    const existing = allSummaryGroups.find((g) => g.id === id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Summary group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Summary group not found.', {id});
     }
 
     const descendants = _collectDescendantSummaryGroupIds(id, allSummaryGroups);
     const allGroupIds = [id, ...descendants];
 
     const [itemInGroup] = await db
-      .select({ id: saaobSummaryOfAccounts.id })
+      .select({id: saaobSummaryOfAccounts.id})
       .from(saaobSummaryOfAccounts)
       .where(inArray(saaobSummaryOfAccounts.parentId, allGroupIds))
       .limit(1);
@@ -878,23 +969,25 @@ export async function deleteSummaryGroup(id: string): Promise<Result<null>> {
     if (itemInGroup) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete a group that still contains items. Remove all items first.",
-        { id },
+        'Cannot delete a group that still contains items. Remove all items first.',
+        {id},
       );
     }
 
     const depthMap = new Map<string, number>();
     const computeDepth = (gId: string, depth: number) => {
       depthMap.set(gId, depth);
-      for (const child of allSummaryGroups.filter(g => g.parentId === gId)) {
+      for (const child of allSummaryGroups.filter((g) => g.parentId === gId)) {
         computeDepth(child.id, depth + 1);
       }
     };
     computeDepth(id, 0);
 
-    const sortedIds = [...allGroupIds].sort((a, b) => (depthMap.get(b) ?? 0) - (depthMap.get(a) ?? 0));
+    const sortedIds = [...allGroupIds].sort(
+      (a, b) => (depthMap.get(b) ?? 0) - (depthMap.get(a) ?? 0),
+    );
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       for (const gId of sortedIds) {
         await tx.delete(saaobSummaryOfAccountsGroup).where(eq(saaobSummaryOfAccountsGroup.id, gId));
       }
@@ -902,7 +995,7 @@ export async function deleteSummaryGroup(id: string): Promise<Result<null>> {
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete Summary of Accounts group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete Summary of Accounts group.', {id}, e);
   }
 }
 
@@ -913,41 +1006,45 @@ export async function createSummaryItem(
 ): Promise<Result<SaaobSummaryItem>> {
   try {
     const [parent] = await db
-      .select({ id: saaobSummaryOfAccountsGroup.id })
+      .select({id: saaobSummaryOfAccountsGroup.id})
       .from(saaobSummaryOfAccountsGroup)
       .where(eq(saaobSummaryOfAccountsGroup.id, parentGroupId))
       .limit(1);
     if (!parent) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Parent group does not exist.", { parentGroupId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Parent group does not exist.', {
+        parentGroupId,
+      });
     }
 
     if (linkedGroupIds.length > 0) {
       const existingGroups = await db
-        .select({ id: saaobEntryGroup.id })
+        .select({id: saaobEntryGroup.id})
         .from(saaobEntryGroup)
         .where(inArray(saaobEntryGroup.id, linkedGroupIds));
-      const foundIds = new Set(existingGroups.map(g => g.id));
-      const missingIds = linkedGroupIds.filter(gId => !foundIds.has(gId));
+      const foundIds = new Set(existingGroups.map((g) => g.id));
+      const missingIds = linkedGroupIds.filter((gId) => !foundIds.has(gId));
       if (missingIds.length > 0) {
-        return new Failure(ErrorCodes.ValidationFailure, "Some linked groups do not exist.", { missingIds });
+        return new Failure(ErrorCodes.ValidationFailure, 'Some linked groups do not exist.', {
+          missingIds,
+        });
       }
     }
 
     const [created] = await db
       .insert(saaobSummaryOfAccounts)
-      .values({ name, parentId: parentGroupId })
-      .returning({ id: saaobSummaryOfAccounts.id });
+      .values({name, parentId: parentGroupId})
+      .returning({id: saaobSummaryOfAccounts.id});
 
     if (linkedGroupIds.length > 0) {
-      await db.insert(saaobSummaryOfAccountsLinkedGroups).values(
-        linkedGroupIds.map(gId => ({ entryId: created.id, groupRefId: gId })),
-      );
+      await db
+        .insert(saaobSummaryOfAccountsLinkedGroups)
+        .values(linkedGroupIds.map((gId) => ({entryId: created.id, groupRefId: gId})));
     }
 
     const item = await _fetchAndBuildSummaryItem(created.id, name, linkedGroupIds);
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create Summary of Accounts item.", { name }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create Summary of Accounts item.', {name}, e);
   }
 }
 
@@ -958,110 +1055,127 @@ export async function updateSummaryItem(
 ): Promise<Result<SaaobSummaryItem>> {
   try {
     const [existing] = await db
-      .select({ id: saaobSummaryOfAccounts.id, name: saaobSummaryOfAccounts.name })
+      .select({id: saaobSummaryOfAccounts.id, name: saaobSummaryOfAccounts.name})
       .from(saaobSummaryOfAccounts)
       .where(eq(saaobSummaryOfAccounts.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Summary item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Summary item not found.', {id});
     }
 
     if (name !== undefined) {
-      await db.update(saaobSummaryOfAccounts).set({ name }).where(eq(saaobSummaryOfAccounts.id, id));
+      await db.update(saaobSummaryOfAccounts).set({name}).where(eq(saaobSummaryOfAccounts.id, id));
     }
 
     if (linkedGroupIds !== undefined) {
       if (linkedGroupIds.length > 0) {
         const existingGroups = await db
-          .select({ id: saaobEntryGroup.id })
+          .select({id: saaobEntryGroup.id})
           .from(saaobEntryGroup)
           .where(inArray(saaobEntryGroup.id, linkedGroupIds));
-        const foundIds = new Set(existingGroups.map(g => g.id));
-        const missingIds = linkedGroupIds.filter(gId => !foundIds.has(gId));
+        const foundIds = new Set(existingGroups.map((g) => g.id));
+        const missingIds = linkedGroupIds.filter((gId) => !foundIds.has(gId));
         if (missingIds.length > 0) {
-          return new Failure(ErrorCodes.ValidationFailure, "Some linked groups do not exist.", { missingIds });
+          return new Failure(ErrorCodes.ValidationFailure, 'Some linked groups do not exist.', {
+            missingIds,
+          });
         }
       }
 
-      await db.transaction(async tx => {
-        await tx.delete(saaobSummaryOfAccountsLinkedGroups)
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(saaobSummaryOfAccountsLinkedGroups)
           .where(eq(saaobSummaryOfAccountsLinkedGroups.entryId, id));
         if (linkedGroupIds.length > 0) {
-          await tx.insert(saaobSummaryOfAccountsLinkedGroups).values(
-            linkedGroupIds.map(gId => ({ entryId: id, groupRefId: gId })),
-          );
+          await tx
+            .insert(saaobSummaryOfAccountsLinkedGroups)
+            .values(linkedGroupIds.map((gId) => ({entryId: id, groupRefId: gId})));
         }
       });
     }
 
     const currentLinks = await db
-      .select({ groupRefId: saaobSummaryOfAccountsLinkedGroups.groupRefId })
+      .select({groupRefId: saaobSummaryOfAccountsLinkedGroups.groupRefId})
       .from(saaobSummaryOfAccountsLinkedGroups)
       .where(eq(saaobSummaryOfAccountsLinkedGroups.entryId, id));
 
     const resolvedName = name ?? existing.name;
-    const resolvedLinkedGroupIds = currentLinks.map(l => l.groupRefId);
+    const resolvedLinkedGroupIds = currentLinks.map((l) => l.groupRefId);
     const item = await _fetchAndBuildSummaryItem(id, resolvedName, resolvedLinkedGroupIds);
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update Summary of Accounts item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update Summary of Accounts item.', {id}, e);
   }
 }
 
 export async function deleteSummaryItem(id: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: saaobSummaryOfAccounts.id })
+      .select({id: saaobSummaryOfAccounts.id})
       .from(saaobSummaryOfAccounts)
       .where(eq(saaobSummaryOfAccounts.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Summary item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Summary item not found.', {id});
     }
 
-    await db.transaction(async tx => {
-      await tx.delete(saaobSummaryOfAccountsLinkedGroups)
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(saaobSummaryOfAccountsLinkedGroups)
         .where(eq(saaobSummaryOfAccountsLinkedGroups.entryId, id));
       await tx.delete(saaobSummaryOfAccounts).where(eq(saaobSummaryOfAccounts.id, id));
     });
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete Summary of Accounts item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete Summary of Accounts item.', {id}, e);
   }
 }
 
 export async function createStatisticEntry(
   payload: SaaobCreateStatisticEntryPayload,
-  type: "group" | "item",
+  type: 'group' | 'item',
   parentId?: string,
 ): Promise<Result<BaseSaaobStatisticNode>> {
   try {
-    const isGroup = type === "group";
+    const isGroup = type === 'group';
     if (parentId) {
       const [parent] = await db
-        .select({ id: saaobStatisticItems.id, isGroup: saaobStatisticItems.isGroup, type: saaobStatisticItems.type })
+        .select({
+          id: saaobStatisticItems.id,
+          isGroup: saaobStatisticItems.isGroup,
+          type: saaobStatisticItems.type,
+        })
         .from(saaobStatisticItems)
         .where(eq(saaobStatisticItems.id, parentId))
         .limit(1);
       if (!parent) {
-        return new Failure(ErrorCodes.ResourceNotFound, "Parent statistic group does not exist.", { parentId });
+        return new Failure(ErrorCodes.ResourceNotFound, 'Parent statistic group does not exist.', {
+          parentId,
+        });
       }
       if (!parent.isGroup) {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent must be a group.", { parentId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent must be a group.', {parentId});
       }
       if (parent.type !== payload.statisticType) {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent statistic type does not match item type.", {
-          parentType: parent.type,
-          statisticType: payload.statisticType,
-        });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'Parent statistic type does not match item type.',
+          {
+            parentType: parent.type,
+            statisticType: payload.statisticType,
+          },
+        );
       }
     }
 
     const selectedMainGroupIds = payload.selectedMainGroupIds ?? [];
     const selectedSummaryItemIds = payload.selectedSummaryItemIds ?? [];
     if (!isGroup) {
-      const validation = await _validateStatisticSelectedReferenceIds(selectedMainGroupIds, selectedSummaryItemIds);
+      const validation = await _validateStatisticSelectedReferenceIds(
+        selectedMainGroupIds,
+        selectedSummaryItemIds,
+      );
       if (validation instanceof Failure) return validation;
     }
 
@@ -1083,12 +1197,12 @@ export async function createStatisticEntry(
 
     if (!isGroup && (selectedMainGroupIds.length > 0 || selectedSummaryItemIds.length > 0)) {
       await db.insert(saaobStatisticSelectedGroups).values([
-        ...selectedMainGroupIds.map(refId => ({
+        ...selectedMainGroupIds.map((refId) => ({
           refId: created.id,
           mainItemGroupRefId: refId,
           summaryOfAccountRefId: null,
         })),
-        ...selectedSummaryItemIds.map(refId => ({
+        ...selectedSummaryItemIds.map((refId) => ({
           refId: created.id,
           mainItemGroupRefId: null,
           summaryOfAccountRefId: refId,
@@ -1098,7 +1212,12 @@ export async function createStatisticEntry(
 
     return new Success(created);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create statistic entry.", { payload, type, parentId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create statistic entry.',
+      {payload, type, parentId},
+      e,
+    );
   }
 }
 
@@ -1120,37 +1239,52 @@ export async function updateStatisticEntry(
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Statistic entry not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Statistic entry not found.', {id});
     }
 
-    if ((payload.selectedMainGroupIds !== undefined || payload.selectedSummaryItemIds !== undefined) && existing.isGroup) {
+    if (
+      (payload.selectedMainGroupIds !== undefined ||
+        payload.selectedSummaryItemIds !== undefined) &&
+      existing.isGroup
+    ) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Statistic groups cannot have selected references.",
-        { id },
+        'Statistic groups cannot have selected references.',
+        {id},
       );
     }
 
     if (payload.name !== undefined) {
-      await db.update(saaobStatisticItems).set({ name: payload.name }).where(eq(saaobStatisticItems.id, id));
+      await db
+        .update(saaobStatisticItems)
+        .set({name: payload.name})
+        .where(eq(saaobStatisticItems.id, id));
     }
 
-    if (payload.selectedMainGroupIds !== undefined || payload.selectedSummaryItemIds !== undefined) {
+    if (
+      payload.selectedMainGroupIds !== undefined ||
+      payload.selectedSummaryItemIds !== undefined
+    ) {
       const selectedMainGroupIds = payload.selectedMainGroupIds ?? [];
       const selectedSummaryItemIds = payload.selectedSummaryItemIds ?? [];
-      const validation = await _validateStatisticSelectedReferenceIds(selectedMainGroupIds, selectedSummaryItemIds);
+      const validation = await _validateStatisticSelectedReferenceIds(
+        selectedMainGroupIds,
+        selectedSummaryItemIds,
+      );
       if (validation instanceof Failure) return validation;
 
-      await db.transaction(async tx => {
-        await tx.delete(saaobStatisticSelectedGroups).where(eq(saaobStatisticSelectedGroups.refId, id));
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(saaobStatisticSelectedGroups)
+          .where(eq(saaobStatisticSelectedGroups.refId, id));
         if (selectedMainGroupIds.length > 0 || selectedSummaryItemIds.length > 0) {
           await tx.insert(saaobStatisticSelectedGroups).values([
-            ...selectedMainGroupIds.map(refId => ({
+            ...selectedMainGroupIds.map((refId) => ({
               refId: id,
               mainItemGroupRefId: refId,
               summaryOfAccountRefId: null,
             })),
-            ...selectedSummaryItemIds.map(refId => ({
+            ...selectedSummaryItemIds.map((refId) => ({
               refId: id,
               mainItemGroupRefId: null,
               summaryOfAccountRefId: refId,
@@ -1168,33 +1302,33 @@ export async function updateStatisticEntry(
       parentId: existing.parentId,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update statistic entry.", { id, payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update statistic entry.', {id, payload}, e);
   }
 }
 
 export async function deleteStatisticEntry(id: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: saaobStatisticItems.id, isGroup: saaobStatisticItems.isGroup })
+      .select({id: saaobStatisticItems.id, isGroup: saaobStatisticItems.isGroup})
       .from(saaobStatisticItems)
       .where(eq(saaobStatisticItems.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Statistic entry not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Statistic entry not found.', {id});
     }
 
     if (existing.isGroup) {
       const [child] = await db
-        .select({ id: saaobStatisticItems.id })
+        .select({id: saaobStatisticItems.id})
         .from(saaobStatisticItems)
         .where(eq(saaobStatisticItems.parentId, id))
         .limit(1);
       if (child) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "Cannot delete a group that still contains items.",
-          { id },
+          'Cannot delete a group that still contains items.',
+          {id},
         );
       }
     }
@@ -1202,11 +1336,14 @@ export async function deleteStatisticEntry(id: string): Promise<Result<null>> {
     await db.delete(saaobStatisticItems).where(eq(saaobStatisticItems.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete statistic entry.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete statistic entry.', {id}, e);
   }
 }
 
-export async function moveStatisticEntry(id: string, parentId: string | null): Promise<Result<null>> {
+export async function moveStatisticEntry(
+  id: string,
+  parentId: string | null,
+): Promise<Result<null>> {
   try {
     const allItems = await db
       .select({
@@ -1217,40 +1354,48 @@ export async function moveStatisticEntry(id: string, parentId: string | null): P
       })
       .from(saaobStatisticItems);
 
-    const existing = allItems.find(item => item.id === id);
+    const existing = allItems.find((item) => item.id === id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Statistic entry not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Statistic entry not found.', {id});
     }
 
     if (parentId !== null) {
-      const target = allItems.find(item => item.id === parentId);
+      const target = allItems.find((item) => item.id === parentId);
       if (!target) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target parent does not exist.", { parentId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Target parent does not exist.', {
+          parentId,
+        });
       }
       if (!target.isGroup) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target parent must be a group.", { parentId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Target parent must be a group.', {
+          parentId,
+        });
       }
       if (target.type !== existing.type) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target parent type does not match entry type.", {
-          parentType: target.type,
-          entryType: existing.type,
-        });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'Target parent type does not match entry type.',
+          {
+            parentType: target.type,
+            entryType: existing.type,
+          },
+        );
       }
 
       const descendants = _collectDescendantStatisticIds(id, allItems);
       if (descendants.includes(parentId)) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "Cannot move a statistic group into one of its own descendants.",
-          { id, parentId },
+          'Cannot move a statistic group into one of its own descendants.',
+          {id, parentId},
         );
       }
     }
 
-    await db.update(saaobStatisticItems).set({ parentId }).where(eq(saaobStatisticItems.id, id));
+    await db.update(saaobStatisticItems).set({parentId}).where(eq(saaobStatisticItems.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move statistic entry.", { id, parentId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to move statistic entry.', {id, parentId}, e);
   }
 }
 
@@ -1260,19 +1405,24 @@ export async function getAllStatisticEntries(
 ): Promise<Result<SaaobStatisticsResult>> {
   try {
     const [statisticRows, selectedRows, allDataResult, allSummaryResult] = await Promise.all([
-      db.select({
-        id: saaobStatisticItems.id,
-        name: saaobStatisticItems.name,
-        type: saaobStatisticItems.type,
-        isGroup: saaobStatisticItems.isGroup,
-        parentId: saaobStatisticItems.parentId,
-        createdAt: saaobStatisticItems.createdAt,
-      }).from(saaobStatisticItems).orderBy(asc(saaobStatisticItems.createdAt)),
-      db.select({
-        refId: saaobStatisticSelectedGroups.refId,
-        mainItemGroupRefId: saaobStatisticSelectedGroups.mainItemGroupRefId,
-        summaryOfAccountRefId: saaobStatisticSelectedGroups.summaryOfAccountRefId,
-      }).from(saaobStatisticSelectedGroups),
+      db
+        .select({
+          id: saaobStatisticItems.id,
+          name: saaobStatisticItems.name,
+          type: saaobStatisticItems.type,
+          isGroup: saaobStatisticItems.isGroup,
+          parentId: saaobStatisticItems.parentId,
+          createdAt: saaobStatisticItems.createdAt,
+        })
+        .from(saaobStatisticItems)
+        .orderBy(asc(saaobStatisticItems.createdAt)),
+      db
+        .select({
+          refId: saaobStatisticSelectedGroups.refId,
+          mainItemGroupRefId: saaobStatisticSelectedGroups.mainItemGroupRefId,
+          summaryOfAccountRefId: saaobStatisticSelectedGroups.summaryOfAccountRefId,
+        })
+        .from(saaobStatisticSelectedGroups),
       getAll(year, month),
       getAllSummary(year, month),
     ]);
@@ -1284,7 +1434,9 @@ export async function getAllStatisticEntries(
     const collectSaaobGroupTotals = (nodes: SaaobElements) => {
       for (const group of nodes) {
         groupAggregateMap.set(group.id, group.total);
-        const childGroups = group.children.filter((child): child is SaaobGroup => "children" in child);
+        const childGroups = group.children.filter(
+          (child): child is SaaobGroup => 'children' in child,
+        );
         collectSaaobGroupTotals(childGroups);
       }
     };
@@ -1294,7 +1446,7 @@ export async function getAllStatisticEntries(
     const collectSummaryItems = (nodes: SaaobSummaryElements) => {
       for (const group of nodes) {
         for (const child of group.children) {
-          if ("children" in child) {
+          if ('children' in child) {
             collectSummaryItems([child]);
           } else {
             summaryAggregateMap.set(child.id, child);
@@ -1304,9 +1456,15 @@ export async function getAllStatisticEntries(
     };
     collectSummaryItems(allSummaryResult.value);
 
-    const selectedRefsByStatisticId = new Map<string, { mainGroupIds: string[]; summaryItemIds: string[] }>();
+    const selectedRefsByStatisticId = new Map<
+      string,
+      {mainGroupIds: string[]; summaryItemIds: string[]}
+    >();
     for (const selected of selectedRows) {
-      const existing = selectedRefsByStatisticId.get(selected.refId) ?? { mainGroupIds: [], summaryItemIds: [] };
+      const existing = selectedRefsByStatisticId.get(selected.refId) ?? {
+        mainGroupIds: [],
+        summaryItemIds: [],
+      };
       if (selected.mainItemGroupRefId) {
         existing.mainGroupIds.push(selected.mainItemGroupRefId);
       }
@@ -1319,12 +1477,15 @@ export async function getAllStatisticEntries(
     const aggregateByStatisticId = new Map<string, SaaobSummaryItemAggregate>();
     for (const row of statisticRows) {
       if (row.isGroup) continue;
-      const selectedReferences = selectedRefsByStatisticId.get(row.id) ?? { mainGroupIds: [], summaryItemIds: [] };
+      const selectedReferences = selectedRefsByStatisticId.get(row.id) ?? {
+        mainGroupIds: [],
+        summaryItemIds: [],
+      };
       const mainRefs = selectedReferences.mainGroupIds
-        .map(refId => groupAggregateMap.get(refId))
+        .map((refId) => groupAggregateMap.get(refId))
         .filter((v): v is SaaobSummaryItemAggregate => !!v);
       const summaryRefs = selectedReferences.summaryItemIds
-        .map(refId => summaryAggregateMap.get(refId))
+        .map((refId) => summaryAggregateMap.get(refId))
         .filter((v): v is SaaobSummaryItemAggregate => !!v);
       const refs = [...mainRefs, ...summaryRefs];
       aggregateByStatisticId.set(row.id, _sumStatisticAggregates(refs));
@@ -1337,14 +1498,19 @@ export async function getAllStatisticEntries(
       byParent.set(row.parentId, arr);
     }
 
-    const buildNodes = (parentId: string | null, type: SaaobStatisticType): Array<SaaobStatisticGroup | SaaobStatisticEntry> => {
-      const rows = (byParent.get(parentId) ?? []).filter(row => row.type === type);
+    const buildNodes = (
+      parentId: string | null,
+      type: SaaobStatisticType,
+    ): Array<SaaobStatisticGroup | SaaobStatisticEntry> => {
+      const rows = (byParent.get(parentId) ?? []).filter((row) => row.type === type);
       const nodes: Array<SaaobStatisticGroup | SaaobStatisticEntry> = [];
 
       for (const row of rows) {
         if (row.isGroup) {
           const children = buildNodes(row.id, type);
-          const childAggregates = children.map(child => "children" in child ? child.total : child);
+          const childAggregates = children.map((child) =>
+            'children' in child ? child.total : child,
+          );
           nodes.push({
             id: row.id,
             name: row.name,
@@ -1374,11 +1540,11 @@ export async function getAllStatisticEntries(
     };
 
     return new Success({
-      budget: buildNodes(null, "budget"),
-      sumPerSector: buildNodes(null, "sum_per_sector"),
+      budget: buildNodes(null, 'budget'),
+      sumPerSector: buildNodes(null, 'sum_per_sector'),
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve statistic entries.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve statistic entries.', {}, e);
   }
 }
 
@@ -1393,7 +1559,7 @@ export async function getAllStatisticEntries(
  * @returns {Result<SaaobTemplateType>} Parsed type or a validation failure.
  */
 export function parseSaaobTemplateType(type: unknown): Result<SaaobTemplateType> {
-  if (type !== "header" && type !== "footer") {
+  if (type !== 'header' && type !== 'footer') {
     return new Failure(
       ErrorCodes.ValidationFailure,
       "Invalid template type. Must be 'header' or 'footer'.",
@@ -1578,9 +1744,7 @@ export async function removeOfficeDataTemplate(type: SaaobTemplateType): Promise
  * @param {SaaobExportOptions} options - Year, month and selected columns.
  * @returns {Promise<Result<Buffer>>} XLSX file buffer on success, or a failure result.
  */
-export async function exportMainDataToBuffer(
-  options: SaaobExportOptions,
-): Promise<Result<Buffer>> {
+export async function exportMainDataToBuffer(options: SaaobExportOptions): Promise<Result<Buffer>> {
   try {
     const [dataResult, statisticsResult, summaryResult] = await Promise.all([
       getAll(options.year, options.month),
@@ -1592,8 +1756,8 @@ export async function exportMainDataToBuffer(
     const summaryData = summaryResult instanceof Success ? summaryResult.value : null;
 
     const [headerResult, footerResult] = await Promise.all([
-      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
-      templateBucket.get({ identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+      templateBucket.get({identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: 'header'}),
+      templateBucket.get({identifier: SAAOB_MAIN_DATA_TEMPLATE_IDENTIFIER, type: 'footer'}),
     ]);
     const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
@@ -1608,7 +1772,7 @@ export async function exportMainDataToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB main data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export SAAOB main data.', {}, e);
   }
 }
 
@@ -1636,8 +1800,8 @@ export async function exportOfficeDataToBuffer(
     if (dataResult instanceof Failure) return dataResult;
 
     const [headerResult, footerResult] = await Promise.all([
-      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
-      templateBucket.get({ identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+      templateBucket.get({identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: 'header'}),
+      templateBucket.get({identifier: SAAOB_OFFICE_DATA_TEMPLATE_IDENTIFIER, type: 'footer'}),
     ]);
     const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
@@ -1645,7 +1809,7 @@ export async function exportOfficeDataToBuffer(
     const buffer = await _buildSaaobExcelBuffer(dataResult.value, columns, headerPath, footerPath);
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export SAAOB office data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export SAAOB office data.', {}, e);
   }
 }
 
@@ -1664,19 +1828,21 @@ function _computeEntryObject(
   supplementals: SupplementalRow[],
   obrRows: ObrMainRow[],
   esreRows: EsreRow[],
-  lbacData: Map<string, { appropriationTotal: Decimal; cutOffObligation: Decimal }>,
+  lbacData: Map<string, {appropriationTotal: Decimal; cutOffObligation: Decimal}>,
 ): SaaobEntry {
   const annualBudget = casts.castFromDecimal(row.annualBudget);
 
   const supplementalOrContinuing = supplementals.reduce((acc, s) => {
     const amt = casts.castFromDecimal(s.amount);
-    return s.supplementalType === "less" ? acc.minus(amt) : acc.plus(amt);
+    return s.supplementalType === 'less' ? acc.minus(amt) : acc.plus(amt);
   }, new Decimal(0));
 
   const appropriation = annualBudget.plus(supplementalOrContinuing);
   const allotment = row.allotmentShouldCopyFromAppropriation
     ? appropriation
-    : (annualBudget.isZero() ? new Decimal(0) : (annualBudget.div(4)).mul(1).plus(supplementalOrContinuing));
+    : annualBudget.isZero()
+      ? new Decimal(0)
+      : annualBudget.div(4).mul(1).plus(supplementalOrContinuing);
 
   const obligation = obrRows.reduce(
     (acc, o) => acc.plus(casts.castFromDecimal(o.obligated)),
@@ -1684,7 +1850,9 @@ function _computeEntryObject(
   );
 
   const unObligatedBalance = appropriation.minus(obligation);
-  const percentage = appropriation.isZero() ? new Decimal(0) : obligation.div(appropriation).mul(100);
+  const percentage = appropriation.isZero()
+    ? new Decimal(0)
+    : obligation.div(appropriation).mul(100);
 
   const quarterlyAllotmentBalanceValue = allotment.minus(obligation);
   const quarterlyAllotmentBalancePercentage = allotment.isZero()
@@ -1695,7 +1863,9 @@ function _computeEntryObject(
     (acc, e) => acc.plus(casts.castFromDecimal(e.amount)),
     new Decimal(0),
   );
-  const disbursedPercentage = appropriation.isZero() ? new Decimal(0) : disbursedValue.div(appropriation).mul(100);
+  const disbursedPercentage = appropriation.isZero()
+    ? new Decimal(0)
+    : disbursedValue.div(appropriation).mul(100);
   const disbursedVariance = obligation.minus(disbursedValue);
 
   const lbac = lbacData.get(row.id);
@@ -1763,10 +1933,14 @@ function _computeEntryObject(
  * @param {SaaobEntryRow[]} entryRows - The raw entry rows to compute.
  * @returns {Promise<SaaobEntry[]>} Computed entries in the same order as `entryRows`.
  */
-async function _fetchAndComputeEntries(entryRows: SaaobEntryRow[], year?: number, month?: number): Promise<SaaobEntry[]> {
+async function _fetchAndComputeEntries(
+  entryRows: SaaobEntryRow[],
+  year?: number,
+  month?: number,
+): Promise<SaaobEntry[]> {
   if (entryRows.length === 0) return [];
 
-  const ids = entryRows.map(e => e.id);
+  const ids = entryRows.map((e) => e.id);
   const endOfMonth = _getEndOfCurrentMonthBoundaryUtc8(year, month);
 
   const [supplementals, obrRows, esreRows, lbacData] = await Promise.all([
@@ -1797,7 +1971,7 @@ async function _fetchAndComputeEntries(entryRows: SaaobEntryRow[], year?: number
     esreMap.set(e.saaobId, arr);
   }
 
-  return entryRows.map(row =>
+  return entryRows.map((row) =>
     _computeEntryObject(
       row,
       supplementalMap.get(row.id) ?? [],
@@ -1821,7 +1995,7 @@ function _collectDescendantGroupIds(groupId: string, allGroups: SaaobGroupRow[])
   const queue = [groupId];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const children = allGroups.filter(g => g.parentId === current);
+    const children = allGroups.filter((g) => g.parentId === current);
     for (const child of children) {
       result.push(child.id);
       queue.push(child.id);
@@ -1855,7 +2029,7 @@ function _buildTree(
 
   const collectAllEntriesForGroup = (groupId: string): SaaobEntry[] => {
     const result: SaaobEntry[] = [...(entriesByGroup.get(groupId) ?? [])];
-    for (const childGroup of (childGroupsByParent.get(groupId) ?? [])) {
+    for (const childGroup of childGroupsByParent.get(groupId) ?? []) {
       result.push(...collectAllEntriesForGroup(childGroup.id));
     }
     return result;
@@ -1869,15 +2043,15 @@ function _buildTree(
       name: group.name,
       officeId: group.officeId ?? undefined,
       total: _computeSummaryItemAggregate(collectAllEntriesForGroup(group.id)),
-      children: [...childGroups.map(cg => buildGroup(cg)), ...childEntries],
+      children: [...childGroups.map((cg) => buildGroup(cg)), ...childEntries],
     };
   };
 
   const rootGroups = rootGroupIds
-    ? groups.filter(g => rootGroupIds.has(g.id))
-    : groups.filter(g => g.parentId === null);
+    ? groups.filter((g) => rootGroupIds.has(g.id))
+    : groups.filter((g) => g.parentId === null);
 
-  return rootGroups.map(rg => buildGroup(rg));
+  return rootGroups.map((rg) => buildGroup(rg));
 }
 
 /**
@@ -1888,7 +2062,10 @@ function _buildTree(
  * @param {SaaobEntry[]} computedEntries - Computed entries in the same order.
  * @returns {Map<string, SaaobEntry[]>} Map keyed by `parentId`.
  */
-function _buildEntriesByGroupMap(entryRows: SaaobEntryRow[], computedEntries: SaaobEntry[]): Map<string, SaaobEntry[]> {
+function _buildEntriesByGroupMap(
+  entryRows: SaaobEntryRow[],
+  computedEntries: SaaobEntry[],
+): Map<string, SaaobEntry[]> {
   const map = new Map<string, SaaobEntry[]>();
   for (let i = 0; i < entryRows.length; i++) {
     const row = entryRows[i];
@@ -1911,13 +2088,15 @@ function _buildEntriesByGroupMap(entryRows: SaaobEntryRow[], computedEntries: Sa
  * @returns {Date} Start of the following month as a UTC Date object.
  */
 function _getEndOfCurrentMonthBoundaryUtc8(year?: number, month?: number): Date {
-  const now = DateTime.now().setZone("UTC+8");
+  const now = DateTime.now().setZone('UTC+8');
   const y = year ?? now.year;
   const m = month ?? now.month;
   return DateTime.fromObject(
-    { year: m === 12 ? y + 1 : y, month: m === 12 ? 1 : m + 1, day: 1 },
-    { zone: "UTC+8" },
-  ).toUTC().toJSDate();
+    {year: m === 12 ? y + 1 : y, month: m === 12 ? 1 : m + 1, day: 1},
+    {zone: 'UTC+8'},
+  )
+    .toUTC()
+    .toJSDate();
 }
 
 /**
@@ -1929,10 +2108,10 @@ function _getEndOfCurrentMonthBoundaryUtc8(year?: number, month?: number): Date 
  * @returns {Date} Start of the given month as a UTC Date object.
  */
 function _getCurrentMonthStartUtc8(year?: number, month?: number): Date {
-  const now = DateTime.now().setZone("UTC+8");
+  const now = DateTime.now().setZone('UTC+8');
   const y = year ?? now.year;
   const m = month ?? now.month;
-  return DateTime.fromObject({ year: y, month: m, day: 1 }, { zone: "UTC+8" }).toUTC().toJSDate();
+  return DateTime.fromObject({year: y, month: m, day: 1}, {zone: 'UTC+8'}).toUTC().toJSDate();
 }
 
 /**
@@ -1943,7 +2122,7 @@ function _getCurrentMonthStartUtc8(year?: number, month?: number): Date {
  * @returns {number} Quarter (1–4).
  */
 function _getCurrentQuarterUtc8(month?: number): number {
-  const m = month ?? DateTime.now().setZone("UTC+8").month;
+  const m = month ?? DateTime.now().setZone('UTC+8').month;
   return Math.ceil(m / 3);
 }
 
@@ -1954,7 +2133,7 @@ function _getCurrentQuarterUtc8(month?: number): number {
  * @returns {number} Year.
  */
 function _getCurrentYearUtc8(year?: number): number {
-  return year ?? DateTime.now().setZone("UTC+8").year;
+  return year ?? DateTime.now().setZone('UTC+8').year;
 }
 
 /**
@@ -2019,7 +2198,10 @@ async function _fetchAllEntries(parentGroupIds?: string[]): Promise<SaaobEntryRo
  * @param {Date} endOfMonth - Exclusive upper date boundary (UTC).
  * @returns {Promise<SupplementalRow[]>} Matching supplemental rows.
  */
-async function _fetchSupplementalBySaaobIds(ids: string[], endOfMonth: Date): Promise<SupplementalRow[]> {
+async function _fetchSupplementalBySaaobIds(
+  ids: string[],
+  endOfMonth: Date,
+): Promise<SupplementalRow[]> {
   if (ids.length === 0) return [];
   const rows = await db
     .select({
@@ -2029,7 +2211,7 @@ async function _fetchSupplementalBySaaobIds(ids: string[], endOfMonth: Date): Pr
     })
     .from(supplemental)
     .where(and(inArray(supplemental.saaobId, ids), lt(supplemental.createdAt, endOfMonth)));
-  return rows.filter((r): r is typeof r & { saaobId: string } => r.saaobId !== null);
+  return rows.filter((r): r is typeof r & {saaobId: string} => r.saaobId !== null);
 }
 
 /**
@@ -2051,7 +2233,7 @@ async function _fetchObrDataBySaaobIds(ids: string[], endOfMonth: Date): Promise
     })
     .from(obrMainData)
     .where(and(inArray(obrMainData.saaobId, ids), lt(obrMainData.createdAt, endOfMonth)));
-  return rows.filter((r): r is typeof r & { saaobId: string } => r.saaobId !== null);
+  return rows.filter((r): r is typeof r & {saaobId: string} => r.saaobId !== null);
 }
 
 /**
@@ -2072,7 +2254,7 @@ async function _fetchEsreBySaaobIds(ids: string[], endOfMonth: Date): Promise<Es
     })
     .from(esre)
     .where(and(inArray(esre.saaobId, ids), lt(esre.createdAt, endOfMonth)));
-  return rows.filter((r): r is typeof r & { saaobId: string } => r.saaobId !== null);
+  return rows.filter((r): r is typeof r & {saaobId: string} => r.saaobId !== null);
 }
 
 /**
@@ -2099,7 +2281,7 @@ async function _fetchLbacDataBySaaobIds(
   ids: string[],
   year?: number,
   month?: number,
-): Promise<Map<string, { appropriationTotal: Decimal; cutOffObligation: Decimal }>> {
+): Promise<Map<string, {appropriationTotal: Decimal; cutOffObligation: Decimal}>> {
   if (ids.length === 0) return new Map();
 
   const currentQuarter = _getCurrentQuarterUtc8(month);
@@ -2121,12 +2303,12 @@ async function _fetchLbacDataBySaaobIds(
 
   if (lbacRows.length === 0) return new Map();
 
-  const aipRefIds = [...new Set(lbacRows.filter(r => r.aipRefCode).map(r => r.aipRefCode!))];
+  const aipRefIds = [...new Set(lbacRows.filter((r) => r.aipRefCode).map((r) => r.aipRefCode!))];
 
   type LbacSupplementalEntry = {
     aipRefId: string;
     amount: string;
-    supplementalType: "less" | "add";
+    supplementalType: 'less' | 'add';
     quarter: number;
     year: number;
   };
@@ -2140,56 +2322,58 @@ async function _fetchLbacDataBySaaobIds(
   const [lbacSupplementals, lbacObrAmounts] = await Promise.all([
     aipRefIds.length > 0
       ? db
-        .select({
-          aipRefCode: supplemental.aipRefCode,
-          amount: supplemental.amount,
-          supplementalType: supplemental.supplementalType,
-          createdAt: supplemental.createdAt,
-        })
-        .from(supplemental)
-        .where(inArray(supplemental.aipRefCode, aipRefIds))
-        .then(rows =>
-          rows
-            .filter((r): r is typeof r & { aipRefCode: string } => r.aipRefCode !== null)
-            .map((r): LbacSupplementalEntry => {
-              const dt = DateTime.fromJSDate(r.createdAt as unknown as Date, { zone: "utc" }).setZone("UTC+8");
-              return {
-                aipRefId: r.aipRefCode,
-                amount: r.amount,
-                supplementalType: r.supplementalType,
-                quarter: dt.quarter,
-                year: dt.year,
-              };
-            }),
-        )
+          .select({
+            aipRefCode: supplemental.aipRefCode,
+            amount: supplemental.amount,
+            supplementalType: supplemental.supplementalType,
+            createdAt: supplemental.createdAt,
+          })
+          .from(supplemental)
+          .where(inArray(supplemental.aipRefCode, aipRefIds))
+          .then((rows) =>
+            rows
+              .filter((r): r is typeof r & {aipRefCode: string} => r.aipRefCode !== null)
+              .map((r): LbacSupplementalEntry => {
+                const dt = DateTime.fromJSDate(r.createdAt as unknown as Date, {
+                  zone: 'utc',
+                }).setZone('UTC+8');
+                return {
+                  aipRefId: r.aipRefCode,
+                  amount: r.amount,
+                  supplementalType: r.supplementalType,
+                  quarter: dt.quarter,
+                  year: dt.year,
+                };
+              }),
+          )
       : Promise.resolve([] as LbacSupplementalEntry[]),
 
     aipRefIds.length > 0
       ? db
-        .select({
-          aipReferenceId: obrMainAipReferences.aipReferenceId,
-          amount: obrMainAipReferences.amount,
-          createdAt: obrMainData.createdAt,
-        })
-        .from(obrMainAipReferences)
-        .innerJoin(obrMainData, eq(obrMainData.id, obrMainAipReferences.obrId))
-        .where(inArray(obrMainAipReferences.aipReferenceId, aipRefIds))
-        .then(rows =>
-          rows
-            .filter(
-              (r): r is typeof r & { aipReferenceId: string; amount: string } =>
-                r.aipReferenceId !== null && r.amount !== null,
-            )
-            .map((r): LbacObrEntry => ({
-              aipReferenceId: r.aipReferenceId,
-              amount: r.amount,
-              createdAt: r.createdAt as unknown as Date,
-            })),
-        )
+          .select({
+            aipReferenceId: obrMainAipReferences.aipReferenceId,
+            amount: obrMainAipReferences.amount,
+            createdAt: obrMainData.createdAt,
+          })
+          .from(obrMainAipReferences)
+          .innerJoin(obrMainData, eq(obrMainData.id, obrMainAipReferences.obrId))
+          .where(inArray(obrMainAipReferences.aipReferenceId, aipRefIds))
+          .then((rows) =>
+            rows
+              .filter(
+                (r): r is typeof r & {aipReferenceId: string; amount: string} =>
+                  r.aipReferenceId !== null && r.amount !== null,
+              )
+              .map((r): LbacObrEntry => ({
+                aipReferenceId: r.aipReferenceId,
+                amount: r.amount,
+                createdAt: r.createdAt as unknown as Date,
+              })),
+          )
       : Promise.resolve([] as LbacObrEntry[]),
   ]);
 
-  const result = new Map<string, { appropriationTotal: Decimal; cutOffObligation: Decimal }>();
+  const result = new Map<string, {appropriationTotal: Decimal; cutOffObligation: Decimal}>();
 
   for (const lbacRow of lbacRows) {
     if (!lbacRow.saaobId) continue;
@@ -2203,11 +2387,14 @@ async function _fetchLbacDataBySaaobIds(
     let contOrSupplemental = new Decimal(0);
     if (lbacRow.aipRefCode) {
       const relevant = lbacSupplementals.filter(
-        s => s.aipRefId === lbacRow.aipRefCode && s.year === currentYear && s.quarter <= currentQuarter,
+        (s) =>
+          s.aipRefId === lbacRow.aipRefCode &&
+          s.year === currentYear &&
+          s.quarter <= currentQuarter,
       );
       contOrSupplemental = relevant.reduce((acc, s) => {
         const amt = casts.castFromDecimal(s.amount);
-        return s.supplementalType === "less" ? acc.minus(amt) : acc.plus(amt);
+        return s.supplementalType === 'less' ? acc.minus(amt) : acc.plus(amt);
       }, new Decimal(0));
     }
 
@@ -2216,7 +2403,7 @@ async function _fetchLbacDataBySaaobIds(
     let cutOffObligation = new Decimal(0);
     if (lbacRow.aipRefCode) {
       cutOffObligation = lbacObrAmounts
-        .filter(o => o.aipReferenceId === lbacRow.aipRefCode && o.createdAt < monthStart)
+        .filter((o) => o.aipReferenceId === lbacRow.aipRefCode && o.createdAt < monthStart)
         .reduce((acc, o) => acc.plus(casts.castFromDecimal(o.amount)), new Decimal(0));
     }
 
@@ -2227,7 +2414,7 @@ async function _fetchLbacDataBySaaobIds(
         cutOffObligation: existing.cutOffObligation.plus(cutOffObligation),
       });
     } else {
-      result.set(lbacRow.saaobId, { appropriationTotal, cutOffObligation });
+      result.set(lbacRow.saaobId, {appropriationTotal, cutOffObligation});
     }
   }
 
@@ -2236,13 +2423,13 @@ async function _fetchLbacDataBySaaobIds(
 
 function _collectDescendantSummaryGroupIds(
   groupId: string,
-  allGroups: { id: string; parentId: string | null }[],
+  allGroups: {id: string; parentId: string | null}[],
 ): string[] {
   const result: string[] = [];
   const queue = [groupId];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const children = allGroups.filter(g => g.parentId === current);
+    const children = allGroups.filter((g) => g.parentId === current);
     for (const child of children) {
       result.push(child.id);
       queue.push(child.id);
@@ -2253,13 +2440,13 @@ function _collectDescendantSummaryGroupIds(
 
 function _collectDescendantStatisticIds(
   itemId: string,
-  allItems: Array<{ id: string; parentId: string | null }>,
+  allItems: Array<{id: string; parentId: string | null}>,
 ): string[] {
   const result: string[] = [];
   const queue = [itemId];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const children = allItems.filter(item => item.parentId === current);
+    const children = allItems.filter((item) => item.parentId === current);
     for (const child of children) {
       result.push(child.id);
       queue.push(child.id);
@@ -2274,25 +2461,31 @@ async function _validateStatisticSelectedReferenceIds(
 ): Promise<Failure | null> {
   if (selectedMainGroupIds.length > 0) {
     const existingGroups = await db
-      .select({ id: saaobEntryGroup.id })
+      .select({id: saaobEntryGroup.id})
       .from(saaobEntryGroup)
       .where(inArray(saaobEntryGroup.id, selectedMainGroupIds));
-    const found = new Set(existingGroups.map(group => group.id));
-    const missing = selectedMainGroupIds.filter(ref => !found.has(ref));
+    const found = new Set(existingGroups.map((group) => group.id));
+    const missing = selectedMainGroupIds.filter((ref) => !found.has(ref));
     if (missing.length > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Some selected main groups do not exist.", { missing });
+      return new Failure(ErrorCodes.ValidationFailure, 'Some selected main groups do not exist.', {
+        missing,
+      });
     }
   }
 
   if (selectedSummaryItemIds.length > 0) {
     const existingSummaryItems = await db
-      .select({ id: saaobSummaryOfAccounts.id })
+      .select({id: saaobSummaryOfAccounts.id})
       .from(saaobSummaryOfAccounts)
       .where(inArray(saaobSummaryOfAccounts.id, selectedSummaryItemIds));
-    const found = new Set(existingSummaryItems.map(item => item.id));
-    const missing = selectedSummaryItemIds.filter(ref => !found.has(ref));
+    const found = new Set(existingSummaryItems.map((item) => item.id));
+    const missing = selectedSummaryItemIds.filter((ref) => !found.has(ref));
     if (missing.length > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Some selected summary items do not exist.", { missing });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'Some selected summary items do not exist.',
+        {missing},
+      );
     }
   }
 
@@ -2320,16 +2513,21 @@ function _collectEntriesForGroups(
 }
 
 function _computeSummaryItemAggregate(entries: SaaobEntry[]): SaaobSummaryItemAggregate {
-  const zero = "0";
+  const zero = '0';
   if (entries.length === 0) {
     return {
-      annualBudget: zero, supplementalOrContinuing: zero, appropriation: zero,
-      allotment: zero, obligation: zero, unObligatedBalance: zero, percentage: zero,
+      annualBudget: zero,
+      supplementalOrContinuing: zero,
+      appropriation: zero,
+      allotment: zero,
+      obligation: zero,
+      unObligatedBalance: zero,
+      percentage: zero,
       other: {
-        quarterlyAllotmentBalance: { value: zero, percentage: zero },
-        disbursed: { value: zero, percentage: zero, variance: zero },
-        lbacBudget: { value: zero, variance: zero, obligated: zero, varianceObligated: zero },
-        obligationWithPRs: { value: zero, balance: zero, percentage: zero },
+        quarterlyAllotmentBalance: {value: zero, percentage: zero},
+        disbursed: {value: zero, percentage: zero, variance: zero},
+        lbacBudget: {value: zero, variance: zero, obligated: zero, varianceObligated: zero},
+        obligationWithPRs: {value: zero, balance: zero, percentage: zero},
         pr: zero,
       },
     };
@@ -2338,31 +2536,37 @@ function _computeSummaryItemAggregate(entries: SaaobEntry[]): SaaobSummaryItemAg
   const sum = (getter: (e: SaaobEntry) => string) =>
     entries.reduce((acc, e) => acc.plus(new Decimal(getter(e))), new Decimal(0));
 
-  const annualBudget = sum(e => e.annualBudget);
-  const supplementalOrContinuing = sum(e => e.supplementalOrContinuing);
+  const annualBudget = sum((e) => e.annualBudget);
+  const supplementalOrContinuing = sum((e) => e.supplementalOrContinuing);
   const appropriation = annualBudget.plus(supplementalOrContinuing);
-  const allotment = sum(e => e.allotment);
-  const obligation = sum(e => e.obligation);
+  const allotment = sum((e) => e.allotment);
+  const obligation = sum((e) => e.obligation);
   const unObligatedBalance = appropriation.minus(obligation);
-  const percentage = appropriation.isZero() ? new Decimal(0) : obligation.div(appropriation).mul(100);
+  const percentage = appropriation.isZero()
+    ? new Decimal(0)
+    : obligation.div(appropriation).mul(100);
 
   const qabValue = allotment.minus(obligation);
   const qabPercentage = allotment.isZero() ? new Decimal(0) : obligation.div(allotment).mul(100);
 
-  const disbursedValue = sum(e => e.other.disbursed.value);
-  const disbursedPercentage = appropriation.isZero() ? new Decimal(0) : disbursedValue.div(appropriation).mul(100);
+  const disbursedValue = sum((e) => e.other.disbursed.value);
+  const disbursedPercentage = appropriation.isZero()
+    ? new Decimal(0)
+    : disbursedValue.div(appropriation).mul(100);
   const disbursedVariance = obligation.minus(disbursedValue);
 
-  const lbacValue = sum(e => e.other.lbacBudget.value);
-  const lbacVariance = sum(e => e.other.lbacBudget.variance);
-  const lbacObligated = sum(e => e.other.lbacBudget.obligated);
-  const lbacVarianceObligated = sum(e => e.other.lbacBudget.varianceObligated);
+  const lbacValue = sum((e) => e.other.lbacBudget.value);
+  const lbacVariance = sum((e) => e.other.lbacBudget.variance);
+  const lbacObligated = sum((e) => e.other.lbacBudget.obligated);
+  const lbacVarianceObligated = sum((e) => e.other.lbacBudget.varianceObligated);
 
-  const oblWithPRsValue = sum(e => e.other.obligationWithPRs.value);
+  const oblWithPRsValue = sum((e) => e.other.obligationWithPRs.value);
   const oblWithPRsBalance = appropriation.minus(oblWithPRsValue);
-  const oblWithPRsPercentage = appropriation.isZero() ? new Decimal(0) : oblWithPRsValue.div(appropriation).mul(100);
+  const oblWithPRsPercentage = appropriation.isZero()
+    ? new Decimal(0)
+    : oblWithPRsValue.div(appropriation).mul(100);
 
-  const pr = sum(e => e.other.pr);
+  const pr = sum((e) => e.other.pr);
 
   return {
     annualBudget: annualBudget.toString(),
@@ -2373,7 +2577,7 @@ function _computeSummaryItemAggregate(entries: SaaobEntry[]): SaaobSummaryItemAg
     unObligatedBalance: unObligatedBalance.toString(),
     percentage: percentage.toString(),
     other: {
-      quarterlyAllotmentBalance: { value: qabValue.toString(), percentage: qabPercentage.toString() },
+      quarterlyAllotmentBalance: {value: qabValue.toString(), percentage: qabPercentage.toString()},
       disbursed: {
         value: disbursedValue.toString(),
         percentage: disbursedPercentage.toString(),
@@ -2395,39 +2599,50 @@ function _computeSummaryItemAggregate(entries: SaaobEntry[]): SaaobSummaryItemAg
   };
 }
 
-function _sumStatisticAggregates(aggregates: SaaobSummaryItemAggregate[]): SaaobSummaryItemAggregate {
+function _sumStatisticAggregates(
+  aggregates: SaaobSummaryItemAggregate[],
+): SaaobSummaryItemAggregate {
   if (aggregates.length === 0) {
     return _computeSummaryItemAggregate([]);
   }
 
   const sum = (selector: (aggregate: SaaobSummaryItemAggregate) => string) =>
-    aggregates.reduce((acc, aggregate) => acc.plus(new Decimal(selector(aggregate))), new Decimal(0));
+    aggregates.reduce(
+      (acc, aggregate) => acc.plus(new Decimal(selector(aggregate))),
+      new Decimal(0),
+    );
 
-  const annualBudget = sum(a => a.annualBudget);
-  const supplementalOrContinuing = sum(a => a.supplementalOrContinuing);
+  const annualBudget = sum((a) => a.annualBudget);
+  const supplementalOrContinuing = sum((a) => a.supplementalOrContinuing);
   const appropriation = annualBudget.plus(supplementalOrContinuing);
-  const allotment = sum(a => a.allotment);
-  const obligation = sum(a => a.obligation);
+  const allotment = sum((a) => a.allotment);
+  const obligation = sum((a) => a.obligation);
   const unObligatedBalance = appropriation.minus(obligation);
-  const percentage = appropriation.isZero() ? new Decimal(0) : obligation.div(appropriation).mul(100);
+  const percentage = appropriation.isZero()
+    ? new Decimal(0)
+    : obligation.div(appropriation).mul(100);
 
   const qabValue = allotment.minus(obligation);
   const qabPercentage = allotment.isZero() ? new Decimal(0) : obligation.div(allotment).mul(100);
 
-  const disbursedValue = sum(a => a.other.disbursed.value);
-  const disbursedPercentage = appropriation.isZero() ? new Decimal(0) : disbursedValue.div(appropriation).mul(100);
+  const disbursedValue = sum((a) => a.other.disbursed.value);
+  const disbursedPercentage = appropriation.isZero()
+    ? new Decimal(0)
+    : disbursedValue.div(appropriation).mul(100);
   const disbursedVariance = obligation.minus(disbursedValue);
 
-  const lbacValue = sum(a => a.other.lbacBudget.value);
-  const lbacVariance = sum(a => a.other.lbacBudget.variance);
-  const lbacObligated = sum(a => a.other.lbacBudget.obligated);
-  const lbacVarianceObligated = sum(a => a.other.lbacBudget.varianceObligated);
+  const lbacValue = sum((a) => a.other.lbacBudget.value);
+  const lbacVariance = sum((a) => a.other.lbacBudget.variance);
+  const lbacObligated = sum((a) => a.other.lbacBudget.obligated);
+  const lbacVarianceObligated = sum((a) => a.other.lbacBudget.varianceObligated);
 
-  const obligationWithPRsValue = sum(a => a.other.obligationWithPRs.value);
+  const obligationWithPRsValue = sum((a) => a.other.obligationWithPRs.value);
   const obligationWithPRsBalance = appropriation.minus(obligationWithPRsValue);
-  const obligationWithPRsPercentage = appropriation.isZero() ? new Decimal(0) : obligationWithPRsValue.div(appropriation).mul(100);
+  const obligationWithPRsPercentage = appropriation.isZero()
+    ? new Decimal(0)
+    : obligationWithPRsValue.div(appropriation).mul(100);
 
-  const pr = sum(a => a.other.pr);
+  const pr = sum((a) => a.other.pr);
 
   return {
     annualBudget: annualBudget.toString(),
@@ -2480,12 +2695,12 @@ function _buildSummaryTree(
     id: group.id,
     name: group.name,
     children: [
-      ...(childGroupsByParent.get(group.id) ?? []).map(cg => buildGroup(cg)),
+      ...(childGroupsByParent.get(group.id) ?? []).map((cg) => buildGroup(cg)),
       ...(itemsByParentGroup.get(group.id) ?? []),
     ],
   });
 
-  return groups.filter(g => g.parentId === null).map(rg => buildGroup(rg));
+  return groups.filter((g) => g.parentId === null).map((rg) => buildGroup(rg));
 }
 
 async function _fetchAndBuildSummaryItem(
@@ -2501,12 +2716,13 @@ async function _fetchAndBuildSummaryItem(
       allNeededGroupIds.add(desc);
     }
   }
-  const entryRows = allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
+  const entryRows =
+    allNeededGroupIds.size > 0 ? await _fetchAllEntries([...allNeededGroupIds]) : [];
   const computedEntries = await _fetchAndComputeEntries(entryRows);
   const entriesByGroup = _buildEntriesByGroupMap(entryRows, computedEntries);
   const entries = _collectEntriesForGroups(linkedGroupIds, allSaaobGroups, entriesByGroup);
   const aggregate = _computeSummaryItemAggregate(entries);
-  return { id, name, linkedGroupIds, ...aggregate };
+  return {id, name, linkedGroupIds, ...aggregate};
 }
 
 function _mapSaaobTemplate(item: TemplateBucketItem): SaaobTemplateInfo {
@@ -2522,7 +2738,7 @@ async function _getSaaobTemplateSlot(
   identifier: string,
   type: SaaobTemplateType,
 ): Promise<Result<SaaobTemplateInfo | null>> {
-  const result = await templateBucket.get({ identifier, type });
+  const result = await templateBucket.get({identifier, type});
   if (result instanceof Success) {
     return new Success(_mapSaaobTemplate(result.value));
   }
@@ -2532,11 +2748,13 @@ async function _getSaaobTemplateSlot(
   return result;
 }
 
-async function _fetchSaaobTemplatesBundle(identifier: string): Promise<Result<SaaobTemplatesBundle>> {
-  const headerResult = await _getSaaobTemplateSlot(identifier, "header");
+async function _fetchSaaobTemplatesBundle(
+  identifier: string,
+): Promise<Result<SaaobTemplatesBundle>> {
+  const headerResult = await _getSaaobTemplateSlot(identifier, 'header');
   if (headerResult instanceof Failure) return headerResult;
 
-  const footerResult = await _getSaaobTemplateSlot(identifier, "footer");
+  const footerResult = await _getSaaobTemplateSlot(identifier, 'footer');
   if (footerResult instanceof Failure) return footerResult;
 
   return new Success({
@@ -2546,7 +2764,7 @@ async function _fetchSaaobTemplatesBundle(identifier: string): Promise<Result<Sa
 }
 
 function _isSaaobGroupNode(node: SaaobGroup | SaaobEntry): node is SaaobGroup {
-  return "children" in node;
+  return 'children' in node;
 }
 
 function _collectEntriesFromSaaobChildren(children: Array<SaaobGroup | SaaobEntry>): SaaobEntry[] {
@@ -2561,18 +2779,15 @@ function _collectEntriesFromSaaobChildren(children: Array<SaaobGroup | SaaobEntr
   return result;
 }
 
-function _flattenForExport(
-  nodes: Array<SaaobGroup | SaaobEntry>,
-  depth: number,
-): _ExportFlatRow[] {
+function _flattenForExport(nodes: Array<SaaobGroup | SaaobEntry>, depth: number): _ExportFlatRow[] {
   const rows: _ExportFlatRow[] = [];
   for (const node of nodes) {
     if (_isSaaobGroupNode(node)) {
-      rows.push({ kind: "group", depth, data: node });
+      rows.push({kind: 'group', depth, data: node});
       rows.push(..._flattenForExport(node.children, depth + 1));
-      rows.push({ kind: "total", depth, data: node });
+      rows.push({kind: 'total', depth, data: node});
     } else {
-      rows.push({ kind: "entry", depth, data: node });
+      rows.push({kind: 'entry', depth, data: node});
     }
   }
   return rows;
@@ -2585,28 +2800,25 @@ function _flattenStatisticsForExport(
   const rows: _ExportFlatRow[] = [];
   for (const node of nodes) {
     if (node.isGroup) {
-      rows.push({ kind: "statistic-group", depth, data: node });
+      rows.push({kind: 'statistic-group', depth, data: node});
       rows.push(..._flattenStatisticsForExport(node.children, depth + 1));
-      rows.push({ kind: "statistic-total", depth, data: node });
+      rows.push({kind: 'statistic-total', depth, data: node});
     } else {
-      rows.push({ kind: "statistic-item", depth, data: node });
+      rows.push({kind: 'statistic-item', depth, data: node});
     }
   }
   return rows;
 }
 
-function _flattenSummaryForExport(
-  nodes: SaaobSummaryElements,
-  depth: number,
-): _ExportFlatRow[] {
+function _flattenSummaryForExport(nodes: SaaobSummaryElements, depth: number): _ExportFlatRow[] {
   const rows: _ExportFlatRow[] = [];
   for (const group of nodes) {
-    rows.push({ kind: "summary-group", depth, data: group });
+    rows.push({kind: 'summary-group', depth, data: group});
     for (const child of group.children) {
-      if ("children" in child) {
+      if ('children' in child) {
         rows.push(..._flattenSummaryForExport([child], depth + 1));
       } else {
-        rows.push({ kind: "summary-item", depth: depth + 1, data: child });
+        rows.push({kind: 'summary-item', depth: depth + 1, data: child});
       }
     }
   }
@@ -2615,30 +2827,52 @@ function _flattenSummaryForExport(
 
 function _getEntryColumnValue(entry: SaaobEntry, col: SaaobExportColumnKey): number | string {
   switch (col) {
-  case "accountCode":                return entry.accountCode ?? "";
-  case "annualBudget":               return parseFloat(entry.annualBudget) || 0;
-  case "supplementalOrContinuing":   return parseFloat(entry.supplementalOrContinuing) || 0;
-  case "appropriation":              return parseFloat(entry.appropriation) || 0;
-  case "allotment":                  return parseFloat(entry.allotment) || 0;
-  case "obligation":                 return parseFloat(entry.obligation) || 0;
-  case "unobligatedBalance":         return parseFloat(entry.unObligatedBalance) || 0;
-  case "percentage":                 return parseFloat(entry.percentage) || 0;
-  case "remarks":                    return entry.other.remarks ?? "";
-  case "quarterlyAllotmentBalance":      return parseFloat(entry.other.quarterlyAllotmentBalance.value) || 0;
-  case "quarterlyAllotmentBalancePct":   return parseFloat(entry.other.quarterlyAllotmentBalance.percentage) || 0;
-  case "disbursed":                  return parseFloat(entry.other.disbursed.value) || 0;
-  case "disbursedPct":               return parseFloat(entry.other.disbursed.percentage) || 0;
-  case "disbursedVariance":          return parseFloat(entry.other.disbursed.variance) || 0;
-  case "lbacBudget":                 return parseFloat(entry.other.lbacBudget.value) || 0;
-  case "lbacBudgetVariance":         return parseFloat(entry.other.lbacBudget.variance) || 0;
-  case "lbacObligated":              return parseFloat(entry.other.lbacBudget.obligated) || 0;
-  case "lbacObligatedVariance":      return parseFloat(entry.other.lbacBudget.varianceObligated) || 0;
-  case "obligationWithPRs":          return parseFloat(entry.other.obligationWithPRs.value) || 0;
-  case "obligationWithPRsBalance":   return parseFloat(entry.other.obligationWithPRs.balance) || 0;
-  case "obligationWithPRsPct":       return parseFloat(entry.other.obligationWithPRs.percentage) || 0;
-  case "pr":                         return parseFloat(entry.other.pr) || 0;
-  default:
-    return "";
+    case 'accountCode':
+      return entry.accountCode ?? '';
+    case 'annualBudget':
+      return parseFloat(entry.annualBudget) || 0;
+    case 'supplementalOrContinuing':
+      return parseFloat(entry.supplementalOrContinuing) || 0;
+    case 'appropriation':
+      return parseFloat(entry.appropriation) || 0;
+    case 'allotment':
+      return parseFloat(entry.allotment) || 0;
+    case 'obligation':
+      return parseFloat(entry.obligation) || 0;
+    case 'unobligatedBalance':
+      return parseFloat(entry.unObligatedBalance) || 0;
+    case 'percentage':
+      return parseFloat(entry.percentage) || 0;
+    case 'remarks':
+      return entry.other.remarks ?? '';
+    case 'quarterlyAllotmentBalance':
+      return parseFloat(entry.other.quarterlyAllotmentBalance.value) || 0;
+    case 'quarterlyAllotmentBalancePct':
+      return parseFloat(entry.other.quarterlyAllotmentBalance.percentage) || 0;
+    case 'disbursed':
+      return parseFloat(entry.other.disbursed.value) || 0;
+    case 'disbursedPct':
+      return parseFloat(entry.other.disbursed.percentage) || 0;
+    case 'disbursedVariance':
+      return parseFloat(entry.other.disbursed.variance) || 0;
+    case 'lbacBudget':
+      return parseFloat(entry.other.lbacBudget.value) || 0;
+    case 'lbacBudgetVariance':
+      return parseFloat(entry.other.lbacBudget.variance) || 0;
+    case 'lbacObligated':
+      return parseFloat(entry.other.lbacBudget.obligated) || 0;
+    case 'lbacObligatedVariance':
+      return parseFloat(entry.other.lbacBudget.varianceObligated) || 0;
+    case 'obligationWithPRs':
+      return parseFloat(entry.other.obligationWithPRs.value) || 0;
+    case 'obligationWithPRsBalance':
+      return parseFloat(entry.other.obligationWithPRs.balance) || 0;
+    case 'obligationWithPRsPct':
+      return parseFloat(entry.other.obligationWithPRs.percentage) || 0;
+    case 'pr':
+      return parseFloat(entry.other.pr) || 0;
+    default:
+      return '';
   }
 }
 
@@ -2647,35 +2881,57 @@ function _getGroupTotalColumnValue(
   col: SaaobExportColumnKey,
 ): number | string {
   switch (col) {
-  case "accountCode":                return "";
-  case "annualBudget":               return parseFloat(total.annualBudget) || 0;
-  case "supplementalOrContinuing":   return parseFloat(total.supplementalOrContinuing) || 0;
-  case "appropriation":              return parseFloat(total.appropriation) || 0;
-  case "allotment":                  return parseFloat(total.allotment) || 0;
-  case "obligation":                 return parseFloat(total.obligation) || 0;
-  case "unobligatedBalance":         return parseFloat(total.unObligatedBalance) || 0;
-  case "percentage":                 return parseFloat(total.percentage) || 0;
-  case "remarks":                    return "";
-  case "quarterlyAllotmentBalance":      return parseFloat(total.other.quarterlyAllotmentBalance.value) || 0;
-  case "quarterlyAllotmentBalancePct":   return parseFloat(total.other.quarterlyAllotmentBalance.percentage) || 0;
-  case "disbursed":                  return parseFloat(total.other.disbursed.value) || 0;
-  case "disbursedPct":               return parseFloat(total.other.disbursed.percentage) || 0;
-  case "disbursedVariance":          return parseFloat(total.other.disbursed.variance) || 0;
-  case "lbacBudget":                 return parseFloat(total.other.lbacBudget.value) || 0;
-  case "lbacBudgetVariance":         return parseFloat(total.other.lbacBudget.variance) || 0;
-  case "lbacObligated":              return parseFloat(total.other.lbacBudget.obligated) || 0;
-  case "lbacObligatedVariance":      return parseFloat(total.other.lbacBudget.varianceObligated) || 0;
-  case "obligationWithPRs":          return parseFloat(total.other.obligationWithPRs.value) || 0;
-  case "obligationWithPRsBalance":   return parseFloat(total.other.obligationWithPRs.balance) || 0;
-  case "obligationWithPRsPct":       return parseFloat(total.other.obligationWithPRs.percentage) || 0;
-  case "pr":                         return parseFloat(total.other.pr) || 0;
-  default:
-    return "";
+    case 'accountCode':
+      return '';
+    case 'annualBudget':
+      return parseFloat(total.annualBudget) || 0;
+    case 'supplementalOrContinuing':
+      return parseFloat(total.supplementalOrContinuing) || 0;
+    case 'appropriation':
+      return parseFloat(total.appropriation) || 0;
+    case 'allotment':
+      return parseFloat(total.allotment) || 0;
+    case 'obligation':
+      return parseFloat(total.obligation) || 0;
+    case 'unobligatedBalance':
+      return parseFloat(total.unObligatedBalance) || 0;
+    case 'percentage':
+      return parseFloat(total.percentage) || 0;
+    case 'remarks':
+      return '';
+    case 'quarterlyAllotmentBalance':
+      return parseFloat(total.other.quarterlyAllotmentBalance.value) || 0;
+    case 'quarterlyAllotmentBalancePct':
+      return parseFloat(total.other.quarterlyAllotmentBalance.percentage) || 0;
+    case 'disbursed':
+      return parseFloat(total.other.disbursed.value) || 0;
+    case 'disbursedPct':
+      return parseFloat(total.other.disbursed.percentage) || 0;
+    case 'disbursedVariance':
+      return parseFloat(total.other.disbursed.variance) || 0;
+    case 'lbacBudget':
+      return parseFloat(total.other.lbacBudget.value) || 0;
+    case 'lbacBudgetVariance':
+      return parseFloat(total.other.lbacBudget.variance) || 0;
+    case 'lbacObligated':
+      return parseFloat(total.other.lbacBudget.obligated) || 0;
+    case 'lbacObligatedVariance':
+      return parseFloat(total.other.lbacBudget.varianceObligated) || 0;
+    case 'obligationWithPRs':
+      return parseFloat(total.other.obligationWithPRs.value) || 0;
+    case 'obligationWithPRsBalance':
+      return parseFloat(total.other.obligationWithPRs.balance) || 0;
+    case 'obligationWithPRsPct':
+      return parseFloat(total.other.obligationWithPRs.percentage) || 0;
+    case 'pr':
+      return parseFloat(total.other.pr) || 0;
+    default:
+      return '';
   }
 }
 
 function _isNumericColumn(key: SaaobExportColumnKey): boolean {
-  const col = SAAOB_EXPORT_COLUMNS.find(c => c.key === key) as { numeric: boolean } | undefined;
+  const col = SAAOB_EXPORT_COLUMNS.find((c) => c.key === key) as {numeric: boolean} | undefined;
   return col ? col.numeric : false;
 }
 
@@ -2686,19 +2942,24 @@ function _isNumericColumn(key: SaaobExportColumnKey): boolean {
  * - Formula cells → cached `.result`, or `null` when the result is itself an error
  * - All other values pass through unchanged
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 function _resolveTemplateValue(cellValue: any): unknown {
   if (cellValue === null || cellValue === undefined) return cellValue;
 
-  if (typeof cellValue === "object") {
+  if (typeof cellValue === 'object') {
     // Direct error cell: value is { error: "#VALUE!" } etc.
-    if ("error" in cellValue) return null;
+    if ('error' in cellValue) return null;
 
     // Formula cell: extract cached result, suppress error results
-    if ("formula" in cellValue || "sharedFormula" in cellValue) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ('formula' in cellValue || 'sharedFormula' in cellValue) {
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (cellValue as any).result;
-      if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+      if (
+        result !== null &&
+        result !== undefined &&
+        typeof result === 'object' &&
+        'error' in result
+      ) {
         return null;
       }
       return result ?? null;
@@ -2719,9 +2980,9 @@ function _offsetMergeRange(range: string, rowOffset: number): string | null {
 }
 
 async function _copyTemplateRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   srcWorkbook: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   destWorksheet: any,
   startRow: number,
 ): Promise<number> {
@@ -2731,21 +2992,21 @@ async function _copyTemplateRows(
   const rowOffset = startRow - 1;
   let currentRow = startRow;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  srcWs.eachRow({ includeEmpty: true }, (row: any) => {
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWs.eachRow({includeEmpty: true}, (row: any) => {
     const destRow = destWorksheet.getRow(currentRow);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    row.eachCell({ includeEmpty: true }, (cell: any, colNum: number) => {
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell({includeEmpty: true}, (cell: any, colNum: number) => {
       // Skip slave cells of merged ranges — only the master cell carries the value
       if (cell.type === _MERGE_CELL_TYPE) return;
 
       const destCell = destRow.getCell(colNum);
       destCell.value = _resolveTemplateValue(cell.value);
-      if (cell.font)      destCell.font      = cell.font;
-      if (cell.fill)      destCell.fill      = cell.fill;
-      if (cell.border)    destCell.border    = cell.border;
+      if (cell.font) destCell.font = cell.font;
+      if (cell.fill) destCell.fill = cell.fill;
+      if (cell.border) destCell.border = cell.border;
       if (cell.alignment) destCell.alignment = cell.alignment;
-      if (cell.numFmt)    destCell.numFmt    = cell.numFmt;
+      if (cell.numFmt) destCell.numFmt = cell.numFmt;
     });
     if (row.height) destRow.height = row.height;
     destRow.commit();
@@ -2753,7 +3014,7 @@ async function _copyTemplateRows(
   });
 
   // Re-apply merged cell ranges from the source sheet, offset to destination rows
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const merges: string[] = (srcWs.model as any)?.mergeCells ?? [];
   for (const range of merges) {
     const adjusted = _offsetMergeRange(range, rowOffset);
@@ -2768,14 +3029,14 @@ async function _copyTemplateRows(
   // Copy floating images (e.g. signature graphics) from the source sheet.
   // Each image is re-registered in the destination workbook and re-anchored
   // at the same column positions but shifted down by rowOffset rows.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const destWorkbook = destWorksheet.workbook as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const srcImages: any[] = srcWs.getImages();
   for (const img of srcImages) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     const imgModel = img.model as any;
-    if (imgModel.type !== "image") continue;
+    if (imgModel.type !== 'image') continue;
 
     const srcImageData = srcWorkbook.getImage(imgModel.imageId);
     if (!srcImageData) continue;
@@ -2783,7 +3044,7 @@ async function _copyTemplateRows(
     const newImageId = destWorkbook.addImage(srcImageData);
 
     const srcRange = imgModel.range;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     const adjustedRange: any = {
       tl: {
         nativeCol: srcRange.tl.nativeCol,
@@ -2818,18 +3079,20 @@ async function _buildSaaobExcelBuffer(
   statistics: SaaobStatisticsResult | null = null,
   summaryData: SaaobSummaryElements | null = null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("SAAOB");
+  const ws = wb.addWorksheet('SAAOB');
 
   const totalCols = 1 + columns.length;
 
   // Set column widths
   ws.getColumn(1).width = 52;
   columns.forEach((col, idx) => {
-    const colDef = SAAOB_EXPORT_COLUMNS.find(c => c.key === col) as { numeric: boolean } | undefined;
-    ws.getColumn(idx + 2).width = (col === "remarks" || col === "accountCode") ? 26 : 18;
+    const colDef = SAAOB_EXPORT_COLUMNS.find((c) => c.key === col) as
+      | {numeric: boolean}
+      | undefined;
+    ws.getColumn(idx + 2).width = col === 'remarks' || col === 'accountCode' ? 26 : 18;
     if (colDef?.numeric) ws.getColumn(idx + 2).numFmt = _NUM_FMT_AMOUNT;
   });
 
@@ -2844,17 +3107,17 @@ async function _buildSaaobExcelBuffer(
 
   // ---- Column header row ----
   const hRow = ws.getRow(row);
-  hRow.getCell(1).value = "Functions/Program/Project/Activity";
+  hRow.getCell(1).value = 'Functions/Program/Project/Activity';
   columns.forEach((col, idx) => {
-    const label = SAAOB_EXPORT_COLUMNS.find(c => c.key === col)?.label ?? col;
+    const label = SAAOB_EXPORT_COLUMNS.find((c) => c.key === col)?.label ?? col;
     hRow.getCell(idx + 2).value = label;
   });
   for (let c = 1; c <= totalCols; c++) {
     const cell = hRow.getCell(c);
-    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
     cell.fill = _HEADER_FILL;
     cell.border = _THIN_BORDER;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   }
   hRow.height = 32;
   hRow.commit();
@@ -2863,13 +3126,13 @@ async function _buildSaaobExcelBuffer(
   // ---- Data rows ----
   const allFlatRows: _ExportFlatRow[] = [];
   if (statistics) {
-    allFlatRows.push({ kind: "section-header", label: "SUMMARY PER SECTOR" });
+    allFlatRows.push({kind: 'section-header', label: 'SUMMARY PER SECTOR'});
     allFlatRows.push(..._flattenStatisticsForExport(statistics.sumPerSector, 0));
-    allFlatRows.push({ kind: "section-header", label: "BUDGET STATISTICS" });
+    allFlatRows.push({kind: 'section-header', label: 'BUDGET STATISTICS'});
     allFlatRows.push(..._flattenStatisticsForExport(statistics.budget, 0));
   }
   if (summaryData) {
-    allFlatRows.push({ kind: "section-header", label: "SUMMARY OF ACCOUNTS" });
+    allFlatRows.push({kind: 'section-header', label: 'SUMMARY OF ACCOUNTS'});
     allFlatRows.push(..._flattenSummaryForExport(summaryData, 0));
   }
   allFlatRows.push(..._flattenForExport(tree, 0));
@@ -2877,35 +3140,39 @@ async function _buildSaaobExcelBuffer(
   for (const flatRow of allFlatRows) {
     const wsRow = ws.getRow(row);
 
-    if (flatRow.kind === "section-header") {
+    if (flatRow.kind === 'section-header') {
       ws.mergeCells(row, 1, row, totalCols);
       const cell = wsRow.getCell(1);
       cell.value = flatRow.label;
-      cell.font = { bold: true, italic: true, size: 11, name: "Arial Narrow" };
+      cell.font = {bold: true, italic: true, size: 11, name: 'Arial Narrow'};
       cell.fill = _SECTION_HEADER_FILL;
       cell.border = _THIN_BORDER;
-      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.alignment = {horizontal: 'center', vertical: 'middle'};
       wsRow.height = 20;
-    } else if (flatRow.kind === "group" || flatRow.kind === "statistic-group" || flatRow.kind === "summary-group") {
-      const { depth, data } = flatRow;
+    } else if (
+      flatRow.kind === 'group' ||
+      flatRow.kind === 'statistic-group' ||
+      flatRow.kind === 'summary-group'
+    ) {
+      const {depth, data} = flatRow;
 
       if (depth === 0) {
         // Root group — merge all columns, bold, centred
         ws.mergeCells(row, 1, row, totalCols);
         const cell = wsRow.getCell(1);
         cell.value = data.name.toUpperCase();
-        cell.font = { bold: true, size: 11, underline: true, name: "Arial Narrow" };
+        cell.font = {bold: true, size: 11, underline: true, name: 'Arial Narrow'};
         cell.fill = _ROOT_FILL;
         cell.border = _THIN_BORDER;
-        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.alignment = {horizontal: 'center', vertical: 'middle'};
         wsRow.height = 20;
       } else if (depth <= 2) {
         // 2nd / 3rd level — blue bold, indent 0
         const cell = wsRow.getCell(1);
         cell.value = data.name;
-        cell.font = { bold: true, color: _BLUE_COLOR, size: 10, name: "Arial Narrow" };
+        cell.font = {bold: true, color: _BLUE_COLOR, size: 10, name: 'Arial Narrow'};
         cell.border = _THIN_BORDER;
-        cell.alignment = { vertical: "middle", indent: 0, wrapText: true };
+        cell.alignment = {vertical: 'middle', indent: 0, wrapText: true};
         for (let c = 2; c <= totalCols; c++) {
           wsRow.getCell(c).border = _THIN_BORDER;
         }
@@ -2913,74 +3180,81 @@ async function _buildSaaobExcelBuffer(
         // 4th / 5th level — blue italic, indent 1
         const cell = wsRow.getCell(1);
         cell.value = data.name;
-        cell.font = { italic: true, color: _BLUE_COLOR, size: 10, name: "Arial Narrow" };
+        cell.font = {italic: true, color: _BLUE_COLOR, size: 10, name: 'Arial Narrow'};
         cell.border = _THIN_BORDER;
-        cell.alignment = { vertical: "middle", indent: 1, wrapText: true };
+        cell.alignment = {vertical: 'middle', indent: 1, wrapText: true};
         for (let c = 2; c <= totalCols; c++) {
           wsRow.getCell(c).border = _THIN_BORDER;
         }
       }
-    } else if (flatRow.kind === "total" || flatRow.kind === "statistic-total") {
+    } else if (flatRow.kind === 'total' || flatRow.kind === 'statistic-total') {
       // Total row — placed after all children of a group
-      const { depth, data } = flatRow;
-      const label = depth === 0
-        ? `TOTAL ${data.name.toUpperCase()}`
-        : `Total ${data.name}`;
+      const {depth, data} = flatRow;
+      const label = depth === 0 ? `TOTAL ${data.name.toUpperCase()}` : `Total ${data.name}`;
 
       const nameCell = wsRow.getCell(1);
       nameCell.value = label;
-      nameCell.font = { bold: true, size: 10, name: "Arial Narrow" };
+      nameCell.font = {bold: true, size: 10, name: 'Arial Narrow'};
       nameCell.border = _THIN_BORDER;
-      nameCell.alignment = { vertical: "middle", wrapText: true };
+      nameCell.alignment = {vertical: 'middle', wrapText: true};
 
       columns.forEach((col, idx) => {
         const dataCell = wsRow.getCell(idx + 2);
         dataCell.value = _getGroupTotalColumnValue(data.total, col);
-        dataCell.font = { bold: true, size: 10, name: "Arial Narrow" };
+        dataCell.font = {bold: true, size: 10, name: 'Arial Narrow'};
         dataCell.border = _THIN_BORDER;
         dataCell.alignment = {
-          vertical: "middle",
-          horizontal: _isNumericColumn(col) ? "right" : "left",
+          vertical: 'middle',
+          horizontal: _isNumericColumn(col) ? 'right' : 'left',
         };
         if (_isNumericColumn(col)) {
-          dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+          dataCell.numFmt =
+            col.includes('Pct') || col === 'percentage' ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
         }
       });
-    } else if (flatRow.kind === "entry") {
+    } else if (flatRow.kind === 'entry') {
       // Entry / item — indent 2, data in subsequent columns.
       const data = flatRow.data;
       const nameCell = wsRow.getCell(1);
       nameCell.value = data.name;
-      nameCell.font = { size: 10, name: "Arial Narrow" };
+      nameCell.font = {size: 10, name: 'Arial Narrow'};
       nameCell.border = _THIN_BORDER;
-      nameCell.alignment = { vertical: "middle", indent: 2, wrapText: true };
+      nameCell.alignment = {vertical: 'middle', indent: 2, wrapText: true};
 
       columns.forEach((col, idx) => {
         const dataCell = wsRow.getCell(idx + 2);
         dataCell.value = _getEntryColumnValue(data, col);
-        dataCell.font = { size: 10, name: "Arial Narrow" };
+        dataCell.font = {size: 10, name: 'Arial Narrow'};
         dataCell.border = _THIN_BORDER;
-        dataCell.alignment = { vertical: "middle", horizontal: _isNumericColumn(col) ? "right" : "left" };
+        dataCell.alignment = {
+          vertical: 'middle',
+          horizontal: _isNumericColumn(col) ? 'right' : 'left',
+        };
         if (_isNumericColumn(col)) {
-          dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+          dataCell.numFmt =
+            col.includes('Pct') || col === 'percentage' ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
         }
       });
-    } else if (flatRow.kind === "statistic-item" || flatRow.kind === "summary-item") {
+    } else if (flatRow.kind === 'statistic-item' || flatRow.kind === 'summary-item') {
       const data = flatRow.data;
       const nameCell = wsRow.getCell(1);
       nameCell.value = data.name;
-      nameCell.font = { size: 10, name: "Arial Narrow" };
+      nameCell.font = {size: 10, name: 'Arial Narrow'};
       nameCell.border = _THIN_BORDER;
-      nameCell.alignment = { vertical: "middle", indent: 2, wrapText: true };
+      nameCell.alignment = {vertical: 'middle', indent: 2, wrapText: true};
 
       columns.forEach((col, idx) => {
         const dataCell = wsRow.getCell(idx + 2);
         dataCell.value = _getGroupTotalColumnValue(data, col);
-        dataCell.font = { size: 10, name: "Arial Narrow" };
+        dataCell.font = {size: 10, name: 'Arial Narrow'};
         dataCell.border = _THIN_BORDER;
-        dataCell.alignment = { vertical: "middle", horizontal: _isNumericColumn(col) ? "right" : "left" };
+        dataCell.alignment = {
+          vertical: 'middle',
+          horizontal: _isNumericColumn(col) ? 'right' : 'left',
+        };
         if (_isNumericColumn(col)) {
-          dataCell.numFmt = col.includes("Pct") || col === "percentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+          dataCell.numFmt =
+            col.includes('Pct') || col === 'percentage' ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
         }
       });
     } else {
@@ -3001,7 +3275,7 @@ async function _buildSaaobExcelBuffer(
   }
 
   // Freeze the column header row
-  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 1, xSplit: 0}];
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
@@ -3106,7 +3380,7 @@ type SaaobEntryRow = {
 type SupplementalRow = {
   saaobId: string;
   amount: string;
-  supplementalType: "less" | "add";
+  supplementalType: 'less' | 'add';
 };
 
 export type SaaobTemplateType = templateBucket.TemplateType;
@@ -3139,15 +3413,15 @@ export interface SaaobExportOptions {
 }
 
 type _ExportFlatRow =
-  | { kind: "section-header"; label: string }
-  | { kind: "group"; depth: number; data: SaaobGroup }
-  | { kind: "entry"; depth: number; data: SaaobEntry }
-  | { kind: "total"; depth: number; data: SaaobGroup }
-  | { kind: "statistic-group"; depth: number; data: SaaobStatisticGroup }
-  | { kind: "statistic-item"; depth: number; data: SaaobStatisticEntry }
-  | { kind: "statistic-total"; depth: number; data: SaaobStatisticGroup }
-  | { kind: "summary-group"; depth: number; data: SaaobSummaryGroup }
-  | { kind: "summary-item"; depth: number; data: SaaobSummaryItem };
+  | {kind: 'section-header'; label: string}
+  | {kind: 'group'; depth: number; data: SaaobGroup}
+  | {kind: 'entry'; depth: number; data: SaaobEntry}
+  | {kind: 'total'; depth: number; data: SaaobGroup}
+  | {kind: 'statistic-group'; depth: number; data: SaaobStatisticGroup}
+  | {kind: 'statistic-item'; depth: number; data: SaaobStatisticEntry}
+  | {kind: 'statistic-total'; depth: number; data: SaaobStatisticGroup}
+  | {kind: 'summary-group'; depth: number; data: SaaobSummaryGroup}
+  | {kind: 'summary-item'; depth: number; data: SaaobSummaryItem};
 
 type ObrMainRow = {
   saaobId: string;
@@ -3185,10 +3459,10 @@ export type SaaobSummaryItemAggregate = {
   unObligatedBalance: string;
   percentage: string;
   other: {
-    quarterlyAllotmentBalance: { value: string; percentage: string };
-    disbursed: { value: string; percentage: string; variance: string };
-    lbacBudget: { value: string; variance: string; obligated: string; varianceObligated: string };
-    obligationWithPRs: { value: string; balance: string; percentage: string };
+    quarterlyAllotmentBalance: {value: string; percentage: string};
+    disbursed: {value: string; percentage: string; variance: string};
+    lbacBudget: {value: string; variance: string; obligated: string; varianceObligated: string};
+    obligationWithPRs: {value: string; balance: string; percentage: string};
     pr: string;
   };
 };
@@ -3210,7 +3484,7 @@ export type SaaobSummaryGroup = BaseSaaobSummaryGroup & {
 
 export type SaaobSummaryElements = Array<SaaobSummaryGroup>;
 
-export type SaaobStatisticType = "budget" | "sum_per_sector";
+export type SaaobStatisticType = 'budget' | 'sum_per_sector';
 
 export type BaseSaaobStatisticNode = {
   id: string;
@@ -3220,11 +3494,12 @@ export type BaseSaaobStatisticNode = {
   parentId: string | null;
 };
 
-export type SaaobStatisticEntry = BaseSaaobStatisticNode & SaaobSummaryItemAggregate & {
-  isGroup: false;
-  selectedMainGroupIds: string[];
-  selectedSummaryItemIds: string[];
-};
+export type SaaobStatisticEntry = BaseSaaobStatisticNode &
+  SaaobSummaryItemAggregate & {
+    isGroup: false;
+    selectedMainGroupIds: string[];
+    selectedSummaryItemIds: string[];
+  };
 
 export type SaaobStatisticGroup = BaseSaaobStatisticNode & {
   isGroup: true;

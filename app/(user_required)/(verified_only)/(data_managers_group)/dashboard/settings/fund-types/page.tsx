@@ -1,19 +1,12 @@
-"use client";
+'use client';
 
-import { Plus } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
-import useSWR from "swr";
+import {Plus} from 'lucide-react';
+import {type SubmitEvent, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  BetterFetchResponse,
-  FundTypesListResponse,
-  FundTypeResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import DeadHamster from "@/components/dead-hamster";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -23,31 +16,31 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+  ApiResponseException,
+  BetterFetchResponse,
+  FundTypesListResponse,
+  FundTypeResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<FundTypesListResponse, ApiResponseException>>(
-    "/api/management/data/fund-types", $fetch);
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<FundTypesListResponse, ApiResponseException>
+  >('/api/management/data/fund-types', $fetch);
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const handleCreateMutate = (item: FundTypeResponse) => {
@@ -67,7 +60,7 @@ export default function Page() {
       mutate({
         data: {
           ok: true,
-          data: (data?.data?.data || []).map(x => {
+          data: (data?.data?.data || []).map((x) => {
             if (x.id === item.data.id) return item.data;
             return x;
           }),
@@ -109,18 +102,18 @@ export default function Page() {
   );
 }
 
-function CreateFundTypeDialog({ mutate }: { mutate: (item: FundTypeResponse) => void}) {
+function CreateFundTypeDialog({mutate}: {mutate: (item: FundTypeResponse) => void}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<FundTypePayload>({
-    name: "",
+    name: '',
     description: null,
   });
 
   const handleInput = (key: keyof FundTypePayload, value: string) => {
-    setPayload(prev => ({
+    setPayload((prev) => ({
       ...prev,
-      [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+      [key]: key !== 'name' && !((value?.trim() ?? '').length > 0) ? undefined : value,
     }));
   };
 
@@ -128,14 +121,15 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: FundTypeResponse) => 
     e.preventDefault();
 
     const res = await $fetch<FundTypeResponse, ApiResponseException>(
-      "/api/management/data/fund-types",
+      '/api/management/data/fund-types',
       {
-        method: "POST",
+        method: 'POST',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to create fund type. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to create fund type. Try again later.');
       return;
     }
 
@@ -143,10 +137,10 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: FundTypeResponse) => 
     mutate(res.data);
 
     // Reset and close.
-    alert("Fund type created successfully.");
+    alert('Fund type created successfully.');
 
     setPayload({
-      name: "",
+      name: '',
       description: null,
     });
     setOpen(false);
@@ -176,7 +170,7 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: FundTypeResponse) => 
                 type="text"
                 placeholder="Enter the fund type name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -188,8 +182,8 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: FundTypeResponse) => 
                 id="description"
                 type="text"
                 placeholder="Enter the fund type description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
               />
             </Field>
           </FieldGroup>
@@ -210,7 +204,7 @@ function FundTypeRow({
   index,
   mutate,
 }: {
-  data: FundTypeResponse["data"];
+  data: FundTypeResponse['data'];
   index: number;
   mutate: (item: FundTypeResponse) => void;
 }) {
@@ -222,10 +216,10 @@ function FundTypeRow({
   });
 
   const handleInput = (key: keyof FundTypePayload, value: string) => {
-    setPayload(prev => {
+    setPayload((prev) => {
       return {
         ...prev,
-        [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+        [key]: key !== 'name' && !((value?.trim() ?? '').length > 0) ? undefined : value,
       };
     });
   };
@@ -236,12 +230,13 @@ function FundTypeRow({
     const res = await $fetch<FundTypeResponse, ApiResponseException>(
       `/api/management/data/fund-types/${data.id}`,
       {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to update fund type. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to update fund type. Try again later.');
       return;
     }
 
@@ -249,7 +244,7 @@ function FundTypeRow({
     mutate(res.data);
 
     // Close.
-    alert("Fund type updated successfully.");
+    alert('Fund type updated successfully.');
     setOpen(false);
   };
 
@@ -258,24 +253,22 @@ function FundTypeRow({
       <DialogTrigger asChild>
         <TableRow
           className={cn(
-            "cursor-pointer",
-            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+            'cursor-pointer',
+            index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined,
           )}
         >
           <TableCell className="font-medium whitespace-normal wrap-break-word">
             {data.name}
           </TableCell>
           <TableCell className="whitespace-normal wrap-break-word">
-            {data.description ?? "-"}
+            {data.description ?? '-'}
           </TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Update Fund Type</DialogTitle>
-          <DialogDescription>
-            Update the fund type details.
-          </DialogDescription>
+          <DialogDescription>Update the fund type details.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="mb-4">
@@ -286,7 +279,7 @@ function FundTypeRow({
                 type="text"
                 placeholder="Enter the account name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -298,8 +291,8 @@ function FundTypeRow({
                 id="description"
                 type="text"
                 placeholder="Enter the fund type description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
               />
             </Field>
           </FieldGroup>
@@ -318,4 +311,4 @@ function FundTypeRow({
 type FundTypePayload = {
   name: string;
   description: Optional<string>;
-}
+};

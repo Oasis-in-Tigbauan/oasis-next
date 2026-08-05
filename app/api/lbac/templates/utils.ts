@@ -1,11 +1,11 @@
-import type { NextRequest } from "next/server";
+import type {NextRequest} from 'next/server';
 
 import {
   parseLbacTemplateType,
   type LbacTemplateType,
   type LbacTemplateUploadInput,
-} from "@/lib/lbac";
-import { ErrorCodes, Failure, Success, type Result } from "@/lib/one-of";
+} from '@/lib/lbac';
+import {ErrorCodes, Failure, Success, type Result} from '@/lib/one-of';
 
 /**
  * Reads multipart form data from a Next.js request.
@@ -15,7 +15,7 @@ export async function readFormData(req: NextRequest): Promise<Result<FormData>> 
     const formData = await req.formData();
     return new Success(formData);
   } catch {
-    return new Failure(ErrorCodes.ValidationFailure, "Invalid multipart form data.");
+    return new Failure(ErrorCodes.ValidationFailure, 'Invalid multipart form data.');
   }
 }
 
@@ -25,17 +25,17 @@ export async function readFormData(req: NextRequest): Promise<Result<FormData>> 
 export async function parseTemplateUploadFormData(
   formData: FormData,
 ): Promise<Result<LbacTemplateUploadInput>> {
-  const typeRaw = formData.get("type");
-  if (typeRaw !== "header" && typeRaw !== "footer") {
+  const typeRaw = formData.get('type');
+  if (typeRaw !== 'header' && typeRaw !== 'footer') {
     return new Failure(
       ErrorCodes.ValidationFailure,
       "Invalid template type. Must be 'header' or 'footer'.",
     );
   }
 
-  const fileField = formData.get("file");
-  if (!fileField || typeof fileField === "string") {
-    return new Failure(ErrorCodes.ValidationFailure, "A file is required.");
+  const fileField = formData.get('file');
+  if (!fileField || typeof fileField === 'string') {
+    return new Failure(ErrorCodes.ValidationFailure, 'A file is required.');
   }
 
   const filename = fileField.name;
@@ -43,10 +43,10 @@ export async function parseTemplateUploadFormData(
   const file = Buffer.from(bytes);
 
   if (file.length === 0) {
-    return new Failure(ErrorCodes.ValidationFailure, "The uploaded file is empty.");
+    return new Failure(ErrorCodes.ValidationFailure, 'The uploaded file is empty.');
   }
 
-  return new Success({ type: typeRaw, file, filename });
+  return new Success({type: typeRaw, file, filename});
 }
 
 /**

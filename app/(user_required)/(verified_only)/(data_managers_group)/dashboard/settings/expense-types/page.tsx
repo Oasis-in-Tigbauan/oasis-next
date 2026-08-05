@@ -1,19 +1,12 @@
-"use client";
+'use client';
 
-import { Plus } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
-import useSWR from "swr";
+import {Plus} from 'lucide-react';
+import {type SubmitEvent, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  BetterFetchResponse,
-  ExpenseTypeListResponse,
-  ExpenseTypeResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import DeadHamster from "@/components/dead-hamster";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -23,31 +16,31 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+  ApiResponseException,
+  BetterFetchResponse,
+  ExpenseTypeListResponse,
+  ExpenseTypeResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ExpenseTypeListResponse, ApiResponseException>>(
-    "/api/management/data/expense-type", $fetch);
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<ExpenseTypeListResponse, ApiResponseException>
+  >('/api/management/data/expense-type', $fetch);
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const handleCreateMutate = (item: ExpenseTypeResponse) => {
@@ -67,7 +60,7 @@ export default function Page() {
       mutate({
         data: {
           ok: true,
-          data: (data?.data?.data || []).map(x => {
+          data: (data?.data?.data || []).map((x) => {
             if (x.id === item.data.id) return item.data;
             return x;
           }),
@@ -98,12 +91,7 @@ export default function Page() {
               </TableHeader>
               <TableBody>
                 {(data?.data?.data || []).map((x, index) => (
-                  <ExpenseTypeRow
-                    key={x.id}
-                    data={x}
-                    index={index}
-                    mutate={handleUpdateMutate}
-                  />
+                  <ExpenseTypeRow key={x.id} data={x} index={index} mutate={handleUpdateMutate} />
                 ))}
               </TableBody>
             </Table>
@@ -114,18 +102,18 @@ export default function Page() {
   );
 }
 
-function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeResponse) => void}) {
+function CreateExpenseTypeDialog({mutate}: {mutate: (item: ExpenseTypeResponse) => void}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<ExpenseTypePayload>({
-    name: "",
+    name: '',
     description: null,
   });
 
   const handleInput = (key: keyof ExpenseTypePayload, value: string) => {
-    setPayload(prev => ({
+    setPayload((prev) => ({
       ...prev,
-      [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+      [key]: key !== 'name' && !((value?.trim() ?? '').length > 0) ? undefined : value,
     }));
   };
 
@@ -133,14 +121,15 @@ function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeRespons
     e.preventDefault();
 
     const res = await $fetch<ExpenseTypeResponse, ApiResponseException>(
-      "/api/management/data/expense-type",
+      '/api/management/data/expense-type',
       {
-        method: "POST",
+        method: 'POST',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to create expense type. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to create expense type. Try again later.');
       return;
     }
 
@@ -148,10 +137,10 @@ function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeRespons
     mutate(res.data);
 
     // Reset and close.
-    alert("Expense type created successfully.");
+    alert('Expense type created successfully.');
 
     setPayload({
-      name: "",
+      name: '',
       description: null,
     });
     setOpen(false);
@@ -181,7 +170,7 @@ function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeRespons
                 type="text"
                 placeholder="Enter the expense type name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -193,8 +182,8 @@ function CreateExpenseTypeDialog({ mutate }: { mutate: (item: ExpenseTypeRespons
                 id="description"
                 type="text"
                 placeholder="Enter the expense type description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
               />
             </Field>
           </FieldGroup>
@@ -215,7 +204,7 @@ function ExpenseTypeRow({
   index,
   mutate,
 }: {
-  data: ExpenseTypeResponse["data"];
+  data: ExpenseTypeResponse['data'];
   index: number;
   mutate: (item: ExpenseTypeResponse) => void;
 }) {
@@ -227,10 +216,10 @@ function ExpenseTypeRow({
   });
 
   const handleInput = (key: keyof ExpenseTypePayload, value: string) => {
-    setPayload(prev => {
+    setPayload((prev) => {
       return {
         ...prev,
-        [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+        [key]: key !== 'name' && !((value?.trim() ?? '').length > 0) ? undefined : value,
       };
     });
   };
@@ -241,12 +230,13 @@ function ExpenseTypeRow({
     const res = await $fetch<ExpenseTypeResponse, ApiResponseException>(
       `/api/management/data/expense-type/${data.id}`,
       {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to update expense type. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to update expense type. Try again later.');
       return;
     }
 
@@ -254,7 +244,7 @@ function ExpenseTypeRow({
     mutate(res.data);
 
     // Close.
-    alert("Expense type updated successfully.");
+    alert('Expense type updated successfully.');
     setOpen(false);
   };
 
@@ -263,24 +253,22 @@ function ExpenseTypeRow({
       <DialogTrigger asChild>
         <TableRow
           className={cn(
-            "cursor-pointer",
-            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+            'cursor-pointer',
+            index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined,
           )}
         >
           <TableCell className="font-medium whitespace-normal wrap-break-word">
             {data.name}
           </TableCell>
           <TableCell className="whitespace-normal wrap-break-word">
-            {data.description ?? "-"}
+            {data.description ?? '-'}
           </TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Update Expense Type</DialogTitle>
-          <DialogDescription>
-            Update the expense type details.
-          </DialogDescription>
+          <DialogDescription>Update the expense type details.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="mb-4">
@@ -291,7 +279,7 @@ function ExpenseTypeRow({
                 type="text"
                 placeholder="Enter the account name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -303,8 +291,8 @@ function ExpenseTypeRow({
                 id="description"
                 type="text"
                 placeholder="Enter the expense type description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
               />
             </Field>
           </FieldGroup>
@@ -323,4 +311,4 @@ function ExpenseTypeRow({
 type ExpenseTypePayload = {
   name: string;
   description: Optional<string>;
-}
+};

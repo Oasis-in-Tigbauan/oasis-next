@@ -1,4 +1,3 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
 import type {
   Commutation,
   LeaveType,
@@ -6,7 +5,8 @@ import type {
   SickLocation,
   StudyPurpose,
   VacationLocation,
-} from "@/lib/forms/leave";
+} from '@/lib/forms/leave';
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type LeaveApplicationItem = {
   id: string;

@@ -1,18 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import useSWR from "swr";
+import {useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  ElecItemResponse,
-  ObrDisbursementVoucherItem,
-  ObrDisbursementVoucherListResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -21,23 +12,31 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  ElecItemResponse,
+  ObrDisbursementVoucherItem,
+  ObrDisbursementVoucherListResponse,
+} from '@/lib/http/client/responses';
 
 const TAX_TYPE_OPTIONS = [
-  { value: "vat-g", label: "VAT - Goods" },
-  { value: "vat-s", label: "VAT - Services" },
-  { value: "nvat-g", label: "Non-VAT Goods" },
-  { value: "nvat-s", label: "Non-VAT Services" },
+  {value: 'vat-g', label: 'VAT - Goods'},
+  {value: 'vat-s', label: 'VAT - Services'},
+  {value: 'nvat-g', label: 'Non-VAT Goods'},
+  {value: 'nvat-s', label: 'Non-VAT Services'},
 ] as const;
 
 type FormState = {
@@ -52,13 +51,13 @@ type FormState = {
 
 function makeEmptyForm(): FormState {
   return {
-    dvId: "",
-    billingName: "",
-    meterSerial: "",
-    account: "",
-    gross: "",
-    vatableSales: "",
-    taxType: "",
+    dvId: '',
+    billingName: '',
+    meterSerial: '',
+    account: '',
+    gross: '',
+    vatableSales: '',
+    taxType: '',
   };
 }
 
@@ -75,45 +74,45 @@ function makeEditForm(item: ElecItemResponse): FormState {
 }
 
 type Props = {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: ElecItemResponse;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 };
 
-export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }: Props) {
+export function ElecFormDialog({mode, editItem, open, onOpenChange, onSuccess}: Props) {
   const [form, setForm] = useState<FormState>(() =>
-    mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm(),
+    mode === 'edit' && editItem ? makeEditForm(editItem) : makeEmptyForm(),
   );
   const [submitting, setSubmitting] = useState(false);
-  const [dvSearch, setDvSearch] = useState("");
+  const [dvSearch, setDvSearch] = useState('');
   const [dvDropdownOpen, setDvDropdownOpen] = useState(false);
   const [selectedDv, setSelectedDv] = useState<ObrDisbursementVoucherItem | null>(null);
 
-  const { data: dvData } = useSWR<
+  const {data: dvData} = useSWR<
     BetterFetchResponse<ObrDisbursementVoucherListResponse, ApiResponseException>
-  >(open && mode === "add" ? "/api/obr/disbursements" : null, $fetch);
+  >(open && mode === 'add' ? '/api/obr/disbursements' : null, $fetch);
 
   const allDvs = dvData?.data?.data ?? [];
 
   const filteredDvs = dvSearch.trim()
     ? allDvs.filter(
-      dv =>
-        dv.disbursementVoucherNumber.toLowerCase().includes(dvSearch.trim().toLowerCase()) ||
-        dv.payee.toLowerCase().includes(dvSearch.trim().toLowerCase()),
-    )
+        (dv) =>
+          dv.disbursementVoucherNumber.toLowerCase().includes(dvSearch.trim().toLowerCase()) ||
+          dv.payee.toLowerCase().includes(dvSearch.trim().toLowerCase()),
+      )
     : allDvs;
 
   const update = (key: keyof FormState, value: string) =>
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({...prev, [key]: value}));
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (mode === "add") {
+    if (mode === 'add') {
       if (!form.dvId) {
-        alert("Please select a disbursement voucher.");
+        alert('Please select a disbursement voucher.');
         return;
       }
       if (
@@ -124,13 +123,13 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
         !form.vatableSales.trim() ||
         !form.taxType
       ) {
-        alert("All fields are required.");
+        alert('All fields are required.');
         return;
       }
 
       setSubmitting(true);
-      const res = await $fetch<unknown, ApiResponseException>("/api/forms/elec", {
-        method: "POST",
+      const res = await $fetch<unknown, ApiResponseException>('/api/forms/elec', {
+        method: 'POST',
         body: {
           dvId: form.dvId,
           billingName: form.billingName.trim(),
@@ -146,7 +145,7 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
       if (res.error) {
         alert(
           (res.error as ApiResponseException).message ??
-            "Failed to create record. Please try again.",
+            'Failed to create record. Please try again.',
         );
         return;
       }
@@ -160,16 +159,16 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
       if (form.taxType) payload.taxType = form.taxType;
 
       setSubmitting(true);
-      const res = await $fetch<unknown, ApiResponseException>(
-        `/api/forms/elec/${editItem!.id}`,
-        { method: "PATCH", body: payload },
-      );
+      const res = await $fetch<unknown, ApiResponseException>(`/api/forms/elec/${editItem!.id}`, {
+        method: 'PATCH',
+        body: payload,
+      });
       setSubmitting(false);
 
       if (res.error) {
         alert(
           (res.error as ApiResponseException).message ??
-            "Failed to update record. Please try again.",
+            'Failed to update record. Please try again.',
         );
         return;
       }
@@ -184,20 +183,19 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
       <DialogContent className="min-w-[600px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            {mode === "add" ? "Add Electricity Bill" : "Edit Electricity Bill"}
+            {mode === 'add' ? 'Add Electricity Bill' : 'Edit Electricity Bill'}
           </DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Fill in the details to create a new electricity bill record."
-              : "Update the electricity bill record details."}
+            {mode === 'add'
+              ? 'Fill in the details to create a new electricity bill record.'
+              : 'Update the electricity bill record details.'}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-y-auto">
           <form id="elec-form" onSubmit={handleSubmit} className="flex flex-col gap-4 px-1 pb-2">
-
             {/* Disbursement Voucher */}
-            {mode === "add" ? (
+            {mode === 'add' ? (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="dvSearch">
                   Disbursement Voucher <span className="text-destructive">*</span>
@@ -209,12 +207,12 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                     value={dvSearch}
                     onFocus={() => setDvDropdownOpen(true)}
                     onBlur={() => setTimeout(() => setDvDropdownOpen(false), 150)}
-                    onInput={e => {
+                    onInput={(e) => {
                       const value = e.currentTarget.value;
                       setDvSearch(value);
                       if (selectedDv && value !== selectedDv.disbursementVoucherNumber) {
                         setSelectedDv(null);
-                        update("dvId", "");
+                        update('dvId', '');
                       }
                     }}
                     autoComplete="off"
@@ -226,8 +224,8 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                       className="absolute right-2 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
                       onClick={() => {
                         setSelectedDv(null);
-                        setDvSearch("");
-                        update("dvId", "");
+                        setDvSearch('');
+                        update('dvId', '');
                       }}
                     >
                       ✕
@@ -235,7 +233,7 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   )}
                   {dvDropdownOpen && filteredDvs.length > 0 && (
                     <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
-                      {filteredDvs.map(dv => (
+                      {filteredDvs.map((dv) => (
                         <button
                           key={dv.id}
                           type="button"
@@ -243,7 +241,7 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                           onMouseDown={() => {
                             setSelectedDv(dv);
                             setDvSearch(dv.disbursementVoucherNumber);
-                            update("dvId", dv.id);
+                            update('dvId', dv.id);
                             setDvDropdownOpen(false);
                           }}
                         >
@@ -259,7 +257,7 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
               <div className="flex flex-col gap-2">
                 <Label>Disbursement Voucher</Label>
                 <Input
-                  value={editItem?.dv.disbursementVoucherNumber ?? ""}
+                  value={editItem?.dv.disbursementVoucherNumber ?? ''}
                   readOnly
                   className="bg-muted/50"
                   tabIndex={-1}
@@ -271,24 +269,24 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="billingName">
-                  Billing Name {mode === "add" && <span className="text-destructive">*</span>}
+                  Billing Name {mode === 'add' && <span className="text-destructive">*</span>}
                 </Label>
                 <Input
                   id="billingName"
                   placeholder="Enter billing name"
                   value={form.billingName}
-                  onInput={e => update("billingName", e.currentTarget.value)}
+                  onInput={(e) => update('billingName', e.currentTarget.value)}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="meterSerial">
-                  Meter Serial # {mode === "add" && <span className="text-destructive">*</span>}
+                  Meter Serial # {mode === 'add' && <span className="text-destructive">*</span>}
                 </Label>
                 <Input
                   id="meterSerial"
                   placeholder="Enter meter serial number"
                   value={form.meterSerial}
-                  onInput={e => update("meterSerial", e.currentTarget.value)}
+                  onInput={(e) => update('meterSerial', e.currentTarget.value)}
                 />
               </div>
             </div>
@@ -296,13 +294,13 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
             {/* Account */}
             <div className="flex flex-col gap-2">
               <Label htmlFor="account">
-                Account {mode === "add" && <span className="text-destructive">*</span>}
+                Account {mode === 'add' && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 id="account"
                 placeholder="Enter account"
                 value={form.account}
-                onInput={e => update("account", e.currentTarget.value)}
+                onInput={(e) => update('account', e.currentTarget.value)}
               />
             </div>
 
@@ -310,24 +308,24 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="gross">
-                  Gross {mode === "add" && <span className="text-destructive">*</span>}
+                  Gross {mode === 'add' && <span className="text-destructive">*</span>}
                 </Label>
                 <Input
                   id="gross"
                   placeholder="0.00"
                   value={form.gross}
-                  onInput={e => update("gross", e.currentTarget.value)}
+                  onInput={(e) => update('gross', e.currentTarget.value)}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="vatableSales">
-                  Vatable Sales {mode === "add" && <span className="text-destructive">*</span>}
+                  Vatable Sales {mode === 'add' && <span className="text-destructive">*</span>}
                 </Label>
                 <Input
                   id="vatableSales"
                   placeholder="0.00"
                   value={form.vatableSales}
-                  onInput={e => update("vatableSales", e.currentTarget.value)}
+                  onInput={(e) => update('vatableSales', e.currentTarget.value)}
                 />
               </div>
             </div>
@@ -335,20 +333,18 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
             {/* Tax Type */}
             <div className="flex flex-col gap-2">
               <Label htmlFor="taxType">
-                Tax Type {mode === "add" && <span className="text-destructive">*</span>}
+                Tax Type {mode === 'add' && <span className="text-destructive">*</span>}
               </Label>
               <Select
-                value={form.taxType || "__none__"}
-                onValueChange={v => update("taxType", v === "__none__" ? "" : v)}
+                value={form.taxType || '__none__'}
+                onValueChange={(v) => update('taxType', v === '__none__' ? '' : v)}
               >
                 <SelectTrigger id="taxType" className="w-full">
                   <SelectValue placeholder="Select tax type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mode === "edit" && (
-                    <SelectItem value="__none__">(No change)</SelectItem>
-                  )}
-                  {TAX_TYPE_OPTIONS.map(opt => (
+                  {mode === 'edit' && <SelectItem value="__none__">(No change)</SelectItem>}
+                  {TAX_TYPE_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
@@ -356,16 +352,17 @@ export function ElecFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                 </SelectContent>
               </Select>
             </div>
-
           </form>
         </ScrollArea>
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" disabled={submitting}>Cancel</Button>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
           </DialogClose>
           <Button type="submit" form="elec-form" disabled={submitting}>
-            {submitting ? "Saving…" : mode === "add" ? "Create" : "Update"}
+            {submitting ? 'Saving…' : mode === 'add' ? 'Create' : 'Update'}
           </Button>
         </DialogFooter>
       </DialogContent>

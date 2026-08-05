@@ -1,10 +1,47 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useRef } from "react";
-import { Download, FileSpreadsheet, PlusIcon, Table2, Trash2, Trash2Icon, Upload } from "lucide-react";
-import useSWR from "swr";
+import {
+  Download,
+  FileSpreadsheet,
+  PlusIcon,
+  Table2,
+  Trash2,
+  Trash2Icon,
+  Upload,
+} from 'lucide-react';
+import {useState, useCallback, useRef} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import * as permissions from '@/lib/db/permissions';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -16,44 +53,7 @@ import type {
   ExpenseClassListResponse,
   OfficeCodeListResponse,
   ObrTemplateInfo,
-} from "@/lib/http/client/responses";
-import * as permissions from "@/lib/db/permissions";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/lib/http/client/responses';
 
 // --- Local types for create form ---
 
@@ -94,42 +94,42 @@ type CreateFormErrors = {
 function makeEmptyItem(): CreateFormItem {
   return {
     _key: crypto.randomUUID(),
-    expenseCodeId: "",
-    responsibilityCenterId: "",
-    particulars: "",
-    amount: "",
+    expenseCodeId: '',
+    responsibilityCenterId: '',
+    particulars: '',
+    amount: '',
   };
 }
 
 function makeEmptyForm(): CreateFormState {
   return {
-    requestNumber: "",
-    payee: "",
-    officeAddress: "",
-    obrNumber: "",
-    prNumber: "",
+    requestNumber: '',
+    payee: '',
+    officeAddress: '',
+    obrNumber: '',
+    prNumber: '',
     requestItems: [makeEmptyItem()],
   };
 }
 
 function makeEmptyErrors(): CreateFormErrors {
-  return { items: [] };
+  return {items: []};
 }
 
 // --- ApprovalStatusBadge ---
 
-function ApprovalStatusBadge({ status }: { status: string }) {
-  if (status === "approved") {
+function ApprovalStatusBadge({status}: {status: string}) {
+  if (status === 'approved') {
     return (
       <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
         Approved
       </Badge>
     );
   }
-  if (status === "binned") {
+  if (status === 'binned') {
     return <Badge variant="destructive">Binned</Badge>;
   }
-  if (status === "mixed") {
+  if (status === 'mixed') {
     return <Badge variant="secondary">Mixed</Badge>;
   }
   return (
@@ -140,21 +140,21 @@ function ApprovalStatusBadge({ status }: { status: string }) {
 }
 
 function formatTemplateDate(isoString: string): string {
-  return new Date(isoString).toLocaleString("en-PH", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Date(isoString).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
 function extractErrorMessage(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") return fallback;
+  if (!payload || typeof payload !== 'object') return fallback;
   const record = payload as Record<string, unknown>;
-  if (typeof record.details === "string") return record.details;
-  if (typeof record.message === "string") return record.message;
+  if (typeof record.details === 'string') return record.details;
+  if (typeof record.message === 'string') return record.message;
   return fallback;
 }
 
@@ -171,40 +171,46 @@ function HeaderTemplateSection({
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const runUpload = useCallback(async (file: File, mode: "upload" | "replace") => {
-    setSubmitting(true);
-    setActionError(null);
+  const runUpload = useCallback(
+    async (file: File, mode: 'upload' | 'replace') => {
+      setSubmitting(true);
+      setActionError(null);
 
-    const formData = new FormData();
-    formData.set("type", "header");
-    formData.set("file", file);
+      const formData = new FormData();
+      formData.set('type', 'header');
+      formData.set('file', file);
 
-    try {
-      const response = await fetch(apiPath, {
-        method: mode === "upload" ? "POST" : "PATCH",
-        body: formData,
-      });
+      try {
+        const response = await fetch(apiPath, {
+          method: mode === 'upload' ? 'POST' : 'PATCH',
+          body: formData,
+        });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        setActionError(extractErrorMessage(payload, `Failed to ${mode} template.`));
-        return;
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          setActionError(extractErrorMessage(payload, `Failed to ${mode} template.`));
+          return;
+        }
+
+        onMutate();
+      } catch {
+        setActionError('An unexpected error occurred. Please try again.');
+      } finally {
+        setSubmitting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
+    },
+    [apiPath, onMutate],
+  );
 
-      onMutate();
-    } catch {
-      setActionError("An unexpected error occurred. Please try again.");
-    } finally {
-      setSubmitting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }, [apiPath, onMutate]);
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    void runUpload(file, template ? "replace" : "upload");
-  }, [runUpload, template]);
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      void runUpload(file, template ? 'replace' : 'upload');
+    },
+    [runUpload, template],
+  );
 
   const handleRemove = useCallback(async () => {
     setSubmitting(true);
@@ -212,20 +218,20 @@ function HeaderTemplateSection({
 
     try {
       const response = await fetch(apiPath, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "header" }),
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: 'header'}),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(extractErrorMessage(payload, "Failed to remove template."));
+        setActionError(extractErrorMessage(payload, 'Failed to remove template.'));
         return;
       }
 
       onMutate();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -235,13 +241,17 @@ function HeaderTemplateSection({
     <div className="flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
-          <Typography variant="small" className="font-semibold">Header Template</Typography>
+          <Typography variant="small" className="font-semibold">
+            Header Template
+          </Typography>
           {template ? (
             <Typography variant="small" className="text-muted-foreground">
               Last updated {formatTemplateDate(template.updatedAt)}
             </Typography>
           ) : (
-            <Typography variant="small" className="text-muted-foreground">Not uploaded</Typography>
+            <Typography variant="small" className="text-muted-foreground">
+              Not uploaded
+            </Typography>
           )}
         </div>
         <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" />
@@ -299,7 +309,9 @@ function HeaderTemplateSection({
       </Typography>
 
       {actionError && (
-        <Typography variant="small" className="text-destructive">{actionError}</Typography>
+        <Typography variant="small" className="text-destructive">
+          {actionError}
+        </Typography>
       )}
     </div>
   );
@@ -319,9 +331,9 @@ function ObrExportDialog({
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<ObrTemplatesResponse, ApiResponseException>
-  >(open ? "/api/obr/templates" : null, $fetch);
+  >(open ? '/api/obr/templates' : null, $fetch);
 
   const templates = data?.data?.data;
 
@@ -332,17 +344,17 @@ function ObrExportDialog({
       const response = await fetch(`/api/obr/requests/${requestId}/export`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setExportError(extractErrorMessage(payload, "Export failed. Please try again."));
+        setExportError(extractErrorMessage(payload, 'Export failed. Please try again.'));
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
       const filename = filenameMatch?.[1] ?? `obr-request-${requestId}.xlsx`;
 
-      const anchor = document.createElement("a");
+      const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = filename;
       document.body.appendChild(anchor);
@@ -351,7 +363,7 @@ function ObrExportDialog({
       URL.revokeObjectURL(url);
       onOpenChange(false);
     } catch {
-      setExportError("An unexpected error occurred. Please try again.");
+      setExportError('An unexpected error occurred. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -369,7 +381,10 @@ function ObrExportDialog({
           </DialogHeader>
         </div>
 
-        <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3">
+        <Tabs
+          defaultValue="preview"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3"
+        >
           <TabsList className="flex-none mb-3 self-start">
             <TabsTrigger value="preview" className="text-xs gap-1.5">
               <Table2 className="size-3" />
@@ -380,7 +395,10 @@ function ObrExportDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="preview" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="preview"
+            className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+          >
             <ScrollArea className="h-0 min-h-0 flex-1">
               <div className="flex flex-col gap-4 pb-4 pr-4">
                 <div className="rounded-lg border p-4">
@@ -388,10 +406,20 @@ function ObrExportDialog({
                     Request {detail.requestNumber}
                   </Typography>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div><span className="text-muted-foreground">Payee:</span> {detail.payee}</div>
-                    <div><span className="text-muted-foreground">Office:</span> {detail.officeAddress}</div>
-                    <div><span className="text-muted-foreground">OBR No.:</span> {detail.obrNumber ?? "—"}</div>
-                    <div><span className="text-muted-foreground">PR No.:</span> {detail.prNumber ?? "—"}</div>
+                    <div>
+                      <span className="text-muted-foreground">Payee:</span> {detail.payee}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Office:</span> {detail.officeAddress}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">OBR No.:</span>{' '}
+                      {detail.obrNumber ?? '—'}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">PR No.:</span>{' '}
+                      {detail.prNumber ?? '—'}
+                    </div>
                   </div>
                 </div>
 
@@ -407,14 +435,14 @@ function ObrExportDialog({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detail.requestItems.map(item => (
+                      {detail.requestItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>{item.responsibilityCenter.name}</TableCell>
                           <TableCell>{item.particulars}</TableCell>
                           <TableCell>{item.expenseCode.name}</TableCell>
-                          <TableCell>{item.expenseCode.accountCode ?? "-"}</TableCell>
+                          <TableCell>{item.expenseCode.accountCode ?? '-'}</TableCell>
                           <TableCell className="text-right">
-                            {Number.parseFloat(item.amount).toLocaleString("en-PH", {
+                            {Number.parseFloat(item.amount).toLocaleString('en-PH', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
@@ -428,7 +456,10 @@ function ObrExportDialog({
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="header" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="header"
+            className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+          >
             {isLoading ? (
               <Loading />
             ) : error || data?.error ? (
@@ -452,16 +483,12 @@ function ObrExportDialog({
             </Typography>
           )}
           <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={exporting}
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" disabled={exporting} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button disabled={exporting} onClick={() => void handleExport()}>
               <Download className="size-3.5" />
-              {exporting ? "Exporting..." : "Export"}
+              {exporting ? 'Exporting...' : 'Export'}
             </Button>
           </DialogFooter>
         </div>
@@ -479,12 +506,12 @@ export default function Page() {
     isLoading: listLoading,
     mutate: mutateList,
   } = useSWR<BetterFetchResponse<ObrRequestSummaryListResponse, ApiResponseException>>(
-    "/api/obr/requests",
+    '/api/obr/requests',
     $fetch,
   );
 
-  const { data: userData } = useSWR<BetterFetchResponse<UserResponse, ApiResponseException>>(
-    "/api/account/me",
+  const {data: userData} = useSWR<BetterFetchResponse<UserResponse, ApiResponseException>>(
+    '/api/account/me',
     $fetch,
   );
 
@@ -549,7 +576,7 @@ export default function Page() {
                   <TableRow
                     key={req.id}
                     className={`cursor-pointer select-none ${
-                      index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""
+                      index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''
                     }`}
                     onClick={() => handleRowClick(req.id)}
                   >
@@ -570,11 +597,7 @@ export default function Page() {
       </div>
 
       {selectedId && (
-        <RequestDetailDialog
-          id={selectedId}
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-        />
+        <RequestDetailDialog id={selectedId} open={detailOpen} onOpenChange={setDetailOpen} />
       )}
 
       {canCreate && (
@@ -599,7 +622,7 @@ function RequestDetailDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data, error, isLoading } = useSWR<
+  const {data, error, isLoading} = useSWR<
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
   >(open ? `/api/obr/requests/${id}` : null, $fetch);
   const [exportOpen, setExportOpen] = useState(false);
@@ -609,21 +632,21 @@ function RequestDetailDialog({
   const formatAmount = (amount: string) => {
     const num = parseFloat(amount);
     if (isNaN(num)) return amount;
-    return `₱${num.toLocaleString("en-PH", {
+    return `₱${num.toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
   };
 
   const formatDate = (dateStr: Optional<string>) => {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleString("en-PH", {
-      timeZone: "Asia/Manila",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -647,7 +670,9 @@ function RequestDetailDialog({
                   <Typography variant="small" className="text-muted-foreground">
                     Request Number
                   </Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.requestNumber}</Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.requestNumber}
+                  </Typography>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Typography variant="small" className="text-muted-foreground">
@@ -661,20 +686,26 @@ function RequestDetailDialog({
                   <Typography variant="small" className="text-muted-foreground">
                     Payee
                   </Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.payee}</Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.payee}
+                  </Typography>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Typography variant="small" className="text-muted-foreground">
                     Office Address
                   </Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.officeAddress}</Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.officeAddress}
+                  </Typography>
                 </div>
                 {detail.obrNumber && (
                   <div className="flex flex-col gap-1">
                     <Typography variant="small" className="text-muted-foreground">
                       OBR Number
                     </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.obrNumber}</Typography>
+                    <Typography variant="p" className="not-first:mt-0">
+                      {detail.obrNumber}
+                    </Typography>
                   </div>
                 )}
                 {detail.prNumber && (
@@ -682,20 +713,26 @@ function RequestDetailDialog({
                     <Typography variant="small" className="text-muted-foreground">
                       PR Number
                     </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.prNumber}</Typography>
+                    <Typography variant="p" className="not-first:mt-0">
+                      {detail.prNumber}
+                    </Typography>
                   </div>
                 )}
                 <div className="flex flex-col gap-1">
                   <Typography variant="small" className="text-muted-foreground">
                     Originating Office
                   </Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.office.name}</Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.office.name}
+                  </Typography>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Typography variant="small" className="text-muted-foreground">
                     Published By
                   </Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.publisher.name}</Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.publisher.name}
+                  </Typography>
                 </div>
               </div>
 
@@ -720,7 +757,7 @@ function RequestDetailDialog({
                       <TableRow key={idx}>
                         <TableCell>{item.particulars}</TableCell>
                         <TableCell>{item.expenseCode.name}</TableCell>
-                        <TableCell>{item.expenseCode.accountCode ?? "—"}</TableCell>
+                        <TableCell>{item.expenseCode.accountCode ?? '—'}</TableCell>
                         <TableCell>{item.responsibilityCenter.name}</TableCell>
                         <TableCell className="text-right font-mono">
                           {formatAmount(item.amount)}
@@ -777,11 +814,7 @@ function RequestDetailDialog({
         </ScrollArea>
 
         <DialogFooter className="pt-4 justify-between">
-          <Button
-            variant="secondary"
-            onClick={() => setExportOpen(true)}
-            disabled={!detail}
-          >
+          <Button variant="secondary" onClick={() => setExportOpen(true)} disabled={!detail}>
             Export
           </Button>
           <DialogClose asChild>
@@ -813,13 +846,13 @@ function CreateRequestDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
-  const { data: expenseData } = useSWR<
+  const {data: expenseData} = useSWR<
     BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>
-  >(open ? "/api/management/data/expense-classes" : null, $fetch);
+  >(open ? '/api/management/data/expense-classes' : null, $fetch);
 
-  const { data: officeCodeData } = useSWR<
+  const {data: officeCodeData} = useSWR<
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
-  >(open ? "/api/management/data/office-codes" : null, $fetch);
+  >(open ? '/api/management/data/office-codes' : null, $fetch);
 
   const expenseClassList = expenseData?.data?.data ?? [];
   const officeCodeList = officeCodeData?.data?.data ?? [];
@@ -831,29 +864,22 @@ function CreateRequestDialog({
 
   const markDirty = () => setIsDirty(true);
 
-  const updateHeader = (
-    key: keyof Omit<CreateFormState, "requestItems">,
-    value: string,
-  ) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+  const updateHeader = (key: keyof Omit<CreateFormState, 'requestItems'>, value: string) => {
+    setForm((prev) => ({...prev, [key]: value}));
     markDirty();
   };
 
-  const updateItem = (
-    index: number,
-    key: keyof Omit<CreateFormItem, "_key">,
-    value: string,
-  ) => {
-    setForm(prev => {
+  const updateItem = (index: number, key: keyof Omit<CreateFormItem, '_key'>, value: string) => {
+    setForm((prev) => {
       const items = [...prev.requestItems];
-      items[index] = { ...items[index], [key]: value };
-      return { ...prev, requestItems: items };
+      items[index] = {...items[index], [key]: value};
+      return {...prev, requestItems: items};
     });
     markDirty();
   };
 
   const addItem = () => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       requestItems: [...prev.requestItems, makeEmptyItem()],
     }));
@@ -861,7 +887,7 @@ function CreateRequestDialog({
   };
 
   const removeItem = (index: number) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       requestItems: prev.requestItems.filter((_, i) => i !== index),
     }));
@@ -869,43 +895,43 @@ function CreateRequestDialog({
   };
 
   const validate = (): boolean => {
-    const errs: CreateFormErrors = { items: [] };
+    const errs: CreateFormErrors = {items: []};
     let valid = true;
 
     if (!form.requestNumber.trim()) {
-      errs.requestNumber = "Request number is required.";
+      errs.requestNumber = 'Request number is required.';
       valid = false;
     }
     if (!form.payee.trim()) {
-      errs.payee = "Payee is required.";
+      errs.payee = 'Payee is required.';
       valid = false;
     }
     if (!form.officeAddress.trim()) {
-      errs.officeAddress = "Office address is required.";
+      errs.officeAddress = 'Office address is required.';
       valid = false;
     }
     if (form.requestItems.length === 0) {
-      errs.requestItems = "At least one request item is required.";
+      errs.requestItems = 'At least one request item is required.';
       valid = false;
     }
 
     for (const item of form.requestItems) {
       const itemErr: ItemError = {};
       if (!item.expenseCodeId) {
-        itemErr.expenseCodeId = "Expense code is required.";
+        itemErr.expenseCodeId = 'Expense code is required.';
         valid = false;
       }
       if (!item.responsibilityCenterId) {
-        itemErr.responsibilityCenterId = "Responsibility center is required.";
+        itemErr.responsibilityCenterId = 'Responsibility center is required.';
         valid = false;
       }
       if (!item.particulars.trim()) {
-        itemErr.particulars = "Particulars is required.";
+        itemErr.particulars = 'Particulars is required.';
         valid = false;
       }
       const parsedAmount = parseFloat(item.amount);
       if (!item.amount.trim() || isNaN(parsedAmount) || parsedAmount <= 0) {
-        itemErr.amount = "A valid positive amount is required.";
+        itemErr.amount = 'A valid positive amount is required.';
         valid = false;
       }
       errs.items.push(itemErr);
@@ -917,7 +943,7 @@ function CreateRequestDialog({
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen && isDirty) {
-      if (!confirm("You have unsaved changes. Close anyway?")) return;
+      if (!confirm('You have unsaved changes. Close anyway?')) return;
     }
     if (!nextOpen) {
       setForm(makeEmptyForm());
@@ -936,9 +962,9 @@ function CreateRequestDialog({
       requestNumber: form.requestNumber.trim(),
       payee: form.payee.trim(),
       officeAddress: form.officeAddress.trim(),
-      ...(form.obrNumber.trim() ? { obrNumber: form.obrNumber.trim() } : {}),
-      ...(form.prNumber.trim() ? { prNumber: form.prNumber.trim() } : {}),
-      requestItems: form.requestItems.map(item => ({
+      ...(form.obrNumber.trim() ? {obrNumber: form.obrNumber.trim()} : {}),
+      ...(form.prNumber.trim() ? {prNumber: form.prNumber.trim()} : {}),
+      requestItems: form.requestItems.map((item) => ({
         expenseCodeId: item.expenseCodeId,
         responsibilityCenterId: item.responsibilityCenterId,
         particulars: item.particulars.trim(),
@@ -946,15 +972,15 @@ function CreateRequestDialog({
       })),
     };
 
-    const res = await $fetch<unknown, ApiResponseException>("/api/obr/requests", {
-      method: "POST",
+    const res = await $fetch<unknown, ApiResponseException>('/api/obr/requests', {
+      method: 'POST',
       body: payload,
     });
 
     setSubmitting(false);
 
     if (res.error) {
-      alert(res.error.message ?? "Failed to create OBR request. Please try again.");
+      alert(res.error.message ?? 'Failed to create OBR request. Please try again.');
       return;
     }
 
@@ -976,11 +1002,7 @@ function CreateRequestDialog({
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-y-auto pr-2">
-          <form
-            id="create-obr-form"
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-6 pb-2"
-          >
+          <form id="create-obr-form" onSubmit={handleSubmit} className="flex flex-col gap-6 pb-2">
             <div className="grid grid-cols-2 gap-4">
               <FieldGroup>
                 <Field>
@@ -990,7 +1012,7 @@ function CreateRequestDialog({
                   <Input
                     id="requestNumber"
                     value={form.requestNumber}
-                    onInput={e => updateHeader("requestNumber", e.currentTarget.value)}
+                    onInput={(e) => updateHeader('requestNumber', e.currentTarget.value)}
                     placeholder="Enter request number"
                     aria-invalid={!!errors.requestNumber}
                   />
@@ -1008,13 +1030,11 @@ function CreateRequestDialog({
                   <Input
                     id="payee"
                     value={form.payee}
-                    onInput={e => updateHeader("payee", e.currentTarget.value)}
+                    onInput={(e) => updateHeader('payee', e.currentTarget.value)}
                     placeholder="Enter payee name"
                     aria-invalid={!!errors.payee}
                   />
-                  {errors.payee && (
-                    <p className="text-sm text-destructive">{errors.payee}</p>
-                  )}
+                  {errors.payee && <p className="text-sm text-destructive">{errors.payee}</p>}
                 </Field>
               </FieldGroup>
 
@@ -1026,7 +1046,7 @@ function CreateRequestDialog({
                   <Input
                     id="officeAddress"
                     value={form.officeAddress}
-                    onInput={e => updateHeader("officeAddress", e.currentTarget.value)}
+                    onInput={(e) => updateHeader('officeAddress', e.currentTarget.value)}
                     placeholder="Enter office address"
                     aria-invalid={!!errors.officeAddress}
                   />
@@ -1039,13 +1059,12 @@ function CreateRequestDialog({
               <FieldGroup>
                 <Field>
                   <Label htmlFor="obrNumber">
-                    OBR Number{" "}
-                    <span className="text-muted-foreground text-xs">(optional)</span>
+                    OBR Number <span className="text-muted-foreground text-xs">(optional)</span>
                   </Label>
                   <Input
                     id="obrNumber"
                     value={form.obrNumber}
-                    onInput={e => updateHeader("obrNumber", e.currentTarget.value)}
+                    onInput={(e) => updateHeader('obrNumber', e.currentTarget.value)}
                     placeholder="Enter OBR number"
                   />
                 </Field>
@@ -1054,13 +1073,12 @@ function CreateRequestDialog({
               <FieldGroup>
                 <Field>
                   <Label htmlFor="prNumber">
-                    PR Number{" "}
-                    <span className="text-muted-foreground text-xs">(optional)</span>
+                    PR Number <span className="text-muted-foreground text-xs">(optional)</span>
                   </Label>
                   <Input
                     id="prNumber"
                     value={form.prNumber}
-                    onInput={e => updateHeader("prNumber", e.currentTarget.value)}
+                    onInput={(e) => updateHeader('prNumber', e.currentTarget.value)}
                     placeholder="Enter PR number"
                   />
                 </Field>
@@ -1084,14 +1102,9 @@ function CreateRequestDialog({
 
               {form.requestItems.map((item, idx) => {
                 const itemErr = errors.items[idx] ?? {};
-                const selectedExpense = expenseClassList.find(
-                  ec => ec.id === item.expenseCodeId,
-                );
+                const selectedExpense = expenseClassList.find((ec) => ec.id === item.expenseCodeId);
                 return (
-                  <div
-                    key={item._key}
-                    className="rounded-md border p-4 flex flex-col gap-3"
-                  >
+                  <div key={item._key} className="rounded-md border p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <Typography variant="small" className="font-medium">
                         Item {idx + 1}
@@ -1118,7 +1131,7 @@ function CreateRequestDialog({
                           </Label>
                           <Select
                             value={item.expenseCodeId}
-                            onValueChange={val => updateItem(idx, "expenseCodeId", val)}
+                            onValueChange={(val) => updateItem(idx, 'expenseCodeId', val)}
                           >
                             <SelectTrigger
                               className="w-full"
@@ -1127,18 +1140,16 @@ function CreateRequestDialog({
                               <SelectValue placeholder="Select expense code" />
                             </SelectTrigger>
                             <SelectContent>
-                              {expenseClassList.map(ec => (
+                              {expenseClassList.map((ec) => (
                                 <SelectItem key={ec.id} value={ec.id}>
                                   {ec.accountName}
-                                  {ec.accountCode ? ` (${ec.accountCode})` : ""}
+                                  {ec.accountCode ? ` (${ec.accountCode})` : ''}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                           {itemErr.expenseCodeId && (
-                            <p className="text-sm text-destructive">
-                              {itemErr.expenseCodeId}
-                            </p>
+                            <p className="text-sm text-destructive">{itemErr.expenseCodeId}</p>
                           )}
                         </Field>
                       </FieldGroup>
@@ -1147,7 +1158,7 @@ function CreateRequestDialog({
                         <Field>
                           <Label>Account Code</Label>
                           <Input
-                            value={selectedExpense?.accountCode ?? "—"}
+                            value={selectedExpense?.accountCode ?? '—'}
                             readOnly
                             className="bg-muted cursor-not-allowed"
                           />
@@ -1157,14 +1168,11 @@ function CreateRequestDialog({
                       <FieldGroup className="col-span-2">
                         <Field>
                           <Label>
-                            Responsibility Center{" "}
-                            <span className="text-destructive">*</span>
+                            Responsibility Center <span className="text-destructive">*</span>
                           </Label>
                           <Select
                             value={item.responsibilityCenterId}
-                            onValueChange={val =>
-                              updateItem(idx, "responsibilityCenterId", val)
-                            }
+                            onValueChange={(val) => updateItem(idx, 'responsibilityCenterId', val)}
                           >
                             <SelectTrigger
                               className="w-full"
@@ -1173,7 +1181,7 @@ function CreateRequestDialog({
                               <SelectValue placeholder="Select responsibility center" />
                             </SelectTrigger>
                             <SelectContent>
-                              {officeCodeList.map(oc => (
+                              {officeCodeList.map((oc) => (
                                 <SelectItem key={oc.id} value={oc.id}>
                                   {oc.aa} — {oc.office.name}
                                 </SelectItem>
@@ -1195,16 +1203,12 @@ function CreateRequestDialog({
                           </Label>
                           <Input
                             value={item.particulars}
-                            onInput={e =>
-                              updateItem(idx, "particulars", e.currentTarget.value)
-                            }
+                            onInput={(e) => updateItem(idx, 'particulars', e.currentTarget.value)}
                             placeholder="Describe the item"
                             aria-invalid={!!itemErr.particulars}
                           />
                           {itemErr.particulars && (
-                            <p className="text-sm text-destructive">
-                              {itemErr.particulars}
-                            </p>
+                            <p className="text-sm text-destructive">{itemErr.particulars}</p>
                           )}
                         </Field>
                       </FieldGroup>
@@ -1216,9 +1220,7 @@ function CreateRequestDialog({
                           </Label>
                           <Input
                             value={item.amount}
-                            onInput={e =>
-                              updateItem(idx, "amount", e.currentTarget.value)
-                            }
+                            onInput={(e) => updateItem(idx, 'amount', e.currentTarget.value)}
                             placeholder="0.00"
                             inputMode="decimal"
                             aria-invalid={!!itemErr.amount}
@@ -1246,7 +1248,7 @@ function CreateRequestDialog({
             Cancel
           </Button>
           <Button type="submit" form="create-obr-form" disabled={submitting}>
-            {submitting ? "Creating..." : "Create Request"}
+            {submitting ? 'Creating...' : 'Create Request'}
           </Button>
         </DialogFooter>
       </DialogContent>

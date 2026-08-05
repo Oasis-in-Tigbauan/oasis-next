@@ -1,17 +1,10 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { Repeat } from "lucide-react";
+import {Repeat} from 'lucide-react';
+import {useMemo, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  AipReferenceResponse,
-  AipReferenceSingleResponse,
-  ApiResponseException,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -20,13 +13,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  AipReferenceResponse,
+  AipReferenceSingleResponse,
+  ApiResponseException,
+} from '@/lib/http/client/responses';
 
-type EntryType = "group" | "item";
+type EntryType = 'group' | 'item';
 
 type AipFormState = {
   aipReferenceCode: string;
@@ -51,24 +50,24 @@ type AipFormState = {
 
 function makeEmptyForm(): AipFormState {
   return {
-    aipReferenceCode: "",
-    description: "",
-    implementationStart: "",
-    implementationCompletion: "",
-    sector: "",
-    code: "",
-    office: "",
-    implementingOffice: "",
-    expectedOutputs: "",
-    fundingSource: "",
-    amountPS: "",
-    amountMOOE: "",
-    amountCO: "",
-    amountCCAdapt: "",
-    amountCCMitigate: "",
-    ccTopologyCode: "",
+    aipReferenceCode: '',
+    description: '',
+    implementationStart: '',
+    implementationCompletion: '',
+    sector: '',
+    code: '',
+    office: '',
+    implementingOffice: '',
+    expectedOutputs: '',
+    fundingSource: '',
+    amountPS: '',
+    amountMOOE: '',
+    amountCO: '',
+    amountCCAdapt: '',
+    amountCCMitigate: '',
+    ccTopologyCode: '',
     gadable: false,
-    gadAmount: "",
+    gadAmount: '',
   };
 }
 
@@ -76,22 +75,22 @@ function makeEditForm(item: AipReferenceResponse): AipFormState {
   return {
     aipReferenceCode: item.aipReferenceCode,
     description: item.description,
-    implementationStart: item.implementationStart?.toString() ?? "",
-    implementationCompletion: item.implementationCompletion?.toString() ?? "",
-    sector: item.sector ?? "",
-    code: item.code ?? "",
-    office: item.office ?? "",
-    implementingOffice: item.implementingOffice ?? "",
-    expectedOutputs: item.expectedOutputs ?? "",
-    fundingSource: item.fundingSource ?? "",
-    amountPS: item.amountPS ?? "",
-    amountMOOE: item.amountMOOE ?? "",
-    amountCO: item.amountCO ?? "",
-    amountCCAdapt: item.amountCCAdapt ?? "",
-    amountCCMitigate: item.amountCCMitigate ?? "",
-    ccTopologyCode: item.ccTopologyCode ?? "",
+    implementationStart: item.implementationStart?.toString() ?? '',
+    implementationCompletion: item.implementationCompletion?.toString() ?? '',
+    sector: item.sector ?? '',
+    code: item.code ?? '',
+    office: item.office ?? '',
+    implementingOffice: item.implementingOffice ?? '',
+    expectedOutputs: item.expectedOutputs ?? '',
+    fundingSource: item.fundingSource ?? '',
+    amountPS: item.amountPS ?? '',
+    amountMOOE: item.amountMOOE ?? '',
+    amountCO: item.amountCO ?? '',
+    amountCCAdapt: item.amountCCAdapt ?? '',
+    amountCCMitigate: item.amountCCMitigate ?? '',
+    ccTopologyCode: item.ccTopologyCode ?? '',
     gadable: item.gadable,
-    gadAmount: item.gadAmount ?? "",
+    gadAmount: item.gadAmount ?? '',
   };
 }
 
@@ -108,7 +107,7 @@ function putIfNotEmpty(target: Record<string, unknown>, key: string, value: stri
 }
 
 type Props = {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   entryType: EntryType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -128,26 +127,24 @@ export function AipFormDialog({
   editItem,
   parentGroupId,
 }: Props) {
-  const initialForm = mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm();
-  const [form, setForm] = useState<AipFormState>(() =>
-    initialForm,
-  );
+  const initialForm = mode === 'edit' && editItem ? makeEditForm(editItem) : makeEmptyForm();
+  const [form, setForm] = useState<AipFormState>(() => initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [converting, setConverting] = useState(false);
 
-  const currentType: EntryType = mode === "edit" ? editItem?.type ?? entryType : entryType;
+  const currentType: EntryType = mode === 'edit' ? (editItem?.type ?? entryType) : entryType;
 
   const isValid = useMemo(() => {
     if (!form.aipReferenceCode.trim() || !form.description.trim()) {
       return false;
     }
 
-    if (currentType === "item") {
+    if (currentType === 'item') {
       if (!asMonth(form.implementationStart) || !asMonth(form.implementationCompletion)) {
         return false;
       }
 
-      if (mode === "add" && !parentGroupId) {
+      if (mode === 'add' && !parentGroupId) {
         return false;
       }
     }
@@ -156,13 +153,13 @@ export function AipFormDialog({
   }, [form, currentType, mode, parentGroupId]);
 
   const update = (key: keyof AipFormState, value: string | boolean) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({...prev, [key]: value}));
   };
 
   const handleConvert = async () => {
-    if (mode !== "edit" || !editItem || !onConvert) return;
+    if (mode !== 'edit' || !editItem || !onConvert) return;
 
-    const targetType: EntryType = editItem.type === "group" ? "item" : "group";
+    const targetType: EntryType = editItem.type === 'group' ? 'item' : 'group';
     const confirmed = confirm(
       `Convert this ${editItem.type} to ${targetType}? This requires confirmation and keeps shared fields when possible.`,
     );
@@ -186,16 +183,17 @@ export function AipFormDialog({
     const implementationStart = asMonth(form.implementationStart);
     const implementationCompletion = asMonth(form.implementationCompletion);
 
-    if (currentType === "item") {
+    if (currentType === 'item') {
       payload.implementationStart = implementationStart;
       payload.implementationCompletion = implementationCompletion;
     } else {
       if (implementationStart !== undefined) payload.implementationStart = implementationStart;
-      if (implementationCompletion !== undefined) payload.implementationCompletion = implementationCompletion;
+      if (implementationCompletion !== undefined)
+        payload.implementationCompletion = implementationCompletion;
     }
 
-    if (mode === "add") {
-      if (currentType === "group") {
+    if (mode === 'add') {
+      if (currentType === 'group') {
         if (parentGroupId) {
           payload.parentId = parentGroupId;
         }
@@ -204,45 +202,45 @@ export function AipFormDialog({
       }
     }
 
-    putIfNotEmpty(payload, "sector", form.sector);
-    putIfNotEmpty(payload, "code", form.code);
-    putIfNotEmpty(payload, "office", form.office);
-    putIfNotEmpty(payload, "implementingOffice", form.implementingOffice);
-    putIfNotEmpty(payload, "expectedOutputs", form.expectedOutputs);
-    putIfNotEmpty(payload, "fundingSource", form.fundingSource);
-    putIfNotEmpty(payload, "amountPS", form.amountPS);
-    putIfNotEmpty(payload, "amountMOOE", form.amountMOOE);
-    putIfNotEmpty(payload, "amountCO", form.amountCO);
-    putIfNotEmpty(payload, "amountCCAdapt", form.amountCCAdapt);
-    putIfNotEmpty(payload, "amountCCMitigate", form.amountCCMitigate);
-    putIfNotEmpty(payload, "ccTopologyCode", form.ccTopologyCode);
-    putIfNotEmpty(payload, "gadAmount", form.gadAmount);
+    putIfNotEmpty(payload, 'sector', form.sector);
+    putIfNotEmpty(payload, 'code', form.code);
+    putIfNotEmpty(payload, 'office', form.office);
+    putIfNotEmpty(payload, 'implementingOffice', form.implementingOffice);
+    putIfNotEmpty(payload, 'expectedOutputs', form.expectedOutputs);
+    putIfNotEmpty(payload, 'fundingSource', form.fundingSource);
+    putIfNotEmpty(payload, 'amountPS', form.amountPS);
+    putIfNotEmpty(payload, 'amountMOOE', form.amountMOOE);
+    putIfNotEmpty(payload, 'amountCO', form.amountCO);
+    putIfNotEmpty(payload, 'amountCCAdapt', form.amountCCAdapt);
+    putIfNotEmpty(payload, 'amountCCMitigate', form.amountCCMitigate);
+    putIfNotEmpty(payload, 'ccTopologyCode', form.ccTopologyCode);
+    putIfNotEmpty(payload, 'gadAmount', form.gadAmount);
 
     setSubmitting(true);
 
-    const base = currentType === "group" ? "/api/aip/groups" : "/api/aip/items";
-    const url = mode === "add" ? base : `${base}/${editItem!.id}`;
+    const base = currentType === 'group' ? '/api/aip/groups' : '/api/aip/items';
+    const url = mode === 'add' ? base : `${base}/${editItem!.id}`;
 
     const response = await $fetch<AipReferenceSingleResponse, ApiResponseException>(url, {
-      method: mode === "add" ? "POST" : "PATCH",
+      method: mode === 'add' ? 'POST' : 'PATCH',
       body: payload,
     });
 
     setSubmitting(false);
 
     if (response.error) {
-      alert(response.error.message ?? "Failed to save AIP reference. Please try again.");
+      alert(response.error.message ?? 'Failed to save AIP reference. Please try again.');
       return;
     }
 
     const saved = response.data?.data;
     if (!saved) {
-      alert("Failed to read saved AIP reference.");
+      alert('Failed to read saved AIP reference.');
       return;
     }
 
     onSuccess(saved);
-    if (mode === "add") {
+    if (mode === 'add') {
       setForm(makeEmptyForm());
     }
     onOpenChange(false);
@@ -253,14 +251,14 @@ export function AipFormDialog({
       <DialogContent className="min-w-[80%] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            {mode === "add"
-              ? `Add ${currentType === "group" ? "Group" : "Item"}`
-              : `Edit ${currentType === "group" ? "Group" : "Item"}`}
+            {mode === 'add'
+              ? `Add ${currentType === 'group' ? 'Group' : 'Item'}`
+              : `Edit ${currentType === 'group' ? 'Group' : 'Item'}`}
           </DialogTitle>
           <DialogDescription>
-            {currentType === "group"
-              ? "Groups can be root or nested under another group."
-              : "Items are created under a selected group in this UI."}
+            {currentType === 'group'
+              ? 'Groups can be root or nested under another group.'
+              : 'Items are created under a selected group in this UI.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -274,14 +272,15 @@ export function AipFormDialog({
                 <Input
                   id="aipReferenceCode"
                   value={form.aipReferenceCode}
-                  onInput={e => update("aipReferenceCode", e.currentTarget.value)}
+                  onInput={(e) => update('aipReferenceCode', e.currentTarget.value)}
                   placeholder="Enter AIP reference code"
                   required
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="implementationStart">
-                  Implementation Start{currentType === "item" ? <span className="text-destructive"> *</span> : null}
+                  Implementation Start
+                  {currentType === 'item' ? <span className="text-destructive"> *</span> : null}
                 </Label>
                 <Input
                   id="implementationStart"
@@ -289,14 +288,15 @@ export function AipFormDialog({
                   min={1}
                   max={12}
                   value={form.implementationStart}
-                  onInput={e => update("implementationStart", e.currentTarget.value)}
+                  onInput={(e) => update('implementationStart', e.currentTarget.value)}
                   placeholder="1-12"
-                  required={currentType === "item"}
+                  required={currentType === 'item'}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="implementationCompletion">
-                  Implementation Completion{currentType === "item" ? <span className="text-destructive"> *</span> : null}
+                  Implementation Completion
+                  {currentType === 'item' ? <span className="text-destructive"> *</span> : null}
                 </Label>
                 <Input
                   id="implementationCompletion"
@@ -304,9 +304,9 @@ export function AipFormDialog({
                   min={1}
                   max={12}
                   value={form.implementationCompletion}
-                  onInput={e => update("implementationCompletion", e.currentTarget.value)}
+                  onInput={(e) => update('implementationCompletion', e.currentTarget.value)}
                   placeholder="1-12"
-                  required={currentType === "item"}
+                  required={currentType === 'item'}
                 />
               </div>
 
@@ -317,7 +317,7 @@ export function AipFormDialog({
                 <Textarea
                   id="description"
                   value={form.description}
-                  onInput={e => update("description", e.currentTarget.value)}
+                  onInput={(e) => update('description', e.currentTarget.value)}
                   placeholder="Enter description"
                   rows={3}
                   required
@@ -329,7 +329,7 @@ export function AipFormDialog({
                 <Input
                   id="sector"
                   value={form.sector}
-                  onInput={e => update("sector", e.currentTarget.value)}
+                  onInput={(e) => update('sector', e.currentTarget.value)}
                   placeholder="Enter sector"
                 />
               </div>
@@ -338,7 +338,7 @@ export function AipFormDialog({
                 <Input
                   id="code"
                   value={form.code}
-                  onInput={e => update("code", e.currentTarget.value)}
+                  onInput={(e) => update('code', e.currentTarget.value)}
                   placeholder="Enter code"
                 />
               </div>
@@ -347,7 +347,7 @@ export function AipFormDialog({
                 <Input
                   id="office"
                   value={form.office}
-                  onInput={e => update("office", e.currentTarget.value)}
+                  onInput={(e) => update('office', e.currentTarget.value)}
                   placeholder="Enter office"
                 />
               </div>
@@ -357,7 +357,7 @@ export function AipFormDialog({
                 <Input
                   id="implementingOffice"
                   value={form.implementingOffice}
-                  onInput={e => update("implementingOffice", e.currentTarget.value)}
+                  onInput={(e) => update('implementingOffice', e.currentTarget.value)}
                   placeholder="Enter implementing office"
                 />
               </div>
@@ -366,7 +366,7 @@ export function AipFormDialog({
                 <Input
                   id="fundingSource"
                   value={form.fundingSource}
-                  onInput={e => update("fundingSource", e.currentTarget.value)}
+                  onInput={(e) => update('fundingSource', e.currentTarget.value)}
                   placeholder="Enter funding source"
                 />
               </div>
@@ -375,7 +375,7 @@ export function AipFormDialog({
                 <Input
                   id="ccTopologyCode"
                   value={form.ccTopologyCode}
-                  onInput={e => update("ccTopologyCode", e.currentTarget.value)}
+                  onInput={(e) => update('ccTopologyCode', e.currentTarget.value)}
                   placeholder="Enter CC topology code"
                 />
               </div>
@@ -385,7 +385,7 @@ export function AipFormDialog({
                 <Textarea
                   id="expectedOutputs"
                   value={form.expectedOutputs}
-                  onInput={e => update("expectedOutputs", e.currentTarget.value)}
+                  onInput={(e) => update('expectedOutputs', e.currentTarget.value)}
                   placeholder="Enter expected outputs"
                   rows={3}
                 />
@@ -396,7 +396,7 @@ export function AipFormDialog({
                 <Input
                   id="amountPS"
                   value={form.amountPS}
-                  onInput={e => update("amountPS", e.currentTarget.value)}
+                  onInput={(e) => update('amountPS', e.currentTarget.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -405,7 +405,7 @@ export function AipFormDialog({
                 <Input
                   id="amountMOOE"
                   value={form.amountMOOE}
-                  onInput={e => update("amountMOOE", e.currentTarget.value)}
+                  onInput={(e) => update('amountMOOE', e.currentTarget.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -414,7 +414,7 @@ export function AipFormDialog({
                 <Input
                   id="amountCO"
                   value={form.amountCO}
-                  onInput={e => update("amountCO", e.currentTarget.value)}
+                  onInput={(e) => update('amountCO', e.currentTarget.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -423,7 +423,7 @@ export function AipFormDialog({
                 <Input
                   id="amountCCAdapt"
                   value={form.amountCCAdapt}
-                  onInput={e => update("amountCCAdapt", e.currentTarget.value)}
+                  onInput={(e) => update('amountCCAdapt', e.currentTarget.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -432,7 +432,7 @@ export function AipFormDialog({
                 <Input
                   id="amountCCMitigate"
                   value={form.amountCCMitigate}
-                  onInput={e => update("amountCCMitigate", e.currentTarget.value)}
+                  onInput={(e) => update('amountCCMitigate', e.currentTarget.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -441,7 +441,7 @@ export function AipFormDialog({
                 <Input
                   id="gadAmount"
                   value={form.gadAmount}
-                  onInput={e => update("gadAmount", e.currentTarget.value)}
+                  onInput={(e) => update('gadAmount', e.currentTarget.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -450,7 +450,7 @@ export function AipFormDialog({
                 <Checkbox
                   id="gadable"
                   checked={form.gadable}
-                  onCheckedChange={checked => update("gadable", checked === true)}
+                  onCheckedChange={(checked) => update('gadable', checked === true)}
                 />
                 <Label htmlFor="gadable">GAD-able</Label>
               </div>
@@ -460,15 +460,19 @@ export function AipFormDialog({
 
         <DialogFooter className="justify-between sm:justify-between">
           <div>
-            {mode === "edit" && editItem && onConvert && (
+            {mode === 'edit' && editItem && onConvert && (
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
                 onClick={handleConvert}
                 disabled={converting || submitting}
-                title={editItem.type === "group" ? "Convert group to item" : "Convert item to group"}
-                aria-label={editItem.type === "group" ? "Convert group to item" : "Convert item to group"}
+                title={
+                  editItem.type === 'group' ? 'Convert group to item' : 'Convert item to group'
+                }
+                aria-label={
+                  editItem.type === 'group' ? 'Convert group to item' : 'Convert item to group'
+                }
               >
                 <Repeat />
               </Button>
@@ -476,10 +480,12 @@ export function AipFormDialog({
           </div>
           <div className="flex gap-2">
             <DialogClose asChild>
-              <Button variant="outline" disabled={submitting || converting}>Cancel</Button>
+              <Button variant="outline" disabled={submitting || converting}>
+                Cancel
+              </Button>
             </DialogClose>
             <Button type="submit" form="aip-form" disabled={!isValid || submitting || converting}>
-              {submitting ? "Saving..." : mode === "add" ? "Create" : "Update"}
+              {submitting ? 'Saving...' : mode === 'add' ? 'Create' : 'Update'}
             </Button>
           </div>
         </DialogFooter>

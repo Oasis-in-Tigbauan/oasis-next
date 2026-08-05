@@ -1,10 +1,10 @@
-import { desc, eq, inArray } from "drizzle-orm";
-import { DateTime } from "luxon";
-import { toWords } from "to-words";
+import {desc, eq, inArray} from 'drizzle-orm';
+import {DateTime} from 'luxon';
+import {toWords} from 'to-words';
 
-import { type User } from "@/lib/accounts";
-import { db } from "@/lib/db";
-import * as permissions from "@/lib/db/permissions";
+import {type User} from '@/lib/accounts';
+import {db} from '@/lib/db';
+import * as permissions from '@/lib/db/permissions';
 import {
   aipReferences,
   expenseClasses,
@@ -15,9 +15,9 @@ import {
   purchasing,
   purchasingAip,
   user,
-} from "@/lib/db/schema";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import * as casts from "@/lib/types/casts";
+} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
 
 /**
  * Creates purchase-request rows for the requesting office actor.
@@ -38,19 +38,17 @@ export async function createPurchaseRequest(
 ): Promise<Result<PurchaseRequestItem[]>> {
   try {
     if (payload.items.length === 0) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "At least one purchase item is required.",
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'At least one purchase item is required.', {
+        payload,
+        userId: actor.id,
+      });
     }
 
     if (payload.aip.length === 0) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "At least one AIP reference is required.",
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'At least one AIP reference is required.', {
+        payload,
+        userId: actor.id,
+      });
     }
 
     const signatoryError = await _validateSignatories(
@@ -60,27 +58,24 @@ export async function createPurchaseRequest(
       actor.office.id,
     );
     if (signatoryError) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        signatoryError,
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, signatoryError, {payload, userId: actor.id});
     }
 
-    const aipData = await _resolveAipData(payload.aip.map(a => a.id));
+    const aipData = await _resolveAipData(payload.aip.map((a) => a.id));
     if (!aipData) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "Some AIP references cannot be resolved.",
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'Some AIP references cannot be resolved.', {
+        payload,
+        userId: actor.id,
+      });
     }
 
-    const signatoryIds = Array.from(new Set([
-      payload.signatories.headOfOfficeId,
-      payload.signatories.treasurerId,
-      payload.signatories.approverId,
-    ]));
+    const signatoryIds = Array.from(
+      new Set([
+        payload.signatories.headOfOfficeId,
+        payload.signatories.treasurerId,
+        payload.signatories.approverId,
+      ]),
+    );
 
     const signatoryRows = await db
       .select({
@@ -93,60 +88,62 @@ export async function createPurchaseRequest(
       .where(inArray(user.id, signatoryIds));
 
     if (signatoryRows.length !== signatoryIds.length) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "Some signatories cannot be resolved.",
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'Some signatories cannot be resolved.', {
+        payload,
+        userId: actor.id,
+      });
     }
 
-    const signatoryMap = new Map(signatoryRows.map(s => [s.id, s]));
+    const signatoryMap = new Map(signatoryRows.map((s) => [s.id, s]));
     const headOfOffice = signatoryMap.get(payload.signatories.headOfOfficeId);
     if (!headOfOffice) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "Invalid head of office signatory.",
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid head of office signatory.', {
+        payload,
+        userId: actor.id,
+      });
     }
 
-    const insertedIds = await db.transaction(async tx => {
+    const insertedIds = await db.transaction(async (tx) => {
       const insertedRows = await tx
         .insert(purchasing)
-        .values(payload.items.map(item => ({
-          prNumber: payload.prNumber,
-          unit: item.unit,
-          itemDescription: item.description,
-          quantity: casts.castToDecimal(item.quantity),
-          unitCost: casts.castToDecimal(item.unitCost),
-          purpose: payload.purpose,
-          headOfOfficeId: payload.signatories.headOfOfficeId,
-          headOfOfficeName: headOfOffice.name,
-          headOfOfficePosition: headOfOffice.position,
-          treasurerId: payload.signatories.treasurerId,
-          approverId: payload.signatories.approverId,
-          requestingOfficeId: actor.office.id,
-          requestingUserId: actor.id,
-        })))
-        .returning({ id: purchasing.id });
+        .values(
+          payload.items.map((item) => ({
+            prNumber: payload.prNumber,
+            unit: item.unit,
+            itemDescription: item.description,
+            quantity: casts.castToDecimal(item.quantity),
+            unitCost: casts.castToDecimal(item.unitCost),
+            purpose: payload.purpose,
+            headOfOfficeId: payload.signatories.headOfOfficeId,
+            headOfOfficeName: headOfOffice.name,
+            headOfOfficePosition: headOfOffice.position,
+            treasurerId: payload.signatories.treasurerId,
+            approverId: payload.signatories.approverId,
+            requestingOfficeId: actor.office.id,
+            requestingUserId: actor.id,
+          })),
+        )
+        .returning({id: purchasing.id});
 
-      const aipInsertRows = insertedRows.flatMap(inserted => payload.aip.map(entry => {
-        const resolved = aipData.get(entry.id)!;
+      const aipInsertRows = insertedRows.flatMap((inserted) =>
+        payload.aip.map((entry) => {
+          const resolved = aipData.get(entry.id)!;
 
-        return {
-          purchasingId: inserted.id,
-          lbacReferenceId: entry.id,
-          aipCode: resolved.aipCode,
-          ppa: resolved.ppa,
-          sourceOfFund: resolved.sourceOfFund,
-        };
-      }));
+          return {
+            purchasingId: inserted.id,
+            lbacReferenceId: entry.id,
+            aipCode: resolved.aipCode,
+            ppa: resolved.ppa,
+            sourceOfFund: resolved.sourceOfFund,
+          };
+        }),
+      );
 
       if (aipInsertRows.length > 0) {
         await tx.insert(purchasingAip).values(aipInsertRows);
       }
 
-      return insertedRows.map(row => row.id);
+      return insertedRows.map((row) => row.id);
     });
 
     const items = await _fetchPurchaseRequestItemBatch(insertedIds, actor.office.name);
@@ -154,8 +151,8 @@ export async function createPurchaseRequest(
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to create purchase request.",
-      { payload, userId: actor.id },
+      'Unable to create purchase request.',
+      {payload, userId: actor.id},
       e,
     );
   }
@@ -182,8 +179,8 @@ export async function createPurchaseOrder(
     if (payload.items.length === 0) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "At least one purchase request item is required.",
-        { payload, userId: actor.id },
+        'At least one purchase request item is required.',
+        {payload, userId: actor.id},
       );
     }
 
@@ -202,45 +199,43 @@ export async function createPurchaseOrder(
     if (targetRows.length !== uniqueIds.length) {
       return new Failure(
         ErrorCodes.ResourceNotFound,
-        "Some purchase request items were not found.",
-        { payload, userId: actor.id },
+        'Some purchase request items were not found.',
+        {payload, userId: actor.id},
       );
     }
 
-    if (targetRows.some(row => row.requestingOfficeId !== actor.office.id)) {
+    if (targetRows.some((row) => row.requestingOfficeId !== actor.office.id)) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
-        "Cannot create purchase order for another office.",
-        { payload, userId: actor.id },
+        'Cannot create purchase order for another office.',
+        {payload, userId: actor.id},
       );
     }
 
-    if (targetRows.some(row => row.purchaseOrderNumber?.trim())) {
+    if (targetRows.some((row) => row.purchaseOrderNumber?.trim())) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "One or more selected items already have a purchase order assigned.",
-        { payload, userId: actor.id },
+        'One or more selected items already have a purchase order assigned.',
+        {payload, userId: actor.id},
       );
     }
 
-    const normalizedProcurementId = typeof payload.modeOfProcurementId === "string"
-      ? payload.modeOfProcurementId.trim()
-      : "";
+    const normalizedProcurementId =
+      typeof payload.modeOfProcurementId === 'string' ? payload.modeOfProcurementId.trim() : '';
 
     let procurementId: string | null = null;
     if (normalizedProcurementId) {
       const [procurement] = await db
-        .select({ id: modeOfProcurements.id })
+        .select({id: modeOfProcurements.id})
         .from(modeOfProcurements)
         .where(eq(modeOfProcurements.id, normalizedProcurementId))
         .limit(1);
 
       if (!procurement) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "Invalid mode of procurement.",
-          { payload, userId: actor.id },
-        );
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid mode of procurement.', {
+          payload,
+          userId: actor.id,
+        });
       }
 
       procurementId = normalizedProcurementId;
@@ -251,14 +246,13 @@ export async function createPurchaseOrder(
       : null;
 
     if (payload.dateOfDelivery && !dateOfDelivery) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "Invalid delivery date.",
-        { payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid delivery date.', {
+        payload,
+        userId: actor.id,
+      });
     }
 
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
       await tx
         .update(purchasing)
         .set({
@@ -280,8 +274,8 @@ export async function createPurchaseOrder(
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to create purchase order.",
-      { payload, userId: actor.id },
+      'Unable to create purchase order.',
+      {payload, userId: actor.id},
       e,
     );
   }
@@ -317,18 +311,18 @@ export async function updateRequest(
       .limit(1);
 
     if (!existing) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such purchase request item found.",
-        { id, payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such purchase request item found.', {
+        id,
+        payload,
+        userId: actor.id,
+      });
     }
 
     if (existing.requestingOfficeId !== actor.office.id) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
-        "Cannot update a purchase request from another office.",
-        { id, payload, userId: actor.id },
+        'Cannot update a purchase request from another office.',
+        {id, payload, userId: actor.id},
       );
     }
 
@@ -371,25 +365,24 @@ export async function updateRequest(
     }
 
     if (payload.modeOfProcurementId !== undefined) {
-      const normalizedProcurementId = typeof payload.modeOfProcurementId === "string"
-        ? payload.modeOfProcurementId.trim()
-        : "";
+      const normalizedProcurementId =
+        typeof payload.modeOfProcurementId === 'string' ? payload.modeOfProcurementId.trim() : '';
 
       if (!normalizedProcurementId) {
         updateSet.procurementId = null;
       } else {
         const [procurement] = await db
-          .select({ id: modeOfProcurements.id })
+          .select({id: modeOfProcurements.id})
           .from(modeOfProcurements)
           .where(eq(modeOfProcurements.id, normalizedProcurementId))
           .limit(1);
 
         if (!procurement) {
-          return new Failure(
-            ErrorCodes.ValidationFailure,
-            "Invalid mode of procurement.",
-            { id, payload, userId: actor.id },
-          );
+          return new Failure(ErrorCodes.ValidationFailure, 'Invalid mode of procurement.', {
+            id,
+            payload,
+            userId: actor.id,
+          });
         }
 
         updateSet.procurementId = normalizedProcurementId;
@@ -403,11 +396,11 @@ export async function updateRequest(
     if (payload.dateOfDelivery !== undefined) {
       const parsedDate = _parseDateFromManilaToUtc(payload.dateOfDelivery);
       if (!parsedDate) {
-        return new Failure(
-          ErrorCodes.ValidationFailure,
-          "Invalid delivery date.",
-          { id, payload, userId: actor.id },
-        );
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid delivery date.', {
+          id,
+          payload,
+          userId: actor.id,
+        });
       }
 
       updateSet.dateOfDelivery = parsedDate;
@@ -421,39 +414,33 @@ export async function updateRequest(
       updateSet.paymentTerm = payload.paymentTerm;
     }
 
-    const hasAipPayload = Object.prototype.hasOwnProperty.call(payload, "aip");
+    const hasAipPayload = Object.prototype.hasOwnProperty.call(payload, 'aip');
     const aipPayload = payload.aip ?? [];
 
     let aipData: Map<string, ResolvedAipData> | null = null;
     if (hasAipPayload) {
-      aipData = await _resolveAipData(aipPayload.map(a => a.id));
+      aipData = await _resolveAipData(aipPayload.map((a) => a.id));
       if (!aipData) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "Some AIP references cannot be resolved.",
-          { id, payload, userId: actor.id },
+          'Some AIP references cannot be resolved.',
+          {id, payload, userId: actor.id},
         );
       }
     }
 
     if (Object.keys(updateSet).length > 0 || hasAipPayload) {
-      await db.transaction(async tx => {
+      await db.transaction(async (tx) => {
         if (Object.keys(updateSet).length > 0) {
-          await tx
-            .update(purchasing)
-            .set(updateSet)
-            .where(eq(purchasing.id, id));
+          await tx.update(purchasing).set(updateSet).where(eq(purchasing.id, id));
         }
 
         if (hasAipPayload) {
-          await tx
-            .delete(purchasingAip)
-            .where(eq(purchasingAip.purchasingId, id));
+          await tx.delete(purchasingAip).where(eq(purchasingAip.purchasingId, id));
 
           if (aipPayload.length > 0) {
-            await tx
-              .insert(purchasingAip)
-              .values(aipPayload.map(entry => {
+            await tx.insert(purchasingAip).values(
+              aipPayload.map((entry) => {
                 const resolved = aipData!.get(entry.id)!;
 
                 return {
@@ -463,7 +450,8 @@ export async function updateRequest(
                   ppa: resolved.ppa,
                   sourceOfFund: resolved.sourceOfFund,
                 };
-              }));
+              }),
+            );
           }
         }
       });
@@ -471,19 +459,19 @@ export async function updateRequest(
 
     const [item] = await _fetchPurchaseRequestItemBatch([id], actor.office.name);
     if (!item) {
-      return new Failure(
-        ErrorCodes.Fatal,
-        "Failed to retrieve updated purchase request item.",
-        { id, payload, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve updated purchase request item.', {
+        id,
+        payload,
+        userId: actor.id,
+      });
     }
 
     return new Success(item);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to update purchase request.",
-      { id, payload, userId: actor.id },
+      'Unable to update purchase request.',
+      {id, payload, userId: actor.id},
       e,
     );
   }
@@ -500,18 +488,21 @@ export async function updateRequest(
 export async function getPurchaseRequests(actor: User): Promise<Result<PurchaseRequestItem[]>> {
   try {
     const rows = await db
-      .select({ id: purchasing.id })
+      .select({id: purchasing.id})
       .from(purchasing)
       .where(eq(purchasing.requestingOfficeId, actor.office.id))
       .orderBy(desc(purchasing.createdAt), desc(purchasing.id));
 
-    const items = await _fetchPurchaseRequestItemBatch(rows.map(row => row.id), actor.office.name);
+    const items = await _fetchPurchaseRequestItemBatch(
+      rows.map((row) => row.id),
+      actor.office.name,
+    );
     return new Success(items);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to fetch purchase requests.",
-      { userId: actor.id },
+      'Unable to fetch purchase requests.',
+      {userId: actor.id},
       e,
     );
   }
@@ -531,7 +522,9 @@ export async function getPurchaseRequests(actor: User): Promise<Result<PurchaseR
  * @param {User} actor - Authenticated actor requesting valid signatories.
  * @returns {Promise<Result<PurchasingSignatoriesResponse>>} Signatories grouped by role.
  */
-export async function getValidSignatories(actor: User): Promise<Result<PurchasingSignatoriesResponse>> {
+export async function getValidSignatories(
+  actor: User,
+): Promise<Result<PurchasingSignatoriesResponse>> {
   try {
     const positions = await db
       .select({
@@ -543,29 +536,28 @@ export async function getValidSignatories(actor: User): Promise<Result<Purchasin
       .from(officePosition);
 
     const headPositionIds = positions
-      .filter(position =>
-        position.officeId === actor.office.id
-          && position.permissions.includes(permissions.OFFICE_HEAD),
+      .filter(
+        (position) =>
+          position.officeId === actor.office.id &&
+          position.permissions.includes(permissions.OFFICE_HEAD),
       )
-      .map(position => position.id);
+      .map((position) => position.id);
 
     const treasurerPositionIds = positions
-      .filter(position =>
+      .filter((position) =>
         position.permissions.includes(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE),
       )
-      .map(position => position.id);
+      .map((position) => position.id);
 
     const mayorPositionIds = positions
-      .filter(position =>
+      .filter((position) =>
         position.permissions.includes(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE),
       )
-      .map(position => position.id);
+      .map((position) => position.id);
 
-    const allPositionIds = Array.from(new Set([
-      ...headPositionIds,
-      ...treasurerPositionIds,
-      ...mayorPositionIds,
-    ]));
+    const allPositionIds = Array.from(
+      new Set([...headPositionIds, ...treasurerPositionIds, ...mayorPositionIds]),
+    );
 
     if (allPositionIds.length === 0) {
       return new Success({
@@ -615,7 +607,7 @@ export async function getValidSignatories(actor: User): Promise<Result<Purchasin
     }
 
     const byName = (a: PurchasingSignatory, b: PurchasingSignatory) =>
-      a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+      a.name.localeCompare(b.name, 'en', {sensitivity: 'base'});
 
     heads.sort(byName);
     treasurers.sort(byName);
@@ -629,8 +621,8 @@ export async function getValidSignatories(actor: User): Promise<Result<Purchasin
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to fetch valid purchasing signatories.",
-      { userId: actor.id },
+      'Unable to fetch valid purchasing signatories.',
+      {userId: actor.id},
       e,
     );
   }
@@ -657,31 +649,28 @@ export async function deletePurchaseRequest(id: string, actor: User): Promise<Re
       .limit(1);
 
     if (!existing) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such purchase request item found.",
-        { id, userId: actor.id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such purchase request item found.', {
+        id,
+        userId: actor.id,
+      });
     }
 
     if (existing.requestingOfficeId !== actor.office.id) {
       return new Failure(
         ErrorCodes.InsufficientPermissions,
-        "Cannot delete a purchase request from another office.",
-        { id, userId: actor.id },
+        'Cannot delete a purchase request from another office.',
+        {id, userId: actor.id},
       );
     }
 
-    await db
-      .delete(purchasing)
-      .where(eq(purchasing.id, id));
+    await db.delete(purchasing).where(eq(purchasing.id, id));
 
     return new Success(null);
   } catch (e) {
     return new Failure(
       ErrorCodes.Fatal,
-      "Unable to delete purchase request.",
-      { id, userId: actor.id },
+      'Unable to delete purchase request.',
+      {id, userId: actor.id},
       e,
     );
   }
@@ -691,7 +680,7 @@ export async function exportPurchaseRequestToBuffer(
   options: ExportPurchaseOptions,
 ): Promise<Result<Buffer>> {
   try {
-    const { Workbook } = await import("@cj-tech-master/excelts");
+    const {Workbook} = await import('@cj-tech-master/excelts');
 
     const [sourceItem] = await db
       .select({
@@ -703,25 +692,22 @@ export async function exportPurchaseRequestToBuffer(
       .limit(1);
 
     if (!sourceItem) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Purchase request item not found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'Purchase request item not found.');
     }
 
     const allIds = await db
-      .select({ id: purchasing.id })
+      .select({id: purchasing.id})
       .from(purchasing)
       .where(eq(purchasing.prNumber, sourceItem.prNumber))
       .orderBy(purchasing.createdAt);
 
     if (allIds.length === 0) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No purchase request items found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'No purchase request items found.');
     }
 
-    const ids = allIds.map(r => r.id);
+    const ids = allIds.map((r) => r.id);
 
-    const rows = await db
-      .select()
-      .from(purchasing)
-      .where(inArray(purchasing.id, ids));
+    const rows = await db.select().from(purchasing).where(inArray(purchasing.id, ids));
 
     const aipRows = await db
       .select()
@@ -729,35 +715,41 @@ export async function exportPurchaseRequestToBuffer(
       .where(inArray(purchasingAip.purchasingId, ids));
 
     const [officeRow] = await db
-      .select({ name: office.name })
+      .select({name: office.name})
       .from(office)
       .where(eq(office.id, sourceItem.requestingOfficeId))
       .limit(1);
 
-    const userIds = Array.from(new Set(
-      rows.flatMap(r => [r.requestingUserId, r.treasurerId, r.approverId, r.headOfOfficeId]),
-    ));
+    const userIds = Array.from(
+      new Set(
+        rows.flatMap((r) => [r.requestingUserId, r.treasurerId, r.approverId, r.headOfOfficeId]),
+      ),
+    );
 
-    const userRows = userIds.length > 0
-      ? await db
-        .select({
-          id: user.id,
-          name: user.name,
-          position: officePosition.name,
-        })
-        .from(user)
-        .leftJoin(officePosition, eq(user.officePositionId, officePosition.id))
-        .where(inArray(user.id, userIds))
-      : [];
+    const userRows =
+      userIds.length > 0
+        ? await db
+            .select({
+              id: user.id,
+              name: user.name,
+              position: officePosition.name,
+            })
+            .from(user)
+            .leftJoin(officePosition, eq(user.officePositionId, officePosition.id))
+            .where(inArray(user.id, userIds))
+        : [];
 
-    const userMap = new Map(userRows.map(u => [u.id, u]));
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
 
-    const aipMap = new Map<string, Array<{
-      aipCode: string;
-      ppa: string;
-      sourceOfFund: string | null;
-      amountCharged: string | null;
-    }>>();
+    const aipMap = new Map<
+      string,
+      Array<{
+        aipCode: string;
+        ppa: string;
+        sourceOfFund: string | null;
+        amountCharged: string | null;
+      }>
+    >();
     for (const ar of aipRows) {
       if (!aipMap.has(ar.purchasingId)) {
         aipMap.set(ar.purchasingId, []);
@@ -772,12 +764,12 @@ export async function exportPurchaseRequestToBuffer(
 
     const first = rows[0];
     const firstAip = aipMap.get(first.id) ?? [];
-    const aipCode = firstAip[0]?.aipCode ?? "";
-    const ppa = firstAip[0]?.ppa ?? "";
+    const aipCode = firstAip[0]?.aipCode ?? '';
+    const ppa = firstAip[0]?.ppa ?? '';
 
     const resolveSignatory = (userId: string): ExportSignatory => {
       const u = userMap.get(userId);
-      return { name: u?.name ?? "Unknown", title: u?.position ?? "" };
+      return {name: u?.name ?? 'Unknown', title: u?.position ?? ''};
     };
 
     const requestedBy = resolveSignatory(first.headOfOfficeId);
@@ -788,24 +780,17 @@ export async function exportPurchaseRequestToBuffer(
       id: idx + 1,
       unit: row.unit,
       description: row.itemDescription,
-      quantity: row.quantity === null ? "" : Number(row.quantity),
-      unitCost: row.unitCost === null ? "" : Number(row.unitCost),
+      quantity: row.quantity === null ? '' : Number(row.quantity),
+      unitCost: row.unitCost === null ? '' : Number(row.unitCost),
     }));
 
     const wb = new Workbook();
-    const ws = wb.addWorksheet("Purchase Request", { views: [{ showGridLines: true }] });
+    const ws = wb.addWorksheet('Purchase Request', {views: [{showGridLines: true}]});
 
-    ws.columns = [
-      { width: 10 },
-      { width: 12 },
-      { width: 42 },
-      { width: 12 },
-      { width: 14 },
-      { width: 16 },
-    ];
+    ws.columns = [{width: 10}, {width: 12}, {width: 42}, {width: 12}, {width: 14}, {width: 16}];
 
-    const thinSide = { style: "thin" as const, color: { argb: "000000" } };
-    const thinBorder = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
+    const thinSide = {style: 'thin' as const, color: {argb: '000000'}};
+    const thinBorder = {top: thinSide, bottom: thinSide, left: thinSide, right: thinSide};
 
     const applyBorders = (startRow: number, endRow: number, startCol: number, endCol: number) => {
       for (let r = startRow; r <= endRow; r++) {
@@ -815,55 +800,55 @@ export async function exportPurchaseRequestToBuffer(
       }
     };
 
-    ws.mergeCells("A2:F2");
-    const titleCell = ws.getCell("A2");
-    titleCell.value = "PURCHASE REQUEST";
-    titleCell.font = { name: "Arial", size: 18, bold: true };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells('A2:F2');
+    const titleCell = ws.getCell('A2');
+    titleCell.value = 'PURCHASE REQUEST';
+    titleCell.font = {name: 'Arial', size: 18, bold: true};
+    titleCell.alignment = {horizontal: 'center', vertical: 'middle'};
     ws.getRow(2).height = 32;
 
-    ws.getCell("A4").value = "LGU:   MUNICIPAL GOVERNMENT OF TIGBAUAN";
-    ws.getCell("A4").font = { name: "Arial", size: 11, bold: true };
+    ws.getCell('A4').value = 'LGU:   MUNICIPAL GOVERNMENT OF TIGBAUAN';
+    ws.getCell('A4').font = {name: 'Arial', size: 11, bold: true};
 
-    ws.getCell("E4").value = "Fund:";
-    ws.getCell("E4").font = { name: "Arial", size: 11 };
-    ws.getCell("E4").alignment = { horizontal: "right" };
-    ws.getCell("F4").value = firstAip[0]?.sourceOfFund ?? "";
-    ws.getCell("F4").font = { name: "Arial", size: 11, bold: true, underline: true };
+    ws.getCell('E4').value = 'Fund:';
+    ws.getCell('E4').font = {name: 'Arial', size: 11};
+    ws.getCell('E4').alignment = {horizontal: 'right'};
+    ws.getCell('F4').value = firstAip[0]?.sourceOfFund ?? '';
+    ws.getCell('F4').font = {name: 'Arial', size: 11, bold: true, underline: true};
 
     applyBorders(5, 6, 1, 3);
     applyBorders(5, 6, 4, 5);
     applyBorders(5, 6, 6, 6);
 
-    ws.mergeCells("A5:C5");
-    ws.getCell("A5").value = `Department:  ${officeRow?.name ?? ""}`;
-    ws.getCell("A5").font = { name: "Arial", size: 10 };
+    ws.mergeCells('A5:C5');
+    ws.getCell('A5').value = `Department:  ${officeRow?.name ?? ''}`;
+    ws.getCell('A5').font = {name: 'Arial', size: 10};
 
-    ws.mergeCells("A6:C6");
-    ws.getCell("A6").value = `Section:       ${""}`;
-    ws.getCell("A6").font = { name: "Arial", size: 10 };
+    ws.mergeCells('A6:C6');
+    ws.getCell('A6').value = `Section:       ${''}`;
+    ws.getCell('A6').font = {name: 'Arial', size: 10};
 
-    ws.getCell("D5").value = "PR No.";
-    ws.getCell("D5").font = { name: "Arial", size: 10 };
-    ws.getCell("E5").value = first.prNumber ?? "";
-    ws.getCell("E5").font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFF0000" } };
+    ws.getCell('D5').value = 'PR No.';
+    ws.getCell('D5').font = {name: 'Arial', size: 10};
+    ws.getCell('E5').value = first.prNumber ?? '';
+    ws.getCell('E5').font = {name: 'Arial', size: 10, bold: true, color: {argb: 'FFFF0000'}};
 
-    ws.mergeCells("D6:E6");
-    ws.getCell("D6").value = `FPP: ${""}`;
-    ws.getCell("D6").font = { name: "Arial", size: 10 };
+    ws.mergeCells('D6:E6');
+    ws.getCell('D6').value = `FPP: ${''}`;
+    ws.getCell('D6').font = {name: 'Arial', size: 10};
 
-    ws.getCell("F5").value = "Date:";
-    ws.getCell("F5").font = { name: "Arial", size: 10 };
+    ws.getCell('F5').value = 'Date:';
+    ws.getCell('F5').font = {name: 'Arial', size: 10};
 
-    const headers = ["Item No.", "Unit", "Item Description", "Quantity", "Unit Cost", "Total Cost"];
+    const headers = ['Item No.', 'Unit', 'Item Description', 'Quantity', 'Unit Cost', 'Total Cost'];
     const headerRow = ws.getRow(8);
     headerRow.height = 22;
     headers.forEach((h, i) => {
       const cell = headerRow.getCell(i + 1);
       cell.value = h;
-      cell.font = { name: "Arial", size: 10, bold: true };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
+      cell.font = {name: 'Arial', size: 10, bold: true};
+      cell.alignment = {horizontal: 'center', vertical: 'middle'};
+      cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF2CC'}};
       cell.border = thinBorder;
     });
 
@@ -873,80 +858,80 @@ export async function exportPurchaseRequestToBuffer(
       const row = ws.getRow(currentLine);
       row.height = 20;
       row.getCell(1).value = item.id;
-      row.getCell(1).alignment = { horizontal: "center" };
+      row.getCell(1).alignment = {horizontal: 'center'};
       row.getCell(2).value = item.unit;
-      row.getCell(2).alignment = { horizontal: "center" };
+      row.getCell(2).alignment = {horizontal: 'center'};
       row.getCell(3).value = item.description;
-      row.getCell(3).alignment = { horizontal: "left" };
+      row.getCell(3).alignment = {horizontal: 'left'};
       row.getCell(4).value = item.quantity;
-      row.getCell(4).alignment = { horizontal: "center" };
+      row.getCell(4).alignment = {horizontal: 'center'};
       row.getCell(5).value = item.unitCost;
-      row.getCell(5).numFmt = "#,##0.00";
-      row.getCell(5).alignment = { horizontal: "right" };
-      if (typeof item.quantity === "number" && typeof item.unitCost === "number") {
+      row.getCell(5).numFmt = '#,##0.00';
+      row.getCell(5).alignment = {horizontal: 'right'};
+      if (typeof item.quantity === 'number' && typeof item.unitCost === 'number') {
         const itemTotal = item.quantity * item.unitCost;
         grandTotal += itemTotal;
-        row.getCell(6).value = { formula: `D${currentLine}*E${currentLine}`, result: itemTotal };
+        row.getCell(6).value = {formula: `D${currentLine}*E${currentLine}`, result: itemTotal};
       } else {
-        row.getCell(6).value = "-";
+        row.getCell(6).value = '-';
       }
-      row.getCell(6).numFmt = "#,##0.00";
-      row.getCell(6).alignment = { horizontal: "right" };
+      row.getCell(6).numFmt = '#,##0.00';
+      row.getCell(6).alignment = {horizontal: 'right'};
       for (let c = 1; c <= 6; c++) {
         row.getCell(c).border = thinBorder;
-        row.getCell(c).font = { name: "Arial", size: 10 };
+        row.getCell(c).font = {name: 'Arial', size: 10};
       }
       currentLine++;
     }
 
     const totalRow = ws.getRow(currentLine);
     ws.mergeCells(`A${currentLine}:E${currentLine}`);
-    totalRow.getCell(1).value = "TOTAL-------";
-    totalRow.getCell(1).font = { name: "Arial", size: 10, bold: true };
-    totalRow.getCell(1).alignment = { horizontal: "right" };
-    totalRow.getCell(6).value = { formula: `SUM(F9:F${currentLine - 1})`, result: grandTotal };
-    totalRow.getCell(6).font = { name: "Arial", size: 10, bold: true };
-    totalRow.getCell(6).numFmt = "#,##0.00";
-    totalRow.getCell(6).alignment = { horizontal: "right" };
+    totalRow.getCell(1).value = 'TOTAL-------';
+    totalRow.getCell(1).font = {name: 'Arial', size: 10, bold: true};
+    totalRow.getCell(1).alignment = {horizontal: 'right'};
+    totalRow.getCell(6).value = {formula: `SUM(F9:F${currentLine - 1})`, result: grandTotal};
+    totalRow.getCell(6).font = {name: 'Arial', size: 10, bold: true};
+    totalRow.getCell(6).numFmt = '#,##0.00';
+    totalRow.getCell(6).alignment = {horizontal: 'right'};
     applyBorders(currentLine, currentLine, 1, 6);
     currentLine++;
 
     ws.mergeCells(`A${currentLine}:A${currentLine + 2}`);
-    ws.getCell(`A${currentLine}`).value = "Purpose:";
-    ws.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
-    ws.getCell(`A${currentLine}`).alignment = { vertical: "top" };
+    ws.getCell(`A${currentLine}`).value = 'Purpose:';
+    ws.getCell(`A${currentLine}`).font = {name: 'Arial', size: 10};
+    ws.getCell(`A${currentLine}`).alignment = {vertical: 'top'};
     ws.mergeCells(`B${currentLine}:F${currentLine + 2}`);
-    ws.getCell(`B${currentLine}`).value = first.purpose ?? "";
-    ws.getCell(`B${currentLine}`).font = { name: "Arial", size: 10 };
-    ws.getCell(`B${currentLine}`).alignment = { vertical: "top", wrapText: true };
+    ws.getCell(`B${currentLine}`).value = first.purpose ?? '';
+    ws.getCell(`B${currentLine}`).font = {name: 'Arial', size: 10};
+    ws.getCell(`B${currentLine}`).alignment = {vertical: 'top', wrapText: true};
     applyBorders(currentLine, currentLine + 2, 1, 6);
     currentLine += 3;
 
-    ws.getCell(`A${currentLine}`).value = "AIP/PPA:";
-    ws.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
+    ws.getCell(`A${currentLine}`).value = 'AIP/PPA:';
+    ws.getCell(`A${currentLine}`).font = {name: 'Arial', size: 10};
     ws.mergeCells(`B${currentLine}:F${currentLine}`);
     ws.getCell(`B${currentLine}`).value = `${ppa}          ${aipCode}`;
-    ws.getCell(`B${currentLine}`).font = { name: "Arial", size: 9 };
+    ws.getCell(`B${currentLine}`).font = {name: 'Arial', size: 9};
     applyBorders(currentLine, currentLine, 1, 6);
     currentLine++;
 
-    ws.getCell(`A${currentLine}`).value = "Charges:";
-    ws.getCell(`A${currentLine}`).font = { name: "Arial", size: 10 };
+    ws.getCell(`A${currentLine}`).value = 'Charges:';
+    ws.getCell(`A${currentLine}`).font = {name: 'Arial', size: 10};
     ws.mergeCells(`B${currentLine}:F${currentLine + 1}`);
-    ws.getCell(`B${currentLine}`).value = `${firstAip[0]?.sourceOfFund ?? ""}\n${aipCode}`;
-    ws.getCell(`B${currentLine}`).font = { name: "Arial", size: 9 };
-    ws.getCell(`B${currentLine}`).alignment = { wrapText: true, vertical: "top" };
+    ws.getCell(`B${currentLine}`).value = `${firstAip[0]?.sourceOfFund ?? ''}\n${aipCode}`;
+    ws.getCell(`B${currentLine}`).font = {name: 'Arial', size: 9};
+    ws.getCell(`B${currentLine}`).alignment = {wrapText: true, vertical: 'top'};
     applyBorders(currentLine, currentLine + 1, 1, 6);
     currentLine += 2;
 
     ws.mergeCells(`A${currentLine}:B${currentLine}`);
-    ws.getCell(`A${currentLine}`).value = "Requested by:";
+    ws.getCell(`A${currentLine}`).value = 'Requested by:';
     ws.mergeCells(`C${currentLine}:D${currentLine}`);
-    ws.getCell(`C${currentLine}`).value = "Cash Availability:";
+    ws.getCell(`C${currentLine}`).value = 'Cash Availability:';
     ws.mergeCells(`E${currentLine}:F${currentLine}`);
-    ws.getCell(`E${currentLine}`).value = "Approved by:";
+    ws.getCell(`E${currentLine}`).value = 'Approved by:';
     for (let col = 1; col <= 6; col++) {
-      ws.getCell(currentLine, col).font = { name: "Arial", size: 10, bold: true };
+      ws.getCell(currentLine, col).font = {name: 'Arial', size: 10, bold: true};
       ws.getCell(currentLine, col).border = {
         top: thinSide,
         left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
@@ -971,8 +956,8 @@ export async function exportPurchaseRequestToBuffer(
     ws.mergeCells(`E${currentLine}:F${currentLine}`);
     ws.getCell(`E${currentLine}`).value = approvedByUser.name;
     for (let col = 1; col <= 6; col++) {
-      ws.getCell(currentLine, col).font = { name: "Arial", size: 10, bold: true };
-      ws.getCell(currentLine, col).alignment = { horizontal: "center" };
+      ws.getCell(currentLine, col).font = {name: 'Arial', size: 10, bold: true};
+      ws.getCell(currentLine, col).alignment = {horizontal: 'center'};
       ws.getCell(currentLine, col).border = {
         left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
         right: col === 2 || col === 4 || col === 6 ? thinSide : undefined,
@@ -988,8 +973,12 @@ export async function exportPurchaseRequestToBuffer(
     ws.mergeCells(`E${currentLine}:F${currentLine}`);
     ws.getCell(`E${currentLine}`).value = approvedByUser.title;
     for (let col = 1; col <= 6; col++) {
-      ws.getCell(currentLine, col).font = { name: "Arial", size: 9 };
-      ws.getCell(currentLine, col).alignment = { horizontal: "center", wrapText: true, vertical: "middle" };
+      ws.getCell(currentLine, col).font = {name: 'Arial', size: 9};
+      ws.getCell(currentLine, col).alignment = {
+        horizontal: 'center',
+        wrapText: true,
+        vertical: 'middle',
+      };
       ws.getCell(currentLine, col).border = {
         bottom: thinSide,
         left: col === 1 || col === 3 || col === 5 ? thinSide : undefined,
@@ -1001,7 +990,7 @@ export async function exportPurchaseRequestToBuffer(
     if (rawBuffer instanceof Buffer) return new Success(rawBuffer);
     return new Success(Buffer.from(rawBuffer as unknown as Uint8Array));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export purchase request.", {}, e as Error);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export purchase request.', {}, e as Error);
   }
 }
 
@@ -1009,7 +998,7 @@ export async function exportPurchaseOrderToBuffer(
   options: ExportPurchaseOptions,
 ): Promise<Result<Buffer>> {
   try {
-    const { Workbook } = await import("@cj-tech-master/excelts");
+    const {Workbook} = await import('@cj-tech-master/excelts');
 
     const [sourceItem] = await db
       .select({
@@ -1021,68 +1010,58 @@ export async function exportPurchaseOrderToBuffer(
       .limit(1);
 
     if (!sourceItem) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Purchase order item not found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'Purchase order item not found.');
     }
 
     if (!sourceItem.purchaseOrderNumber) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Purchase order has not been created for this item.",
+        'Purchase order has not been created for this item.',
       );
     }
 
     const allIds = await db
-      .select({ id: purchasing.id })
+      .select({id: purchasing.id})
       .from(purchasing)
       .where(eq(purchasing.purchaseOrderNumber, sourceItem.purchaseOrderNumber))
       .orderBy(purchasing.createdAt);
 
     if (allIds.length === 0) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No purchase order items found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'No purchase order items found.');
     }
 
-    const ids = allIds.map(r => r.id);
+    const ids = allIds.map((r) => r.id);
 
-    const rows = await db
-      .select()
-      .from(purchasing)
-      .where(inArray(purchasing.id, ids));
+    const rows = await db.select().from(purchasing).where(inArray(purchasing.id, ids));
 
     const first = rows[0];
-    const prNumbers = Array.from(new Set(rows.map(row => row.prNumber))).join(", ");
+    const prNumbers = Array.from(new Set(rows.map((row) => row.prNumber))).join(', ');
 
     const items: ExportItem[] = rows.map((row, idx) => ({
       id: idx + 1,
       unit: row.unit,
       description: row.itemDescription,
-      quantity: row.quantity === null ? "" : Number(row.quantity),
-      unitCost: row.unitCost === null ? "" : Number(row.unitCost),
+      quantity: row.quantity === null ? '' : Number(row.quantity),
+      unitCost: row.unitCost === null ? '' : Number(row.unitCost),
     }));
 
-    let modeOfProcurement = "";
+    let modeOfProcurement = '';
     if (first.procurementId) {
       const [procRow] = await db
-        .select({ name: modeOfProcurements.name })
+        .select({name: modeOfProcurements.name})
         .from(modeOfProcurements)
         .where(eq(modeOfProcurements.id, first.procurementId))
         .limit(1);
-      modeOfProcurement = procRow?.name ?? "";
+      modeOfProcurement = procRow?.name ?? '';
     }
 
     const wb = new Workbook();
-    const ws = wb.addWorksheet("Purchase Order", { views: [{ showGridLines: true }] });
+    const ws = wb.addWorksheet('Purchase Order', {views: [{showGridLines: true}]});
 
-    ws.columns = [
-      { width: 10 },
-      { width: 12 },
-      { width: 42 },
-      { width: 12 },
-      { width: 14 },
-      { width: 16 },
-    ];
+    ws.columns = [{width: 10}, {width: 12}, {width: 42}, {width: 12}, {width: 14}, {width: 16}];
 
-    const thinSide = { style: "thin" as const, color: { argb: "000000" } };
-    const thinBorder = { top: thinSide, bottom: thinSide, left: thinSide, right: thinSide };
+    const thinSide = {style: 'thin' as const, color: {argb: '000000'}};
+    const thinBorder = {top: thinSide, bottom: thinSide, left: thinSide, right: thinSide};
 
     const applyBorders = (startRow: number, endRow: number, startCol: number, endCol: number) => {
       for (let r = startRow; r <= endRow; r++) {
@@ -1094,29 +1073,29 @@ export async function exportPurchaseOrderToBuffer(
 
     const formatDate = (d: Date | null | undefined): string =>
       d
-        ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
-        : "";
+        ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+        : '';
 
     // ── Title section ──────────────────────────────────────────────────────
-    ws.mergeCells("A2:F2");
-    const titleCell = ws.getCell("A2");
-    titleCell.value = "PURCHASE ORDER";
-    titleCell.font = { name: "Arial", size: 18, bold: true };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells('A2:F2');
+    const titleCell = ws.getCell('A2');
+    titleCell.value = 'PURCHASE ORDER';
+    titleCell.font = {name: 'Arial', size: 18, bold: true};
+    titleCell.alignment = {horizontal: 'center', vertical: 'middle'};
     ws.getRow(2).height = 32;
 
-    ws.mergeCells("A3:F3");
-    const subCell = ws.getCell("A3");
-    subCell.value = "Municipal Government of Tigbauan";
-    subCell.font = { name: "Arial", size: 13, bold: true };
-    subCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells('A3:F3');
+    const subCell = ws.getCell('A3');
+    subCell.value = 'Municipal Government of Tigbauan';
+    subCell.font = {name: 'Arial', size: 13, bold: true};
+    subCell.alignment = {horizontal: 'center', vertical: 'middle'};
     ws.getRow(3).height = 24;
 
-    ws.mergeCells("A4:F4");
-    const lguCell = ws.getCell("A4");
-    lguCell.value = "LGU";
-    lguCell.font = { name: "Arial", size: 11, bold: true };
-    lguCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells('A4:F4');
+    const lguCell = ws.getCell('A4');
+    lguCell.value = 'LGU';
+    lguCell.font = {name: 'Arial', size: 11, bold: true};
+    lguCell.alignment = {horizontal: 'center', vertical: 'middle'};
     ws.getRow(4).height = 20;
 
     // ── Separator ──────────────────────────────────────────────────────────
@@ -1125,18 +1104,18 @@ export async function exportPurchaseOrderToBuffer(
     // ── Supplier / PO details (rows 6-8) ───────────────────────────────────
     const poDateStr = formatDate(first.createdAt);
 
-    type FieldRow = { label: string; value: string; bold?: boolean; red?: boolean };
+    type FieldRow = {label: string; value: string; bold?: boolean; red?: boolean};
     const leftFields: FieldRow[] = [
-      { label: "Supplier:", value: first.supplier ?? "" },
-      { label: "Address:", value: first.address ?? "" },
-      { label: "TIN:", value: first.tinNumber ?? "" },
-      { label: "", value: "" },
+      {label: 'Supplier:', value: first.supplier ?? ''},
+      {label: 'Address:', value: first.address ?? ''},
+      {label: 'TIN:', value: first.tinNumber ?? ''},
+      {label: '', value: ''},
     ];
     const rightFields: FieldRow[] = [
-      { label: "PO No.:", value: first.purchaseOrderNumber ?? "", bold: true, red: true },
-      { label: "Date:", value: poDateStr },
-      { label: "Mode of Procurement:", value: modeOfProcurement },
-      { label: "PR No./s:", value: prNumbers, bold: true, red: true },
+      {label: 'PO No.:', value: first.purchaseOrderNumber ?? '', bold: true, red: true},
+      {label: 'Date:', value: poDateStr},
+      {label: 'Mode of Procurement:', value: modeOfProcurement},
+      {label: 'PR No./s:', value: prNumbers, bold: true, red: true},
     ];
 
     for (let i = 0; i < 4; i++) {
@@ -1145,21 +1124,21 @@ export async function exportPurchaseOrderToBuffer(
 
       // Left side: label in col A, value merged B:C
       ws.getCell(r, 1).value = leftFields[i].label;
-      ws.getCell(r, 1).font = { name: "Arial", size: 10, bold: true };
+      ws.getCell(r, 1).font = {name: 'Arial', size: 10, bold: true};
       ws.mergeCells(`B${r}:C${r}`);
       ws.getCell(r, 2).value = leftFields[i].value;
-      ws.getCell(r, 2).font = { name: "Arial", size: 10 };
+      ws.getCell(r, 2).font = {name: 'Arial', size: 10};
 
       // Right side: label in col D, value merged E:F
       ws.getCell(r, 4).value = rightFields[i].label;
-      ws.getCell(r, 4).font = { name: "Arial", size: 10, bold: true };
+      ws.getCell(r, 4).font = {name: 'Arial', size: 10, bold: true};
       ws.mergeCells(`E${r}:F${r}`);
       ws.getCell(r, 5).value = rightFields[i].value;
       ws.getCell(r, 5).font = {
-        name: "Arial",
+        name: 'Arial',
         size: 10,
         bold: i === 0 || i === 3,
-        color: i === 0 || i === 3 ? { argb: "FFFF0000" } : undefined,
+        color: i === 0 || i === 3 ? {argb: 'FFFF0000'} : undefined,
       };
     }
 
@@ -1167,15 +1146,15 @@ export async function exportPurchaseOrderToBuffer(
     applyBorders(10, 10, 1, 6);
 
     // ── Salutation ─────────────────────────────────────────────────────────
-    ws.mergeCells("A11:F11");
-    ws.getCell("A11").value = "Gentlemen:";
-    ws.getCell("A11").font = { name: "Arial", size: 10 };
+    ws.mergeCells('A11:F11');
+    ws.getCell('A11').value = 'Gentlemen:';
+    ws.getCell('A11').font = {name: 'Arial', size: 10};
     ws.getRow(11).height = 18;
 
-    ws.mergeCells("A12:F12");
-    ws.getCell("A12").value =
-      "    Please furnish this Office the following articles subject to the terms and conditions contained herein:";
-    ws.getCell("A12").font = { name: "Arial", size: 10 };
+    ws.mergeCells('A12:F12');
+    ws.getCell('A12').value =
+      '    Please furnish this Office the following articles subject to the terms and conditions contained herein:';
+    ws.getCell('A12').font = {name: 'Arial', size: 10};
     ws.getRow(12).height = 18;
 
     // ── Separator ──────────────────────────────────────────────────────────
@@ -1185,12 +1164,12 @@ export async function exportPurchaseOrderToBuffer(
     const deliveryDateStr = formatDate(first.dateOfDelivery);
 
     const deliveryLeft: FieldRow[] = [
-      { label: "Place of Delivery:", value: first.placeOfDelivery ?? "" },
-      { label: "Date of Delivery:", value: deliveryDateStr },
+      {label: 'Place of Delivery:', value: first.placeOfDelivery ?? ''},
+      {label: 'Date of Delivery:', value: deliveryDateStr},
     ];
     const deliveryRight: FieldRow[] = [
-      { label: "Delivery Term:", value: first.deliveryTerm ?? "" },
-      { label: "Payment Term:", value: first.paymentTerm ?? "" },
+      {label: 'Delivery Term:', value: first.deliveryTerm ?? ''},
+      {label: 'Payment Term:', value: first.paymentTerm ?? ''},
     ];
 
     for (let i = 0; i < 2; i++) {
@@ -1198,31 +1177,31 @@ export async function exportPurchaseOrderToBuffer(
       applyBorders(r, r, 1, 6);
 
       ws.getCell(r, 1).value = deliveryLeft[i].label;
-      ws.getCell(r, 1).font = { name: "Arial", size: 10, bold: true };
+      ws.getCell(r, 1).font = {name: 'Arial', size: 10, bold: true};
       ws.mergeCells(`B${r}:C${r}`);
       ws.getCell(r, 2).value = deliveryLeft[i].value;
-      ws.getCell(r, 2).font = { name: "Arial", size: 10 };
+      ws.getCell(r, 2).font = {name: 'Arial', size: 10};
 
       ws.getCell(r, 4).value = deliveryRight[i].label;
-      ws.getCell(r, 4).font = { name: "Arial", size: 10, bold: true };
+      ws.getCell(r, 4).font = {name: 'Arial', size: 10, bold: true};
       ws.mergeCells(`E${r}:F${r}`);
       ws.getCell(r, 5).value = deliveryRight[i].value;
-      ws.getCell(r, 5).font = { name: "Arial", size: 10 };
+      ws.getCell(r, 5).font = {name: 'Arial', size: 10};
     }
 
     // ── Separator ──────────────────────────────────────────────────────────
     applyBorders(16, 16, 1, 6);
 
     // ── Table header ───────────────────────────────────────────────────────
-    const headers = ["Item No.", "Unit", "Item Description", "Quantity", "Unit Cost", "Total Cost"];
+    const headers = ['Item No.', 'Unit', 'Item Description', 'Quantity', 'Unit Cost', 'Total Cost'];
     const headerRow = ws.getRow(17);
     headerRow.height = 22;
     headers.forEach((h, i) => {
       const cell = headerRow.getCell(i + 1);
       cell.value = h;
-      cell.font = { name: "Arial", size: 10, bold: true };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
+      cell.font = {name: 'Arial', size: 10, bold: true};
+      cell.alignment = {horizontal: 'center', vertical: 'middle'};
+      cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFFFF2CC'}};
       cell.border = thinBorder;
     });
 
@@ -1236,28 +1215,28 @@ export async function exportPurchaseOrderToBuffer(
       const row = ws.getRow(currentLine);
       row.height = 20;
       row.getCell(1).value = item.id;
-      row.getCell(1).alignment = { horizontal: "center" };
+      row.getCell(1).alignment = {horizontal: 'center'};
       row.getCell(2).value = item.unit;
-      row.getCell(2).alignment = { horizontal: "center" };
+      row.getCell(2).alignment = {horizontal: 'center'};
       row.getCell(3).value = item.description;
-      row.getCell(3).alignment = { horizontal: "left" };
+      row.getCell(3).alignment = {horizontal: 'left'};
       row.getCell(4).value = item.quantity;
-      row.getCell(4).alignment = { horizontal: "center" };
+      row.getCell(4).alignment = {horizontal: 'center'};
       row.getCell(5).value = item.unitCost;
-      row.getCell(5).numFmt = "#,##0.00";
-      row.getCell(5).alignment = { horizontal: "right" };
-      if (typeof item.quantity === "number" && typeof item.unitCost === "number") {
+      row.getCell(5).numFmt = '#,##0.00';
+      row.getCell(5).alignment = {horizontal: 'right'};
+      if (typeof item.quantity === 'number' && typeof item.unitCost === 'number') {
         const itemTotal = item.quantity * item.unitCost;
         grandTotal += itemTotal;
-        row.getCell(6).value = { formula: `D${currentLine}*E${currentLine}`, result: itemTotal };
+        row.getCell(6).value = {formula: `D${currentLine}*E${currentLine}`, result: itemTotal};
       } else {
-        row.getCell(6).value = "-";
+        row.getCell(6).value = '-';
       }
-      row.getCell(6).numFmt = "#,##0.00";
-      row.getCell(6).alignment = { horizontal: "right" };
+      row.getCell(6).numFmt = '#,##0.00';
+      row.getCell(6).alignment = {horizontal: 'right'};
       for (let c = 1; c <= 6; c++) {
         row.getCell(c).border = thinBorder;
-        row.getCell(c).font = { name: "Arial", size: 10 };
+        row.getCell(c).font = {name: 'Arial', size: 10};
       }
       currentLine++;
     }
@@ -1268,25 +1247,25 @@ export async function exportPurchaseOrderToBuffer(
 
     // ── SUB-TOTAL row ─────────────────────────────────────────────────────
     ws.mergeCells(`A${currentLine}:E${currentLine}`);
-    ws.getCell(currentLine, 1).value = "SUB-TOTAL";
-    ws.getCell(currentLine, 1).font = { name: "Arial", size: 10, bold: true };
-    ws.getCell(currentLine, 1).alignment = { horizontal: "right" };
+    ws.getCell(currentLine, 1).value = 'SUB-TOTAL';
+    ws.getCell(currentLine, 1).font = {name: 'Arial', size: 10, bold: true};
+    ws.getCell(currentLine, 1).alignment = {horizontal: 'right'};
     ws.getCell(currentLine, 6).value = grandTotal;
-    ws.getCell(currentLine, 6).numFmt = "#,##0.00";
-    ws.getCell(currentLine, 6).font = { name: "Arial", size: 10, bold: true };
-    ws.getCell(currentLine, 6).alignment = { horizontal: "right" };
+    ws.getCell(currentLine, 6).numFmt = '#,##0.00';
+    ws.getCell(currentLine, 6).font = {name: 'Arial', size: 10, bold: true};
+    ws.getCell(currentLine, 6).alignment = {horizontal: 'right'};
     applyBorders(currentLine, currentLine, 1, 6);
     currentLine++;
 
     // ── Amount in words row ────────────────────────────────────────────────
     ws.mergeCells(`A${currentLine}:D${currentLine}`);
-    ws.getCell(currentLine, 1).value = "(TOTAL AMOUNT IN WORDS)";
-    ws.getCell(currentLine, 1).font = { name: "Arial", size: 10 };
-    ws.getCell(currentLine, 1).alignment = { horizontal: "center" };
+    ws.getCell(currentLine, 1).value = '(TOTAL AMOUNT IN WORDS)';
+    ws.getCell(currentLine, 1).font = {name: 'Arial', size: 10};
+    ws.getCell(currentLine, 1).alignment = {horizontal: 'center'};
     ws.mergeCells(`E${currentLine}:F${currentLine}`);
-    ws.getCell(currentLine, 5).value = toWords(grandTotal, { localeCode: "en-PH" });
-    ws.getCell(currentLine, 5).font = { name: "Arial", size: 10, bold: true };
-    ws.getCell(currentLine, 5).alignment = { horizontal: "center" };
+    ws.getCell(currentLine, 5).value = toWords(grandTotal, {localeCode: 'en-PH'});
+    ws.getCell(currentLine, 5).font = {name: 'Arial', size: 10, bold: true};
+    ws.getCell(currentLine, 5).alignment = {horizontal: 'center'};
     applyBorders(currentLine, currentLine, 1, 6);
     currentLine++;
 
@@ -1297,7 +1276,7 @@ export async function exportPurchaseOrderToBuffer(
     if (rawBuffer instanceof Buffer) return new Success(rawBuffer);
     return new Success(Buffer.from(rawBuffer as unknown as Uint8Array));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export purchase order.", {}, e as Error);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export purchase order.', {}, e as Error);
   }
 }
 
@@ -1351,32 +1330,32 @@ async function _validateSignatories(
 
   const head = headRows[0];
   if (!head) {
-    return "Invalid head of office signatory.";
+    return 'Invalid head of office signatory.';
   }
 
   const headPermissions = new Set(head.permissions);
   if (!headPermissions.has(permissions.OFFICE_HEAD) || head.officeId !== userOfficeId) {
-    return "Head of office signatory must belong to your office and hold office-head permission.";
+    return 'Head of office signatory must belong to your office and hold office-head permission.';
   }
 
   const treasurer = treasurerRows[0];
   if (!treasurer) {
-    return "Invalid treasurer signatory.";
+    return 'Invalid treasurer signatory.';
   }
 
   const treasurerPermissions = new Set(treasurer.permissions);
   if (!treasurerPermissions.has(permissions.OBR_DISBURSEMENT_TREASURER_APPROVE)) {
-    return "Treasurer signatory does not have treasurer approval permission.";
+    return 'Treasurer signatory does not have treasurer approval permission.';
   }
 
   const approver = approverRows[0];
   if (!approver) {
-    return "Invalid approver signatory.";
+    return 'Invalid approver signatory.';
   }
 
   const approverPermissions = new Set(approver.permissions);
   if (!approverPermissions.has(permissions.OBR_DISBURSEMENT_MAYOR_APPROVE)) {
-    return "Approver signatory does not have mayor approval permission.";
+    return 'Approver signatory does not have mayor approval permission.';
   }
 
   return null;
@@ -1410,42 +1389,44 @@ async function _resolveAipData(lbacIds: string[]): Promise<Map<string, ResolvedA
     return null;
   }
 
-  const aipReferenceIds = Array.from(new Set(
-    lbacRows
-      .map(row => row.aipReferenceId)
-      .filter((id): id is string => typeof id === "string"),
-  ));
+  const aipReferenceIds = Array.from(
+    new Set(
+      lbacRows
+        .map((row) => row.aipReferenceId)
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  );
 
-  const expenseCodeIds = Array.from(new Set(
-    lbacRows
-      .map(row => row.expenseCodeId)
-      .filter((id): id is string => typeof id === "string"),
-  ));
+  const expenseCodeIds = Array.from(
+    new Set(
+      lbacRows.map((row) => row.expenseCodeId).filter((id): id is string => typeof id === 'string'),
+    ),
+  );
 
   const [aipRows, expenseRows] = await Promise.all([
     aipReferenceIds.length === 0
       ? Promise.resolve([])
       : db
-        .select({
-          id: aipReferences.id,
-          aipReferenceCode: aipReferences.aipReferenceCode,
-        })
-        .from(aipReferences)
-        .where(inArray(aipReferences.id, aipReferenceIds)),
+          .select({
+            id: aipReferences.id,
+            aipReferenceCode: aipReferences.aipReferenceCode,
+          })
+          .from(aipReferences)
+          .where(inArray(aipReferences.id, aipReferenceIds)),
     expenseCodeIds.length === 0
       ? Promise.resolve([])
       : db
-        .select({
-          id: expenseClasses.id,
-          accountName: expenseClasses.accountName,
-          accountCode: expenseClasses.accountCode,
-        })
-        .from(expenseClasses)
-        .where(inArray(expenseClasses.id, expenseCodeIds)),
+          .select({
+            id: expenseClasses.id,
+            accountName: expenseClasses.accountName,
+            accountCode: expenseClasses.accountCode,
+          })
+          .from(expenseClasses)
+          .where(inArray(expenseClasses.id, expenseCodeIds)),
   ]);
 
-  const aipById = new Map(aipRows.map(row => [row.id, row]));
-  const expenseById = new Map(expenseRows.map(row => [row.id, row]));
+  const aipById = new Map(aipRows.map((row) => [row.id, row]));
+  const expenseById = new Map(expenseRows.map((row) => [row.id, row]));
 
   const result = new Map<string, ResolvedAipData>();
 
@@ -1530,19 +1511,19 @@ async function _fetchPurchaseRequestItemBatch(
     .from(purchasing)
     .where(inArray(purchasing.id, uniqueIds));
 
-  const rowById = new Map(rows.map(row => [row.id, row]));
+  const rowById = new Map(rows.map((row) => [row.id, row]));
 
-  const userIds = Array.from(new Set(rows.flatMap(row => [
-    row.requestingUserId,
-    row.treasurerId,
-    row.approverId,
-  ])));
+  const userIds = Array.from(
+    new Set(rows.flatMap((row) => [row.requestingUserId, row.treasurerId, row.approverId])),
+  );
 
-  const procurementIds = Array.from(new Set(
-    rows
-      .map(row => row.procurementId)
-      .filter((value): value is string => typeof value === "string"),
-  ));
+  const procurementIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.procurementId)
+        .filter((value): value is string => typeof value === 'string'),
+    ),
+  );
 
   const [aipRows, users, procurementRows] = await Promise.all([
     db
@@ -1563,27 +1544,27 @@ async function _fetchPurchaseRequestItemBatch(
     userIds.length === 0
       ? Promise.resolve([])
       : db
-        .select({
-          id: user.id,
-          name: user.name,
-          position: officePosition.name,
-        })
-        .from(user)
-        .leftJoin(officePosition, eq(user.officePositionId, officePosition.id))
-        .where(inArray(user.id, userIds)),
+          .select({
+            id: user.id,
+            name: user.name,
+            position: officePosition.name,
+          })
+          .from(user)
+          .leftJoin(officePosition, eq(user.officePositionId, officePosition.id))
+          .where(inArray(user.id, userIds)),
     procurementIds.length === 0
       ? Promise.resolve([])
       : db
-        .select({
-          id: modeOfProcurements.id,
-          name: modeOfProcurements.name,
-          description: modeOfProcurements.description,
-        })
-        .from(modeOfProcurements)
-        .where(inArray(modeOfProcurements.id, procurementIds)),
+          .select({
+            id: modeOfProcurements.id,
+            name: modeOfProcurements.name,
+            description: modeOfProcurements.description,
+          })
+          .from(modeOfProcurements)
+          .where(inArray(modeOfProcurements.id, procurementIds)),
   ]);
 
-  const aipMap = new Map<string, PurchaseRequestItem["aip"]>();
+  const aipMap = new Map<string, PurchaseRequestItem['aip']>();
   for (const aipRow of aipRows) {
     if (!aipMap.has(aipRow.purchasingId)) {
       aipMap.set(aipRow.purchasingId, []);
@@ -1599,8 +1580,8 @@ async function _fetchPurchaseRequestItemBatch(
     });
   }
 
-  const userMap = new Map(users.map(row => [row.id, row]));
-  const procurementMap = new Map(procurementRows.map(row => [row.id, row]));
+  const userMap = new Map(users.map((row) => [row.id, row]));
+  const procurementMap = new Map(procurementRows.map((row) => [row.id, row]));
 
   const result: PurchaseRequestItem[] = [];
 
@@ -1614,22 +1595,18 @@ async function _fetchPurchaseRequestItemBatch(
     const treasurer = userMap.get(row.treasurerId);
     const approver = userMap.get(row.approverId);
 
-    const modeOfProcurement = row.procurementId
-      ? procurementMap.get(row.procurementId)
-      : null;
+    const modeOfProcurement = row.procurementId ? procurementMap.get(row.procurementId) : null;
 
     result.push({
       id: row.id,
       prNumber: row.prNumber,
-      date: DateTime
-        .fromJSDate(row.createdAt, { zone: "Asia/Manila" })
-        .toFormat("MM/dd/yyyy"),
+      date: DateTime.fromJSDate(row.createdAt, {zone: 'Asia/Manila'}).toFormat('MM/dd/yyyy'),
       modeOfProcurement: modeOfProcurement
         ? {
-          id: modeOfProcurement.id,
-          name: modeOfProcurement.name,
-          description: modeOfProcurement.description ?? undefined,
-        }
+            id: modeOfProcurement.id,
+            name: modeOfProcurement.name,
+            description: modeOfProcurement.description ?? undefined,
+          }
         : null,
       purchaseOrderNumber: row.purchaseOrderNumber,
       supplier: row.supplier,
@@ -1637,10 +1614,9 @@ async function _fetchPurchaseRequestItemBatch(
       tinNumber: row.tinNumber,
       placeOfDelivery: row.placeOfDelivery,
       dateOfDelivery: row.dateOfDelivery
-        ? DateTime
-          .fromJSDate(row.dateOfDelivery, { zone: "UTC" })
-          .setZone("Asia/Manila")
-          .toFormat("MM/dd/yyyy")
+        ? DateTime.fromJSDate(row.dateOfDelivery, {zone: 'UTC'})
+            .setZone('Asia/Manila')
+            .toFormat('MM/dd/yyyy')
         : null,
       deliveryTerm: row.deliveryTerm,
       paymentTerm: row.paymentTerm,
@@ -1655,7 +1631,7 @@ async function _fetchPurchaseRequestItemBatch(
       purpose: row.purpose,
       requestingUser: {
         id: row.requestingUserId,
-        name: requestingUser?.name ?? "Unknown actor",
+        name: requestingUser?.name ?? 'Unknown actor',
       },
       requestingOffice: {
         id: row.requestingOfficeId,
@@ -1668,13 +1644,13 @@ async function _fetchPurchaseRequestItemBatch(
       },
       approvedBy: {
         id: row.approverId,
-        name: approver?.name ?? "Unknown actor",
-        position: approver?.position ?? "",
+        name: approver?.name ?? 'Unknown actor',
+        position: approver?.position ?? '',
       },
       treasurer: {
         id: row.treasurerId,
-        name: treasurer?.name ?? "Unknown actor",
-        position: treasurer?.position ?? "",
+        name: treasurer?.name ?? 'Unknown actor',
+        position: treasurer?.position ?? '',
       },
       aip: aipMap.get(row.id) ?? [],
     });
@@ -1690,7 +1666,7 @@ async function _fetchPurchaseRequestItemBatch(
  * @returns {Date | null} UTC Date when valid, otherwise null.
  */
 function _parseDateFromManilaToUtc(value: string): Date | null {
-  const parsed = DateTime.fromISO(value, { zone: "Asia/Manila" });
+  const parsed = DateTime.fromISO(value, {zone: 'Asia/Manila'});
   if (!parsed.isValid) {
     return null;
   }
@@ -1724,7 +1700,7 @@ export type PurchaseOrderPayload = {
  * Updates a single purchasing row without touching item columns.
  */
 export type UpdatePurchaseRequestPayload = Partial<
-  Omit<PurchaseRequestPayload, "signatories" | "items"> & Omit<PurchaseOrderPayload, "items">
+  Omit<PurchaseRequestPayload, 'signatories' | 'items'> & Omit<PurchaseOrderPayload, 'items'>
 >;
 
 /**
@@ -1829,8 +1805,8 @@ type ExportItem = {
   id: number;
   unit: string;
   description: string;
-  quantity: number | "";
-  unitCost: number | "";
+  quantity: number | '';
+  unitCost: number | '';
 };
 
 type ExportSignatory = {

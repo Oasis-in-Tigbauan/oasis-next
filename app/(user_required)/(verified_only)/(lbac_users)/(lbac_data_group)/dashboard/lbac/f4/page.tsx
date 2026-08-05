@@ -1,20 +1,15 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {ChevronDown, ChevronRight, Download, Pencil, Plus, Search, Trash2} from 'lucide-react';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  LbacF4ItemResponse,
-  LbacF4Response,
-} from "@/lib/http/client/responses";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -22,53 +17,50 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  LbacF4ItemResponse,
+  LbacF4Response,
+} from '@/lib/http/client/responses';
 
 const INDENT_BASE_PX = 12;
 const INDENT_PER_DEPTH_PX = 20;
 const TOTAL_COLS = 7;
 
 type FlatRow = {
-  kind: "item";
+  kind: 'item';
   id: string;
   depth: number;
   data: LbacF4ItemResponse;
 };
 
-type DialogMode = "add" | "edit" | null;
+type DialogMode = 'add' | 'edit' | null;
 
 export default function Page() {
   const currentYear = useMemo(() => _getUtc8Year(), []);
   const [fiscalYear, setFiscalYear] = useState(currentYear);
 
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<LbacF4Response, ApiResponseException>
   >(`/api/lbac/f4?forFiscalYear=${fiscalYear}`, $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<FlatRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
 
@@ -98,7 +90,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -107,12 +99,12 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: FlatRow) => {
-    setSelectedRow(prev => (prev?.id === row.id ? null : row));
+    setSelectedRow((prev) => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: FlatRow) => {
     setSelectedRow(row);
-    setDialogMode("edit");
+    setDialogMode('edit');
   }, []);
 
   const handleDelete = useCallback(async () => {
@@ -120,13 +112,13 @@ export default function Page() {
     const label = selectedRow.data.particulars;
     if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
 
-    const res = await fetch(`/api/lbac/f4/${selectedRow.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/lbac/f4/${selectedRow.id}`, {method: 'DELETE'});
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       alert(
-        (payload as Record<string, string> | null)?.details
-          ?? (payload as Record<string, string> | null)?.message
-          ?? "Failed to delete. Please try again.",
+        (payload as Record<string, string> | null)?.details ??
+          (payload as Record<string, string> | null)?.message ??
+          'Failed to delete. Please try again.',
       );
       return;
     }
@@ -155,10 +147,12 @@ export default function Page() {
     <div className="flex flex-col gap-2 p-4 pt-0 w-full">
       <div className="flex items-center gap-1 p-2 border rounded-lg w-full flex-wrap">
         <div className="flex items-center gap-2 mr-2">
-          <Label htmlFor="fiscal-year" className="text-xs whitespace-nowrap">Fiscal Year</Label>
+          <Label htmlFor="fiscal-year" className="text-xs whitespace-nowrap">
+            Fiscal Year
+          </Label>
           <Select
             value={String(fiscalYear)}
-            onValueChange={v => {
+            onValueChange={(v) => {
               setFiscalYear(Number(v));
               setSelectedRow(null);
             }}
@@ -167,8 +161,10 @@ export default function Page() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {yearOptions.map(year => (
-                <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+              {yearOptions.map((year) => (
+                <SelectItem key={year} value={String(year)}>
+                  {year}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -180,7 +176,7 @@ export default function Page() {
             className="pl-7 h-8 w-64 text-xs"
             placeholder="Search particulars, account code…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -190,7 +186,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add")}
+          onClick={() => setDialogMode('add')}
         >
           <Plus className="size-3" />
           Add
@@ -203,7 +199,7 @@ export default function Page() {
           disabled={!selectedRow}
           onClick={() => {
             if (!selectedRow) return;
-            setDialogMode("edit");
+            setDialogMode('edit');
           }}
         >
           <Pencil />
@@ -235,7 +231,7 @@ export default function Page() {
 
         {selectedRow && (
           <Badge variant="secondary" className="text-xs">
-            {`Item: ${selectedRow.data.particulars.slice(0, 40)}${selectedRow.data.particulars.length > 40 ? "…" : ""}`}
+            {`Item: ${selectedRow.data.particulars.slice(0, 40)}${selectedRow.data.particulars.length > 40 ? '…' : ''}`}
           </Badge>
         )}
       </div>
@@ -243,7 +239,9 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No F4 records found for this fiscal year."}
+            {searchQuery
+              ? 'No results match your search.'
+              : 'No F4 records found for this fiscal year.'}
           </div>
         ) : (
           <div
@@ -253,13 +251,25 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
                 <TableRow>
-                  <TableHead rowSpan={2} className="min-w-[220px] align-middle border-l whitespace-normal break-words">
+                  <TableHead
+                    rowSpan={2}
+                    className="min-w-[220px] align-middle border-l whitespace-normal break-words"
+                  >
                     Particulars
                   </TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Account Code</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b">Amounts</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b">Variance</TableHead>
-                  <TableHead rowSpan={2} className="min-w-[200px] align-middle whitespace-normal break-words">
+                  <TableHead rowSpan={2} className="min-w-28 align-middle">
+                    Account Code
+                  </TableHead>
+                  <TableHead colSpan={2} className="text-center border-b">
+                    Amounts
+                  </TableHead>
+                  <TableHead colSpan={2} className="text-center border-b">
+                    Variance
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="min-w-[200px] align-middle whitespace-normal break-words"
+                  >
                     Remarks
                   </TableHead>
                 </TableRow>
@@ -273,10 +283,10 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
                   const hasChildren = row.data.children.length > 0;
                   const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
@@ -287,7 +297,7 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${isSelected ? "outline outline-2 outline-primary bg-muted/30" : ""}`}
+                      className={`cursor-pointer select-none ${isSelected ? 'outline outline-2 outline-primary bg-muted/30' : ''}`}
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
                     >
@@ -299,11 +309,16 @@ export default function Page() {
                           <button
                             type="button"
                             className="flex items-center gap-1 text-left hover:opacity-80 w-full"
-                            onClick={e => { e.stopPropagation(); toggleCollapse(row.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCollapse(row.id);
+                            }}
                           >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
+                            {isCollapsed ? (
+                              <ChevronRight className="size-3 shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3 shrink-0" />
+                            )}
                             <span>{row.data.particulars}</span>
                           </button>
                         ) : (
@@ -311,17 +326,25 @@ export default function Page() {
                         )}
                       </TableCell>
                       <TableCell>{txt(row.data.accountCode)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(row.data.estimate)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(row.data.estimate)}
+                      </TableCell>
                       <TableCell className="text-right font-mono">{fmt(row.data.actual)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(row.data.varianceAmounts)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtPercent(row.data.variancePercentage)}</TableCell>
-                      <TableCell className="whitespace-normal break-words">{txt(row.data.remarks)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(row.data.varianceAmounts)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmtPercent(row.data.variancePercentage)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words">
+                        {txt(row.data.remarks)}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -334,8 +357,8 @@ export default function Page() {
         <F4ItemFormDialog
           mode={dialogMode}
           fiscalYear={fiscalYear}
-          editItem={dialogMode === "edit" ? selectedRow?.data : undefined}
-          defaultParentId={dialogMode === "add" ? selectedRow?.id : undefined}
+          editItem={dialogMode === 'edit' ? selectedRow?.data : undefined}
+          defaultParentId={dialogMode === 'add' ? selectedRow?.id : undefined}
           parentOptions={parentOptions}
           onSuccess={onSuccess}
           onClose={closeDialog}
@@ -354,38 +377,38 @@ function F4ItemFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   fiscalYear: number;
   editItem?: LbacF4ItemResponse;
   defaultParentId?: string;
-  parentOptions: Array<{ id: string; label: string }>;
+  parentOptions: Array<{id: string; label: string}>;
   onSuccess: () => void;
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [parentId, setParentId] = useState(defaultParentId ?? "");
-  const [particulars, setParticulars] = useState(editItem?.particulars ?? "");
-  const [accountCode, setAccountCode] = useState(editItem?.accountCode ?? "");
-  const [estimate, setEstimate] = useState(editItem?.estimate ?? "");
-  const [actual, setActual] = useState(editItem?.actual ?? "");
-  const [remarks, setRemarks] = useState(editItem?.remarks ?? "");
+  const [parentId, setParentId] = useState(defaultParentId ?? '');
+  const [particulars, setParticulars] = useState(editItem?.particulars ?? '');
+  const [accountCode, setAccountCode] = useState(editItem?.accountCode ?? '');
+  const [estimate, setEstimate] = useState(editItem?.estimate ?? '');
+  const [actual, setActual] = useState(editItem?.actual ?? '');
+  const [remarks, setRemarks] = useState(editItem?.remarks ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (submitting) return;
     if (!particulars.trim()) {
-      setActionError("Particulars is required.");
+      setActionError('Particulars is required.');
       return;
     }
 
     if (estimate.trim() && Number.isNaN(Number(estimate))) {
-      setActionError("Estimate must be a valid number.");
+      setActionError('Estimate must be a valid number.');
       return;
     }
 
     if (actual.trim() && Number.isNaN(Number(actual))) {
-      setActionError("Actual must be a valid number.");
+      setActionError('Actual must be a valid number.');
       return;
     }
 
@@ -393,7 +416,7 @@ function F4ItemFormDialog({
     setActionError(null);
 
     try {
-      if (mode === "add") {
+      if (mode === 'add') {
         const content: Record<string, unknown> = {
           particulars: particulars.trim(),
           accountCode: accountCode.trim() || undefined,
@@ -406,9 +429,9 @@ function F4ItemFormDialog({
           content.parentId = parentId;
         }
 
-        const res = await fetch("/api/lbac/f4", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/lbac/f4', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             forFiscalYear: fiscalYear,
             contents: [content],
@@ -418,9 +441,9 @@ function F4ItemFormDialog({
         if (!res.ok) {
           const payload = await res.json().catch(() => null);
           setActionError(
-            (payload as Record<string, string> | null)?.details
-              ?? (payload as Record<string, string> | null)?.message
-              ?? "Failed to create item. Please try again.",
+            (payload as Record<string, string> | null)?.details ??
+              (payload as Record<string, string> | null)?.message ??
+              'Failed to create item. Please try again.',
           );
           return;
         }
@@ -434,17 +457,17 @@ function F4ItemFormDialog({
         };
 
         const res = await fetch(`/api/lbac/f4/${editItem!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         });
 
         if (!res.ok) {
           const payload = await res.json().catch(() => null);
           setActionError(
-            (payload as Record<string, string> | null)?.details
-              ?? (payload as Record<string, string> | null)?.message
-              ?? "Failed to update item. Please try again.",
+            (payload as Record<string, string> | null)?.details ??
+              (payload as Record<string, string> | null)?.message ??
+              'Failed to update item. Please try again.',
           );
           return;
         }
@@ -452,30 +475,35 @@ function F4ItemFormDialog({
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-lg max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add F4 Item" : "Edit F4 Item"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add F4 Item' : 'Edit F4 Item'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
+            {mode === 'add'
               ? `Create a statement line for fiscal year ${fiscalYear}.`
               : `Editing: ${editItem?.particulars}`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          {mode === "add" && (
+          {mode === 'add' && (
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-parent`}>Parent Item</Label>
               <Select
-                value={parentId || "__root__"}
-                onValueChange={v => setParentId(v === "__root__" ? "" : v)}
+                value={parentId || '__root__'}
+                onValueChange={(v) => setParentId(v === '__root__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-parent`}>
@@ -483,8 +511,10 @@ function F4ItemFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__root__">Root (no parent)</SelectItem>
-                  {parentOptions.map(option => (
-                    <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                  {parentOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -495,7 +525,7 @@ function F4ItemFormDialog({
             <Input
               id={`${baseId}-particulars`}
               value={particulars}
-              onChange={e => setParticulars(e.target.value)}
+              onChange={(e) => setParticulars(e.target.value)}
               disabled={submitting}
             />
           </div>
@@ -504,7 +534,7 @@ function F4ItemFormDialog({
             <Input
               id={`${baseId}-account`}
               value={accountCode}
-              onChange={e => setAccountCode(e.target.value)}
+              onChange={(e) => setAccountCode(e.target.value)}
               disabled={submitting}
             />
           </div>
@@ -514,7 +544,7 @@ function F4ItemFormDialog({
               <Input
                 id={`${baseId}-estimate`}
                 value={estimate}
-                onChange={e => setEstimate(e.target.value)}
+                onChange={(e) => setEstimate(e.target.value)}
                 disabled={submitting}
                 className="font-mono"
               />
@@ -524,7 +554,7 @@ function F4ItemFormDialog({
               <Input
                 id={`${baseId}-actual`}
                 value={actual}
-                onChange={e => setActual(e.target.value)}
+                onChange={(e) => setActual(e.target.value)}
                 disabled={submitting}
                 className="font-mono"
               />
@@ -535,19 +565,23 @@ function F4ItemFormDialog({
             <Textarea
               id={`${baseId}-remarks`}
               value={remarks}
-              onChange={e => setRemarks(e.target.value)}
+              onChange={(e) => setRemarks(e.target.value)}
               disabled={submitting}
               rows={3}
             />
           </div>
         </div>
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -558,9 +592,9 @@ function F4ItemFormDialog({
 function collectAllItems(
   nodes: LbacF4ItemResponse[],
   depth = 0,
-): Array<{ id: string; label: string }> {
-  const options: Array<{ id: string; label: string }> = [];
-  const prefix = depth > 0 ? `${"  ".repeat(depth)}└ ` : "";
+): Array<{id: string; label: string}> {
+  const options: Array<{id: string; label: string}> = [];
+  const prefix = depth > 0 ? `${'  '.repeat(depth)}└ ` : '';
 
   for (const node of nodes) {
     options.push({
@@ -585,19 +619,14 @@ function flattenVisible(
 
   for (const node of nodes) {
     const matches = !filtering || itemMatchesQuery(node, q);
-    const childRows = flattenVisible(
-      node.children,
-      collapsed,
-      depth + 1,
-      query,
-    );
+    const childRows = flattenVisible(node.children, collapsed, depth + 1, query);
     const childMatches = childRows.length > 0;
 
     if (!matches && !childMatches) {
       continue;
     }
 
-    rows.push({ kind: "item", id: node.id, depth, data: node });
+    rows.push({kind: 'item', id: node.id, depth, data: node});
 
     const shouldExpand = filtering || !collapsed.has(node.id);
     if (shouldExpand && node.children.length > 0) {
@@ -616,26 +645,26 @@ function itemMatchesQuery(item: LbacF4ItemResponse, query: string): boolean {
   );
 }
 
-function particularsIndentStyle(depth: number): { paddingLeft: string } {
-  return { paddingLeft: `${INDENT_BASE_PX + depth * INDENT_PER_DEPTH_PX}px` };
+function particularsIndentStyle(depth: number): {paddingLeft: string} {
+  return {paddingLeft: `${INDENT_BASE_PX + depth * INDENT_PER_DEPTH_PX}px`};
 }
 
 function fmt(val: string | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return '—';
   const n = Number(val);
   if (Number.isNaN(n)) return val;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 function fmtPercent(val: string | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return '—';
   const n = Number(val);
   if (Number.isNaN(n)) return val;
-  return `${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  return `${n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}%`;
 }
 
 function txt(val: string | null | undefined): string {
-  return val ?? "—";
+  return val ?? '—';
 }
 
 function _getUtc8Year(): number {

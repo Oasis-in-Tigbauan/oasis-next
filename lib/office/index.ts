@@ -1,15 +1,15 @@
-import { and, count, eq, inArray, not, sql } from "drizzle-orm";
+import {and, count, eq, inArray, not, sql} from 'drizzle-orm';
 
-import { allowedPermissions, permissionDescriptors } from "@/lib/office/permissions";
-import { cacheManager } from "@/lib/cache";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success, unwrap } from "@/lib/one-of";
-import { getUserById } from "@/lib/accounts";
-import { office, officePosition, user } from "@/lib/db/schema";
-import { OFFICE_HEAD, type Permissions } from "@/lib/db/permissions";
-import { User } from "@/lib/accounts";
+import {getUserById} from '@/lib/accounts';
+import {User} from '@/lib/accounts';
+import {cacheManager} from '@/lib/cache';
+import {db} from '@/lib/db';
+import {OFFICE_HEAD, type Permissions} from '@/lib/db/permissions';
+import {office, officePosition, user} from '@/lib/db/schema';
+import {allowedPermissions, permissionDescriptors} from '@/lib/office/permissions';
+import {ErrorCodes, Failure, Result, Success, unwrap} from '@/lib/one-of';
 
-export { allowedPermissions, permissionDescriptors };
+export {allowedPermissions, permissionDescriptors};
 
 /**
  * Retrieves the list of offices that users are allowed to be assigned to.
@@ -35,7 +35,7 @@ export async function getAssignableOffices(): Promise<Result<Array<Office>>> {
       .select({
         id: office.id,
         name: office.name,
-        roles: sql<({ id: string; name: string })[]>`
+        roles: sql<{id: string; name: string}[]>`
             COALESCE(
                 json_agg(
                     json_build_object(
@@ -47,12 +47,12 @@ export async function getAssignableOffices(): Promise<Result<Array<Office>>> {
       })
       .from(office)
       .leftJoin(officePosition, eq(office.id, officePosition.officeId))
-      .where(not(eq(office.name, "Cardinal Administrators")))
+      .where(not(eq(office.name, 'Cardinal Administrators')))
       .groupBy(office.id, office.name);
 
     return new Success(offices);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to get assignable offices.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to get assignable offices.', {}, e);
   }
 }
 
@@ -76,7 +76,9 @@ export async function getAssignableOffices(): Promise<Result<Array<Office>>> {
  * - Only offices with positions containing the office-head permission are included.
  * - Head-user lists may be empty when an office has no associated users.
  */
-export async function getAssignableOfficesWithHeadUsers(): Promise<Result<Array<OfficeWithHeadUserList>>> {
+export async function getAssignableOfficesWithHeadUsers(): Promise<
+  Result<Array<OfficeWithHeadUserList>>
+> {
   try {
     // Fetch list of offices that is assignable first.
     const offices = await db
@@ -88,14 +90,14 @@ export async function getAssignableOfficesWithHeadUsers(): Promise<Result<Array<
       .innerJoin(officePosition, eq(officePosition.officeId, office.id))
       .where(
         and(
-          not(eq(office.name, "Cardinal Administrators")),
+          not(eq(office.name, 'Cardinal Administrators')),
           sql`${officePosition.permissions} @> ARRAY[${OFFICE_HEAD}]`,
         ),
       )
       .groupBy(office.id);
 
     // Find the users
-    const officeIds = offices.map(o => o.id);
+    const officeIds = offices.map((o) => o.id);
     const users = await db
       .select({
         id: user.id,
@@ -106,7 +108,7 @@ export async function getAssignableOfficesWithHeadUsers(): Promise<Result<Array<
       .where(inArray(user.officeId, officeIds));
 
     // Grouping
-    const usersByOffice = new Map<string, { id: string; name: string }[]>();
+    const usersByOffice = new Map<string, {id: string; name: string}[]>();
     for (const u of users) {
       if (!usersByOffice.has(u.officeId)) {
         usersByOffice.set(u.officeId, []);
@@ -118,7 +120,7 @@ export async function getAssignableOfficesWithHeadUsers(): Promise<Result<Array<
     }
 
     // Map
-    const items: OfficeWithHeadUserList[] = offices.map(o => ({
+    const items: OfficeWithHeadUserList[] = offices.map((o) => ({
       id: o.id,
       name: o.name,
       heads: usersByOffice.get(o.id) ?? [],
@@ -126,7 +128,7 @@ export async function getAssignableOfficesWithHeadUsers(): Promise<Result<Array<
 
     return new Success(items);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to get assignable offices.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to get assignable offices.', {}, e);
   }
 }
 
@@ -170,14 +172,12 @@ export async function getOfficesExtendedInformation(): Promise<Result<Array<Offi
           eq(user.banned, false),
         ),
       )
-      .where(
-        not(eq(office.name, "Cardinal Administrators")),
-      )
+      .where(not(eq(office.name, 'Cardinal Administrators')))
       .groupBy(office.id, office.name);
 
     return new Success(offices);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to get assignable offices.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to get assignable offices.', {}, e);
   }
 }
 
@@ -211,22 +211,24 @@ export async function getAssignableRoles(officeId: string): Promise<Result<Array
       .leftJoin(office, eq(office.id, officePosition.officeId))
       .where(eq(officePosition.officeId, officeId));
 
-    const isIllegal = roles.find(r => r.office?.toLowerCase() === "cardinal administrators");
+    const isIllegal = roles.find((r) => r.office?.toLowerCase() === 'cardinal administrators');
     if (isIllegal) {
       return new Failure(
         ErrorCodes.ResourceNotFound,
-        "Kirito, Asuna is getting married to that new administrator. Perhaps you should try on your sister instead.",
-        { officeId },
+        'Kirito, Asuna is getting married to that new administrator. Perhaps you should try on your sister instead.',
+        {officeId},
       );
     }
 
-    return new Success(roles.map(r => ({
-      id: r.id,
-      name: r.name,
-      permissions: r.permissions as Permissions[],
-    })));
+    return new Success(
+      roles.map((r) => ({
+        id: r.id,
+        name: r.name,
+        permissions: r.permissions as Permissions[],
+      })),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to get assignable roles.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to get assignable roles.', {}, e);
   }
 }
 
@@ -251,7 +253,9 @@ export async function getAssignableRoles(officeId: string): Promise<Result<Array
  * - The returned office definition includes a roles list; it may be empty when the office has no roles.
  * - Protected/system offices are intentionally excluded from results.
  */
-export async function getOfficeInformationById(officeId: string): Promise<Result<OfficeDefinitionWithRoleExtendedInfo>> {
+export async function getOfficeInformationById(
+  officeId: string,
+): Promise<Result<OfficeDefinitionWithRoleExtendedInfo>> {
   try {
     const [selectedOffice] = await db
       .select({
@@ -281,22 +285,17 @@ export async function getOfficeInformationById(officeId: string): Promise<Result
       })
       .from(office)
       .leftJoin(officePosition, eq(office.id, officePosition.officeId))
-      .where(
-        and(
-          not(eq(office.name, "Cardinal Administrators")),
-          eq(office.id, officeId),
-        ),
-      )
+      .where(and(not(eq(office.name, 'Cardinal Administrators')), eq(office.id, officeId)))
       .groupBy(office.id, office.name)
       .limit(1);
 
     if (!selectedOffice) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { officeId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office not found.', {officeId});
     }
 
     return new Success(selectedOffice);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to get office information.", { officeId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to get office information.', {officeId}, e);
   }
 }
 
@@ -324,22 +323,22 @@ export async function getOfficeInformationById(officeId: string): Promise<Result
 export async function createOffice(name: string): Promise<Result<OfficeDefinition>> {
   try {
     // Prevent calling themselves as cardinal administrators
-    if (name.toLowerCase() === "cardinal administrators") {
+    if (name.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Are you trying to be Kirigaya Kazuto? Sorry, Yuuki Asuna is on different isle!",
-        { name },
+        'Are you trying to be Kirigaya Kazuto? Sorry, Yuuki Asuna is on different isle!',
+        {name},
       );
     }
 
     // Prevent creating a new office with the same name
     const [existingOffice] = await db
-      .select({ id: office.id })
+      .select({id: office.id})
       .from(office)
       .where(eq(office.name, name))
       .limit(1);
     if (existingOffice) {
-      return new Failure(ErrorCodes.ValidationFailure, "Office already exists.", { name });
+      return new Failure(ErrorCodes.ValidationFailure, 'Office already exists.', {name});
     }
 
     const [newOffice] = await db
@@ -348,11 +347,11 @@ export async function createOffice(name: string): Promise<Result<OfficeDefinitio
         name: name,
         prohibitedAssignment: false,
       })
-      .returning({ id: office.id, name: office.name });
+      .returning({id: office.id, name: office.name});
 
     // Nothing created?
     if (!newOffice) {
-      return new Failure(ErrorCodes.Fatal, "Unable to create office.", { name });
+      return new Failure(ErrorCodes.Fatal, 'Unable to create office.', {name});
     }
 
     return new Success({
@@ -361,7 +360,7 @@ export async function createOffice(name: string): Promise<Result<OfficeDefinitio
       roles: [],
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create office.", { name }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create office.', {name}, e);
   }
 }
 
@@ -383,32 +382,32 @@ export async function createOffice(name: string): Promise<Result<OfficeDefinitio
  */
 export async function updateOffice(id: string, name: string): Promise<Result<Office>> {
   try {
-    if (name.toLowerCase() === "cardinal administrators") {
+    if (name.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Are you trying to be Kirigaya Kazuto? Sorry, Yuuki Asuna is on different isle!",
-        { id, name },
+        'Are you trying to be Kirigaya Kazuto? Sorry, Yuuki Asuna is on different isle!',
+        {id, name},
       );
     }
 
     const [target] = await db
-      .select({ id: office.id })
+      .select({id: office.id})
       .from(office)
       .where(eq(office.id, id))
       .limit(1);
 
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { id, name });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office not found.', {id, name});
     }
 
     const [newValue] = await db
       .update(office)
-      .set({ name })
+      .set({name})
       .where(eq(office.id, id))
-      .returning({ id: office.id, name: office.name });
+      .returning({id: office.id, name: office.name});
     return new Success(newValue);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update office.", { id, name }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update office.', {id, name}, e);
   }
 }
 
@@ -426,35 +425,39 @@ export async function updateOffice(id: string, name: string): Promise<Result<Off
 export async function deleteOffice(id: string): Promise<Result<null>> {
   try {
     const [targetOffice] = await db
-      .select({ id: office.id, name: office.name })
+      .select({id: office.id, name: office.name})
       .from(office)
       .where(eq(office.id, id))
       .limit(1);
     if (!targetOffice) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office not found.', {id});
     }
 
-    if (targetOffice.name!.toLowerCase() === "cardinal administrators") {
+    if (targetOffice.name!.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Kirito, its fine. Just marry your sister. Just give up on Asuna bro, really.",
-        { id },
+        'Kirito, its fine. Just marry your sister. Just give up on Asuna bro, really.',
+        {id},
       );
     }
 
     // Ask to manually delete all roles in the office.
     const [roleCount] = await db
-      .select({ count: count() })
+      .select({count: count()})
       .from(officePosition)
       .where(eq(officePosition.officeId, targetOffice.id));
     if (roleCount.count > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Office is not empty. Delete the roles first.", { id });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'Office is not empty. Delete the roles first.',
+        {id},
+      );
     }
 
     await db.delete(office).where(eq(office.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete office.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete office.', {id}, e);
   }
 }
 
@@ -477,42 +480,49 @@ export async function deleteOffice(id: string): Promise<Result<null>> {
  * - Returns a validation failure if a role with the same name already exists for the office.
  * - Returns a resource-not-found failure if the office does not exist.
  */
-export async function addRole(officeId: string, name: string, permissions: Permissions[]): Promise<Result<RoleDefinition>> {
+export async function addRole(
+  officeId: string,
+  name: string,
+  permissions: Permissions[],
+): Promise<Result<RoleDefinition>> {
   try {
     const [targetOffice] = await db
-      .select({ id: office.id, name: office.name })
+      .select({id: office.id, name: office.name})
       .from(office)
       .where(eq(office.id, officeId))
       .limit(1);
 
     // No office found.
     if (!targetOffice) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { officeId, name, permissions });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office not found.', {
+        officeId,
+        name,
+        permissions,
+      });
     }
 
     // Do not allow modifying cardinal administrators' office.
-    if (targetOffice.name.toLowerCase() === "cardinal administrators") {
+    if (targetOffice.name.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ResourceNotFound,
-        "Asuna seems to be in a different island, Kirito.",
-        { officeId, name, permissions },
+        'Asuna seems to be in a different island, Kirito.',
+        {officeId, name, permissions},
       );
     }
 
     const existingRoles = await db
-      .select({ id: officePosition.id })
+      .select({id: officePosition.id})
       .from(officePosition)
-      .where(
-        and(
-          eq(officePosition.officeId, targetOffice.id),
-          eq(officePosition.name, name),
-        ),
-      )
+      .where(and(eq(officePosition.officeId, targetOffice.id), eq(officePosition.name, name)))
       .limit(1);
 
     // Do not add existing role names to the list.
     if (existingRoles.length > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Role already exists.", { officeId, name, permissions });
+      return new Failure(ErrorCodes.ValidationFailure, 'Role already exists.', {
+        officeId,
+        name,
+        permissions,
+      });
     }
 
     const [newRole] = await db
@@ -528,12 +538,12 @@ export async function addRole(officeId: string, name: string, permissions: Permi
         permissions: officePosition.permissions,
       });
     if (!newRole) {
-      return new Failure(ErrorCodes.Fatal, "Unable to add role.", { officeId, name, permissions });
+      return new Failure(ErrorCodes.Fatal, 'Unable to add role.', {officeId, name, permissions});
     }
 
     return new Success(newRole as RoleDefinition);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to add role.", { officeId, name, permissions }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to add role.', {officeId, name, permissions}, e);
   }
 }
 
@@ -560,7 +570,12 @@ export async function addRole(officeId: string, name: string, permissions: Permi
  * - Returns a resource-not-found failure when the role cannot be found.
  * - Returns a failure when attempting to update roles in a protected/system office.
  */
-export async function updateRole(officeId: string, roleId: string, name?: string, permissions?: Permissions[]): Promise<Result<RoleExtendedInfo>> {
+export async function updateRole(
+  officeId: string,
+  roleId: string,
+  name?: string,
+  permissions?: Permissions[],
+): Promise<Result<RoleExtendedInfo>> {
   try {
     const [existingRole] = await db
       .select({
@@ -571,12 +586,7 @@ export async function updateRole(officeId: string, roleId: string, name?: string
         userCount: count(user.id),
       })
       .from(officePosition)
-      .where(
-        and(
-          eq(officePosition.id, roleId),
-          eq(officePosition.officeId, officeId),
-        ),
-      )
+      .where(and(eq(officePosition.id, roleId), eq(officePosition.officeId, officeId)))
       .leftJoin(office, eq(office.id, officePosition.officeId))
       .leftJoin(
         user,
@@ -592,15 +602,19 @@ export async function updateRole(officeId: string, roleId: string, name?: string
 
     // No role found
     if (!existingRole) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Role not found.", { roleId, name, permissions });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Role not found.', {
+        roleId,
+        name,
+        permissions,
+      });
     }
 
     // Avoid writing to the cardinal administrators office.
-    if (existingRole.office?.toLowerCase() === "cardinal administrators") {
+    if (existingRole.office?.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ResourceNotFound,
         "We're pretty sure Asuna is in Egil's place right now. Hurry up and go to the bar, Kirito.",
-        { roleId, name, permissions },
+        {roleId, name, permissions},
       );
     }
 
@@ -625,7 +639,7 @@ export async function updateRole(officeId: string, roleId: string, name?: string
       userCount: existingRole.userCount,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update role.", { roleId, name, permissions }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update role.', {roleId, name, permissions}, e);
   }
 }
 
@@ -662,36 +676,34 @@ export async function deleteRole(roleId: string): Promise<Result<null>> {
 
     // No role found
     if (!existingRole) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Role not found.", { roleId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Role not found.', {roleId});
     }
 
     // Avoid writing to the cardinal administrators office.
-    if (existingRole.office?.toLowerCase() === "cardinal administrators") {
+    if (existingRole.office?.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ResourceNotFound,
         "Kirito, Egil seems to gave you an DVD. Perhaps, you should visit the bird's nest in Yggdrasil. " +
-        "She might be there with the man who seems to be also an administrator of that place too.",
-        { roleId },
+          'She might be there with the man who seems to be also an administrator of that place too.',
+        {roleId},
       );
     }
 
     const [users] = await db
-      .select({ count: count() })
+      .select({count: count()})
       .from(user)
       .where(eq(officePosition.id, existingRole.id));
 
     // They should remove all users with this role before deleting it.
     if (users.count > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Role is in use.", { roleId });
+      return new Failure(ErrorCodes.ValidationFailure, 'Role is in use.', {roleId});
     }
 
-    await db
-      .delete(officePosition)
-      .where(eq(officePosition.id, roleId));
+    await db.delete(officePosition).where(eq(officePosition.id, roleId));
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete role.", { roleId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete role.', {roleId}, e);
   }
 }
 
@@ -718,7 +730,11 @@ export async function deleteRole(roleId: string): Promise<Result<null>> {
  * - Cache invalidation is performed for the user before applying the change.
  * - The role must belong to the resolved target office.
  */
-export async function switchRoles(userId: string, roleId: string, officeId?: string): Promise<Result<User>> {
+export async function switchRoles(
+  userId: string,
+  roleId: string,
+  officeId?: string,
+): Promise<Result<User>> {
   try {
     // Get the existing user first
     const [existingUser] = await db
@@ -735,7 +751,11 @@ export async function switchRoles(userId: string, roleId: string, officeId?: str
       .where(eq(user.id, userId))
       .limit(1);
     if (!existingUser) {
-      return new Failure(ErrorCodes.ResourceNotFound, "User not found.", { userId, roleId, officeId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'User not found.', {
+        userId,
+        roleId,
+        officeId,
+      });
     }
 
     // Delete the user from the cache
@@ -746,33 +766,40 @@ export async function switchRoles(userId: string, roleId: string, officeId?: str
 
     // Find the new office
     const [targetOffice] = officeId
-      ? await db.select({ id: office.id, name: office.name }).from(office).where(eq(office.id, officeId)).limit(1)
-      : [{ id: existingUser.officeId, name: existingUser.officeName }];
+      ? await db
+          .select({id: office.id, name: office.name})
+          .from(office)
+          .where(eq(office.id, officeId))
+          .limit(1)
+      : [{id: existingUser.officeId, name: existingUser.officeName}];
     if (officeId && !targetOffice) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Office not found.", { userId, roleId, officeId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Office not found.', {
+        userId,
+        roleId,
+        officeId,
+      });
     }
 
-    if (targetOffice.name!.toLowerCase() === "cardinal administrators") {
+    if (targetOffice.name!.toLowerCase() === 'cardinal administrators') {
       return new Failure(
         ErrorCodes.ResourceNotFound,
-        "Kirito, You have no match against the new administrator. Just give up and ask your sister for a date.",
-        { userId, roleId, officeId },
+        'Kirito, You have no match against the new administrator. Just give up and ask your sister for a date.',
+        {userId, roleId, officeId},
       );
     }
 
     // Look for the new role
     const [targetRole] = await db
-      .select({ id: officePosition.id })
+      .select({id: officePosition.id})
       .from(officePosition)
-      .where(
-        and(
-          eq(officePosition.officeId, targetOffice.id!),
-          eq(officePosition.id, roleId),
-        ),
-      )
+      .where(and(eq(officePosition.officeId, targetOffice.id!), eq(officePosition.id, roleId)))
       .limit(1);
     if (!targetRole) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Role not found.", { userId, roleId, officeId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Role not found.', {
+        userId,
+        roleId,
+        officeId,
+      });
     }
 
     // Adjust new IDs for the user
@@ -788,14 +815,14 @@ export async function switchRoles(userId: string, roleId: string, officeId?: str
     const newUser = await unwrap(getUserById(userId));
     return new Success(newUser);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to switch roles.", { userId, roleId, officeId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to switch roles.', {userId, roleId, officeId}, e);
   }
 }
 
 type Office = {
   id: string;
   name: string;
-}
+};
 
 type OfficeExtendedInfo = {
   userCount: number;
@@ -806,10 +833,10 @@ type RoleDefinition = {
   id: string;
   name: string;
   permissions: Array<Permissions>;
-}
+};
 
 type OfficeDefinition = {
-  roles: Array<RoleDefinition>
+  roles: Array<RoleDefinition>;
 } & Office;
 
 type RoleExtendedInfo = {
@@ -817,7 +844,7 @@ type RoleExtendedInfo = {
 } & RoleDefinition;
 
 type OfficeDefinitionWithRoleExtendedInfo = {
-  roles: Array<RoleExtendedInfo>
+  roles: Array<RoleExtendedInfo>;
 } & Office;
 
 type OfficeWithHeadUserList = {

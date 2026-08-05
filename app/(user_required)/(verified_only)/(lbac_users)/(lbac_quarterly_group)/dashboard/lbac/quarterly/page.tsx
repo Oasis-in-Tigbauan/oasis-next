@@ -1,21 +1,16 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet} from 'lucide-react';
+import {useCallback, useId, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  LbacOfficeQuarterlyResponse,
-  LbacQuarterlyGroupResponse,
-  LbacQuarterlyGroupTotals,
-  LbacQuarterlyItemResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
+import {ExportQuarterlyDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/export-quarterly-dialog';
+import {ManageTemplatesDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -24,40 +19,43 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-
-import { ExportQuarterlyDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-quarterly-dialog";
-import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  LbacOfficeQuarterlyResponse,
+  LbacQuarterlyGroupResponse,
+  LbacQuarterlyGroupTotals,
+  LbacQuarterlyItemResponse,
+} from '@/lib/http/client/responses';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type FlatRow =
-  | { kind: "group"; id: string; depth: number; data: LbacQuarterlyGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacQuarterlyItemResponse }
-  | { kind: "group-total"; id: string; depth: number; groupId: string; data: LbacQuarterlyGroupTotals; isRoot: boolean };
+  | {kind: 'group'; id: string; depth: number; data: LbacQuarterlyGroupResponse}
+  | {kind: 'item'; id: string; depth: number; data: LbacQuarterlyItemResponse}
+  | {
+      kind: 'group-total';
+      id: string;
+      depth: number;
+      groupId: string;
+      data: LbacQuarterlyGroupTotals;
+      isRoot: boolean;
+    };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -70,27 +68,34 @@ function flattenVisible(
   for (const node of nodes) {
     if (node.type === 6767) {
       const group = node as LbacQuarterlyGroupResponse;
-      rows.push({ kind: "group", id: group.id, depth, data: group });
+      rows.push({kind: 'group', id: group.id, depth, data: group});
       if (!collapsed.has(group.id)) {
         rows.push(...flattenVisible(group.children, collapsed, depth + 1));
-        rows.push({ kind: "group-total", id: `total-${group.id}`, depth, groupId: group.id, data: group.totals, isRoot: depth === 0 });
+        rows.push({
+          kind: 'group-total',
+          id: `total-${group.id}`,
+          depth,
+          groupId: group.id,
+          data: group.totals,
+          isRoot: depth === 0,
+        });
       }
     } else {
-      rows.push({ kind: "item", id: node.id, depth, data: node as LbacQuarterlyItemResponse });
+      rows.push({kind: 'item', id: node.id, depth, data: node as LbacQuarterlyItemResponse});
     }
   }
   return rows;
 }
 
 function fmt(val: string | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return '—';
   const n = Number(val);
   if (Number.isNaN(n)) return val;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 function txt(val: string | null | undefined): string {
-  return val ?? "—";
+  return val ?? '—';
 }
 
 const TOTAL_COLS = 23;
@@ -101,7 +106,7 @@ export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
   const [selectedQuarter, setSelectedQuarter] = useState(() => _getUtc8Quarter());
 
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<LbacOfficeQuarterlyResponse, ApiResponseException>
   >(`/api/lbac/quarterly?year=${currentYear}&quarter=${selectedQuarter}`, $fetch);
 
@@ -134,7 +139,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -230,20 +235,52 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">MFO/PPA</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle">Implementing Unit</TableHead>
-                  <TableHead colSpan={3} className="text-center border-b">Appropriation</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b">Obligation</TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">
+                    AIP REF CODE
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words"
+                  >
+                    MFO/PPA
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle">
+                    Implementing Unit
+                  </TableHead>
+                  <TableHead colSpan={3} className="text-center border-b">
+                    Appropriation
+                  </TableHead>
+                  <TableHead colSpan={2} className="text-center border-b">
+                    Obligation
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words"
+                  >
                     Prior Year Accomplishments
                   </TableHead>
-                  <TableHead colSpan={5} className="text-center border-b">Physical Targets 2026</TableHead>
-                  <TableHead colSpan={5} className="text-center border-b">Actual Physical Performance</TableHead>
-                  <TableHead rowSpan={2} className="min-w-24 align-middle">Variance as of</TableHead>
-                  <TableHead rowSpan={2} className="min-w-24 align-middle">% of Accomplishment</TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">Remarks</TableHead>
-                  <TableHead rowSpan={2} className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                  <TableHead colSpan={5} className="text-center border-b">
+                    Physical Targets 2026
+                  </TableHead>
+                  <TableHead colSpan={5} className="text-center border-b">
+                    Actual Physical Performance
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-24 align-middle">
+                    Variance as of
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-24 align-middle">
+                    % of Accomplishment
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words"
+                  >
+                    Remarks
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="align-middle w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words"
+                  >
                     Target for Budget Year
                   </TableHead>
                 </TableRow>
@@ -256,28 +293,44 @@ export default function Page() {
                   <TableHead className="min-w-28">Cut-off</TableHead>
                   <TableHead className="min-w-28">Balance</TableHead>
                   {/* Physical Targets */}
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q1
+                  </TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q2
+                  </TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q3
+                  </TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q4
+                  </TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                   {/* Actual Physical */}
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q1</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q2</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q3</TableHead>
-                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">Q4</TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q1
+                  </TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q2
+                  </TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q3
+                  </TableHead>
+                  <TableHead className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                    Q4
+                  </TableHead>
                   <TableHead className="min-w-20">Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id);
                     return (
                       <TableRow
@@ -285,7 +338,7 @@ export default function Page() {
                         key={row.id}
                         data-index={vr.index}
                         className="select-none text-white"
-                        style={{ backgroundColor: row.depth === 0 ? "#0B5394" : "#26a69a" }}
+                        style={{backgroundColor: row.depth === 0 ? '#0B5394' : '#26a69a'}}
                       >
                         <TableCell />
                         <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
@@ -294,9 +347,11 @@ export default function Page() {
                             className="flex items-center gap-1 font-semibold text-white text-left hover:opacity-80 w-full"
                             onClick={() => toggleCollapse(row.id)}
                           >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
+                            {isCollapsed ? (
+                              <ChevronRight className="size-3 shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3 shrink-0" />
+                            )}
                             <span>{row.data.name}</span>
                           </button>
                         </TableCell>
@@ -305,27 +360,39 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "group-total") {
+                  if (row.kind === 'group-total') {
                     const t = row.data;
-                    const label = row.isRoot ? "Grand Total" : "Total";
+                    const label = row.isRoot ? 'Grand Total' : 'Total';
                     return (
                       <TableRow
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
                         className="font-bold"
-                        style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
+                        style={{backgroundColor: row.isRoot ? '#B6D7A8' : '#FFF2CC'}}
                       >
                         <TableCell />
-                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">
+                          {label}
+                        </TableCell>
                         <TableCell />
                         {/* Appropriation */}
-                        <TableCell className="text-right font-mono">{fmt(t.appropriation.contOrSupplementalAugmentation)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.appropriation.current)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.appropriation.total)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.appropriation.contOrSupplementalAugmentation)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.appropriation.current)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.appropriation.total)}
+                        </TableCell>
                         {/* Obligation */}
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.obligation)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.balance)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.asCutOffMonth.obligation)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.asCutOffMonth.balance)}
+                        </TableCell>
                         <TableCell colSpan={14} />
                         <TableCell className="w-[275px] min-w-[275px] max-w-[275px]" />
                       </TableRow>
@@ -338,45 +405,81 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${vr.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
+                      className={`cursor-pointer select-none ${vr.index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''}`}
                       title="Click to edit quarterly data"
                       onClick={() => handleItemClick(item)}
                     >
-                      <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.mfoPpa}</TableCell>
+                      <TableCell className="font-mono">
+                        {txt(item.aipRefCode?.aipReferenceCode)}
+                      </TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                        {item.mfoPpa}
+                      </TableCell>
                       <TableCell>{txt(item.implementingUnit?.name)}</TableCell>
                       {/* Appropriation */}
-                      <TableCell className="text-right font-mono">{fmt(item.appropriation.contOrSupplementalAugmentation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.appropriation.current)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.appropriation.total)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.appropriation.contOrSupplementalAugmentation)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.appropriation.current)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.appropriation.total)}
+                      </TableCell>
                       {/* Obligation */}
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.obligation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.balance)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.asCutOffMonth.obligation)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.asCutOffMonth.balance)}
+                      </TableCell>
                       {/* Prior Year */}
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.priorYearAccomplishments)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                        {txt(item.priorYearAccomplishments)}
+                      </TableCell>
                       {/* Physical Targets */}
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q1)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q2)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q3)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.physicalTargets.Q4)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.physicalTargets.Q1)}
+                      </TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.physicalTargets.Q2)}
+                      </TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.physicalTargets.Q3)}
+                      </TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.physicalTargets.Q4)}
+                      </TableCell>
                       <TableCell>{txt(item.physicalTargets.total)}</TableCell>
                       {/* Actual Physical */}
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q1)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q2)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q3)}</TableCell>
-                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">{txt(item.actualPhysicalPerformance.Q4)}</TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.actualPhysicalPerformance.Q1)}
+                      </TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.actualPhysicalPerformance.Q2)}
+                      </TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.actualPhysicalPerformance.Q3)}
+                      </TableCell>
+                      <TableCell className="w-[200px] min-w-[200px] max-w-[200px] whitespace-normal break-words">
+                        {txt(item.actualPhysicalPerformance.Q4)}
+                      </TableCell>
                       <TableCell>{txt(item.actualPhysicalPerformance.total)}</TableCell>
                       {/* Remaining */}
                       <TableCell>{txt(item.variance)}</TableCell>
                       <TableCell>{txt(item.accomplishment)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.remarks)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{txt(item.targetForBudgetYear)}</TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                        {txt(item.remarks)}
+                      </TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                        {txt(item.targetForBudgetYear)}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -405,7 +508,7 @@ export default function Page() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         exportApiBase="/api/lbac/export/quarterly"
-        exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+        exportParams={{year: String(currentYear), quarter: String(selectedQuarter)}}
         tree={tree}
       />
     </div>
@@ -436,26 +539,26 @@ function QuarterlyEditDialog({
 }) {
   const baseId = useId();
   const [fields, setFields] = useState<Record<string, string>>(() => ({
-    priorYearAccomplishments: item.priorYearAccomplishments ?? "",
-    physicalTargetQ1: item.physicalTargets.Q1 ?? "",
-    physicalTargetQ2: item.physicalTargets.Q2 ?? "",
-    physicalTargetQ3: item.physicalTargets.Q3 ?? "",
-    physicalTargetQ4: item.physicalTargets.Q4 ?? "",
-    physicalTargetTotal: item.physicalTargets.total ?? "",
-    actualPhysicalPerformanceQ1: item.actualPhysicalPerformance.Q1 ?? "",
-    actualPhysicalPerformanceQ2: item.actualPhysicalPerformance.Q2 ?? "",
-    actualPhysicalPerformanceQ3: item.actualPhysicalPerformance.Q3 ?? "",
-    actualPhysicalPerformanceQ4: item.actualPhysicalPerformance.Q4 ?? "",
-    variance: item.variance ?? "",
-    accomplishmentPercentage: item.accomplishment ?? "",
-    remarks: item.remarks ?? "",
-    targetForBudgetYear: item.targetForBudgetYear ?? "",
+    priorYearAccomplishments: item.priorYearAccomplishments ?? '',
+    physicalTargetQ1: item.physicalTargets.Q1 ?? '',
+    physicalTargetQ2: item.physicalTargets.Q2 ?? '',
+    physicalTargetQ3: item.physicalTargets.Q3 ?? '',
+    physicalTargetQ4: item.physicalTargets.Q4 ?? '',
+    physicalTargetTotal: item.physicalTargets.total ?? '',
+    actualPhysicalPerformanceQ1: item.actualPhysicalPerformance.Q1 ?? '',
+    actualPhysicalPerformanceQ2: item.actualPhysicalPerformance.Q2 ?? '',
+    actualPhysicalPerformanceQ3: item.actualPhysicalPerformance.Q3 ?? '',
+    actualPhysicalPerformanceQ4: item.actualPhysicalPerformance.Q4 ?? '',
+    variance: item.variance ?? '',
+    accomplishmentPercentage: item.accomplishment ?? '',
+    remarks: item.remarks ?? '',
+    targetForBudgetYear: item.targetForBudgetYear ?? '',
   }));
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   function set(key: string, value: string) {
-    setFields(prev => ({ ...prev, [key]: value }));
+    setFields((prev) => ({...prev, [key]: value}));
   }
 
   const handleSave = async () => {
@@ -469,19 +572,19 @@ function QuarterlyEditDialog({
       }
 
       const res = await fetch(`/api/lbac/items/${item.id}/quarterly-report`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save. Please try again.');
         return;
       }
       onSuccess();
       onOpenChange(false);
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -502,7 +605,7 @@ function QuarterlyEditDialog({
               <Textarea
                 id={`${baseId}-priorYear`}
                 value={fields.priorYearAccomplishments}
-                onChange={e => set("priorYearAccomplishments", e.target.value)}
+                onChange={(e) => set('priorYearAccomplishments', e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -513,7 +616,7 @@ function QuarterlyEditDialog({
               <Textarea
                 id={`${baseId}-target`}
                 value={fields.targetForBudgetYear}
-                onChange={e => set("targetForBudgetYear", e.target.value)}
+                onChange={(e) => set('targetForBudgetYear', e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -521,17 +624,20 @@ function QuarterlyEditDialog({
 
             <Separator />
 
-            <Typography variant="small" className="font-semibold uppercase text-muted-foreground text-xs">
+            <Typography
+              variant="small"
+              className="font-semibold uppercase text-muted-foreground text-xs"
+            >
               Physical Targets 2026
             </Typography>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {(["Q1", "Q2", "Q3", "Q4"] as const).map(q => (
+              {(['Q1', 'Q2', 'Q3', 'Q4'] as const).map((q) => (
                 <div key={q} className="flex flex-col gap-1">
                   <Label htmlFor={`${baseId}-ptq${q}`}>{q}</Label>
                   <Textarea
                     id={`${baseId}-ptq${q}`}
                     value={fields[`physicalTarget${q}`]}
-                    onChange={e => set(`physicalTarget${q}`, e.target.value)}
+                    onChange={(e) => set(`physicalTarget${q}`, e.target.value)}
                     disabled={submitting}
                     rows={2}
                   />
@@ -543,24 +649,27 @@ function QuarterlyEditDialog({
               <Input
                 id={`${baseId}-ptTotal`}
                 value={fields.physicalTargetTotal}
-                onChange={e => set("physicalTargetTotal", e.target.value)}
+                onChange={(e) => set('physicalTargetTotal', e.target.value)}
                 disabled={submitting}
               />
             </div>
 
             <Separator />
 
-            <Typography variant="small" className="font-semibold uppercase text-muted-foreground text-xs">
+            <Typography
+              variant="small"
+              className="font-semibold uppercase text-muted-foreground text-xs"
+            >
               Actual Physical Performance
             </Typography>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {(["Q1", "Q2", "Q3", "Q4"] as const).map(q => (
+              {(['Q1', 'Q2', 'Q3', 'Q4'] as const).map((q) => (
                 <div key={q} className="flex flex-col gap-1">
                   <Label htmlFor={`${baseId}-appq${q}`}>{q}</Label>
                   <Textarea
                     id={`${baseId}-appq${q}`}
                     value={fields[`actualPhysicalPerformance${q}`]}
-                    onChange={e => set(`actualPhysicalPerformance${q}`, e.target.value)}
+                    onChange={(e) => set(`actualPhysicalPerformance${q}`, e.target.value)}
                     disabled={submitting}
                     rows={2}
                   />
@@ -576,7 +685,7 @@ function QuarterlyEditDialog({
                 <Input
                   id={`${baseId}-variance`}
                   value={fields.variance}
-                  onChange={e => set("variance", e.target.value)}
+                  onChange={(e) => set('variance', e.target.value)}
                   disabled={submitting}
                 />
               </div>
@@ -585,7 +694,7 @@ function QuarterlyEditDialog({
                 <Input
                   id={`${baseId}-accomplishment`}
                   value={fields.accomplishmentPercentage}
-                  onChange={e => set("accomplishmentPercentage", e.target.value)}
+                  onChange={(e) => set('accomplishmentPercentage', e.target.value)}
                   disabled={submitting}
                 />
               </div>
@@ -596,7 +705,7 @@ function QuarterlyEditDialog({
               <Textarea
                 id={`${baseId}-remarks`}
                 value={fields.remarks}
-                onChange={e => set("remarks", e.target.value)}
+                onChange={(e) => set('remarks', e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -605,15 +714,19 @@ function QuarterlyEditDialog({
         </ScrollArea>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" disabled={submitting}>Cancel</Button>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
           </DialogClose>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving…" : "Save Changes"}
+            {submitting ? 'Saving…' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

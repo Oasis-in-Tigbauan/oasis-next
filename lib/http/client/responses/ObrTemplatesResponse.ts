@@ -1,8 +1,8 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export interface ObrTemplateInfo {
   id: string;
-  templateType: "header" | "footer";
+  templateType: 'header' | 'footer';
   createdAt: string;
   updatedAt: string;
 }

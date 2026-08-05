@@ -1,5 +1,5 @@
-import { session as auth, SessionCode } from "@/lib/auth";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
+import {session as auth, SessionCode} from '@/lib/auth';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
 
 export async function GET() {
   const session = await auth.verify();

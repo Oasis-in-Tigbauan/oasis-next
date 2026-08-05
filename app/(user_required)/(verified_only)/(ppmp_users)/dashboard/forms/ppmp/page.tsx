@@ -1,8 +1,6 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { DateTime } from "luxon";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import {useVirtualizer} from '@tanstack/react-virtual';
 import {
   ArrowRightLeft,
   ChevronDown,
@@ -11,10 +9,39 @@ import {
   Plus,
   Search,
   Trash2,
-} from "lucide-react";
-import useSWR from "swr";
+} from 'lucide-react';
+import {DateTime} from 'luxon';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {MonthPicker} from '@/components/ui/month-picker';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -29,64 +56,35 @@ import type {
   SaaobSearchEntry,
   SaaobSearchGroup,
   SaaobSearchResponse,
-} from "@/lib/http/client/responses";
-import { isLbacSearchGroup, isSaaobGroup } from "@/lib/http/client/responses";
-
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { MonthPicker } from "@/components/ui/month-picker";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/lib/http/client/responses';
+import {isLbacSearchGroup, isSaaobGroup} from '@/lib/http/client/responses';
 
 const TOTAL_COLS = 12;
 const PARENT_TYPE_MINOR = 6700;
 const PARENT_TYPE_PROJECT = 6701;
 
 type FlatRow =
-  | { kind: "major"; id: string; data: PpmpMajorGroupResponse }
-  | { kind: "minor"; id: string; data: PpmpMinorGroupResponse; majorId: string }
-  | { kind: "project"; id: string; data: PpmpProjectGroupResponse; minorId: string }
-  | { kind: "item"; id: string; data: PpmpPlanItemResponse; parentType: 6700 | 6701; parentId: string };
+  | {kind: 'major'; id: string; data: PpmpMajorGroupResponse}
+  | {kind: 'minor'; id: string; data: PpmpMinorGroupResponse; majorId: string}
+  | {kind: 'project'; id: string; data: PpmpProjectGroupResponse; minorId: string}
+  | {
+      kind: 'item';
+      id: string;
+      data: PpmpPlanItemResponse;
+      parentType: 6700 | 6701;
+      parentId: string;
+    };
 
 type DialogMode =
-  | "add-major"
-  | "edit-major"
-  | "add-minor"
-  | "edit-minor"
-  | "add-project"
-  | "edit-project"
-  | "add-item"
-  | "edit-item"
-  | "move"
+  | 'add-major'
+  | 'edit-major'
+  | 'add-minor'
+  | 'edit-minor'
+  | 'add-project'
+  | 'edit-project'
+  | 'add-item'
+  | 'edit-item'
+  | 'move'
   | null;
 
 type DialogPayload = {
@@ -97,12 +95,12 @@ type DialogPayload = {
 };
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<PpmpDataResponse, ApiResponseException>
-  >("/api/forms/ppmp", $fetch);
+  >('/api/forms/ppmp', $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<FlatRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [dialogPayload, setDialogPayload] = useState<DialogPayload>({});
@@ -129,10 +127,11 @@ export default function Page() {
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -151,47 +150,47 @@ export default function Page() {
   }, [mutate, closeDialog]);
 
   const openAddMinor = useCallback((majorId: string) => {
-    setDialogMode("add-minor");
-    setDialogPayload({ majorId });
+    setDialogMode('add-minor');
+    setDialogPayload({majorId});
   }, []);
 
   const openAddProject = useCallback((minorId: string) => {
-    setDialogMode("add-project");
-    setDialogPayload({ minorId });
+    setDialogMode('add-project');
+    setDialogPayload({minorId});
   }, []);
 
   const openAddItemUnderMinor = useCallback((minorId: string) => {
-    setDialogMode("add-item");
-    setDialogPayload({ parentType: PARENT_TYPE_MINOR, parentId: minorId });
+    setDialogMode('add-item');
+    setDialogPayload({parentType: PARENT_TYPE_MINOR, parentId: minorId});
   }, []);
 
   const openAddItemUnderProject = useCallback((projectId: string) => {
-    setDialogMode("add-item");
-    setDialogPayload({ parentType: PARENT_TYPE_PROJECT, parentId: projectId });
+    setDialogMode('add-item');
+    setDialogPayload({parentType: PARENT_TYPE_PROJECT, parentId: projectId});
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!selectedRow) return;
 
-    const messageByKind: Record<FlatRow["kind"], string> = {
-      major: "Delete this major group? This cannot be undone.",
-      minor: "Delete this minor group? This cannot be undone.",
-      project: "Delete this project group? This cannot be undone.",
-      item: "Delete this plan item? This cannot be undone.",
+    const messageByKind: Record<FlatRow['kind'], string> = {
+      major: 'Delete this major group? This cannot be undone.',
+      minor: 'Delete this minor group? This cannot be undone.',
+      project: 'Delete this project group? This cannot be undone.',
+      item: 'Delete this plan item? This cannot be undone.',
     };
     if (!confirm(messageByKind[selectedRow.kind])) return;
 
-    const endpointByKind: Record<FlatRow["kind"], string> = {
+    const endpointByKind: Record<FlatRow['kind'], string> = {
       major: `/api/forms/ppmp/major-group/${selectedRow.id}`,
       minor: `/api/forms/ppmp/minor-group/${selectedRow.id}`,
       project: `/api/forms/ppmp/project-group/${selectedRow.id}`,
       item: `/api/forms/ppmp/item/${selectedRow.id}`,
     };
 
-    const response = await fetch(endpointByKind[selectedRow.kind], { method: "DELETE" });
+    const response = await fetch(endpointByKind[selectedRow.kind], {method: 'DELETE'});
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
-      alert(payload?.message ?? "Failed to delete.");
+      alert(payload?.message ?? 'Failed to delete.');
       return;
     }
     setSelectedRow(null);
@@ -210,7 +209,7 @@ export default function Page() {
             className="pl-7 h-8 w-64 text-xs"
             placeholder="Search PPMP..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -220,7 +219,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add-major")}
+          onClick={() => setDialogMode('add-major')}
         >
           <Plus className="size-3" />
           Major Group
@@ -232,9 +231,9 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          disabled={selectedRow?.kind !== "major"}
+          disabled={selectedRow?.kind !== 'major'}
           onClick={() => {
-            if (selectedRow?.kind !== "major") return;
+            if (selectedRow?.kind !== 'major') return;
             openAddMinor(selectedRow.id);
           }}
         >
@@ -246,9 +245,9 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          disabled={selectedRow?.kind !== "minor"}
+          disabled={selectedRow?.kind !== 'minor'}
           onClick={() => {
-            if (selectedRow?.kind !== "minor") return;
+            if (selectedRow?.kind !== 'minor') return;
             openAddProject(selectedRow.id);
           }}
         >
@@ -260,11 +259,11 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          disabled={selectedRow?.kind !== "minor" && selectedRow?.kind !== "project"}
+          disabled={selectedRow?.kind !== 'minor' && selectedRow?.kind !== 'project'}
           onClick={() => {
-            if (selectedRow?.kind === "minor") {
+            if (selectedRow?.kind === 'minor') {
               openAddItemUnderMinor(selectedRow.id);
-            } else if (selectedRow?.kind === "project") {
+            } else if (selectedRow?.kind === 'project') {
               openAddItemUnderProject(selectedRow.id);
             }
           }}
@@ -283,10 +282,10 @@ export default function Page() {
           disabled={!selectedRow}
           onClick={() => {
             if (!selectedRow) return;
-            if (selectedRow.kind === "major") setDialogMode("edit-major");
-            if (selectedRow.kind === "minor") setDialogMode("edit-minor");
-            if (selectedRow.kind === "project") setDialogMode("edit-project");
-            if (selectedRow.kind === "item") setDialogMode("edit-item");
+            if (selectedRow.kind === 'major') setDialogMode('edit-major');
+            if (selectedRow.kind === 'minor') setDialogMode('edit-minor');
+            if (selectedRow.kind === 'project') setDialogMode('edit-project');
+            if (selectedRow.kind === 'item') setDialogMode('edit-item');
           }}
         >
           <Pencil />
@@ -297,8 +296,8 @@ export default function Page() {
           size="icon-sm"
           aria-label="Move selected"
           title="Move selected"
-          disabled={!selectedRow || selectedRow.kind === "major"}
-          onClick={() => setDialogMode("move")}
+          disabled={!selectedRow || selectedRow.kind === 'major'}
+          onClick={() => setDialogMode('move')}
         >
           <ArrowRightLeft />
         </Button>
@@ -325,7 +324,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No PPMP records found."}
+            {searchQuery ? 'No results match your search.' : 'No PPMP records found.'}
           </div>
         ) : (
           <div
@@ -335,31 +334,53 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
-                  <TableHead colSpan={5} className="text-center">PROCUREMENT PROJECT DETAILS</TableHead>
-                  <TableHead colSpan={3} className="text-center">PROJECTED TIMELINE (MM/YYYY)</TableHead>
-                  <TableHead colSpan={2} className="text-center">FUNDING DETAILS</TableHead>
-                  <TableHead rowSpan={2} className="min-w-48 align-middle">Attached Supporting Documents</TableHead>
-                  <TableHead rowSpan={2} className="min-w-48 align-middle">Remarks</TableHead>
+                  <TableHead colSpan={5} className="text-center">
+                    PROCUREMENT PROJECT DETAILS
+                  </TableHead>
+                  <TableHead colSpan={3} className="text-center">
+                    PROJECTED TIMELINE (MM/YYYY)
+                  </TableHead>
+                  <TableHead colSpan={2} className="text-center">
+                    FUNDING DETAILS
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-48 align-middle">
+                    Attached Supporting Documents
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-48 align-middle">
+                    Remarks
+                  </TableHead>
                 </TableRow>
                 <TableRow>
                   <TableHead className="w-[260px] min-w-[260px] whitespace-normal wrap-break-word">
                     General Description and Objective of the Project to be Procured
                   </TableHead>
                   <TableHead className="w-[280px] min-w-[280px] whitespace-normal wrap-break-word">
-                    Type of the Project to be Procured (whether Goods, Infrastructure and Consulting Services)
+                    Type of the Project to be Procured (whether Goods, Infrastructure and Consulting
+                    Services)
                   </TableHead>
-                  <TableHead className="min-w-44">Quantity and Size of the Project to be Procured</TableHead>
+                  <TableHead className="min-w-44">
+                    Quantity and Size of the Project to be Procured
+                  </TableHead>
                   <TableHead className="min-w-44">Recommended Mode of Procurement</TableHead>
-                  <TableHead className="min-w-40">Pre-Procurement Conference, if applicable (YES/NO)</TableHead>
+                  <TableHead className="min-w-40">
+                    Pre-Procurement Conference, if applicable (YES/NO)
+                  </TableHead>
                   <TableHead className="min-w-36">Start of Procurement Activity</TableHead>
                   <TableHead className="min-w-36">End of Procurement Activity</TableHead>
-                  <TableHead className="min-w-44">Expected Delivery/Implementation Period</TableHead>
+                  <TableHead className="min-w-44">
+                    Expected Delivery/Implementation Period
+                  </TableHead>
                   <TableHead className="min-w-44">Source of Funds</TableHead>
-                  <TableHead className="min-w-40">Estimated Budget/Authorized Budgetary Allocation (Php)</TableHead>
+                  <TableHead className="min-w-40">
+                    Estimated Budget/Authorized Budgetary Allocation (Php)
+                  </TableHead>
                 </TableRow>
                 <TableRow>
-                  {Array.from({ length: TOTAL_COLS }, (_, idx) => (
-                    <TableHead key={`num-${idx + 1}`} className="text-center font-mono text-xs py-1">
+                  {Array.from({length: TOTAL_COLS}, (_, idx) => (
+                    <TableHead
+                      key={`num-${idx + 1}`}
+                      className="text-center font-mono text-xs py-1"
+                    >
                       {idx + 1}
                     </TableHead>
                   ))}
@@ -368,26 +389,26 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
 
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
                   const isSelected = selectedRow?.id === row.id;
 
-                  if (row.kind === "major") {
+                  if (row.kind === 'major') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <TableRow
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className={`cursor-pointer select-none bg-emerald-100/60 dark:bg-emerald-950/40 ${isSelected ? "outline-2 outline-primary" : ""}`}
-                        onClick={() => setSelectedRow(prev => (prev?.id === row.id ? null : row))}
+                        className={`cursor-pointer select-none bg-emerald-100/60 dark:bg-emerald-950/40 ${isSelected ? 'outline-2 outline-primary' : ''}`}
+                        onClick={() => setSelectedRow((prev) => (prev?.id === row.id ? null : row))}
                         onDoubleClick={() => {
                           setSelectedRow(row);
-                          setDialogMode("edit-major");
+                          setDialogMode('edit-major');
                         }}
                       >
                         <TableCell className="font-semibold">Source of Funds</TableCell>
@@ -397,12 +418,16 @@ export default function Page() {
                               variant="ghost"
                               size="icon-sm"
                               title="Collapse/Expand"
-                              onClick={e => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 toggleCollapse(row.id);
                               }}
                             >
-                              {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                              {isCollapsed ? (
+                                <ChevronRight className="size-3" />
+                              ) : (
+                                <ChevronDown className="size-3" />
+                              )}
                             </Button>
                             {txt(row.data.saaob.name)}
                           </div>
@@ -414,33 +439,39 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "minor") {
+                  if (row.kind === 'minor') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <TableRow
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className={`cursor-pointer select-none bg-sky-100/65 dark:bg-sky-950/40 ${isSelected ? "outline-2 outline-primary" : ""}`}
-                        onClick={() => setSelectedRow(prev => (prev?.id === row.id ? null : row))}
+                        className={`cursor-pointer select-none bg-sky-100/65 dark:bg-sky-950/40 ${isSelected ? 'outline-2 outline-primary' : ''}`}
+                        onClick={() => setSelectedRow((prev) => (prev?.id === row.id ? null : row))}
                         onDoubleClick={() => {
                           setSelectedRow(row);
-                          setDialogMode("edit-minor");
+                          setDialogMode('edit-minor');
                         }}
                       >
-                        <TableCell className="font-semibold">{txt(row.data.lbac.aipRefCode)}</TableCell>
+                        <TableCell className="font-semibold">
+                          {txt(row.data.lbac.aipRefCode)}
+                        </TableCell>
                         <TableCell className="font-semibold">
                           <div className="inline-flex items-center gap-1">
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               title="Collapse/Expand"
-                              onClick={e => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 toggleCollapse(row.id);
                               }}
                             >
-                              {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                              {isCollapsed ? (
+                                <ChevronRight className="size-3" />
+                              ) : (
+                                <ChevronDown className="size-3" />
+                              )}
                             </Button>
                             {txt(row.data.lbac.name)}
                           </div>
@@ -452,18 +483,18 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "project") {
+                  if (row.kind === 'project') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <TableRow
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className={`cursor-pointer select-none bg-amber-100/75 dark:bg-amber-950/40 ${isSelected ? "outline-2 outline-primary" : ""}`}
-                        onClick={() => setSelectedRow(prev => (prev?.id === row.id ? null : row))}
+                        className={`cursor-pointer select-none bg-amber-100/75 dark:bg-amber-950/40 ${isSelected ? 'outline-2 outline-primary' : ''}`}
+                        onClick={() => setSelectedRow((prev) => (prev?.id === row.id ? null : row))}
                         onDoubleClick={() => {
                           setSelectedRow(row);
-                          setDialogMode("edit-project");
+                          setDialogMode('edit-project');
                         }}
                       >
                         <TableCell className="font-semibold">PPA/Training Title</TableCell>
@@ -473,12 +504,16 @@ export default function Page() {
                               variant="ghost"
                               size="icon-sm"
                               title="Collapse/Expand"
-                              onClick={e => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 toggleCollapse(row.id);
                               }}
                             >
-                              {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                              {isCollapsed ? (
+                                <ChevronRight className="size-3" />
+                              ) : (
+                                <ChevronDown className="size-3" />
+                              )}
                             </Button>
                             {txt(row.data.title)}
                           </div>
@@ -497,15 +532,15 @@ export default function Page() {
                       data-index={vr.index}
                       className={`cursor-pointer select-none ${
                         isSelected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : vr.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
-                            : ""
+                            ? 'bg-muted hover:bg-muted/50'
+                            : ''
                       }`}
-                      onClick={() => setSelectedRow(prev => (prev?.id === row.id ? null : row))}
+                      onClick={() => setSelectedRow((prev) => (prev?.id === row.id ? null : row))}
                       onDoubleClick={() => {
                         setSelectedRow(row);
-                        setDialogMode("edit-item");
+                        setDialogMode('edit-item');
                       }}
                     >
                       <TableCell className="w-[260px] min-w-[260px] whitespace-normal wrap-break-word">
@@ -516,12 +551,20 @@ export default function Page() {
                       </TableCell>
                       <TableCell>{txt(row.data.quantityOrSize)}</TableCell>
                       <TableCell>{txt(row.data.recommendedModeOfProcurement)}</TableCell>
-                      <TableCell>{row.data.eligibleForPreProcurementConference ? "Yes" : "No"}</TableCell>
-                      <TableCell>{formatMonthYearLabel(row.data.startOfProcurementActivity)}</TableCell>
-                      <TableCell>{formatMonthYearLabel(row.data.endOfProcurementActivity)}</TableCell>
+                      <TableCell>
+                        {row.data.eligibleForPreProcurementConference ? 'Yes' : 'No'}
+                      </TableCell>
+                      <TableCell>
+                        {formatMonthYearLabel(row.data.startOfProcurementActivity)}
+                      </TableCell>
+                      <TableCell>
+                        {formatMonthYearLabel(row.data.endOfProcurementActivity)}
+                      </TableCell>
                       <TableCell>{formatMonthYearLabel(row.data.expectedDeliveryPeriod)}</TableCell>
                       <TableCell>{txt(row.data.saaob.name)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmtMoney(row.data.estimatedBudget)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmtMoney(row.data.estimatedBudget)}
+                      </TableCell>
                       <TableCell className="w-[240px] min-w-[240px] whitespace-normal wrap-break-word">
                         {txt(row.data.attachedSupportingDocuments)}
                       </TableCell>
@@ -534,7 +577,7 @@ export default function Page() {
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -543,15 +586,10 @@ export default function Page() {
         )}
       </div>
 
-      {dialogMode === "add-major" && (
-        <MajorGroupDialog
-          key="add-major"
-          mode="add"
-          onClose={closeDialog}
-          onSuccess={onSuccess}
-        />
+      {dialogMode === 'add-major' && (
+        <MajorGroupDialog key="add-major" mode="add" onClose={closeDialog} onSuccess={onSuccess} />
       )}
-      {dialogMode === "edit-major" && selectedRow?.kind === "major" && (
+      {dialogMode === 'edit-major' && selectedRow?.kind === 'major' && (
         <MajorGroupDialog
           key={`edit-major-${selectedRow.id}`}
           mode="edit"
@@ -560,9 +598,9 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "add-minor" && (
+      {dialogMode === 'add-minor' && (
         <MinorGroupDialog
-          key={`add-minor-${dialogPayload.majorId ?? "none"}`}
+          key={`add-minor-${dialogPayload.majorId ?? 'none'}`}
           mode="add"
           defaultMajorId={dialogPayload.majorId}
           majorGroups={majorGroups}
@@ -570,7 +608,7 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "edit-minor" && selectedRow?.kind === "minor" && (
+      {dialogMode === 'edit-minor' && selectedRow?.kind === 'minor' && (
         <MinorGroupDialog
           key={`edit-minor-${selectedRow.id}`}
           mode="edit"
@@ -581,9 +619,9 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "add-project" && (
+      {dialogMode === 'add-project' && (
         <ProjectGroupDialog
-          key={`add-project-${dialogPayload.minorId ?? "none"}`}
+          key={`add-project-${dialogPayload.minorId ?? 'none'}`}
           mode="add"
           defaultMinorId={dialogPayload.minorId}
           minorGroups={minorGroups}
@@ -591,7 +629,7 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "edit-project" && selectedRow?.kind === "project" && (
+      {dialogMode === 'edit-project' && selectedRow?.kind === 'project' && (
         <ProjectGroupDialog
           key={`edit-project-${selectedRow.id}`}
           mode="edit"
@@ -602,9 +640,9 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "add-item" && (
+      {dialogMode === 'add-item' && (
         <PlanItemDialog
-          key={`add-item-${dialogPayload.parentType ?? "none"}-${dialogPayload.parentId ?? "none"}`}
+          key={`add-item-${dialogPayload.parentType ?? 'none'}-${dialogPayload.parentId ?? 'none'}`}
           mode="add"
           defaultParentType={dialogPayload.parentType}
           defaultParentId={dialogPayload.parentId}
@@ -614,7 +652,7 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "edit-item" && selectedRow?.kind === "item" && (
+      {dialogMode === 'edit-item' && selectedRow?.kind === 'item' && (
         <PlanItemDialog
           key={`edit-item-${selectedRow.id}`}
           mode="edit"
@@ -627,7 +665,7 @@ export default function Page() {
           onSuccess={onSuccess}
         />
       )}
-      {dialogMode === "move" && selectedRow && selectedRow.kind !== "major" && (
+      {dialogMode === 'move' && selectedRow && selectedRow.kind !== 'major' && (
         <MoveDialog
           key={`move-${selectedRow.kind}-${selectedRow.id}`}
           row={selectedRow}
@@ -648,13 +686,13 @@ function MajorGroupDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editMajor?: PpmpMajorGroupResponse;
   onSuccess: () => void;
   onClose: () => void;
 }) {
-  const [saaob, setSaaob] = useState<{ id: string; name: string } | null>(
-    editMajor ? { id: editMajor.saaob.id, name: editMajor.saaob.name } : null,
+  const [saaob, setSaaob] = useState<{id: string; name: string} | null>(
+    editMajor ? {id: editMajor.saaob.id, name: editMajor.saaob.name} : null,
   );
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -662,39 +700,40 @@ function MajorGroupDialog({
   const save = async () => {
     if (submitting) return;
     if (!saaob?.id) {
-      setActionError("Please select a source of funds.");
+      setActionError('Please select a source of funds.');
       return;
     }
     setSubmitting(true);
     setActionError(null);
     try {
-      const endpoint = mode === "add"
-        ? "/api/forms/ppmp/major-group"
-        : `/api/forms/ppmp/major-group/${editMajor!.id}`;
-      const method = mode === "add" ? "POST" : "PATCH";
+      const endpoint =
+        mode === 'add'
+          ? '/api/forms/ppmp/major-group'
+          : `/api/forms/ppmp/major-group/${editMajor!.id}`;
+      const method = mode === 'add' ? 'POST' : 'PATCH';
       const response = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ saaobId: saaob.id }),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({saaobId: saaob.id}),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save major group.");
+        setActionError(payload?.message ?? 'Failed to save major group.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("Unexpected error while saving major group.");
+      setActionError('Unexpected error while saving major group.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Create Major Group" : "Edit Major Group"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Create Major Group' : 'Edit Major Group'}</DialogTitle>
           <DialogDescription>Major group source of funds configuration.</DialogDescription>
         </DialogHeader>
 
@@ -703,11 +742,19 @@ function MajorGroupDialog({
           <SaaobSearchCombobox value={saaob} onChange={setSaaob} disabled={submitting} />
         </div>
 
-        {actionError && <Typography variant="small" className="text-destructive">{actionError}</Typography>}
+        {actionError && (
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
+        )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={save} disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={submitting}>
+            {submitting ? 'Saving...' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -723,7 +770,7 @@ function MinorGroupDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editMinor?: PpmpMinorGroupResponse;
   majorGroups: PpmpMajorGroupResponse[];
   defaultMajorId?: string;
@@ -731,9 +778,11 @@ function MinorGroupDialog({
   onSuccess: () => void;
   onClose: () => void;
 }) {
-  const [majorId, setMajorId] = useState(defaultMajorId ?? selectedMajorId ?? majorGroups[0]?.id ?? "");
-  const [lbac, setLbac] = useState<{ id: string; name: string } | null>(
-    editMinor ? { id: editMinor.lbac.id, name: editMinor.lbac.name } : null,
+  const [majorId, setMajorId] = useState(
+    defaultMajorId ?? selectedMajorId ?? majorGroups[0]?.id ?? '',
+  );
+  const [lbac, setLbac] = useState<{id: string; name: string} | null>(
+    editMinor ? {id: editMinor.lbac.id, name: editMinor.lbac.name} : null,
   );
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -741,47 +790,46 @@ function MinorGroupDialog({
   const save = async () => {
     if (submitting) return;
     if (!lbac?.id) {
-      setActionError("Please select an LBAC item.");
+      setActionError('Please select an LBAC item.');
       return;
     }
     setSubmitting(true);
     setActionError(null);
     try {
-      const endpoint = mode === "add"
-        ? "/api/forms/ppmp/minor-group"
-        : `/api/forms/ppmp/minor-group/${editMinor!.id}`;
-      const method = mode === "add" ? "POST" : "PATCH";
-      const body = mode === "add"
-        ? { parentId: majorId, lbacId: lbac.id }
-        : { lbacId: lbac.id };
+      const endpoint =
+        mode === 'add'
+          ? '/api/forms/ppmp/minor-group'
+          : `/api/forms/ppmp/minor-group/${editMinor!.id}`;
+      const method = mode === 'add' ? 'POST' : 'PATCH';
+      const body = mode === 'add' ? {parentId: majorId, lbacId: lbac.id} : {lbacId: lbac.id};
 
       const response = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save minor group.");
+        setActionError(payload?.message ?? 'Failed to save minor group.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("Unexpected error while saving minor group.");
+      setActionError('Unexpected error while saving minor group.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Create Minor Group" : "Edit Minor Group"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Create Minor Group' : 'Edit Minor Group'}</DialogTitle>
           <DialogDescription>Minor group maps to a linked LBAC item.</DialogDescription>
         </DialogHeader>
         <div className="flex min-w-0 flex-col gap-4">
-          {mode === "add" && (
+          {mode === 'add' && (
             <div className="flex flex-col gap-1">
               <Label>Parent Major Group</Label>
               <Select value={majorId} onValueChange={setMajorId} disabled={submitting}>
@@ -789,8 +837,10 @@ function MinorGroupDialog({
                   <SelectValue placeholder="Select major group..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {majorGroups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>{group.saaob.name}</SelectItem>
+                  {majorGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.saaob.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -801,10 +851,18 @@ function MinorGroupDialog({
             <LbacSearchCombobox value={lbac} onChange={setLbac} disabled={submitting} />
           </div>
         </div>
-        {actionError && <Typography variant="small" className="text-destructive">{actionError}</Typography>}
+        {actionError && (
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={save} disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={submitting}>
+            {submitting ? 'Saving...' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -820,7 +878,7 @@ function ProjectGroupDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editProject?: PpmpProjectGroupResponse;
   minorGroups: PpmpMinorGroupResponse[];
   defaultMinorId?: string;
@@ -828,55 +886,59 @@ function ProjectGroupDialog({
   onSuccess: () => void;
   onClose: () => void;
 }) {
-  const [minorId, setMinorId] = useState(defaultMinorId ?? selectedMinorId ?? minorGroups[0]?.id ?? "");
-  const [title, setTitle] = useState(editProject?.title ?? "");
+  const [minorId, setMinorId] = useState(
+    defaultMinorId ?? selectedMinorId ?? minorGroups[0]?.id ?? '',
+  );
+  const [title, setTitle] = useState(editProject?.title ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const save = async () => {
     if (submitting) return;
     if (!title.trim()) {
-      setActionError("Title is required.");
+      setActionError('Title is required.');
       return;
     }
     setSubmitting(true);
     setActionError(null);
     try {
-      const endpoint = mode === "add"
-        ? "/api/forms/ppmp/project-group"
-        : `/api/forms/ppmp/project-group/${editProject!.id}`;
-      const method = mode === "add" ? "POST" : "PATCH";
-      const body = mode === "add"
-        ? { parentId: minorId, title: title.trim() }
-        : { title: title.trim() };
+      const endpoint =
+        mode === 'add'
+          ? '/api/forms/ppmp/project-group'
+          : `/api/forms/ppmp/project-group/${editProject!.id}`;
+      const method = mode === 'add' ? 'POST' : 'PATCH';
+      const body =
+        mode === 'add' ? {parentId: minorId, title: title.trim()} : {title: title.trim()};
 
       const response = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save project group.");
+        setActionError(payload?.message ?? 'Failed to save project group.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("Unexpected error while saving project group.");
+      setActionError('Unexpected error while saving project group.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Create Project Group" : "Edit Project Group"}</DialogTitle>
+          <DialogTitle>
+            {mode === 'add' ? 'Create Project Group' : 'Edit Project Group'}
+          </DialogTitle>
           <DialogDescription>Project groups hold plan items under a minor group.</DialogDescription>
         </DialogHeader>
         <div className="flex min-w-0 flex-col gap-4">
-          {mode === "add" && (
+          {mode === 'add' && (
             <div className="flex flex-col gap-1">
               <Label>Parent Minor Group</Label>
               <Select value={minorId} onValueChange={setMinorId} disabled={submitting}>
@@ -884,8 +946,10 @@ function ProjectGroupDialog({
                   <SelectValue placeholder="Select minor group..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {minorGroups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>{group.lbac.name}</SelectItem>
+                  {minorGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.lbac.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -896,16 +960,24 @@ function ProjectGroupDialog({
             <Input
               id="project-title"
               value={title}
-              onChange={e => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value)}
               disabled={submitting}
               placeholder="PPA/Training title"
             />
           </div>
         </div>
-        {actionError && <Typography variant="small" className="text-destructive">{actionError}</Typography>}
+        {actionError && (
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={save} disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={submitting}>
+            {submitting ? 'Saving...' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -922,7 +994,7 @@ function PlanItemDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: PpmpPlanItemResponse;
   defaultParentType?: 6700 | 6701;
   defaultParentId?: string;
@@ -933,45 +1005,59 @@ function PlanItemDialog({
 }) {
   const baseId = useId();
   const [parentType, setParentType] = useState<6700 | 6701>(defaultParentType ?? PARENT_TYPE_MINOR);
-  const [parentId, setParentId] = useState(defaultParentId ?? minorGroups[0]?.id ?? "");
+  const [parentId, setParentId] = useState(defaultParentId ?? minorGroups[0]?.id ?? '');
 
-  const [generalDescription, setGeneralDescription] = useState(editItem?.generalDescription ?? "");
-  const [typeOfProject, setTypeOfProject] = useState<PpmpPlanItemResponse["typeOfProject"]>(editItem?.typeOfProject ?? "goods");
-  const [quantityOrSize, setQuantityOrSize] = useState(editItem?.quantityOrSize ?? "");
-  const [recommendedModeOfProcurement, setRecommendedModeOfProcurement] = useState(editItem?.recommendedModeOfProcurement ?? "");
-  const [eligible, setEligible] = useState(editItem?.eligibleForPreProcurementConference ?? false);
-  const [startMonth, setStartMonth] = useState(toMonthInput(editItem?.startOfProcurementActivity ?? null));
-  const [endMonth, setEndMonth] = useState(toMonthInput(editItem?.endOfProcurementActivity ?? null));
-  const [deliveryMonth, setDeliveryMonth] = useState(toMonthInput(editItem?.expectedDeliveryPeriod ?? null));
-  const [saaob, setSaaob] = useState<{ id: string; name: string } | null>(
-    editItem ? { id: editItem.saaob.id, name: editItem.saaob.name } : null,
+  const [generalDescription, setGeneralDescription] = useState(editItem?.generalDescription ?? '');
+  const [typeOfProject, setTypeOfProject] = useState<PpmpPlanItemResponse['typeOfProject']>(
+    editItem?.typeOfProject ?? 'goods',
   );
-  const [estimatedBudget, setEstimatedBudget] = useState(editItem?.estimatedBudget ?? "");
-  const [attachedSupportingDocuments, setAttachedSupportingDocuments] = useState(editItem?.attachedSupportingDocuments ?? "");
-  const [remarks, setRemarks] = useState(editItem?.remarks ?? "");
+  const [quantityOrSize, setQuantityOrSize] = useState(editItem?.quantityOrSize ?? '');
+  const [recommendedModeOfProcurement, setRecommendedModeOfProcurement] = useState(
+    editItem?.recommendedModeOfProcurement ?? '',
+  );
+  const [eligible, setEligible] = useState(editItem?.eligibleForPreProcurementConference ?? false);
+  const [startMonth, setStartMonth] = useState(
+    toMonthInput(editItem?.startOfProcurementActivity ?? null),
+  );
+  const [endMonth, setEndMonth] = useState(
+    toMonthInput(editItem?.endOfProcurementActivity ?? null),
+  );
+  const [deliveryMonth, setDeliveryMonth] = useState(
+    toMonthInput(editItem?.expectedDeliveryPeriod ?? null),
+  );
+  const [saaob, setSaaob] = useState<{id: string; name: string} | null>(
+    editItem ? {id: editItem.saaob.id, name: editItem.saaob.name} : null,
+  );
+  const [estimatedBudget, setEstimatedBudget] = useState(editItem?.estimatedBudget ?? '');
+  const [attachedSupportingDocuments, setAttachedSupportingDocuments] = useState(
+    editItem?.attachedSupportingDocuments ?? '',
+  );
+  const [remarks, setRemarks] = useState(editItem?.remarks ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const parentOptions = parentType === PARENT_TYPE_MINOR ? minorGroups : projectGroups;
-  const parentPlaceholder = parentType === PARENT_TYPE_MINOR ? "Select minor group..." : "Select project group...";
-  const parentLabel = parentType === PARENT_TYPE_MINOR ? "Parent Minor Group" : "Parent Project Group";
+  const parentPlaceholder =
+    parentType === PARENT_TYPE_MINOR ? 'Select minor group...' : 'Select project group...';
+  const parentLabel =
+    parentType === PARENT_TYPE_MINOR ? 'Parent Minor Group' : 'Parent Project Group';
 
   const save = async () => {
     if (submitting) return;
-    if (mode === "add" && !parentId) {
-      setActionError("Please select a parent group.");
+    if (mode === 'add' && !parentId) {
+      setActionError('Please select a parent group.');
       return;
     }
     if (!quantityOrSize.trim()) {
-      setActionError("Quantity and size is required.");
+      setActionError('Quantity and size is required.');
       return;
     }
     if (!estimatedBudget.trim()) {
-      setActionError("Estimated budget is required.");
+      setActionError('Estimated budget is required.');
       return;
     }
     if (!startMonth || !endMonth || !deliveryMonth) {
-      setActionError("Please complete all projected timeline fields.");
+      setActionError('Please complete all projected timeline fields.');
       return;
     }
 
@@ -986,66 +1072,68 @@ function PlanItemDialog({
     };
 
     if (generalDescription.trim()) payload.generalDescription = generalDescription.trim();
-    if (recommendedModeOfProcurement.trim()) payload.recommendedModeOfProcurement = recommendedModeOfProcurement.trim();
+    if (recommendedModeOfProcurement.trim())
+      payload.recommendedModeOfProcurement = recommendedModeOfProcurement.trim();
     if (saaob?.id) payload.saaobId = saaob.id;
-    if (attachedSupportingDocuments.trim()) payload.attachedSupportingDocuments = attachedSupportingDocuments.trim();
+    if (attachedSupportingDocuments.trim())
+      payload.attachedSupportingDocuments = attachedSupportingDocuments.trim();
     if (remarks.trim()) payload.remarks = remarks.trim();
 
     setSubmitting(true);
     setActionError(null);
     try {
-      let endpoint = "/api/forms/ppmp/item";
-      let method = "POST";
+      let endpoint = '/api/forms/ppmp/item';
+      let method = 'POST';
       let body: Record<string, unknown> = {
         parentId,
         parentType,
         payload,
       };
 
-      if (mode === "edit" && editItem) {
+      if (mode === 'edit' && editItem) {
         endpoint = `/api/forms/ppmp/item/${editItem.id}`;
-        method = "PATCH";
+        method = 'PATCH';
         body = payload;
       }
 
       const response = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
       if (!response.ok) {
         const resBody = await response.json().catch(() => null);
-        setActionError(resBody?.message ?? "Failed to save plan item.");
+        setActionError(resBody?.message ?? 'Failed to save plan item.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("Unexpected error while saving plan item.");
+      setActionError('Unexpected error while saving plan item.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Create Plan Item" : "Edit Plan Item"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Create Plan Item' : 'Edit Plan Item'}</DialogTitle>
           <DialogDescription>Fill in PPMP plan item details.</DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[70vh] pr-1">
           <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
-            {mode === "add" && (
+            {mode === 'add' && (
               <>
                 <div className="flex flex-col gap-1">
                   <Label>Parent Type</Label>
                   <Select
                     value={String(parentType)}
-                    onValueChange={v => {
+                    onValueChange={(v) => {
                       const next = Number(v) as 6700 | 6701;
                       setParentType(next);
-                      if (next === PARENT_TYPE_MINOR) setParentId(minorGroups[0]?.id ?? "");
-                      else setParentId(projectGroups[0]?.id ?? "");
+                      if (next === PARENT_TYPE_MINOR) setParentId(minorGroups[0]?.id ?? '');
+                      else setParentId(projectGroups[0]?.id ?? '');
                     }}
                     disabled={submitting}
                   >
@@ -1065,9 +1153,9 @@ function PlanItemDialog({
                       <SelectValue placeholder={parentPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
-                      {parentOptions.map(option => (
+                      {parentOptions.map((option) => (
                         <SelectItem key={option.id} value={option.id}>
-                          {"title" in option ? option.title : option.lbac.name}
+                          {'title' in option ? option.title : option.lbac.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1081,7 +1169,7 @@ function PlanItemDialog({
               <Textarea
                 id={`${baseId}-desc`}
                 value={generalDescription}
-                onChange={e => setGeneralDescription(e.target.value)}
+                onChange={(e) => setGeneralDescription(e.target.value)}
                 rows={2}
                 disabled={submitting}
               />
@@ -1090,7 +1178,7 @@ function PlanItemDialog({
               <Label>Type of Project</Label>
               <Select
                 value={typeOfProject}
-                onValueChange={v => setTypeOfProject(v as PpmpPlanItemResponse["typeOfProject"])}
+                onValueChange={(v) => setTypeOfProject(v as PpmpPlanItemResponse['typeOfProject'])}
                 disabled={submitting}
               >
                 <SelectTrigger>
@@ -1108,7 +1196,7 @@ function PlanItemDialog({
               <Input
                 id={`${baseId}-qty`}
                 value={quantityOrSize}
-                onChange={e => setQuantityOrSize(e.target.value)}
+                onChange={(e) => setQuantityOrSize(e.target.value)}
                 disabled={submitting}
               />
             </div>
@@ -1117,15 +1205,15 @@ function PlanItemDialog({
               <Input
                 id={`${baseId}-mode`}
                 value={recommendedModeOfProcurement}
-                onChange={e => setRecommendedModeOfProcurement(e.target.value)}
+                onChange={(e) => setRecommendedModeOfProcurement(e.target.value)}
                 disabled={submitting}
               />
             </div>
             <div className="flex flex-col gap-1">
               <Label>Pre-Procurement Conference</Label>
               <Select
-                value={eligible ? "yes" : "no"}
-                onValueChange={v => setEligible(v === "yes")}
+                value={eligible ? 'yes' : 'no'}
+                onValueChange={(v) => setEligible(v === 'yes')}
                 disabled={submitting}
               >
                 <SelectTrigger>
@@ -1173,7 +1261,7 @@ function PlanItemDialog({
               <Input
                 id={`${baseId}-budget`}
                 value={estimatedBudget}
-                onChange={e => setEstimatedBudget(e.target.value)}
+                onChange={(e) => setEstimatedBudget(e.target.value)}
                 disabled={submitting}
               />
             </div>
@@ -1182,7 +1270,7 @@ function PlanItemDialog({
               <Textarea
                 id={`${baseId}-docs`}
                 value={attachedSupportingDocuments}
-                onChange={e => setAttachedSupportingDocuments(e.target.value)}
+                onChange={(e) => setAttachedSupportingDocuments(e.target.value)}
                 rows={2}
                 disabled={submitting}
               />
@@ -1192,17 +1280,25 @@ function PlanItemDialog({
               <Textarea
                 id={`${baseId}-remarks`}
                 value={remarks}
-                onChange={e => setRemarks(e.target.value)}
+                onChange={(e) => setRemarks(e.target.value)}
                 rows={2}
                 disabled={submitting}
               />
             </div>
           </div>
         </ScrollArea>
-        {actionError && <Typography variant="small" className="text-destructive">{actionError}</Typography>}
+        {actionError && (
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={save} disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={submitting}>
+            {submitting ? 'Saving...' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1217,7 +1313,7 @@ function MoveDialog({
   onSuccess,
   onClose,
 }: {
-  row: Exclude<FlatRow, { kind: "major" }>;
+  row: Exclude<FlatRow, {kind: 'major'}>;
   majorGroups: PpmpMajorGroupResponse[];
   minorGroups: PpmpMinorGroupResponse[];
   projectGroups: PpmpProjectGroupResponse[];
@@ -1225,16 +1321,16 @@ function MoveDialog({
   onClose: () => void;
 }) {
   const [parentType, setParentType] = useState<6700 | 6701>(
-    row.kind === "item" ? row.parentType : PARENT_TYPE_MINOR,
+    row.kind === 'item' ? row.parentType : PARENT_TYPE_MINOR,
   );
   const [targetId, setTargetId] = useState<string>(
-    row.kind === "minor"
-      ? majorGroups[0]?.id ?? ""
-      : row.kind === "project"
-        ? minorGroups[0]?.id ?? ""
+    row.kind === 'minor'
+      ? (majorGroups[0]?.id ?? '')
+      : row.kind === 'project'
+        ? (minorGroups[0]?.id ?? '')
         : row.parentType === PARENT_TYPE_MINOR
-          ? minorGroups[0]?.id ?? ""
-          : projectGroups[0]?.id ?? "",
+          ? (minorGroups[0]?.id ?? '')
+          : (projectGroups[0]?.id ?? ''),
   );
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -1242,55 +1338,56 @@ function MoveDialog({
   const save = async () => {
     if (submitting) return;
     if (!targetId) {
-      setActionError("Please select a destination.");
+      setActionError('Please select a destination.');
       return;
     }
 
     setSubmitting(true);
     setActionError(null);
     try {
-      let endpoint = "";
+      let endpoint = '';
       let body: Record<string, unknown> = {};
 
-      if (row.kind === "minor") {
+      if (row.kind === 'minor') {
         endpoint = `/api/forms/ppmp/minor-group/${row.id}/move`;
-        body = { majorGroupId: targetId };
-      } else if (row.kind === "project") {
+        body = {majorGroupId: targetId};
+      } else if (row.kind === 'project') {
         endpoint = `/api/forms/ppmp/project-group/${row.id}/move`;
-        body = { minorGroupId: targetId };
+        body = {minorGroupId: targetId};
       } else {
         endpoint = `/api/forms/ppmp/item/${row.id}/move`;
-        body = { parentType, targetId };
+        body = {parentType, targetId};
       }
 
       const response = await fetch(endpoint, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to move selection.");
+        setActionError(payload?.message ?? 'Failed to move selection.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("Unexpected error while moving selection.");
+      setActionError('Unexpected error while moving selection.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const destinationOptions = row.kind === "minor"
-    ? majorGroups.map(group => ({ id: group.id, label: group.saaob.name }))
-    : row.kind === "project"
-      ? minorGroups.map(group => ({ id: group.id, label: group.lbac.name }))
-      : parentType === PARENT_TYPE_MINOR
-        ? minorGroups.map(group => ({ id: group.id, label: group.lbac.name }))
-        : projectGroups.map(group => ({ id: group.id, label: group.title }));
+  const destinationOptions =
+    row.kind === 'minor'
+      ? majorGroups.map((group) => ({id: group.id, label: group.saaob.name}))
+      : row.kind === 'project'
+        ? minorGroups.map((group) => ({id: group.id, label: group.lbac.name}))
+        : parentType === PARENT_TYPE_MINOR
+          ? minorGroups.map((group) => ({id: group.id, label: group.lbac.name}))
+          : projectGroups.map((group) => ({id: group.id, label: group.title}));
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Move Selection</DialogTitle>
@@ -1298,16 +1395,16 @@ function MoveDialog({
         </DialogHeader>
 
         <div className="flex min-w-0 flex-col gap-4">
-          {row.kind === "item" && (
+          {row.kind === 'item' && (
             <div className="flex flex-col gap-1">
               <Label>Target Parent Type</Label>
               <Select
                 value={String(parentType)}
-                onValueChange={v => {
+                onValueChange={(v) => {
                   const nextType = Number(v) as 6700 | 6701;
                   setParentType(nextType);
-                  if (nextType === PARENT_TYPE_MINOR) setTargetId(minorGroups[0]?.id ?? "");
-                  else setTargetId(projectGroups[0]?.id ?? "");
+                  if (nextType === PARENT_TYPE_MINOR) setTargetId(minorGroups[0]?.id ?? '');
+                  else setTargetId(projectGroups[0]?.id ?? '');
                 }}
                 disabled={submitting}
               >
@@ -1329,19 +1426,29 @@ function MoveDialog({
                 <SelectValue placeholder="Select destination..." />
               </SelectTrigger>
               <SelectContent>
-                {destinationOptions.map(option => (
-                  <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                {destinationOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        {actionError && <Typography variant="small" className="text-destructive">{actionError}</Typography>}
+        {actionError && (
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
+        )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={save} disabled={submitting}>{submitting ? "Moving..." : "Move"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={submitting}>
+            {submitting ? 'Moving...' : 'Move'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1353,13 +1460,13 @@ function SaaobSearchCombobox({
   onChange,
   disabled,
 }: {
-  value: { id: string; name: string } | null;
-  onChange: (value: { id: string; name: string } | null) => void;
+  value: {id: string; name: string} | null;
+  onChange: (value: {id: string; name: string} | null) => void;
   disabled?: boolean;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const { data, isLoading } = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
+  const {data, isLoading} = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
     open && query.length >= 2 ? `/api/saaob/search?query=${encodeURIComponent(query)}` : null,
     $fetch,
   );
@@ -1369,22 +1476,24 @@ function SaaobSearchCombobox({
     <div className="relative flex w-full min-w-0 flex-col gap-1">
       <Input
         placeholder="Search SAAOB entry..."
-        value={open ? query : (value ? value.name : "")}
+        value={open ? query : value ? value.name : ''}
         disabled={disabled}
         className="truncate"
         title={!open && value ? value.name : undefined}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {open && (
         <div
           className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md"
-          onMouseDown={event => event.preventDefault()}
+          onMouseDown={(event) => event.preventDefault()}
         >
           {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>}
           {!isLoading && query.length < 2 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Type at least 2 characters to search.
+            </div>
           )}
           {!isLoading && query.length >= 2 && results.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
@@ -1396,7 +1505,7 @@ function SaaobSearchCombobox({
               onMouseDown={() => {
                 onChange(null);
                 setOpen(false);
-                setQuery("");
+                setQuery('');
               }}
             >
               Clear selection
@@ -1404,7 +1513,7 @@ function SaaobSearchCombobox({
           )}
           {renderSaaobNodes(results, onChange, () => {
             setOpen(false);
-            setQuery("");
+            setQuery('');
           })}
         </div>
       )}
@@ -1414,17 +1523,17 @@ function SaaobSearchCombobox({
 
 function renderSaaobNodes(
   nodes: Array<SaaobSearchGroup | SaaobSearchEntry>,
-  onChange: (value: { id: string; name: string } | null) => void,
+  onChange: (value: {id: string; name: string} | null) => void,
   onSelect: () => void,
   depth = 0,
 ) {
-  return nodes.map(node => {
+  return nodes.map((node) => {
     if (isSaaobGroup(node)) {
       return (
         <div key={node.id}>
           <div
             className="px-3 py-1 text-xs font-semibold text-muted-foreground"
-            style={{ paddingLeft: `${12 + depth * 12}px` }}
+            style={{paddingLeft: `${12 + depth * 12}px`}}
           >
             {node.name}
           </div>
@@ -1438,14 +1547,16 @@ function renderSaaobNodes(
         key={node.id}
         type="button"
         className="flex w-full flex-col py-2 pr-3 text-left text-sm hover:bg-accent"
-        style={{ paddingLeft: `${12 + depth * 12}px` }}
+        style={{paddingLeft: `${12 + depth * 12}px`}}
         onMouseDown={() => {
-          onChange({ id: node.id, name: node.name });
+          onChange({id: node.id, name: node.name});
           onSelect();
         }}
       >
         <span>{node.name}</span>
-        {node.accountCode && <span className="text-xs text-muted-foreground">{node.accountCode}</span>}
+        {node.accountCode && (
+          <span className="text-xs text-muted-foreground">{node.accountCode}</span>
+        )}
       </button>
     );
   });
@@ -1456,13 +1567,13 @@ function LbacSearchCombobox({
   onChange,
   disabled,
 }: {
-  value: { id: string; name: string } | null;
-  onChange: (value: { id: string; name: string } | null) => void;
+  value: {id: string; name: string} | null;
+  onChange: (value: {id: string; name: string} | null) => void;
   disabled?: boolean;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const { data, isLoading } = useSWR<BetterFetchResponse<LbacSearchResponse, ApiResponseException>>(
+  const {data, isLoading} = useSWR<BetterFetchResponse<LbacSearchResponse, ApiResponseException>>(
     open && query.length >= 2 ? `/api/lbac/search?query=${encodeURIComponent(query)}` : null,
     $fetch,
   );
@@ -1472,22 +1583,24 @@ function LbacSearchCombobox({
     <div className="relative flex w-full min-w-0 flex-col gap-1">
       <Input
         placeholder="Search LBAC item..."
-        value={open ? query : (value ? value.name : "")}
+        value={open ? query : value ? value.name : ''}
         disabled={disabled}
         className="truncate"
         title={!open && value ? value.name : undefined}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {open && (
         <div
           className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md"
-          onMouseDown={event => event.preventDefault()}
+          onMouseDown={(event) => event.preventDefault()}
         >
           {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>}
           {!isLoading && query.length < 2 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Type at least 2 characters to search.
+            </div>
           )}
           {!isLoading && query.length >= 2 && results.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
@@ -1499,7 +1612,7 @@ function LbacSearchCombobox({
               onMouseDown={() => {
                 onChange(null);
                 setOpen(false);
-                setQuery("");
+                setQuery('');
               }}
             >
               Clear selection
@@ -1507,7 +1620,7 @@ function LbacSearchCombobox({
           )}
           {renderLbacNodes(results, onChange, () => {
             setOpen(false);
-            setQuery("");
+            setQuery('');
           })}
         </div>
       )}
@@ -1517,17 +1630,17 @@ function LbacSearchCombobox({
 
 function renderLbacNodes(
   nodes: Array<LbacSearchGroupItem | LbacSearchResultItem>,
-  onChange: (value: { id: string; name: string } | null) => void,
+  onChange: (value: {id: string; name: string} | null) => void,
   onSelect: () => void,
   depth = 0,
 ) {
-  return nodes.map(node => {
+  return nodes.map((node) => {
     if (isLbacSearchGroup(node)) {
       return (
         <div key={node.id}>
           <div
             className="px-3 py-1 text-xs font-semibold text-muted-foreground"
-            style={{ paddingLeft: `${12 + depth * 12}px` }}
+            style={{paddingLeft: `${12 + depth * 12}px`}}
           >
             {node.name}
           </div>
@@ -1540,15 +1653,15 @@ function renderLbacNodes(
         key={node.id}
         type="button"
         className="flex w-full flex-col py-2 pr-3 text-left text-sm hover:bg-accent"
-        style={{ paddingLeft: `${12 + depth * 12}px` }}
+        style={{paddingLeft: `${12 + depth * 12}px`}}
         onMouseDown={() => {
-          onChange({ id: node.id, name: node.mfoPpa });
+          onChange({id: node.id, name: node.mfoPpa});
           onSelect();
         }}
       >
         <span>{node.mfoPpa}</span>
         <span className="text-xs text-muted-foreground">
-          {node.aipRefCode?.aipReferenceCode ?? "No AIP Ref Code"}
+          {node.aipRefCode?.aipReferenceCode ?? 'No AIP Ref Code'}
         </span>
       </button>
     );
@@ -1577,10 +1690,13 @@ function flattenVisibleRows(
       item.startOfProcurementActivity,
       item.endOfProcurementActivity,
       item.expectedDeliveryPeriod,
-    ].some(value => (value ?? "").toLowerCase().includes(q));
+    ].some((value) => (value ?? '').toLowerCase().includes(q));
   }
 
-  function walkProject(project: PpmpProjectGroupResponse, minorId: string): { rows: FlatRow[]; matched: boolean } {
+  function walkProject(
+    project: PpmpProjectGroupResponse,
+    minorId: string,
+  ): {rows: FlatRow[]; matched: boolean} {
     const localRows: FlatRow[] = [];
     let childMatched = false;
     for (const item of project.children) {
@@ -1588,7 +1704,7 @@ function flattenVisibleRows(
       if (matched) {
         childMatched = true;
         localRows.push({
-          kind: "item",
+          kind: 'item',
           id: item.id,
           data: item,
           parentType: PARENT_TYPE_PROJECT,
@@ -1599,21 +1715,24 @@ function flattenVisibleRows(
 
     const projectMatched = project.title.toLowerCase().includes(q);
     const matched = !filtering || projectMatched || childMatched;
-    if (!matched) return { rows: [], matched: false };
+    if (!matched) return {rows: [], matched: false};
 
-    const resultRows: FlatRow[] = [{ kind: "project", id: project.id, data: project, minorId }];
+    const resultRows: FlatRow[] = [{kind: 'project', id: project.id, data: project, minorId}];
     if (filtering || !collapsed.has(project.id)) {
       resultRows.push(...localRows);
     }
-    return { rows: resultRows, matched: true };
+    return {rows: resultRows, matched: true};
   }
 
-  function walkMinor(minor: PpmpMinorGroupResponse, majorId: string): { rows: FlatRow[]; matched: boolean } {
+  function walkMinor(
+    minor: PpmpMinorGroupResponse,
+    majorId: string,
+  ): {rows: FlatRow[]; matched: boolean} {
     const childRows: FlatRow[] = [];
     let anyChildMatched = false;
 
     for (const child of minor.children) {
-      if ("title" in child) {
+      if ('title' in child) {
         const projectResult = walkProject(child, minor.id);
         if (projectResult.matched) {
           anyChildMatched = true;
@@ -1624,7 +1743,7 @@ function flattenVisibleRows(
         if (itemMatched) {
           anyChildMatched = true;
           childRows.push({
-            kind: "item",
+            kind: 'item',
             id: child.id,
             data: child,
             parentType: PARENT_TYPE_MINOR,
@@ -1634,15 +1753,17 @@ function flattenVisibleRows(
       }
     }
 
-    const minorMatched = minor.lbac.name.toLowerCase().includes(q) || (minor.lbac.aipRefCode ?? "").toLowerCase().includes(q);
+    const minorMatched =
+      minor.lbac.name.toLowerCase().includes(q) ||
+      (minor.lbac.aipRefCode ?? '').toLowerCase().includes(q);
     const matched = !filtering || minorMatched || anyChildMatched;
-    if (!matched) return { rows: [], matched: false };
+    if (!matched) return {rows: [], matched: false};
 
-    const resultRows: FlatRow[] = [{ kind: "minor", id: minor.id, data: minor, majorId }];
+    const resultRows: FlatRow[] = [{kind: 'minor', id: minor.id, data: minor, majorId}];
     if (filtering || !collapsed.has(minor.id)) {
       resultRows.push(...childRows);
     }
-    return { rows: resultRows, matched: true };
+    return {rows: resultRows, matched: true};
   }
 
   for (const major of majorGroups) {
@@ -1661,7 +1782,7 @@ function flattenVisibleRows(
     const matched = !filtering || majorMatched || anyMinorMatched;
     if (!matched) continue;
 
-    rows.push({ kind: "major", id: major.id, data: major });
+    rows.push({kind: 'major', id: major.id, data: major});
     if (filtering || !collapsed.has(major.id)) {
       rows.push(...childRows);
     }
@@ -1683,7 +1804,7 @@ function collectProjectGroups(majorGroups: PpmpMajorGroupResponse[]): PpmpProjec
   for (const major of majorGroups) {
     for (const minor of major.children) {
       for (const child of minor.children) {
-        if ("title" in child) output.push(child);
+        if ('title' in child) output.push(child);
       }
     }
   }
@@ -1691,16 +1812,16 @@ function collectProjectGroups(majorGroups: PpmpMajorGroupResponse[]): PpmpProjec
 }
 
 function labelForRow(row: FlatRow): string {
-  if (row.kind === "major") return `Major: ${row.data.saaob.name}`;
-  if (row.kind === "minor") return `Minor: ${row.data.lbac.name}`;
-  if (row.kind === "project") return `Project: ${row.data.title}`;
+  if (row.kind === 'major') return `Major: ${row.data.saaob.name}`;
+  if (row.kind === 'minor') return `Minor: ${row.data.lbac.name}`;
+  if (row.kind === 'project') return `Project: ${row.data.title}`;
   return `Item: ${row.data.generalDescription ?? row.data.quantityOrSize}`;
 }
 
-function humanizeTypeOfProject(value: PpmpPlanItemResponse["typeOfProject"]): string {
-  if (value === "goods") return "Goods";
-  if (value === "infra") return "Infrastructure";
-  return "Consulting Services";
+function humanizeTypeOfProject(value: PpmpPlanItemResponse['typeOfProject']): string {
+  if (value === 'goods') return 'Goods';
+  if (value === 'infra') return 'Infrastructure';
+  return 'Consulting Services';
 }
 
 function monthToApiIso(value: string): string {
@@ -1708,40 +1829,40 @@ function monthToApiIso(value: string): string {
 }
 
 function toMonthInput(value: string | null): string {
-  if (!value) return "";
-  const monthYear = DateTime.fromFormat(value, "LLLL yyyy");
-  if (monthYear.isValid) return monthYear.toFormat("yyyy-LL");
+  if (!value) return '';
+  const monthYear = DateTime.fromFormat(value, 'LLLL yyyy');
+  if (monthYear.isValid) return monthYear.toFormat('yyyy-LL');
 
-  const monthOnly = DateTime.fromFormat(value, "LLLL");
+  const monthOnly = DateTime.fromFormat(value, 'LLLL');
   if (monthOnly.isValid) {
-    return monthOnly.set({ year: DateTime.now().year }).toFormat("yyyy-LL");
+    return monthOnly.set({year: DateTime.now().year}).toFormat('yyyy-LL');
   }
-  return "";
+  return '';
 }
 
 function formatMonthYearLabel(value: string | null): string {
-  if (!value) return "—";
-  const monthYear = DateTime.fromFormat(value, "LLLL yyyy");
-  if (monthYear.isValid) return monthYear.toFormat("LLLL yyyy");
+  if (!value) return '—';
+  const monthYear = DateTime.fromFormat(value, 'LLLL yyyy');
+  if (monthYear.isValid) return monthYear.toFormat('LLLL yyyy');
 
   const iso = DateTime.fromISO(value);
-  if (iso.isValid) return iso.toFormat("LLLL yyyy");
+  if (iso.isValid) return iso.toFormat('LLLL yyyy');
 
-  const monthOnly = DateTime.fromFormat(value, "LLLL");
-  if (monthOnly.isValid) return monthOnly.toFormat("LLLL");
+  const monthOnly = DateTime.fromFormat(value, 'LLLL');
+  if (monthOnly.isValid) return monthOnly.toFormat('LLLL');
   return value;
 }
 
 function fmtMoney(value: string | null | undefined): string {
-  if (!value) return "—";
-  const parsed = Number(value.replaceAll(",", ""));
+  if (!value) return '—';
+  const parsed = Number(value.replaceAll(',', ''));
   if (!Number.isFinite(parsed)) return value;
-  return parsed.toLocaleString("en-PH", {
+  return parsed.toLocaleString('en-PH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
 function txt(value: string | null | undefined): string {
-  return value ?? "—";
+  return value ?? '—';
 }

@@ -2,11 +2,11 @@ import {
   createDeterministicRandomBytes,
   getRandomBytes,
   randomInt,
-} from "@/lib/generators/password-generator/random";
+} from '@/lib/generators/password-generator/random';
 
-const VOWELS = "aeiou";
-const CONSONANTS = "bcdfghjklmnpqrstvwxyz";
-const CONSONANT = new RegExp(`[${CONSONANTS}]$`, "i");
+const VOWELS = 'aeiou';
+const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
+const CONSONANT = new RegExp(`[${CONSONANTS}]$`, 'i');
 const SYMBOL_PATTERN = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 const DEFAULT_PATTERN = /[\w!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 const DEFAULT_LENGTH = 12;
@@ -73,18 +73,12 @@ const buildValidChars = (pattern: RegExp) => {
  *                                                                     length, or `null` when the alphabet is too
  *                                                                     small to reach 64 bits at any length.
  */
-const estimatePatternEntropy = (
-  alphabetSize: number,
-  length: number,
-  prefixLength: number,
-) => {
+const estimatePatternEntropy = (alphabetSize: number, length: number, prefixLength: number) => {
   const bitsPerChar = alphabetSize > 1 ? Math.log2(alphabetSize) : 0;
   return {
     entropyBits: bitsPerChar * Math.max(0, length - prefixLength),
     recommendedLength:
-      bitsPerChar > 0
-        ? prefixLength + Math.ceil(MIN_ENTROPY_BITS / bitsPerChar)
-        : null,
+      bitsPerChar > 0 ? prefixLength + Math.ceil(MIN_ENTROPY_BITS / bitsPerChar) : null,
   };
 };
 
@@ -120,7 +114,7 @@ const estimateMemorableEntropy = (length: number, prefix: string) => {
     recommendedLength += 1;
   }
 
-  return { entropyBits, recommendedLength };
+  return {entropyBits, recommendedLength};
 };
 
 /**
@@ -143,7 +137,7 @@ const buildMemorable = async (
   nextInt: (min: number, max: number) => Promise<number>,
 ) => {
   let expectsVowel = startsWithVowel;
-  let result = "";
+  let result = '';
   for (let i = 0; i < length; i += 1) {
     const alphabet = expectsVowel ? VOWELS : CONSONANTS;
     result += alphabet[await nextInt(0, alphabet.length)];
@@ -227,13 +221,13 @@ const ensureSymbols = async (
   nextInt: (min: number, max: number) => Promise<number>,
   minSymbols = 1,
 ): Promise<string> => {
-  const symbolChars = validChars.filter(char => SYMBOL_PATTERN.test(char));
+  const symbolChars = validChars.filter((char) => SYMBOL_PATTERN.test(char));
   if (symbolChars.length === 0) {
     return password;
   }
 
   const chars = [...password];
-  let symbolCount = chars.filter(char => SYMBOL_PATTERN.test(char)).length;
+  let symbolCount = chars.filter((char) => SYMBOL_PATTERN.test(char)).length;
   if (symbolCount >= minSymbols) {
     return password;
   }
@@ -256,7 +250,7 @@ const ensureSymbols = async (
     replaceableIndices.splice(pick, 1);
   }
 
-  return chars.join("");
+  return chars.join('');
 };
 
 /**
@@ -317,79 +311,68 @@ export const generatePassword = async (
  * - `words` and `prefix` cannot be used together.
  * - Supply `entropy` for deterministic output in tests.
  */
-export const generatePasswordWithOptions = async (
-  options?: GenerateOptions,
-): Promise<string> => {
+export const generatePasswordWithOptions = async (options?: GenerateOptions): Promise<string> => {
   const length = options?.length ?? DEFAULT_LENGTH;
   const memorable = options?.memorable ?? false;
   const pattern = options?.pattern ?? DEFAULT_PATTERN;
-  const prefix = String(options?.prefix ?? "");
-  const ignoreSecurityRecommendations =
-    options?.ignoreSecurityRecommendations ?? false;
+  const prefix = String(options?.prefix ?? '');
+  const ignoreSecurityRecommendations = options?.ignoreSecurityRecommendations ?? false;
   const entropy = options?.entropy;
   const words = options?.words;
 
   if (!Number.isSafeInteger(length)) {
-    throw new RangeError("length must be a safe integer");
+    throw new RangeError('length must be a safe integer');
   }
   if (length < 0) {
-    throw new RangeError("length must be a non-negative integer");
+    throw new RangeError('length must be a non-negative integer');
   }
   if (!(pattern instanceof RegExp)) {
-    throw new TypeError("pattern must be a RegExp");
+    throw new TypeError('pattern must be a RegExp');
   }
   if (words !== undefined) {
     if (!Number.isSafeInteger(words)) {
-      throw new RangeError("words must be a safe integer");
+      throw new RangeError('words must be a safe integer');
     }
     if (words <= 0) {
-      throw new RangeError("words must be a positive integer");
+      throw new RangeError('words must be a positive integer');
     }
   }
-  if (words !== undefined && prefix !== "") {
-    throw new Error("prefix is not supported when words are enabled");
+  if (words !== undefined && prefix !== '') {
+    throw new Error('prefix is not supported when words are enabled');
   }
 
   let entropyBytes: Uint8Array | undefined;
   if (entropy !== undefined) {
-    if (typeof entropy === "string") {
+    if (typeof entropy === 'string') {
       entropyBytes = textEncoder.encode(entropy);
     } else if (entropy instanceof Uint8Array) {
       entropyBytes = entropy;
     } else {
-      throw new TypeError("entropy must be a Uint8Array or string");
+      throw new TypeError('entropy must be a Uint8Array or string');
     }
   }
 
   const randomBytes = entropyBytes
     ? await createDeterministicRandomBytes(entropyBytes)
     : getRandomBytes;
-  const nextInt = (min: number, max: number) =>
-    randomInt(min, max, randomBytes);
+  const nextInt = (min: number, max: number) => randomInt(min, max, randomBytes);
 
   // Passphrase mode
   if (words !== undefined) {
-    if (
-      !ignoreSecurityRecommendations &&
-      words * MAX_WORD_LENGTH < MIN_MEMORABLE_LENGTH
-    ) {
-      const recommendedWords = Math.ceil(
-        MIN_MEMORABLE_LENGTH / MAX_WORD_LENGTH,
-      );
+    if (!ignoreSecurityRecommendations && words * MAX_WORD_LENGTH < MIN_MEMORABLE_LENGTH) {
+      const recommendedWords = Math.ceil(MIN_MEMORABLE_LENGTH / MAX_WORD_LENGTH);
       throw new Error(
         `Security recommendation: word count ${words} cannot reach ${MIN_ENTROPY_BITS} bits with ${MIN_WORD_LENGTH}-${MAX_WORD_LENGTH} letter words. Use words >= ${recommendedWords}. To override, pass { ignoreSecurityRecommendations: true }.`,
       );
     }
 
-    const targetLength = ignoreSecurityRecommendations
-      ? undefined
-      : MIN_MEMORABLE_LENGTH;
+    const targetLength = ignoreSecurityRecommendations ? undefined : MIN_MEMORABLE_LENGTH;
     const lengths = await buildWordLengths(words, nextInt, targetLength);
     const wordsList: string[] = [];
     for (const wordLength of lengths) {
       wordsList.push(await buildMemorable(wordLength, false, nextInt));
     }
-    return wordsList.join(" ");
+    return wordsList.join(' ');
   }
 
   // Memorable mode: direct alphabet indexing
@@ -403,23 +386,17 @@ export const generatePasswordWithOptions = async (
       }
     }
     const charCount = Math.max(0, length - prefix.length);
-    return (
-      prefix + (await buildMemorable(charCount, CONSONANT.test(prefix), nextInt))
-    );
+    return prefix + (await buildMemorable(charCount, CONSONANT.test(prefix), nextInt));
   }
 
   // Pattern mode
   const validChars = buildValidChars(pattern);
   if (!ignoreSecurityRecommendations) {
-    const estimate = estimatePatternEntropy(
-      validChars.length,
-      length,
-      prefix.length,
-    );
+    const estimate = estimatePatternEntropy(validChars.length, length, prefix.length);
     if (estimate.entropyBits < MIN_ENTROPY_BITS) {
       const recommendation =
         estimate.recommendedLength === null
-          ? "Use a broader pattern to increase the character set."
+          ? 'Use a broader pattern to increase the character set.'
           : `Use length >= ${estimate.recommendedLength} or broaden the pattern.`;
       throw new Error(
         `Security recommendation: estimated entropy ${estimate.entropyBits.toFixed(1)} bits is below ${MIN_ENTROPY_BITS} bits. ${recommendation} To override, pass { ignoreSecurityRecommendations: true }.`,

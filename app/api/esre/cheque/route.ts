@@ -1,31 +1,32 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import {NextResponse} from 'next/server';
+import type {NextRequest} from 'next/server';
 
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import * as esreService from "@/lib/esre";
-import { Failure, oneOf } from "@/lib/one-of";
-import { validatorUtilities } from "@/lib/validators";
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import * as esreService from '@/lib/esre';
+import {Failure, oneOf} from '@/lib/one-of';
+import {validatorUtilities} from '@/lib/validators';
 
 export async function GET(req: NextRequest) {
   const session = await auth.verify([permission.ESRE_READ]);
   if (!session || session.code !== SessionCode.Ok) {
-    return htmlResponse(renderErrorPage("You are not allowed to print ESRE cheques."), 403);
+    return htmlResponse(renderErrorPage('You are not allowed to print ESRE cheques.'), 403);
   }
 
-  const ids = (req.nextUrl.searchParams.get("ids") ?? "")
-    .split(",")
-    .map(id => id.trim())
+  const ids = (req.nextUrl.searchParams.get('ids') ?? '')
+    .split(',')
+    .map((id) => id.trim())
     .filter(Boolean);
 
-  if (ids.length === 0 || ids.some(id => !validatorUtilities.isUuid(id))) {
-    return htmlResponse(renderErrorPage("Select valid ESRE rows before printing a cheque."), 400);
+  if (ids.length === 0 || ids.some((id) => !validatorUtilities.isUuid(id))) {
+    return htmlResponse(renderErrorPage('Select valid ESRE rows before printing a cheque.'), 400);
   }
 
   const result = await esreService.getChequePrintData(ids);
   return oneOf(result).match(
-    data => htmlResponse(renderChequePage(data)),
-    failure => htmlResponse(renderErrorPage(failure.message), failure instanceof Failure ? 400 : 500),
+    (data) => htmlResponse(renderChequePage(data)),
+    (failure) =>
+      htmlResponse(renderErrorPage(failure.message), failure instanceof Failure ? 400 : 500),
   );
 }
 
@@ -33,21 +34,21 @@ function htmlResponse(html: string, status = 200): NextResponse {
   return new NextResponse(html, {
     status,
     headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
     },
   });
 }
 
 function formatChequeAmountWords(words: string, amount: string): string {
-  const cents = amount.split(".")[1]?.padEnd(2, "0").slice(0, 2) ?? "00";
+  const cents = amount.split('.')[1]?.padEnd(2, '0').slice(0, 2) ?? '00';
   const trimmedWords = words
-    .replace(/\s+ONLY$/iu, "")
-    .replace(/\s+AND\s+ZERO\s+CENTAVOS$/iu, "")
-    .replace(/\s+AND\s+00\/100$/iu, "")
+    .replace(/\s+ONLY$/iu, '')
+    .replace(/\s+AND\s+ZERO\s+CENTAVOS$/iu, '')
+    .replace(/\s+AND\s+00\/100$/iu, '')
     .trim();
 
-  if (cents === "00") {
+  if (cents === '00') {
     return `${trimmedWords} ONLY`;
   }
 
@@ -55,13 +56,13 @@ function formatChequeAmountWords(words: string, amount: string): string {
 }
 
 function renderChequePage(data: esreService.EsreChequePrintData): string {
-  const today = new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila",
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
+  const today = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
   }).format(data.printedAt);
-  const dateDigits = today.replace(/\D/gu, "").split("").join("   ");
+  const dateDigits = today.replace(/\D/gu, '').split('').join('   ');
   const amountWords = formatChequeAmountWords(data.amountWords, data.amount);
 
   return `<!doctype html>
@@ -227,7 +228,7 @@ function renderChequePage(data: esreService.EsreChequePrintData): string {
     <button type="button" onclick="window.print()">Print Cheque</button>
   </div>
   <main class="sheet" aria-label="Cheque print layout">
-    <div class="check-number">${escapeHtml(data.checkNumber ?? "")}</div>
+    <div class="check-number">${escapeHtml(data.checkNumber ?? '')}</div>
     <div class="payee">${escapeHtml(data.payee)}</div>
     <div class="amount-words">${escapeHtml(amountWords)}</div>
     <div class="date">${escapeHtml(dateDigits)}</div>
@@ -297,9 +298,9 @@ function renderErrorPage(message: string): string {
 
 function escapeHtml(value: string): string {
   return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }

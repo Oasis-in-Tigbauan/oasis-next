@@ -1,19 +1,12 @@
-"use client";
+'use client';
 
-import { Plus } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
-import useSWR from "swr";
+import {Plus} from 'lucide-react';
+import {type SubmitEvent, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  BetterFetchResponse,
-  ProcurementTypesListResponse,
-  ProcurementTypeResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import DeadHamster from "@/components/dead-hamster";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -23,31 +16,31 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+  ApiResponseException,
+  BetterFetchResponse,
+  ProcurementTypesListResponse,
+  ProcurementTypeResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>>(
-    "/api/management/data/procurement-types", $fetch);
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>
+  >('/api/management/data/procurement-types', $fetch);
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const handleCreateMutate = (item: ProcurementTypeResponse) => {
@@ -67,7 +60,7 @@ export default function Page() {
       mutate({
         data: {
           ok: true,
-          data: (data?.data?.data || []).map(x => {
+          data: (data?.data?.data || []).map((x) => {
             if (x.id === item.data.id) return item.data;
             return x;
           }),
@@ -98,7 +91,12 @@ export default function Page() {
               </TableHeader>
               <TableBody>
                 {(data?.data?.data || []).map((x, index) => (
-                  <ProcurementTypeRow key={x.id} data={x} index={index} mutate={handleUpdateMutate} />
+                  <ProcurementTypeRow
+                    key={x.id}
+                    data={x}
+                    index={index}
+                    mutate={handleUpdateMutate}
+                  />
                 ))}
               </TableBody>
             </Table>
@@ -109,18 +107,18 @@ export default function Page() {
   );
 }
 
-function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeResponse) => void}) {
+function CreateFundTypeDialog({mutate}: {mutate: (item: ProcurementTypeResponse) => void}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<ProcurementTypePayload>({
-    name: "",
+    name: '',
     description: null,
   });
 
   const handleInput = (key: keyof ProcurementTypePayload, value: string) => {
-    setPayload(prev => ({
+    setPayload((prev) => ({
       ...prev,
-      [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+      [key]: key !== 'name' && !((value?.trim() ?? '').length > 0) ? undefined : value,
     }));
   };
 
@@ -128,14 +126,15 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeRespon
     e.preventDefault();
 
     const res = await $fetch<ProcurementTypeResponse, ApiResponseException>(
-      "/api/management/data/procurement-types",
+      '/api/management/data/procurement-types',
       {
-        method: "POST",
+        method: 'POST',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to create Procurement Type. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to create Procurement Type. Try again later.');
       return;
     }
 
@@ -143,10 +142,10 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeRespon
     mutate(res.data);
 
     // Reset and close.
-    alert("Procurement Type created successfully.");
+    alert('Procurement Type created successfully.');
 
     setPayload({
-      name: "",
+      name: '',
       description: null,
     });
     setOpen(false);
@@ -176,7 +175,7 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeRespon
                 type="text"
                 placeholder="Enter the Procurement Type name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -188,8 +187,8 @@ function CreateFundTypeDialog({ mutate }: { mutate: (item: ProcurementTypeRespon
                 id="description"
                 type="text"
                 placeholder="Enter the Procurement Type description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
               />
             </Field>
           </FieldGroup>
@@ -210,7 +209,7 @@ function ProcurementTypeRow({
   index,
   mutate,
 }: {
-  data: ProcurementTypeResponse["data"];
+  data: ProcurementTypeResponse['data'];
   index: number;
   mutate: (item: ProcurementTypeResponse) => void;
 }) {
@@ -222,10 +221,10 @@ function ProcurementTypeRow({
   });
 
   const handleInput = (key: keyof ProcurementTypePayload, value: string) => {
-    setPayload(prev => {
+    setPayload((prev) => {
       return {
         ...prev,
-        [key]: key !== "name" && !((value?.trim() ?? "").length > 0) ? undefined : value,
+        [key]: key !== 'name' && !((value?.trim() ?? '').length > 0) ? undefined : value,
       };
     });
   };
@@ -236,12 +235,13 @@ function ProcurementTypeRow({
     const res = await $fetch<ProcurementTypeResponse, ApiResponseException>(
       `/api/management/data/procurement-types/${data.id}`,
       {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to update Procurement Type. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to update Procurement Type. Try again later.');
       return;
     }
 
@@ -249,7 +249,7 @@ function ProcurementTypeRow({
     mutate(res.data);
 
     // Close.
-    alert("Procurement Type updated successfully.");
+    alert('Procurement Type updated successfully.');
     setOpen(false);
   };
 
@@ -258,24 +258,22 @@ function ProcurementTypeRow({
       <DialogTrigger asChild>
         <TableRow
           className={cn(
-            "cursor-pointer",
-            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+            'cursor-pointer',
+            index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined,
           )}
         >
           <TableCell className="font-medium whitespace-normal wrap-break-word">
             {data.name}
           </TableCell>
           <TableCell className="whitespace-normal wrap-break-word">
-            {data.description ?? "-"}
+            {data.description ?? '-'}
           </TableCell>
         </TableRow>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Update Procurement Type</DialogTitle>
-          <DialogDescription>
-            Update the Procurement Type details.
-          </DialogDescription>
+          <DialogDescription>Update the Procurement Type details.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="mb-4">
@@ -286,7 +284,7 @@ function ProcurementTypeRow({
                 type="text"
                 placeholder="Enter the account name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -298,8 +296,8 @@ function ProcurementTypeRow({
                 id="description"
                 type="text"
                 placeholder="Enter the Procurement Type description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
               />
             </Field>
           </FieldGroup>
@@ -318,4 +316,4 @@ function ProcurementTypeRow({
 type ProcurementTypePayload = {
   name: string;
   description: Optional<string>;
-}
+};

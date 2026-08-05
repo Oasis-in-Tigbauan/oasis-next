@@ -1,20 +1,17 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import {useCallback, useMemo, useSyncExternalStore} from 'react';
 
-import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility/types";
-import {
-  defaultVisibleKeys,
-  resolveVisibleColumns,
-  toggleableColumnCount,
-} from "./resolve";
+import type {PageColumnDef, PageColumnGroup} from '@/common/column-visibility/types';
+
+import {defaultVisibleKeys, resolveVisibleColumns, toggleableColumnCount} from './resolve';
 import {
   columnVisibilityStorageKey,
   getStableColumnVisibilitySnapshot,
   invalidateColumnVisibilitySnapshot,
   readColumnVisibility,
   writeColumnVisibility,
-} from "./storage";
+} from './storage';
 
 const listeners = new Set<() => void>();
 
@@ -37,9 +34,9 @@ export function useColumnVisibility<K extends string>(
   groups?: ReadonlyArray<PageColumnGroup<K>>,
 ) {
   const storageKey = columnVisibilityStorageKey(pageId);
-  const allKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const allKeys = useMemo(() => columns.map((c) => c.key), [columns]);
   const toggleableKeys = useMemo(
-    () => columns.filter(c => !c.pinned).map(c => c.key),
+    () => columns.filter((c) => !c.pinned).map((c) => c.key),
     [columns],
   );
 
@@ -53,17 +50,11 @@ export function useColumnVisibility<K extends string>(
 
   const getServerSnapshot = useCallback(
     () =>
-      getStableColumnVisibilitySnapshot(`${storageKey}:server`, () =>
-        defaultVisibleKeys(columns),
-      ),
+      getStableColumnVisibilitySnapshot(`${storageKey}:server`, () => defaultVisibleKeys(columns)),
     [storageKey, columns],
   );
 
-  const selected = useSyncExternalStore(
-    subscribeColumnVisibility,
-    getSnapshot,
-    getServerSnapshot,
-  );
+  const selected = useSyncExternalStore(subscribeColumnVisibility, getSnapshot, getServerSnapshot);
 
   const persist = useCallback(
     (next: Set<K>) => {
@@ -84,14 +75,12 @@ export function useColumnVisibility<K extends string>(
 
   const toggle = useCallback(
     (key: K) => {
-      const col = columns.find(c => c.key === key);
+      const col = columns.find((c) => c.key === key);
       if (col?.pinned) return;
 
       const next = new Set(selected);
       if (next.has(key)) {
-        const visibleToggleable = toggleableKeys.filter(
-          k => k !== key && next.has(k),
-        );
+        const visibleToggleable = toggleableKeys.filter((k) => k !== key && next.has(k));
         if (visibleToggleable.length === 0) return;
         next.delete(key);
       } else {
@@ -107,12 +96,12 @@ export function useColumnVisibility<K extends string>(
   }, [columns, persist]);
 
   const deselectAll = useCallback(() => {
-    persist(new Set(columns.filter(c => c.pinned).map(c => c.key)));
+    persist(new Set(columns.filter((c) => c.pinned).map((c) => c.key)));
   }, [columns, persist]);
 
-  const pickerGroups = groups ?? [{ group: "Columns", columns }];
+  const pickerGroups = groups ?? [{group: 'Columns', columns}];
 
-  const selectedToggleableCount = toggleableKeys.filter(k => selected.has(k)).length;
+  const selectedToggleableCount = toggleableKeys.filter((k) => selected.has(k)).length;
   const totalToggleableCount = toggleableColumnCount(columns);
 
   return {

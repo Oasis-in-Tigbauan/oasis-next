@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import {useEffect, useState} from 'react';
 
-import { Spinner } from "@/components/ui/spinner";
-import Typography from "@/components/typography";
+import Typography from '@/components/typography';
+import {Spinner} from '@/components/ui/spinner';
 
 const loadingMessages = [
   "It's taking too long...",
-  "Almost there...",
+  'Almost there...',
   "Are you sure this isn't your internet connection? It's already been a while to load...",
-  "This may take years to load. Try refreshing the page. or you wait...",
+  'This may take years to load. Try refreshing the page. or you wait...',
 ];
 
 export default function Loading() {
@@ -37,9 +37,7 @@ export default function Loading() {
     <div className="p-4 pt-0 w-full">
       <Spinner className="mx-auto mb-4 mt-8 size-1/8" />
       <Typography variant="muted" className="text-center">
-        {
-          idx === -1 ? "Initializing Data..." : loadingMessages[idx]
-        }
+        {idx === -1 ? 'Initializing Data...' : loadingMessages[idx]}
       </Typography>
     </div>
   );

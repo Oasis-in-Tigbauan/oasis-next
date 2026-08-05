@@ -1,10 +1,31 @@
-﻿"use client";
+﻿'use client';
 
-import { useState } from "react";
-import { toast } from "sonner";
-import useSWR from "swr";
+import {useState} from 'react';
+import {toast} from 'sonner';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -16,32 +37,10 @@ import type {
   SaaobSearchEntry,
   SaaobSearchGroup,
   SaaobSearchResponse,
-} from "@/lib/http/client/responses";
-import { isSaaobGroup } from "@/lib/http/client/responses";
+} from '@/lib/http/client/responses';
+import {isSaaobGroup} from '@/lib/http/client/responses';
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-
-const CHECK_STATUS_OPTIONS = ["PAID", "FOR RELEASE", "ON HOLD", "CANCELLED"] as const;
+const CHECK_STATUS_OPTIONS = ['PAID', 'FOR RELEASE', 'ON HOLD', 'CANCELLED'] as const;
 
 type FormState = {
   checkNumber: string;
@@ -56,27 +55,27 @@ type FormState = {
 
 function makeEmptyForm(): FormState {
   return {
-    checkNumber: "",
-    checkStatus: "",
-    fundingSourceId: "",
-    payee: "",
-    natureOfPayment: "",
-    amount: "",
-    expenseTypeId: "",
-    remarks: "",
+    checkNumber: '',
+    checkStatus: '',
+    fundingSourceId: '',
+    payee: '',
+    natureOfPayment: '',
+    amount: '',
+    expenseTypeId: '',
+    remarks: '',
   };
 }
 
 function makeEditForm(item: EsreItemResponse): FormState {
   return {
-    checkNumber: item.checkNumber ?? "",
-    checkStatus: item.checkStatus ?? "",
+    checkNumber: item.checkNumber ?? '',
+    checkStatus: item.checkStatus ?? '',
     fundingSourceId: item.fundingSource.id,
     payee: item.payee,
     natureOfPayment: item.natureOfPayment,
     amount: item.amount,
-    expenseTypeId: item.expenseType?.id ?? "",
-    remarks: item.remarks ?? "",
+    expenseTypeId: item.expenseType?.id ?? '',
+    remarks: item.remarks ?? '',
   };
 }
 
@@ -85,20 +84,20 @@ function makeInitialObr(editItem: EsreItemResponse | undefined): ObrSearchItem |
   return {
     id: editItem.obr.id,
     obrNumber: editItem.obr.requestNumber,
-    alobs: "",
-    payee: "",
-    address: "",
-    particulars: "",
-    expenseClass: editItem.obr.expenseClass ? { ...editItem.obr.expenseClass } : null,
+    alobs: '',
+    payee: '',
+    address: '',
+    particulars: '',
+    expenseClass: editItem.obr.expenseClass ? {...editItem.obr.expenseClass} : null,
     office: editItem.obr.office ?? null,
   };
 }
 
-type SaaobSelection = { id: string; name: string; accountCode?: string | null };
+type SaaobSelection = {id: string; name: string; accountCode?: string | null};
 
 function makeInitialSaaob(editItem: EsreItemResponse | undefined): SaaobSelection | null {
   if (!editItem?.saaob) return null;
-  return { id: editItem.saaob.id, name: editItem.saaob.name };
+  return {id: editItem.saaob.id, name: editItem.saaob.name};
 }
 
 function renderSaaobNodes(
@@ -106,12 +105,12 @@ function renderSaaobNodes(
   depth: number,
   onSelect: (entry: SaaobSearchEntry) => void,
 ): React.ReactNode {
-  return nodes.map(node =>
+  return nodes.map((node) =>
     isSaaobGroup(node) ? (
       <div key={node.id}>
         <div
           className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide select-none"
-          style={{ paddingLeft: `${12 + depth * 12}px` }}
+          style={{paddingLeft: `${12 + depth * 12}px`}}
         >
           {node.name}
         </div>
@@ -122,7 +121,7 @@ function renderSaaobNodes(
         key={node.id}
         type="button"
         className="flex w-full flex-col items-start py-2 text-left text-sm hover:bg-accent"
-        style={{ paddingLeft: `${12 + depth * 12}px` }}
+        style={{paddingLeft: `${12 + depth * 12}px`}}
         onMouseDown={() => onSelect(node)}
       >
         <span className="font-medium">{node.name}</span>
@@ -135,21 +134,21 @@ function renderSaaobNodes(
 }
 
 type Props = {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: EsreItemResponse;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 };
 
-export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }: Props) {
+export function EsreFormDialog({mode, editItem, open, onOpenChange, onSuccess}: Props) {
   const [form, setForm] = useState<FormState>(() =>
-    mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm(),
+    mode === 'edit' && editItem ? makeEditForm(editItem) : makeEmptyForm(),
   );
   const [submitting, setSubmitting] = useState(false);
 
   const [obrQuery, setObrQuery] = useState(() =>
-    mode === "edit" && editItem?.obr ? editItem.obr.requestNumber : "",
+    mode === 'edit' && editItem?.obr ? editItem.obr.requestNumber : '',
   );
   const [obrDropdownOpen, setObrDropdownOpen] = useState(false);
   const [selectedObr, setSelectedObr] = useState<ObrSearchItem | null>(() =>
@@ -157,7 +156,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
   );
 
   const [saaobQuery, setSaaobQuery] = useState(() =>
-    mode === "edit" && editItem?.saaob ? editItem.saaob.name : "",
+    mode === 'edit' && editItem?.saaob ? editItem.saaob.name : '',
   );
   const [saaobDropdownOpen, setSaaobDropdownOpen] = useState(false);
   const [selectedSaaob, setSelectedSaaob] = useState<SaaobSelection | null>(() =>
@@ -165,15 +164,15 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
   );
 
   // Data sources <only fetch when the dialog is open
-  const { data: fundTypeData } = useSWR<
+  const {data: fundTypeData} = useSWR<
     BetterFetchResponse<FundTypesListResponse, ApiResponseException>
-  >(open ? "/api/management/data/fund-types" : null, $fetch);
+  >(open ? '/api/management/data/fund-types' : null, $fetch);
 
-  const { data: expenseTypeData } = useSWR<
+  const {data: expenseTypeData} = useSWR<
     BetterFetchResponse<ExpenseTypeListResponse, ApiResponseException>
-  >(open ? "/api/management/data/expense-type" : null, $fetch);
+  >(open ? '/api/management/data/expense-type' : null, $fetch);
 
-  const { data: obrSearchData, isLoading: obrSearchLoading } = useSWR<
+  const {data: obrSearchData, isLoading: obrSearchLoading} = useSWR<
     BetterFetchResponse<ObrSearchResponse, ApiResponseException>
   >(
     open && obrDropdownOpen && obrQuery.length > 0
@@ -182,7 +181,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
     $fetch,
   );
 
-  const { data: saaobSearchData, isLoading: saaobSearchLoading } = useSWR<
+  const {data: saaobSearchData, isLoading: saaobSearchLoading} = useSWR<
     BetterFetchResponse<SaaobSearchResponse, ApiResponseException>
   >(
     open && saaobDropdownOpen && saaobQuery.length > 0
@@ -197,53 +196,59 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
   const saaobResults = saaobSearchData?.data?.data ?? [];
 
   const update = (key: keyof FormState, value: string) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({...prev, [key]: value}));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const targetEditItem = mode === "edit" ? editItem : undefined;
+    const targetEditItem = mode === 'edit' ? editItem : undefined;
 
-    if (mode === "edit" && !targetEditItem) {
-      toast.error("Select an ESRE entry to update.");
+    if (mode === 'edit' && !targetEditItem) {
+      toast.error('Select an ESRE entry to update.');
       return;
     }
 
-    if (!form.payee.trim() || !form.natureOfPayment.trim() || !form.amount.trim() || !form.fundingSourceId) {
-      toast.error("Complete the required ESRE fields", {
-        description: "Payee, nature of payment, amount, and funding source are required.",
+    if (
+      !form.payee.trim() ||
+      !form.natureOfPayment.trim() ||
+      !form.amount.trim() ||
+      !form.fundingSourceId
+    ) {
+      toast.error('Complete the required ESRE fields', {
+        description: 'Payee, nature of payment, amount, and funding source are required.',
       });
       return;
     }
 
     setSubmitting(true);
 
-    if (mode === "add") {
+    if (mode === 'add') {
       const payload: Record<string, unknown> = {
         payee: form.payee.trim(),
         natureOfPayment: form.natureOfPayment.trim(),
         amount: form.amount.trim(),
         fundingSourceId: form.fundingSourceId,
-        ...(form.checkNumber.trim() ? { checkNumber: form.checkNumber.trim() } : {}),
-        ...(form.remarks.trim() ? { remarks: form.remarks.trim() } : {}),
-        ...(selectedObr ? { obrId: selectedObr.id } : {}),
-        ...(selectedSaaob ? { saaobId: selectedSaaob.id } : {}),
-        ...(form.expenseTypeId ? { expenseTypeId: form.expenseTypeId } : {}),
+        ...(form.checkNumber.trim() ? {checkNumber: form.checkNumber.trim()} : {}),
+        ...(form.remarks.trim() ? {remarks: form.remarks.trim()} : {}),
+        ...(selectedObr ? {obrId: selectedObr.id} : {}),
+        ...(selectedSaaob ? {saaobId: selectedSaaob.id} : {}),
+        ...(form.expenseTypeId ? {expenseTypeId: form.expenseTypeId} : {}),
       };
 
-      const res = await $fetch<unknown, ApiResponseException>("/api/esre", {
-        method: "POST",
+      const res = await $fetch<unknown, ApiResponseException>('/api/esre', {
+        method: 'POST',
         body: payload,
       });
       setSubmitting(false);
       if (res.error) {
-        toast.error("ESRE entry was not created", {
-          description: (res.error as ApiResponseException).message ?? "Please check the form and try again.",
+        toast.error('ESRE entry was not created', {
+          description:
+            (res.error as ApiResponseException).message ?? 'Please check the form and try again.',
         });
         return;
       }
-      toast.success("ESRE entry created");
+      toast.success('ESRE entry created');
     } else {
       if (!targetEditItem) return;
 
@@ -261,17 +266,18 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
       };
 
       const res = await $fetch<unknown, ApiResponseException>(`/api/esre/${targetEditItem.id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload,
       });
       setSubmitting(false);
       if (res.error) {
-        toast.error("ESRE entry was not updated", {
-          description: (res.error as ApiResponseException).message ?? "Please check the form and try again.",
+        toast.error('ESRE entry was not updated', {
+          description:
+            (res.error as ApiResponseException).message ?? 'Please check the form and try again.',
         });
         return;
       }
-      toast.success("ESRE entry updated");
+      toast.success('ESRE entry updated');
     }
 
     onSuccess();
@@ -282,19 +288,16 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[80%] max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "add" ? "Add ESRE Entry" : "Edit ESRE Entry"}
-          </DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add ESRE Entry' : 'Edit ESRE Entry'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Fill in the details to create a new ESRE entry."
-              : "Update the details of the selected ESRE entry."}
+            {mode === 'add'
+              ? 'Fill in the details to create a new ESRE entry.'
+              : 'Update the details of the selected ESRE entry.'}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-y-auto">
           <form id="esre-form" onSubmit={handleSubmit} className="flex flex-col gap-6 px-1 pb-2">
-
             {/* Section 1 <Check info (3-col) */}
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2 flex flex-col gap-2">
@@ -303,23 +306,27 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   id="checkNumber"
                   placeholder="Enter check number"
                   value={form.checkNumber}
-                  onInput={e => update("checkNumber", e.currentTarget.value)}
+                  onInput={(e) => update('checkNumber', e.currentTarget.value)}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="checkStatus">Check Status</Label>
                 <Select
-                  value={form.checkStatus || "__none__"}
-                  onValueChange={v => update("checkStatus", v === "__none__" ? "" : v)}
-                  disabled={mode === "add"}
+                  value={form.checkStatus || '__none__'}
+                  onValueChange={(v) => update('checkStatus', v === '__none__' ? '' : v)}
+                  disabled={mode === 'add'}
                 >
                   <SelectTrigger id="checkStatus" className="w-full">
-                    <SelectValue placeholder={mode === "add" ? "Set after creation" : "Select status"} />
+                    <SelectValue
+                      placeholder={mode === 'add' ? 'Set after creation' : 'Select status'}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">(None)</SelectItem>
-                    {CHECK_STATUS_OPTIONS.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    {CHECK_STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -334,15 +341,17 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                 </Label>
                 <Select
                   value={form.fundingSourceId}
-                  onValueChange={v => update("fundingSourceId", v)}
+                  onValueChange={(v) => update('fundingSourceId', v)}
                   required
                 >
                   <SelectTrigger id="fundingSourceId" className="w-full">
                     <SelectValue placeholder="Select funding source" />
                   </SelectTrigger>
                   <SelectContent>
-                    {fundTypes.map(ft => (
-                      <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
+                    {fundTypes.map((ft) => (
+                      <SelectItem key={ft.id} value={ft.id}>
+                        {ft.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -355,7 +364,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   id="payee"
                   placeholder="Enter payee name"
                   value={form.payee}
-                  onInput={e => update("payee", e.currentTarget.value)}
+                  onInput={(e) => update('payee', e.currentTarget.value)}
                   required
                 />
               </div>
@@ -367,7 +376,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   id="natureOfPayment"
                   placeholder="Describe the nature of payment"
                   value={form.natureOfPayment}
-                  onInput={e => update("natureOfPayment", e.currentTarget.value)}
+                  onInput={(e) => update('natureOfPayment', e.currentTarget.value)}
                   rows={2}
                   required
                 />
@@ -380,23 +389,25 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   id="amount"
                   placeholder="0.00"
                   value={form.amount}
-                  onInput={e => update("amount", e.currentTarget.value)}
+                  onInput={(e) => update('amount', e.currentTarget.value)}
                   required
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="expenseTypeId">Expense Type</Label>
                 <Select
-                  value={form.expenseTypeId || "__none__"}
-                  onValueChange={v => update("expenseTypeId", v === "__none__" ? "" : v)}
+                  value={form.expenseTypeId || '__none__'}
+                  onValueChange={(v) => update('expenseTypeId', v === '__none__' ? '' : v)}
                 >
                   <SelectTrigger id="expenseTypeId" className="w-full">
                     <SelectValue placeholder="Select expense type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">(None)</SelectItem>
-                    {expenseTypes.map(et => (
-                      <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>
+                    {expenseTypes.map((et) => (
+                      <SelectItem key={et.id} value={et.id}>
+                        {et.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -407,7 +418,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   id="remarks"
                   placeholder="Optional remarks"
                   value={form.remarks}
-                  onInput={e => update("remarks", e.currentTarget.value)}
+                  onInput={(e) => update('remarks', e.currentTarget.value)}
                   rows={2}
                 />
               </div>
@@ -424,7 +435,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                     value={obrQuery}
                     onFocus={() => setObrDropdownOpen(true)}
                     onBlur={() => setTimeout(() => setObrDropdownOpen(false), 150)}
-                    onInput={e => {
+                    onInput={(e) => {
                       const value = e.currentTarget.value;
                       setObrQuery(value);
                       if (selectedObr && value !== selectedObr.obrNumber) {
@@ -440,17 +451,18 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                       className="absolute right-2 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
                       onClick={() => {
                         setSelectedObr(null);
-                        setObrQuery("");
+                        setObrQuery('');
                       }}
                     >
-                      ✕                    </button>
+                      ✕{' '}
+                    </button>
                   )}
                   {obrDropdownOpen && (obrSearchLoading || obrResults.length > 0) && (
                     <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
                       {obrSearchLoading ? (
                         <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
                       ) : (
-                        obrResults.map(r => (
+                        obrResults.map((r) => (
                           <button
                             key={r.id}
                             type="button"
@@ -475,7 +487,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
               <div className="flex flex-col gap-2">
                 <Label>Expense Class</Label>
                 <Input
-                  value={selectedObr?.expenseClass?.subClassification ?? ""}
+                  value={selectedObr?.expenseClass?.subClassification ?? ''}
                   readOnly
                   placeholder=""
                   className="bg-muted/50"
@@ -485,7 +497,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
               <div className="flex flex-col gap-2">
                 <Label>Office</Label>
                 <Input
-                  value={selectedObr?.office?.name ?? ""}
+                  value={selectedObr?.office?.name ?? ''}
                   readOnly
                   placeholder=""
                   className="bg-muted/50"
@@ -495,7 +507,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
               <div className="flex flex-col gap-2">
                 <Label>Expense Name</Label>
                 <Input
-                  value={selectedObr?.expenseClass?.accountName ?? ""}
+                  value={selectedObr?.expenseClass?.accountName ?? ''}
                   readOnly
                   placeholder=""
                   className="bg-muted/50"
@@ -505,7 +517,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
               <div className="flex flex-col gap-2">
                 <Label>Account Code</Label>
                 <Input
-                  value={selectedObr?.expenseClass?.accountCode ?? ""}
+                  value={selectedObr?.expenseClass?.accountCode ?? ''}
                   readOnly
                   placeholder=""
                   className="bg-muted/50"
@@ -525,7 +537,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                     value={saaobQuery}
                     onFocus={() => setSaaobDropdownOpen(true)}
                     onBlur={() => setTimeout(() => setSaaobDropdownOpen(false), 150)}
-                    onInput={e => {
+                    onInput={(e) => {
                       const value = e.currentTarget.value;
                       setSaaobQuery(value);
                       if (selectedSaaob && value !== selectedSaaob.name) {
@@ -541,7 +553,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                       className="absolute right-2 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
                       onClick={() => {
                         setSelectedSaaob(null);
-                        setSaaobQuery("");
+                        setSaaobQuery('');
                       }}
                     >
                       ✕
@@ -552,7 +564,7 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                       {saaobSearchLoading ? (
                         <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
                       ) : (
-                        renderSaaobNodes(saaobResults, 0, entry => {
+                        renderSaaobNodes(saaobResults, 0, (entry) => {
                           setSelectedSaaob(entry);
                           setSaaobQuery(entry.name);
                           setSaaobDropdownOpen(false);
@@ -562,20 +574,23 @@ export function EsreFormDialog({ mode, editItem, open, onOpenChange, onSuccess }
                   )}
                 </div>
                 {selectedSaaob?.accountCode && (
-                  <p className="text-xs text-muted-foreground">Account Code: {selectedSaaob.accountCode}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Account Code: {selectedSaaob.accountCode}
+                  </p>
                 )}
               </div>
             </div>
-
           </form>
         </ScrollArea>
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" disabled={submitting}>Cancel</Button>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
           </DialogClose>
           <Button type="submit" form="esre-form" disabled={submitting}>
-            {submitting ? "Saving…" : mode === "add" ? "Create" : "Update"}
+            {submitting ? 'Saving…' : mode === 'add' ? 'Create' : 'Update'}
           </Button>
         </DialogFooter>
       </DialogContent>

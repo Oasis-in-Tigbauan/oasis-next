@@ -1,11 +1,25 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {ChevronDown, ChevronLeft, ChevronRight, Search} from 'lucide-react';
+import {useCallback, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -13,29 +27,7 @@ import type {
   LbacViewerGroupTotals,
   LbacViewerItemResponse,
   LbacViewerResponse,
-} from "@/lib/http/client/responses";
-
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/lib/http/client/responses';
 
 const TOTAL_COLS = 9;
 
@@ -43,12 +35,12 @@ export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
   const [selectedQuarter, setSelectedQuarter] = useState(() => _getUtc8Quarter());
 
-  const { data, error, isLoading } = useSWR<
+  const {data, error, isLoading} = useSWR<
     BetterFetchResponse<LbacViewerResponse, ApiResponseException>
   >(`/api/lbac/viewer?year=${currentYear}&quarter=${selectedQuarter}`, $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -79,7 +71,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -103,7 +95,7 @@ export default function Page() {
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search AIP, MFO…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -145,12 +137,14 @@ export default function Page() {
         </div>
       </div>
 
-      <Typography variant="h3" className="sr-only">LBAC Viewer</Typography>
+      <Typography variant="h3" className="sr-only">
+        LBAC Viewer
+      </Typography>
 
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No LBAC records found."}
+            {searchQuery ? 'No results match your search.' : 'No LBAC records found.'}
           </div>
         ) : (
           <div
@@ -160,13 +154,30 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 bg-[#FFF2CC] [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
                 <TableRow>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">AIP REF CODE</TableHead>
-                  <TableHead rowSpan={2} className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words">MFO/PPA</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle">Implementing Unit</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Proposed Budget Total</TableHead>
-                  <TableHead colSpan={3} className="text-center border-b">Obligation</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Expense Class</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Account Code</TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle border-l">
+                    AIP REF CODE
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="w-[275px] min-w-[275px] max-w-[275px] align-middle whitespace-normal break-words"
+                  >
+                    MFO/PPA
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle">
+                    Implementing Unit
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle">
+                    Proposed Budget Total
+                  </TableHead>
+                  <TableHead colSpan={3} className="text-center border-b">
+                    Obligation
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle">
+                    Expense Class
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle">
+                    Account Code
+                  </TableHead>
                 </TableRow>
                 <TableRow>
                   <TableHead className="min-w-28">Cut-off</TableHead>
@@ -177,13 +188,13 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <TableRow
@@ -191,7 +202,7 @@ export default function Page() {
                         key={row.id}
                         data-index={vr.index}
                         className="select-none text-white"
-                        style={{ backgroundColor: row.depth === 0 ? "#0B5394" : "#26a69a" }}
+                        style={{backgroundColor: row.depth === 0 ? '#0B5394' : '#26a69a'}}
                       >
                         <TableCell />
                         <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
@@ -200,9 +211,11 @@ export default function Page() {
                             className="flex items-center gap-1 font-semibold text-white text-left hover:opacity-80 w-full"
                             onClick={() => toggleCollapse(row.id)}
                           >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
+                            {isCollapsed ? (
+                              <ChevronRight className="size-3 shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3 shrink-0" />
+                            )}
                             <span>{row.data.name}</span>
                           </button>
                         </TableCell>
@@ -211,24 +224,34 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "group-total") {
+                  if (row.kind === 'group-total') {
                     const t = row.data;
-                    const label = row.isRoot ? "Grand Total" : "Total";
+                    const label = row.isRoot ? 'Grand Total' : 'Total';
                     return (
                       <TableRow
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
                         className="font-bold"
-                        style={{ backgroundColor: row.isRoot ? "#B6D7A8" : "#FFF2CC" }}
+                        style={{backgroundColor: row.isRoot ? '#B6D7A8' : '#FFF2CC'}}
                       >
                         <TableCell />
-                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">{label}</TableCell>
+                        <TableCell className="w-[275px] min-w-[275px] max-w-[275px]">
+                          {label}
+                        </TableCell>
                         <TableCell />
-                        <TableCell className="text-right font-mono">{fmt(t.proposedBudgetTotal)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.obligation)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.balance)}</TableCell>
-                        <TableCell className="text-right font-mono">{fmt(t.asCutOffMonth.percentage)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.proposedBudgetTotal)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.asCutOffMonth.obligation)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.asCutOffMonth.balance)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {fmt(t.asCutOffMonth.percentage)}
+                        </TableCell>
                         <TableCell />
                         <TableCell />
                       </TableRow>
@@ -241,15 +264,27 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${vr.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}`}
+                      className={`cursor-pointer select-none ${vr.index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''}`}
                     >
-                      <TableCell className="font-mono">{txt(item.aipRefCode?.aipReferenceCode)}</TableCell>
-                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">{item.mfoPpa}</TableCell>
+                      <TableCell className="font-mono">
+                        {txt(item.aipRefCode?.aipReferenceCode)}
+                      </TableCell>
+                      <TableCell className="w-[275px] min-w-[275px] max-w-[275px] whitespace-normal break-words">
+                        {item.mfoPpa}
+                      </TableCell>
                       <TableCell>{txt(item.implementingUnit?.name)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.proposedBudgetTotal)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.obligation)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.balance)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.asCutOffMonth.percentage)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.proposedBudgetTotal)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.asCutOffMonth.obligation)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.asCutOffMonth.balance)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.asCutOffMonth.percentage)}
+                      </TableCell>
                       <TableCell>{txt(item.other.expenseCode?.accountName)}</TableCell>
                       <TableCell>{txt(item.other.expenseCode?.accountCode)}</TableCell>
                     </TableRow>
@@ -257,7 +292,7 @@ export default function Page() {
                 })}
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -274,7 +309,10 @@ function collectMatchingGroupIds(
   query: string,
 ): Set<string> {
   const matched = new Set<string>();
-  function walk(nodes2: (LbacViewerGroupResponse | LbacViewerItemResponse)[], ancestors: string[]): boolean {
+  function walk(
+    nodes2: (LbacViewerGroupResponse | LbacViewerItemResponse)[],
+    ancestors: string[],
+  ): boolean {
     let anyMatch = false;
     for (const node of nodes2) {
       if (node.type === 6767) {
@@ -324,12 +362,12 @@ function flattenVisible(
     if (node.type === 6767) {
       const group = node as LbacViewerGroupResponse;
       if (filtering && !matchingGroupIds.has(group.id)) continue;
-      rows.push({ kind: "group", id: group.id, depth, data: group });
+      rows.push({kind: 'group', id: group.id, depth, data: group});
       const shouldExpand = filtering || !collapsed.has(group.id);
       if (shouldExpand) {
         rows.push(...flattenVisible(group.children, collapsed, depth + 1, query, matchingGroupIds));
         rows.push({
-          kind: "group-total",
+          kind: 'group-total',
           id: `total-${group.id}`,
           depth,
           groupId: group.id,
@@ -340,21 +378,21 @@ function flattenVisible(
     } else {
       const item = node as LbacViewerItemResponse;
       if (filtering && !itemMatchesQuery(item, query)) continue;
-      rows.push({ kind: "item", id: item.id, depth, data: item });
+      rows.push({kind: 'item', id: item.id, depth, data: item});
     }
   }
   return rows;
 }
 
 function fmt(val: string | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return '—';
   const n = Number(val);
   if (Number.isNaN(n)) return val;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 function txt(val: string | null | undefined): string {
-  return val ?? "—";
+  return val ?? '—';
 }
 
 function _getUtc8Year(): number {
@@ -367,6 +405,13 @@ function _getUtc8Quarter(): number {
 }
 
 type FlatRow =
-  | { kind: "group"; id: string; depth: number; data: LbacViewerGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacViewerItemResponse }
-  | { kind: "group-total"; id: string; depth: number; groupId: string; data: LbacViewerGroupTotals; isRoot: boolean };
+  | {kind: 'group'; id: string; depth: number; data: LbacViewerGroupResponse}
+  | {kind: 'item'; id: string; depth: number; data: LbacViewerItemResponse}
+  | {
+      kind: 'group-total';
+      id: string;
+      depth: number;
+      groupId: string;
+      data: LbacViewerGroupTotals;
+      isRoot: boolean;
+    };

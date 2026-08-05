@@ -1,6 +1,6 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
-export type SaaobStatisticType = "budget" | "sum_per_sector";
+export type SaaobStatisticType = 'budget' | 'sum_per_sector';
 
 export type SaaobStatisticAggregateResponse = {
   annualBudget: string;
@@ -62,5 +62,5 @@ export type SaaobStatisticsDataResponse = GenericOkResponse<
 export function isSaaobStatisticDataGroup(
   node: SaaobStatisticGroupResponse | SaaobStatisticItemResponse,
 ): node is SaaobStatisticGroupResponse {
-  return "children" in node;
+  return 'children' in node;
 }

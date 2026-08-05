@@ -1,48 +1,37 @@
-"use client";
+'use client';
 
-import { useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { FileSpreadsheet, Pencil, Search, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {FileSpreadsheet, Pencil, Search, Trash2} from 'lucide-react';
+import {useMemo, useRef, useState} from 'react';
+import {toast} from 'sonner';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {PurchaseOrderDialog, PurchasingFormDialog} from '@/components/purchasing-form-dialog';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Input} from '@/components/ui/input';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
   PurchasingItemResponse,
   PurchasingListResponse,
-} from "@/lib/http/client/responses";
-
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import { PurchaseOrderDialog, PurchasingFormDialog } from "@/components/purchasing-form-dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+} from '@/lib/http/client/responses';
 
 const TOTAL_COLS = 23;
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<PurchasingListResponse, ApiResponseException>
-  >(
-    "/api/forms/purchasing",
-    $fetch,
-  );
+  >('/api/forms/purchasing', $fetch);
 
   const [selectedItem, setSelectedItem] = useState<PurchasingItemResponse | null>(null);
   const [selectedPoItemIds, setSelectedPoItemIds] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
@@ -59,7 +48,7 @@ export default function Page() {
       return items;
     }
 
-    return items.filter(item => {
+    return items.filter((item) => {
       const fields = [
         item.prNumber,
         item.date,
@@ -85,41 +74,52 @@ export default function Page() {
         item.approvedBy.position,
       ];
 
-      return fields.some(field => field?.toLowerCase().includes(query));
+      return fields.some((field) => field?.toLowerCase().includes(query));
     });
   }, [items, searchQuery]);
 
   const selectedPoItems = useMemo(
-    () => items.filter(item => selectedPoItemIds.has(item.id)),
+    () => items.filter((item) => selectedPoItemIds.has(item.id)),
     [items, selectedPoItemIds],
   );
 
   const selectedItemsHavePo = useMemo(
-    () => selectedPoItems.some(item => item.purchaseOrderNumber?.trim()),
+    () => selectedPoItems.some((item) => item.purchaseOrderNumber?.trim()),
     [selectedPoItems],
   );
 
   const canCreatePo = selectedPoItems.length > 0 && !selectedItemsHavePo;
 
   const selectedPrNumbers = useMemo(
-    () => Array.from(new Set(
-      selectedPoItems
-        .map(item => item.prNumber)
-        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
-    )),
+    () =>
+      Array.from(
+        new Set(
+          selectedPoItems
+            .map((item) => item.prNumber)
+            .filter(
+              (value): value is string => typeof value === 'string' && value.trim().length > 0,
+            ),
+        ),
+      ),
     [selectedPoItems],
   );
 
   const prExportItem = selectedItem ?? (selectedPrNumbers.length === 1 ? selectedPoItems[0] : null);
   const canExportPr = Boolean(prExportItem);
-  const prExportHasMismatch = !selectedItem && selectedPoItems.length > 0 && selectedPrNumbers.length > 1;
+  const prExportHasMismatch =
+    !selectedItem && selectedPoItems.length > 0 && selectedPrNumbers.length > 1;
 
   const selectedPoNumbers = useMemo(
-    () => Array.from(new Set(
-      selectedPoItems
-        .map(item => item.purchaseOrderNumber)
-        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
-    )),
+    () =>
+      Array.from(
+        new Set(
+          selectedPoItems
+            .map((item) => item.purchaseOrderNumber)
+            .filter(
+              (value): value is string => typeof value === 'string' && value.trim().length > 0,
+            ),
+        ),
+      ),
     [selectedPoItems],
   );
 
@@ -127,7 +127,7 @@ export default function Page() {
   const poExportHasMismatch = selectedPoItems.length > 0 && selectedPoNumbers.length > 1;
 
   const areAllFilteredSelected =
-    filteredItems.length > 0 && filteredItems.every(item => selectedPoItemIds.has(item.id));
+    filteredItems.length > 0 && filteredItems.every((item) => selectedPoItemIds.has(item.id));
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
@@ -146,24 +146,24 @@ export default function Page() {
   const downloadWorkbook = async (url: string, fallbackFilename: string) => {
     const res = await fetch(url);
     if (!res.ok) {
-      toast.error("Export failed", {
-        description: "Please refresh the record and try again.",
+      toast.error('Export failed', {
+        description: 'Please refresh the record and try again.',
       });
       return;
     }
 
     const blob = await res.blob();
-    const contentDisposition = res.headers.get("content-disposition");
+    const contentDisposition = res.headers.get('content-disposition');
     const filename = contentDisposition?.match(/filename="?([^"]+)"?/i)?.[1] ?? fallbackFilename;
     const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
+    const anchor = document.createElement('a');
     anchor.href = objectUrl;
     anchor.download = filename;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(objectUrl);
-    toast.success("Workbook is ready");
+    toast.success('Workbook is ready');
   };
 
   const handleExportPr = async () => {
@@ -209,7 +209,7 @@ export default function Page() {
             className="pl-7 h-8 w-72 text-xs"
             placeholder="Search purchase request records..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -220,7 +220,7 @@ export default function Page() {
           size="sm"
           aria-label="Create Purchase Request"
           onClick={() => {
-            setAddKey(key => key + 1);
+            setAddKey((key) => key + 1);
             setAddOpen(true);
           }}
         >
@@ -252,13 +252,11 @@ export default function Page() {
           onClick={handleExportPr}
         >
           <FileSpreadsheet className="size-4 mr-2" />
-          {isExportingPr ? "Exporting PR..." : "Export PR (.xlsx)"}
+          {isExportingPr ? 'Exporting PR...' : 'Export PR (.xlsx)'}
         </Button>
 
         {prExportHasMismatch && (
-          <span className="ml-2 text-xs text-destructive">
-            Select one PR Number for PR export.
-          </span>
+          <span className="ml-2 text-xs text-destructive">Select one PR Number for PR export.</span>
         )}
 
         <Button
@@ -268,7 +266,7 @@ export default function Page() {
           onClick={handleExportPo}
         >
           <FileSpreadsheet className="size-4 mr-2" />
-          {isExportingPo ? "Exporting PO..." : "Export PO (.xlsx)"}
+          {isExportingPo ? 'Exporting PO...' : 'Export PO (.xlsx)'}
         </Button>
 
         {poExportHasMismatch && (
@@ -298,28 +296,33 @@ export default function Page() {
           onClick={async () => {
             if (!selectedItem) return;
 
-            const confirmed = confirm("Delete this purchase request item? This cannot be undone.");
+            const confirmed = confirm('Delete this purchase request item? This cannot be undone.');
             if (!confirmed) return;
 
-            const result = await $fetch<unknown, ApiResponseException>(`/api/forms/purchasing/${selectedItem.id}`, {
-              method: "DELETE",
-            });
+            const result = await $fetch<unknown, ApiResponseException>(
+              `/api/forms/purchasing/${selectedItem.id}`,
+              {
+                method: 'DELETE',
+              },
+            );
 
             if (result.error) {
-              toast.error("Purchase request was not deleted", {
-                description: (result.error as ApiResponseException).message ?? "Please refresh the list and try again.",
+              toast.error('Purchase request was not deleted', {
+                description:
+                  (result.error as ApiResponseException).message ??
+                  'Please refresh the list and try again.',
               });
               return;
             }
 
-            setSelectedPoItemIds(prev => {
+            setSelectedPoItemIds((prev) => {
               const next = new Set(prev);
               next.delete(selectedItem.id);
               return next;
             });
             setSelectedItem(null);
             mutate();
-            toast.success("Purchase request deleted");
+            toast.success('Purchase request deleted');
           }}
         >
           <Trash2 />
@@ -329,7 +332,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {filteredItems.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No purchase request records found."}
+            {searchQuery ? 'No results match your search.' : 'No purchase request records found.'}
           </div>
         ) : (
           <div
@@ -343,9 +346,9 @@ export default function Page() {
                     <Checkbox
                       aria-label="Select all visible items"
                       checked={areAllFilteredSelected}
-                      onCheckedChange={checked => {
+                      onCheckedChange={(checked) => {
                         const shouldSelect = checked === true;
-                        setSelectedPoItemIds(prev => {
+                        setSelectedPoItemIds((prev) => {
                           const next = new Set(prev);
                           for (const row of filteredItems) {
                             if (shouldSelect) {
@@ -372,11 +375,15 @@ export default function Page() {
                   <TableHead className="w-28 min-w-28">Delivery Term</TableHead>
                   <TableHead className="w-28 min-w-28">Payment Term</TableHead>
                   <TableHead className="w-20 min-w-20">Unit</TableHead>
-                  <TableHead className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words">Item Description</TableHead>
+                  <TableHead className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words">
+                    Item Description
+                  </TableHead>
                   <TableHead className="w-28 min-w-28 text-right">Quantity</TableHead>
                   <TableHead className="w-28 min-w-28 text-right">Unit Cost</TableHead>
                   <TableHead className="w-28 min-w-28 text-right">Total Cost</TableHead>
-                  <TableHead className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words">Purpose</TableHead>
+                  <TableHead className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words">
+                    Purpose
+                  </TableHead>
                   <TableHead className="w-44 min-w-44">Requesting Office</TableHead>
                   <TableHead className="w-44 min-w-44">Head of Office</TableHead>
                   <TableHead className="w-36 min-w-36">Position</TableHead>
@@ -387,11 +394,11 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
 
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const item = filteredItems[vr.index]!;
                   const selected = selectedItem?.id === item.id;
 
@@ -402,13 +409,15 @@ export default function Page() {
                       data-index={vr.index}
                       className={`cursor-pointer select-none ${
                         selected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : vr.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
-                            : ""
+                            ? 'bg-muted hover:bg-muted/50'
+                            : ''
                       }`}
                       title="Double-click to edit"
-                      onClick={() => setSelectedItem(prev => (prev?.id === item.id ? null : item))}
+                      onClick={() =>
+                        setSelectedItem((prev) => (prev?.id === item.id ? null : item))
+                      }
                       onDoubleClick={() => {
                         setSelectedItem(item);
                         setEditOpen(true);
@@ -416,14 +425,14 @@ export default function Page() {
                     >
                       <TableCell
                         className="w-10 min-w-10 text-center"
-                        onClick={e => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <Checkbox
                           aria-label={`Select item ${item.id} for PO creation`}
                           checked={selectedPoItemIds.has(item.id)}
-                          onCheckedChange={checked => {
+                          onCheckedChange={(checked) => {
                             const shouldSelect = checked === true;
-                            setSelectedPoItemIds(prev => {
+                            setSelectedPoItemIds((prev) => {
                               const next = new Set(prev);
                               if (shouldSelect) {
                                 next.add(item.id);
@@ -438,8 +447,12 @@ export default function Page() {
                       </TableCell>
                       <TableCell className="w-28 min-w-28">{txt(item.prNumber)}</TableCell>
                       <TableCell className="w-28 min-w-28">{txt(item.date)}</TableCell>
-                      <TableCell className="w-40 min-w-40">{txt(item.modeOfProcurement?.name)}</TableCell>
-                      <TableCell className="w-28 min-w-28">{txt(item.purchaseOrderNumber)}</TableCell>
+                      <TableCell className="w-40 min-w-40">
+                        {txt(item.modeOfProcurement?.name)}
+                      </TableCell>
+                      <TableCell className="w-28 min-w-28">
+                        {txt(item.purchaseOrderNumber)}
+                      </TableCell>
                       <TableCell className="w-52 min-w-52">{txt(item.supplier)}</TableCell>
                       <TableCell className="w-64 min-w-64">{txt(item.address)}</TableCell>
                       <TableCell className="w-32 min-w-32">{txt(item.tinNumber)}</TableCell>
@@ -448,23 +461,39 @@ export default function Page() {
                       <TableCell className="w-28 min-w-28">{txt(item.deliveryTerm)}</TableCell>
                       <TableCell className="w-28 min-w-28">{txt(item.paymentTerm)}</TableCell>
                       <TableCell className="w-20 min-w-20">{txt(item.unit)}</TableCell>
-                      <TableCell className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words">{txt(item.itemDescription)}</TableCell>
-                      <TableCell className="w-28 min-w-28 text-right font-mono">{fmtMoney(item.quantity)}</TableCell>
-                      <TableCell className="w-28 min-w-28 text-right font-mono">{fmtMoney(item.unitCost)}</TableCell>
-                      <TableCell className="w-28 min-w-28 text-right font-mono">{fmtMoney(item.totalCost)}</TableCell>
-                      <TableCell className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words">{txt(item.purpose)}</TableCell>
-                      <TableCell className="w-44 min-w-44">{txt(item.requestingOffice.name)}</TableCell>
+                      <TableCell className="w-[360px] min-w-[360px] max-w-[360px] whitespace-normal break-words">
+                        {txt(item.itemDescription)}
+                      </TableCell>
+                      <TableCell className="w-28 min-w-28 text-right font-mono">
+                        {fmtMoney(item.quantity)}
+                      </TableCell>
+                      <TableCell className="w-28 min-w-28 text-right font-mono">
+                        {fmtMoney(item.unitCost)}
+                      </TableCell>
+                      <TableCell className="w-28 min-w-28 text-right font-mono">
+                        {fmtMoney(item.totalCost)}
+                      </TableCell>
+                      <TableCell className="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal break-words">
+                        {txt(item.purpose)}
+                      </TableCell>
+                      <TableCell className="w-44 min-w-44">
+                        {txt(item.requestingOffice.name)}
+                      </TableCell>
                       <TableCell className="w-44 min-w-44">{txt(item.headOfOffice.name)}</TableCell>
-                      <TableCell className="w-36 min-w-36">{txt(item.headOfOffice.position)}</TableCell>
+                      <TableCell className="w-36 min-w-36">
+                        {txt(item.headOfOffice.position)}
+                      </TableCell>
                       <TableCell className="w-44 min-w-44">{txt(item.approvedBy.name)}</TableCell>
-                      <TableCell className="w-36 min-w-36">{txt(item.approvedBy.position)}</TableCell>
+                      <TableCell className="w-36 min-w-36">
+                        {txt(item.approvedBy.position)}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -482,7 +511,7 @@ export default function Page() {
       />
 
       <PurchasingFormDialog
-        key={selectedItem ? `edit-${selectedItem.id}` : "edit-none"}
+        key={selectedItem ? `edit-${selectedItem.id}` : 'edit-none'}
         mode="edit"
         editItem={selectedItem ?? undefined}
         open={editOpen}
@@ -491,9 +520,14 @@ export default function Page() {
       />
 
       <PurchaseOrderDialog
-        key={selectedPoItems.length > 0
-          ? `po-${selectedPoItems.map(item => item.id).sort().join("-")}`
-          : "po-none"}
+        key={
+          selectedPoItems.length > 0
+            ? `po-${selectedPoItems
+                .map((item) => item.id)
+                .sort()
+                .join('-')}`
+            : 'po-none'
+        }
         items={selectedPoItems}
         open={createPoOpen}
         onOpenChange={setCreatePoOpen}
@@ -507,16 +541,16 @@ export default function Page() {
 }
 
 function txt(value: Optional<string>): string {
-  return value ?? "—";
+  return value ?? '—';
 }
 
 function fmtMoney(value: string): string {
-  const parsed = Number(value.replaceAll(",", ""));
+  const parsed = Number(value.replaceAll(',', ''));
   if (!Number.isFinite(parsed)) {
     return value;
   }
 
-  return parsed.toLocaleString("en-PH", {
+  return parsed.toLocaleString('en-PH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

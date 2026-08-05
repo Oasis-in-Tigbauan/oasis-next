@@ -1,14 +1,14 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import type {NextRequest} from 'next/server';
+import {NextResponse} from 'next/server';
 
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import * as lbac from "@/lib/lbac";
-import { LBE_F1_ARO_TYPES } from "@/common/lbac/client";
-import { Failure } from "@/lib/one-of";
-import { validator, validatorUtilities } from "@/lib/validators";
+import {LBE_F1_ARO_TYPES} from '@/common/lbac/client';
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import * as lbac from '@/lib/lbac';
+import {Failure} from '@/lib/one-of';
+import {validator, validatorUtilities} from '@/lib/validators';
 
 type LbeF1ExportBody = {
   year: number;
@@ -32,72 +32,86 @@ export async function POST(req: NextRequest) {
 
   const body = await tryParseJson<LbeF1ExportBody>(req);
   if (!body) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.").build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid payload.',
+    ).build();
   }
 
   if (
-    typeof body.year !== "number"
-    || typeof body.quarter !== "number"
-    || typeof body.aroLink !== "string"
-    || typeof body.aroType !== "string"
-    || typeof body.lgu !== "string"
-    || typeof body.purpose !== "string"
+    typeof body.year !== 'number' ||
+    typeof body.quarter !== 'number' ||
+    typeof body.aroLink !== 'string' ||
+    typeof body.aroType !== 'string' ||
+    typeof body.lgu !== 'string' ||
+    typeof body.purpose !== 'string'
   ) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid payload.").build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid payload.',
+    ).build();
   }
 
   if (body.quarter < 1 || body.quarter > 4) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'quarter': must be 1-4.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      "Invalid 'quarter': must be 1-4.",
+    ).build();
   }
   if (!validatorUtilities.isUuid(body.aroLink)) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'aroLink'.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      "Invalid 'aroLink'.",
+    ).build();
   }
   if (!LBE_F1_ARO_TYPES.includes(body.aroType)) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'aroType'.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      "Invalid 'aroType'.",
+    ).build();
   }
   if (!body.lgu.trim()) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'lgu'.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      "Invalid 'lgu'.",
+    ).build();
   }
   if (!body.purpose.trim()) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid 'purpose'.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      "Invalid 'purpose'.",
+    ).build();
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "At least one selected item is required.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'At least one selected item is required.',
+    ).build();
   }
 
   for (const item of body.items) {
     if (!validatorUtilities.isUuid(item.id)) {
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status400BadRequest, "Invalid item id in selection.")
-        .build();
+      return ApiResponseBuilder.createError(
+        StatusCodes.Status400BadRequest,
+        'Invalid item id in selection.',
+      ).build();
     }
 
     const moneyValidation = await validator.validate(item, {
       properties: {
-        id: { type: "string", formatter: "uuid" },
-        forLaterRelease: { type: "string", formatter: "decimal" },
-        previouslyReleased: { type: "string", formatter: "decimal" },
+        id: {type: 'string', formatter: 'uuid'},
+        forLaterRelease: {type: 'string', formatter: 'decimal'},
+        previouslyReleased: {type: 'string', formatter: 'decimal'},
       },
-      requiredProperties: ["id", "forLaterRelease", "previouslyReleased"],
+      requiredProperties: ['id', 'forLaterRelease', 'previouslyReleased'],
       allowUnvalidatedProperties: false,
     });
 
     if (!moneyValidation.ok) {
-      return ApiResponseBuilder
-        .createError(StatusCodes.Status400BadRequest, moneyValidation.errors!)
-        .build();
+      return ApiResponseBuilder.createError(
+        StatusCodes.Status400BadRequest,
+        moneyValidation.errors!,
+      ).build();
     }
   }
 
@@ -119,8 +133,8 @@ export async function POST(req: NextRequest) {
   return new NextResponse(new Uint8Array(result.value), {
     status: 200,
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename=\"${filename}\"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename=\"${filename}\"`,
     },
   });
 }

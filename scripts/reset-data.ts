@@ -1,9 +1,8 @@
-import "dotenv/config";
+import 'dotenv/config';
+import {stdin as input, stdout as output} from 'node:process';
+import {createInterface} from 'node:readline/promises';
 
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
-
-import { db } from "@/lib/db";
+import {db} from '@/lib/db';
 import {
   appNotifications,
   aroOfficeDefinitions,
@@ -51,18 +50,18 @@ import {
   supplemental,
   templateBucket,
   travelOrders,
-} from "@/lib/db/schema";
+} from '@/lib/db/schema';
 
 async function askForConfirmation() {
-  const readline = createInterface({ input, output });
+  const readline = createInterface({input, output});
 
   try {
     const response = await readline.question(
-      "This will permanently delete application data while preserving users, accounts, offices, and office positions. Type YES to continue: ",
+      'This will permanently delete application data while preserving users, accounts, offices, and office positions. Type YES to continue: ',
     );
 
-    if (response !== "YES") {
-      console.log("Reset aborted.");
+    if (response !== 'YES') {
+      console.log('Reset aborted.');
       process.exit(0);
     }
   } finally {
@@ -73,19 +72,19 @@ async function askForConfirmation() {
 async function resetData() {
   await askForConfirmation();
 
-  console.log("Starting transactional reset...");
+  console.log('Starting transactional reset...');
 
-  await db.transaction(async tx => {
+  await db.transaction(async (tx) => {
     // Break self-references before deleting the same tables.
-    await tx.update(lbacGroups).set({ parentId: null });
-    await tx.update(saaobEntryGroup).set({ parentId: null });
-    await tx.update(saaobSummaryOfAccountsGroup).set({ parentId: null });
-    await tx.update(aipReferences).set({ parentId: null });
-    await tx.update(saaobStatisticItems).set({ parentId: null });
-    await tx.update(lbacCollectionPerformanceGroup).set({ parentId: null });
-    await tx.update(lbacStatementOfExpenditures).set({ parentId: null });
+    await tx.update(lbacGroups).set({parentId: null});
+    await tx.update(saaobEntryGroup).set({parentId: null});
+    await tx.update(saaobSummaryOfAccountsGroup).set({parentId: null});
+    await tx.update(aipReferences).set({parentId: null});
+    await tx.update(saaobStatisticItems).set({parentId: null});
+    await tx.update(lbacCollectionPerformanceGroup).set({parentId: null});
+    await tx.update(lbacStatementOfExpenditures).set({parentId: null});
 
-    console.log("Deleting operational records...");
+    console.log('Deleting operational records...');
     await tx.delete(obrMainAipReferences);
     await tx.delete(obrDisbursementElectronic);
     await tx.delete(purchasingAip);
@@ -116,7 +115,7 @@ async function resetData() {
     await tx.delete(supplemental);
     await tx.delete(obrRequests);
 
-    console.log("Deleting planning and metadata records...");
+    console.log('Deleting planning and metadata records...');
     await tx.delete(lbacGroups);
     await tx.delete(lbacQuarterlyReport);
     await tx.delete(lbacCollectionPerformanceGroup);
@@ -136,10 +135,10 @@ async function resetData() {
     await tx.delete(modeOfProcurements);
   });
 
-  console.log("Data reset completed successfully.");
+  console.log('Data reset completed successfully.');
 }
 
-resetData().catch(error => {
-  console.error("Failed to reset data:", error);
+resetData().catch((error) => {
+  console.error('Failed to reset data:', error);
   process.exit(1);
 });

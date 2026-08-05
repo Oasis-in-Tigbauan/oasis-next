@@ -44,16 +44,19 @@ Additionally, you will need to have certain API Keys:
 ## Preparing your environment
 
 1. Clone this repository:
+
    ```sh
    git clone https://github.com/Oasis-in-Tigbauan/oasis-next.git && cd oasis-next
    ```
 
 2. Install required dependencies:
+
    ```sh
    pnpm i
    ```
 
 3. Generate required environment configs:
+
    ```sh
    pnpm run setup
    ```
@@ -61,6 +64,7 @@ Additionally, you will need to have certain API Keys:
    It will ask you for a couple of things like Sentry API Key, Resend API Key, Database credentials, etc.
 
 4. To create a enroller account, you need to run
+
    ```sh
    pnpm run enroller -- --enable
    ```
@@ -75,6 +79,7 @@ Additionally, you will need to have certain API Keys:
    > is changed frequently and have 2FA enabled.
 
 5. Start the project!
+
    ```sh
    pnpm run dev
    ```

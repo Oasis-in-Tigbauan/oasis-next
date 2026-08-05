@@ -1,17 +1,13 @@
-import type { ReactNode } from "react";
-import { redirect, RedirectType } from "next/navigation";
+import {redirect, RedirectType} from 'next/navigation';
+import type {ReactNode} from 'react';
 
-import { session as auth, SessionCode } from "@/lib/auth";
+import AppSidebar from '@/components/app-sidebar';
+import AppTopbar from '@/components/app-topbar';
+import NotificationStreamBridge from '@/components/notification-stream-bridge';
+import {SidebarInset, SidebarProvider} from '@/components/ui/sidebar';
+import {session as auth, SessionCode} from '@/lib/auth';
 
-import AppSidebar from "@/components/app-sidebar";
-import AppTopbar from "@/components/app-topbar";
-import NotificationStreamBridge from "@/components/notification-stream-bridge";
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
-
-export default async function VerifiedLayout({ children }: { children: ReactNode}) {
+export default async function VerifiedLayout({children}: {children: ReactNode}) {
   const session = await auth.verify();
 
   if (session.redirectTo) {
@@ -20,7 +16,7 @@ export default async function VerifiedLayout({ children }: { children: ReactNode
 
   // Invalid sessions
   if (session.code !== SessionCode.Ok) {
-    return redirect("/auth/signin");
+    return redirect('/auth/signin');
   }
 
   return (

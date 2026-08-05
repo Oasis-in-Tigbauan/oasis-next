@@ -1,14 +1,15 @@
-import { and, eq } from "drizzle-orm";
-import fs from "node:fs/promises";
-import path from "node:path";
-import os from "node:os";
-import { v7 as uuidv7 } from "uuid";
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
-import { db } from "@/lib/db";
-import { templateBucket } from "@/lib/db/schema";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
+import {and, eq} from 'drizzle-orm';
+import {v7 as uuidv7} from 'uuid';
 
-const STORAGE_DIR = process.env.BUCKET_ROOT || path.join(os.homedir(), ".oasis-bucket", "bucket");
+import {db} from '@/lib/db';
+import {templateBucket} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+
+const STORAGE_DIR = process.env.BUCKET_ROOT || path.join(os.homedir(), '.oasis-bucket', 'bucket');
 
 /**
  * Uploads a new template file and records it in the template bucket.
@@ -62,7 +63,7 @@ export async function upload(input: TemplateUploadInput): Promise<Result<Templat
 
     return new Success(mapRow(inserted));
   } catch (err) {
-    return new Failure(ErrorCodes.Fatal, "Failed to upload template.", undefined, err);
+    return new Failure(ErrorCodes.Fatal, 'Failed to upload template.', undefined, err);
   }
 }
 
@@ -111,7 +112,7 @@ export async function modify(input: TemplateUploadInput): Promise<Result<Templat
 
     const [updated] = await db
       .update(templateBucket)
-      .set({ templatePath: newFilePath })
+      .set({templatePath: newFilePath})
       .where(eq(templateBucket.id, current.id))
       .returning();
 
@@ -119,7 +120,7 @@ export async function modify(input: TemplateUploadInput): Promise<Result<Templat
 
     return new Success(mapRow(updated));
   } catch (err) {
-    return new Failure(ErrorCodes.Fatal, "Failed to modify template.", undefined, err);
+    return new Failure(ErrorCodes.Fatal, 'Failed to modify template.', undefined, err);
   }
 }
 
@@ -143,7 +144,10 @@ export async function modify(input: TemplateUploadInput): Promise<Result<Templat
  * @remarks
  * - The database row is deleted before the file to prevent orphaned records if file deletion fails.
  */
-export async function remove(input: { identifier: string; type: TemplateType }): Promise<Result<void>> {
+export async function remove(input: {
+  identifier: string;
+  type: TemplateType;
+}): Promise<Result<void>> {
   try {
     const validationError = validateIdentifier(input.identifier);
     if (validationError) return validationError;
@@ -164,7 +168,7 @@ export async function remove(input: { identifier: string; type: TemplateType }):
 
     return new Success(undefined);
   } catch (err) {
-    return new Failure(ErrorCodes.Fatal, "Failed to delete template.", undefined, err);
+    return new Failure(ErrorCodes.Fatal, 'Failed to delete template.', undefined, err);
   }
 }
 
@@ -184,7 +188,10 @@ export async function remove(input: { identifier: string; type: TemplateType }):
  * @param {{ identifier: string; type: TemplateType }} input - Identifier and type of the template to retrieve.
  * @returns {Promise<Result<TemplateBucketItem>>} The matching template record on success, or a failure result.
  */
-export async function get(input: { identifier: string; type: TemplateType }): Promise<Result<TemplateBucketItem>> {
+export async function get(input: {
+  identifier: string;
+  type: TemplateType;
+}): Promise<Result<TemplateBucketItem>> {
   try {
     const validationError = validateIdentifier(input.identifier);
     if (validationError) return validationError;
@@ -199,21 +206,21 @@ export async function get(input: { identifier: string; type: TemplateType }): Pr
 
     return new Success(mapRow(rows[0]));
   } catch (err) {
-    return new Failure(ErrorCodes.Fatal, "Failed to retrieve template.", undefined, err);
+    return new Failure(ErrorCodes.Fatal, 'Failed to retrieve template.', undefined, err);
   }
 }
 
 async function ensureStorageDir(): Promise<void> {
-  await fs.mkdir(STORAGE_DIR, { recursive: true });
+  await fs.mkdir(STORAGE_DIR, {recursive: true});
 }
 
 function validateUploadInput(identifier: string, filename: string): Failure | null {
   if (!identifier || identifier.trim().length === 0) {
-    return new Failure(ErrorCodes.ValidationFailure, "Identifier must be a non-empty string.");
+    return new Failure(ErrorCodes.ValidationFailure, 'Identifier must be a non-empty string.');
   }
 
-  if (!filename.toLowerCase().endsWith(".xlsx")) {
-    return new Failure(ErrorCodes.ValidationFailure, "Only .xlsx files are accepted.");
+  if (!filename.toLowerCase().endsWith('.xlsx')) {
+    return new Failure(ErrorCodes.ValidationFailure, 'Only .xlsx files are accepted.');
   }
 
   return null;
@@ -221,7 +228,7 @@ function validateUploadInput(identifier: string, filename: string): Failure | nu
 
 function validateIdentifier(identifier: string): Failure | null {
   if (!identifier || identifier.trim().length === 0) {
-    return new Failure(ErrorCodes.ValidationFailure, "Identifier must be a non-empty string.");
+    return new Failure(ErrorCodes.ValidationFailure, 'Identifier must be a non-empty string.');
   }
 
   return null;
@@ -231,12 +238,7 @@ async function findExisting(identifier: string, type: TemplateType) {
   return db
     .select()
     .from(templateBucket)
-    .where(
-      and(
-        eq(templateBucket.identifier, identifier),
-        eq(templateBucket.templateType, type),
-      ),
-    )
+    .where(and(eq(templateBucket.identifier, identifier), eq(templateBucket.templateType, type)))
     .limit(1);
 }
 
@@ -251,7 +253,7 @@ function mapRow(row: typeof templateBucket.$inferSelect): TemplateBucketItem {
   };
 }
 
-export type TemplateType = "header" | "footer";
+export type TemplateType = 'header' | 'footer';
 
 export interface TemplateUploadInput {
   /** Domain key identifying which form/data this template belongs to (e.g. `"saaob.main-data"`). */

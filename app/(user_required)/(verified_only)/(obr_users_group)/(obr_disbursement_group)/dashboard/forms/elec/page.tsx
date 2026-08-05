@@ -1,49 +1,41 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {Download, Pencil, Plus, Search, Trash2} from 'lucide-react';
+import {useCallback, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {ElecFormDialog} from '@/app/(user_required)/(verified_only)/(obr_users_group)/(obr_disbursement_group)/dashboard/forms/elec/elec-form-dialog';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
   ElecItemResponse,
   ElecListResponse,
-} from "@/lib/http/client/responses";
-
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import { ElecFormDialog } from "@/app/(user_required)/(verified_only)/(obr_users_group)/(obr_disbursement_group)/dashboard/forms/elec/elec-form-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+} from '@/lib/http/client/responses';
 
 const TAX_TYPE_LABELS: Record<string, string> = {
-  "vat-g": "VAT - Goods",
-  "vat-s": "VAT - Services",
-  "nvat-g": "Non-VAT Goods",
-  "nvat-s": "Non-VAT Services",
+  'vat-g': 'VAT - Goods',
+  'vat-s': 'VAT - Services',
+  'nvat-g': 'Non-VAT Goods',
+  'nvat-s': 'Non-VAT Services',
 };
 
 const TOTAL_COLS = 10;
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<ElecListResponse, ApiResponseException>
-  >("/api/forms/elec", $fetch);
+  >('/api/forms/elec', $fetch);
 
   const [selectedItem, setSelectedItem] = useState<ElecItemResponse | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
@@ -55,7 +47,7 @@ export default function Page() {
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return items;
-    return items.filter(item => {
+    return items.filter((item) => {
       const fields = [
         item.dv.disbursementVoucherNumber,
         item.billingName,
@@ -65,7 +57,7 @@ export default function Page() {
         item.vatableSales,
         TAX_TYPE_LABELS[item.taxType] ?? item.taxType,
       ];
-      return fields.some(f => f?.toLowerCase().includes(query));
+      return fields.some((f) => f?.toLowerCase().includes(query));
     });
   }, [items, searchQuery]);
 
@@ -91,17 +83,17 @@ export default function Page() {
       const response = await fetch(`/api/obr/disbursements/${selectedItem.dv.id}/export`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        alert(extractErrorMessage(payload, "Failed to export voucher. Please try again."));
+        alert(extractErrorMessage(payload, 'Failed to export voucher. Please try again.'));
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
       const filename = filenameMatch?.[1] ?? `disbursement-voucher-${selectedItem.dv.id}.xlsx`;
 
-      const anchor = document.createElement("a");
+      const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = filename;
       document.body.appendChild(anchor);
@@ -109,7 +101,7 @@ export default function Page() {
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
     } catch {
-      alert("An unexpected error occurred while exporting. Please try again.");
+      alert('An unexpected error occurred while exporting. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -127,7 +119,7 @@ export default function Page() {
             className="pl-7 h-8 w-72 text-xs"
             placeholder="Search electricity bill records..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -138,7 +130,7 @@ export default function Page() {
           size="icon-sm"
           aria-label="Add"
           onClick={() => {
-            setAddKey(k => k + 1);
+            setAddKey((k) => k + 1);
             setAddOpen(true);
           }}
         >
@@ -171,12 +163,12 @@ export default function Page() {
 
             const res = await $fetch<unknown, ApiResponseException>(
               `/api/forms/elec/${selectedItem.id}`,
-              { method: "DELETE" },
+              {method: 'DELETE'},
             );
             if (res.error) {
               alert(
                 (res.error as ApiResponseException).message ??
-                  "Failed to delete record. Please try again.",
+                  'Failed to delete record. Please try again.',
               );
               return;
             }
@@ -201,9 +193,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {filteredItems.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery
-              ? "No results match your search."
-              : "No electricity bill records found."}
+            {searchQuery ? 'No results match your search.' : 'No electricity bill records found.'}
           </div>
         ) : (
           <div
@@ -228,11 +218,11 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
 
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const item = filteredItems[vr.index]!;
                   const selected = selectedItem?.id === item.id;
                   return (
@@ -242,14 +232,14 @@ export default function Page() {
                       data-index={vr.index}
                       className={`cursor-pointer select-none ${
                         selected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : vr.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
-                            : ""
+                            ? 'bg-muted hover:bg-muted/50'
+                            : ''
                       }`}
                       title="Double-click to edit"
                       onClick={() =>
-                        setSelectedItem(prev => (prev?.id === item.id ? null : item))
+                        setSelectedItem((prev) => (prev?.id === item.id ? null : item))
                       }
                       onDoubleClick={() => {
                         setSelectedItem(item);
@@ -286,7 +276,7 @@ export default function Page() {
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -304,7 +294,7 @@ export default function Page() {
       />
 
       <ElecFormDialog
-        key={selectedItem ? `edit-${selectedItem.id}` : "edit-none"}
+        key={selectedItem ? `edit-${selectedItem.id}` : 'edit-none'}
         mode="edit"
         editItem={selectedItem ?? undefined}
         open={editOpen}
@@ -316,28 +306,28 @@ export default function Page() {
 }
 
 function fmtMoney(value: string): string {
-  const parsed = Number(value.replaceAll(",", ""));
+  const parsed = Number(value.replaceAll(',', ''));
   if (!Number.isFinite(parsed)) return value;
-  return parsed.toLocaleString("en-PH", {
+  return parsed.toLocaleString('en-PH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
 function extractErrorMessage(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") return fallback;
+  if (!payload || typeof payload !== 'object') return fallback;
 
   const data = payload as {
-    error?: { message?: unknown };
+    error?: {message?: unknown};
     message?: unknown;
     errors?: unknown;
   };
 
-  if (typeof data.error?.message === "string") return data.error.message;
-  if (typeof data.message === "string") return data.message;
+  if (typeof data.error?.message === 'string') return data.error.message;
+  if (typeof data.message === 'string') return data.message;
   if (Array.isArray(data.errors)) {
-    const messages = data.errors.filter((value): value is string => typeof value === "string");
-    if (messages.length > 0) return messages.join(" ");
+    const messages = data.errors.filter((value): value is string => typeof value === 'string');
+    if (messages.length > 0) return messages.join(' ');
   }
 
   return fallback;

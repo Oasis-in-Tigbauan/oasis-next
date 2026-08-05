@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import {NextResponse} from 'next/server';
 
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import { ApiResponseBuilder } from "@/lib/http/composers";
-import * as lbac from "@/lib/lbac";
-import { Failure } from "@/lib/one-of";
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import {ApiResponseBuilder} from '@/lib/http/composers';
+import * as lbac from '@/lib/lbac';
+import {Failure} from '@/lib/one-of';
 
 function _getFiscalYearUtc8(): number {
   return new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear();
@@ -27,8 +27,8 @@ export async function GET() {
   return new NextResponse(new Uint8Array(result.value), {
     status: 200,
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename=\"${filename}\"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename=\"${filename}\"`,
     },
   });
 }

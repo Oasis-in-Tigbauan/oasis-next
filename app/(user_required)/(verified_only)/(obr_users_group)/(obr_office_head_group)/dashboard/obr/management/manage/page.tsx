@@ -1,17 +1,12 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import useSWR from "swr";
+import {useCallback, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  ObrItem,
-  ObrItemListResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -20,73 +15,70 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/components/ui/dialog';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  ObrItem,
+  ObrItemListResponse,
+} from '@/lib/http/client/responses';
 
 function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(iso));
 }
 
 function formatCurrency(value: string | null): string {
-  if (!value) return "-";
+  if (!value) return '-';
 
   const trimmed = value.trim();
-  if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return "-";
+  if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return '-';
 
-  const isNegative = trimmed.startsWith("-");
-  const unsigned = trimmed.replace(/^[-+]/, "");
-  const [rawInt, rawFrac = ""] = unsigned.split(".");
+  const isNegative = trimmed.startsWith('-');
+  const unsigned = trimmed.replace(/^[-+]/, '');
+  const [rawInt, rawFrac = ''] = unsigned.split('.');
 
-  const normalizedInt = rawInt.replace(/^0+(?=\d)/, "") || "0";
-  const paddedFrac = (rawFrac + "000").slice(0, 3);
+  const normalizedInt = rawInt.replace(/^0+(?=\d)/, '') || '0';
+  const paddedFrac = (rawFrac + '000').slice(0, 3);
   const centPart = paddedFrac.slice(0, 2);
-  const roundingDigit = Number.parseInt(paddedFrac[2] ?? "0", 10);
+  const roundingDigit = Number.parseInt(paddedFrac[2] ?? '0', 10);
 
   let cents = BigInt(`${normalizedInt}${centPart}`);
   if (roundingDigit >= 5) cents += 1n;
 
-  const centsStr = cents.toString().padStart(3, "0");
-  const integerPart = centsStr.slice(0, -2) || "0";
+  const centsStr = cents.toString().padStart(3, '0');
+  const integerPart = centsStr.slice(0, -2) || '0';
   const fractionalPart = centsStr.slice(-2);
-  const intWithGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const intWithGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const roundedIsZero = cents === 0n;
-  const sign = isNegative && !roundedIsZero ? "-" : "";
+  const sign = isNegative && !roundedIsZero ? '-' : '';
 
   return `${sign}${intWithGrouping}.${fractionalPart}`;
 }
 
-function DetailText({ value, className }: { value: string; className?: string }) {
+function DetailText({value, className}: {value: string; className?: string}) {
   return (
-    <div className={`rounded-md border bg-muted/30 px-3 py-2 text-sm ${className ?? ""}`.trim()}>
+    <div className={`rounded-md border bg-muted/30 px-3 py-2 text-sm ${className ?? ''}`.trim()}>
       {value}
     </div>
   );
 }
 
 export default function Page() {
-  const { data, error, isLoading } = useSWR<
+  const {data, error, isLoading} = useSWR<
     BetterFetchResponse<ObrItemListResponse, ApiResponseException>
-  >("/api/obr/management", $fetch);
+  >('/api/obr/management', $fetch);
 
   const [selected, setSelected] = useState<ObrItem | null>(null);
   const [open, setOpen] = useState(false);
@@ -135,22 +127,26 @@ export default function Page() {
                   <TableRow
                     key={item.id}
                     className={`cursor-pointer select-none ${
-                      index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""
+                      index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''
                     }`}
                     onClick={() => handleRowClick(item)}
                   >
                     <TableCell className="font-medium">{item.obrRefNumber}</TableCell>
-                    <TableCell className="font-medium">{item.dvRefNumber ?? "—"}</TableCell>
+                    <TableCell className="font-medium">{item.dvRefNumber ?? '—'}</TableCell>
                     <TableCell>{formatDate(item.date)}</TableCell>
                     <TableCell>{item.payee}</TableCell>
                     <TableCell className="max-w-[24rem] truncate" title={item.particulars}>
                       {item.particulars}
                     </TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(item.overallAmount)}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(item.overallAmount)}
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span>{item.requestingOfficial.name}</span>
-                        <span className="text-xs text-muted-foreground">{item.requestingOfficial.position}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {item.requestingOfficial.position}
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -196,7 +192,7 @@ function ObrItemDetailDialog({
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Disbursement Voucher Reference No.</Label>
-                <DetailText value={item.dvRefNumber ?? "—"} />
+                <DetailText value={item.dvRefNumber ?? '—'} />
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Date</Label>
@@ -252,8 +248,11 @@ function ObrItemDetailDialog({
                 Amounts
               </Typography>
               <div className="flex flex-col gap-3">
-                {item.amounts.map(amount => (
-                  <div key={amount.id} className="grid grid-cols-1 gap-3 rounded-md border p-3 md:grid-cols-2 lg:grid-cols-4">
+                {item.amounts.map((amount) => (
+                  <div
+                    key={amount.id}
+                    className="grid grid-cols-1 gap-3 rounded-md border p-3 md:grid-cols-2 lg:grid-cols-4"
+                  >
                     <div className="flex flex-col gap-1">
                       <Label>Responsibility Center</Label>
                       <DetailText value={amount.responsibilityCenter.name} />
@@ -264,7 +263,7 @@ function ObrItemDetailDialog({
                     </div>
                     <div className="flex flex-col gap-1">
                       <Label>Account Code</Label>
-                      <DetailText value={amount.expenseCode.accountCode ?? "-"} />
+                      <DetailText value={amount.expenseCode.accountCode ?? '-'} />
                     </div>
                     <div className="flex flex-col gap-1">
                       <Label>Amount</Label>

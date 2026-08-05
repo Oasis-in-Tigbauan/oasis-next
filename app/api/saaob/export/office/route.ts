@@ -1,12 +1,12 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import type {NextRequest} from 'next/server';
+import {NextResponse} from 'next/server';
 
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import * as saaob from "@/lib/saaob";
-import { parseSaaobExportColumns } from "@/common/saaob/client";
-import { Failure } from "@/lib/one-of";
+import {parseSaaobExportColumns} from '@/common/saaob/client';
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {Failure} from '@/lib/one-of';
+import * as saaob from '@/lib/saaob';
 
 export async function GET(req: NextRequest) {
   const session = await auth.verify([permission.SAAOB_OFFICE_READ]);
@@ -14,18 +14,20 @@ export async function GET(req: NextRequest) {
     return ApiResponseBuilder.createFromSessionValidation(session).build();
   }
 
-  const rawColumns = req.nextUrl.searchParams.get("columns");
+  const rawColumns = req.nextUrl.searchParams.get('columns');
   if (!rawColumns) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Query parameter 'columns' is required.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      "Query parameter 'columns' is required.",
+    ).build();
   }
 
   const columns = parseSaaobExportColumns(rawColumns);
   if (!columns || columns.length === 0) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "No valid export columns provided.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'No valid export columns provided.',
+    ).build();
   }
 
   const result = await saaob.exportOfficeDataToBuffer(session.user!.office.id, columns);
@@ -36,8 +38,8 @@ export async function GET(req: NextRequest) {
   return new NextResponse(new Uint8Array(result.value), {
     status: 200,
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": "attachment; filename=\"saaob-office-export.xlsx\"",
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="saaob-office-export.xlsx"',
     },
   });
 }

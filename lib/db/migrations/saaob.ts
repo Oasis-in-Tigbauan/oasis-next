@@ -1,20 +1,19 @@
-import { count } from "drizzle-orm";
-import fs from "fs/promises";
-import path from "path";
+import fs from 'fs/promises';
+import path from 'path';
 
-import type { MigratorFn } from "@/lib/db/types";
-import { saaobEntries, saaobEntryGroup, expenseClasses } from "@/lib/db/schema";
-import Decimal from "decimal.js";
+import Decimal from 'decimal.js';
+import {count} from 'drizzle-orm';
+
+import {saaobEntries, saaobEntryGroup, expenseClasses} from '@/lib/db/schema';
+import type {MigratorFn} from '@/lib/db/types';
 
 export const saaobEntriesMigration: MigratorFn = async (client, usr): Promise<void> => {
-  console.log("Migrating SAAOB entries...");
+  console.log('Migrating SAAOB entries...');
 
   // Check if there are items. Skip if there are items.
-  const [result] = await client
-    .select({ count: count()})
-    .from(saaobEntries);
+  const [result] = await client.select({count: count()}).from(saaobEntries);
   if (Number(result.count) > 0) {
-    console.log("-> Skipped due to saaob entries exists");
+    console.log('-> Skipped due to saaob entries exists');
     return;
   }
 
@@ -22,16 +21,16 @@ export const saaobEntriesMigration: MigratorFn = async (client, usr): Promise<vo
 
   // Build a lookup map from accountName -> expense class id for O(1) resolution per item
   const expenseRows = await client
-    .select({ id: expenseClasses.id, accountName: expenseClasses.accountName })
+    .select({id: expenseClasses.id, accountName: expenseClasses.accountName})
     .from(expenseClasses);
-  const expenseByName = new Map(expenseRows.map(r => [r.accountName.trim().toUpperCase(), r.id]));
+  const expenseByName = new Map(expenseRows.map((r) => [r.accountName.trim().toUpperCase(), r.id]));
 
   const insertNode = async (node: SaaobTree, parentGroupId: string | null): Promise<void> => {
     if (node.type === 0) {
       const [group] = await client
         .insert(saaobEntryGroup)
-        .values({ name: node.name, parentId: parentGroupId })
-        .returning({ id: saaobEntryGroup.id });
+        .values({name: node.name, parentId: parentGroupId})
+        .returning({id: saaobEntryGroup.id});
 
       for (const child of node.children) {
         await insertNode(child, group.id);
@@ -39,8 +38,8 @@ export const saaobEntriesMigration: MigratorFn = async (client, usr): Promise<vo
     } else {
       if (!parentGroupId) return;
 
-      const rawBudget = (node.annualBudget ?? "").trim().replace(/,/g, "");
-      const annualBudget = rawBudget === "" || rawBudget === "-" ? "0" : rawBudget;
+      const rawBudget = (node.annualBudget ?? '').trim().replace(/,/g, '');
+      const annualBudget = rawBudget === '' || rawBudget === '-' ? '0' : rawBudget;
       const budgetCasted = new Decimal(annualBudget).toString();
 
       const expenseCodeId = expenseByName.get(node.name.trim().toUpperCase()) ?? null;
@@ -64,35 +63,35 @@ export const saaobEntriesMigration: MigratorFn = async (client, usr): Promise<vo
 };
 
 async function read(): Promise<SaaobTree[]> {
-  const filePath = path.join(__dirname, "./data/saaob.csv");
-  const text = await fs.readFile(filePath, "utf8");
+  const filePath = path.join(__dirname, './data/saaob.csv');
+  const text = await fs.readFile(filePath, 'utf8');
 
   // Parse CSV
   const csvParsed: Array<string[]> = [];
   let row: string[] = [];
-  let current = "";
+  let current = '';
   let insideQuote = false;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const nextChar = text[i + 1];
 
-    if (char === "\"") {
-      if (insideQuote && nextChar === "\"") {
-        current += "\"";
+    if (char === '"') {
+      if (insideQuote && nextChar === '"') {
+        current += '"';
         i++;
       } else {
         insideQuote = !insideQuote;
       }
-    } else if (char === "," && !insideQuote) {
+    } else if (char === ',' && !insideQuote) {
       row.push(current);
-      current = "";
-    } else if ((char === "\r" || char === "\n") && !insideQuote) {
-      if (char === "\r" && nextChar === "\n") i++;
+      current = '';
+    } else if ((char === '\r' || char === '\n') && !insideQuote) {
+      if (char === '\r' && nextChar === '\n') i++;
       row.push(current);
       if (row.length > 0) csvParsed.push(row);
       row = [];
-      current = "";
+      current = '';
     } else {
       current += char;
     }
@@ -103,16 +102,16 @@ async function read(): Promise<SaaobTree[]> {
   }
 
   const tree: SaaobTree[] = [];
-  let stack: Array<{ node: SaaobTree, level: number, isWrapper: boolean }> = [];
+  let stack: Array<{node: SaaobTree; level: number; isWrapper: boolean}> = [];
 
   const startIdx = 259;
   const endIdx = 1610;
 
   const knownRoots = [
-    "STATUTORY & CONTRACTUAL OBLIGATIONS",
-    "GENERAL FUND (PER OFFICE)",
-    "LOCAL ECONOMIC ENTERPRISE",
-    "CONTINUING FUNDS",
+    'STATUTORY & CONTRACTUAL OBLIGATIONS',
+    'GENERAL FUND (PER OFFICE)',
+    'LOCAL ECONOMIC ENTERPRISE',
+    'CONTINUING FUNDS',
   ];
 
   /**
@@ -131,18 +130,18 @@ async function read(): Promise<SaaobTree[]> {
   const getRowLevel = (row: string[]) => {
     if (!row || row.length < 5) return -1;
 
-    const colA = (row[0] || "").trim();
-    const colB = (row[1] || "").trim();
-    const colC = (row[2] || "").trim();
-    const colD = (row[3] || "").trim();
+    const colA = (row[0] || '').trim();
+    const colB = (row[1] || '').trim();
+    const colC = (row[2] || '').trim();
+    const colD = (row[3] || '').trim();
 
     // check for budget values to identify as items or as groups
     // in colD — check all financial columns (E through K) since some rows
     // (e.g. CONTINUING items) have zero Annual Budget but non-zero Supplemental/Appropriation
     const hasBudget = [4, 5, 6, 7, 8, 9, 10].some(
-      idx => row[idx] && row[idx] !== "-" && row[idx].trim() !== "",
+      (idx) => row[idx] && row[idx] !== '-' && row[idx].trim() !== '',
     );
-    const rowText = [colA, colB, colC, colD].join(" ").toUpperCase();
+    const rowText = [colA, colB, colC, colD].join(' ').toUpperCase();
 
     // check for roots
     for (const rootName of knownRoots) {
@@ -167,13 +166,13 @@ async function read(): Promise<SaaobTree[]> {
 
   const getRowName = (row: string[], level: number) => {
     if (level === 0) {
-      const rowText = row.slice(0, 4).join(" ").toUpperCase();
-      return knownRoots.find(r => rowText.includes(r)) || "UNKNOWN ROOT";
+      const rowText = row.slice(0, 4).join(' ').toUpperCase();
+      return knownRoots.find((r) => rowText.includes(r)) || 'UNKNOWN ROOT';
     }
     if (level === 5 || level === 4) return row[3];
     if (level === 3) return row[2];
     if (level === 2) return row[1];
-    return "";
+    return '';
   };
 
   for (let i = startIdx; i < endIdx && i < csvParsed.length; i++) {
@@ -188,7 +187,7 @@ async function read(): Promise<SaaobTree[]> {
 
     // The TOTAL item terminates the nearest group that likely matches its name
     // or simply terminates the current deepest group.
-    if (upperName.includes("TOTAL")) {
+    if (upperName.includes('TOTAL')) {
       // Pop the top group
       //
       // This can be refined to look up stack for name match, but strict popping usually works for
@@ -205,7 +204,7 @@ async function read(): Promise<SaaobTree[]> {
 
     if (level === 0) {
       tree.push(newNode);
-      stack = [{ node: newNode, level: 0, isWrapper: false }];
+      stack = [{node: newNode, level: 0, isWrapper: false}];
       continue;
     }
 
@@ -219,7 +218,7 @@ async function read(): Promise<SaaobTree[]> {
 
       // if next is the same level, current is a wrapper.
       // exception: don't wrap if next is a TOTAL (unlikely sequence, but safe to check)
-      if (nextLevel === level && !getRowName(nextRow, nextLevel).toUpperCase().includes("TOTAL")) {
+      if (nextLevel === level && !getRowName(nextRow, nextLevel).toUpperCase().includes('TOTAL')) {
         isWrapper = true;
       }
     }
@@ -230,15 +229,15 @@ async function read(): Promise<SaaobTree[]> {
 
     if (level === 5) {
       newNode.type = 1;
-      newNode.refCode = row[0] || "";          // Col A
-      newNode.accountCode = row[4] || "";      // Col E
-      newNode.annualBudget = row[5] || "";     // Col F
-      newNode.supplemental = row[6] || "";     // Col G
-      newNode.appropriation = row[7] || "";    // Col H
-      newNode.allotment = row[8] || "";        // Col I
-      newNode.obligation = row[9] || "";       // Col J
-      newNode.unobligated = row[10] || "";     // Col K
-      newNode.percentage = row[11] || "";      // Col L
+      newNode.refCode = row[0] || ''; // Col A
+      newNode.accountCode = row[4] || ''; // Col E
+      newNode.annualBudget = row[5] || ''; // Col F
+      newNode.supplemental = row[6] || ''; // Col G
+      newNode.appropriation = row[7] || ''; // Col H
+      newNode.allotment = row[8] || ''; // Col I
+      newNode.obligation = row[9] || ''; // Col J
+      newNode.unobligated = row[10] || ''; // Col K
+      newNode.percentage = row[11] || ''; // Col L
 
       stack[stack.length - 1].node.children.push(newNode);
     } else {
@@ -263,7 +262,7 @@ async function read(): Promise<SaaobTree[]> {
       stack[stack.length - 1].node.children.push(newNode);
 
       // Push self to stack
-      stack.push({ node: newNode, level: level, isWrapper: isWrapper });
+      stack.push({node: newNode, level: level, isWrapper: isWrapper});
     }
   }
 
@@ -273,7 +272,7 @@ async function read(): Promise<SaaobTree[]> {
 type SaaobTree = {
   name: string;
   children: SaaobTree[];
-  type: 0 | 1,
+  type: 0 | 1;
 
   // Other information
   refCode?: string;
@@ -285,4 +284,4 @@ type SaaobTree = {
   obligation?: string;
   unobligated?: string;
   percentage?: string;
-}
+};

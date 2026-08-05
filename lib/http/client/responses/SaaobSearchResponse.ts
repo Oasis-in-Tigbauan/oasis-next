@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type SaaobSearchEntry = {
   id: string;
@@ -16,5 +16,5 @@ export type SaaobSearchGroup = {
 export type SaaobSearchResponse = GenericOkResponse<SaaobSearchGroup[]>;
 
 export function isSaaobGroup(node: SaaobSearchGroup | SaaobSearchEntry): node is SaaobSearchGroup {
-  return "children" in node;
+  return 'children' in node;
 }

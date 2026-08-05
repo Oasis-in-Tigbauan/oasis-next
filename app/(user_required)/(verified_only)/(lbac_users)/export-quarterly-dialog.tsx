@@ -1,22 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState } from "react";
-import { Download, Table2 } from "lucide-react";
+import {Download, Table2} from 'lucide-react';
+import {useCallback, useMemo, useState} from 'react';
 
+import {
+  LbacQuarterlyExportPreviewTable,
+  resolveLbacExportYear,
+} from '@/app/(user_required)/(verified_only)/(lbac_users)/lbac-export-preview-table';
 import {
   LBAC_QUARTERLY_EXPORT_COLUMN_GROUPS,
   LBAC_QUARTERLY_EXPORT_COLUMNS,
   type LbacQuarterlyExportColDef,
   type LbacQuarterlyExportColumnKey,
-} from "@/common/lbac/client";
-import type { LbacQuarterlyGroupResponse } from "@/lib/http/client/responses";
-
-import {
-  LbacQuarterlyExportPreviewTable,
-  resolveLbacExportYear,
-} from "@/app/(user_required)/(verified_only)/(lbac_users)/lbac-export-preview-table";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/common/lbac/client';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -24,16 +23,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import Typography from "@/components/typography";
+} from '@/components/ui/dialog';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import type {LbacQuarterlyGroupResponse} from '@/lib/http/client/responses';
 
 function ColumnSelector({
   selected,
@@ -67,9 +61,12 @@ function ColumnSelector({
 
       <ScrollArea className="h-0 min-h-0 flex-1">
         <div className="flex flex-col gap-4 pr-3 pb-4">
-          {LBAC_QUARTERLY_EXPORT_COLUMN_GROUPS.map(group => (
+          {LBAC_QUARTERLY_EXPORT_COLUMN_GROUPS.map((group) => (
             <div key={group.group} className="flex flex-col gap-2">
-              <Typography variant="small" className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
+              <Typography
+                variant="small"
+                className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]"
+              >
                 {group.group}
               </Typography>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -115,7 +112,7 @@ export function ExportQuarterlyDialog({
   year: yearProp,
 }: ExportQuarterlyDialogProps) {
   const [selected, setSelected] = useState<Set<LbacQuarterlyExportColumnKey>>(
-    () => new Set(LBAC_QUARTERLY_EXPORT_COLUMNS.map(c => c.key)),
+    () => new Set(LBAC_QUARTERLY_EXPORT_COLUMNS.map((c) => c.key)),
   );
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -123,12 +120,12 @@ export function ExportQuarterlyDialog({
   const year = resolveLbacExportYear(yearProp, exportParams);
 
   const orderedColumns = useMemo(
-    () => LBAC_QUARTERLY_EXPORT_COLUMNS.map(c => c.key).filter(k => selected.has(k)),
+    () => LBAC_QUARTERLY_EXPORT_COLUMNS.map((c) => c.key).filter((k) => selected.has(k)),
     [selected],
   );
 
   const handleToggle = useCallback((key: LbacQuarterlyExportColumnKey) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -137,7 +134,7 @@ export function ExportQuarterlyDialog({
   }, []);
 
   const handleSelectAll = useCallback(() => {
-    setSelected(new Set(LBAC_QUARTERLY_EXPORT_COLUMNS.map(c => c.key)));
+    setSelected(new Set(LBAC_QUARTERLY_EXPORT_COLUMNS.map((c) => c.key)));
   }, []);
 
   const handleDeselectAll = useCallback(() => {
@@ -146,7 +143,7 @@ export function ExportQuarterlyDialog({
 
   const handleExport = useCallback(async () => {
     if (orderedColumns.length === 0) {
-      setExportError("Please select at least one column to export.");
+      setExportError('Please select at least one column to export.');
       return;
     }
 
@@ -156,27 +153,27 @@ export function ExportQuarterlyDialog({
     try {
       const params = new URLSearchParams({
         ...(exportParams ?? {}),
-        columns: orderedColumns.join(","),
+        columns: orderedColumns.join(','),
       });
 
       const response = await fetch(`${exportApiBase}?${params.toString()}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setExportError(
-          (payload as Record<string, string> | null)?.details
-            ?? (payload as Record<string, string> | null)?.message
-            ?? "Export failed. Please try again.",
+          (payload as Record<string, string> | null)?.details ??
+            (payload as Record<string, string> | null)?.message ??
+            'Export failed. Please try again.',
         );
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? "lbac-quarterly-export.xlsx";
+      const filename = filenameMatch?.[1] ?? 'lbac-quarterly-export.xlsx';
 
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
@@ -186,7 +183,7 @@ export function ExportQuarterlyDialog({
 
       onOpenChange(false);
     } catch {
-      setExportError("An unexpected error occurred. Please try again.");
+      setExportError('An unexpected error occurred. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -199,12 +196,16 @@ export function ExportQuarterlyDialog({
           <DialogHeader>
             <DialogTitle>Export Quarterly Report</DialogTitle>
             <DialogDescription>
-              Select which columns to include in the exported XLSX file. Preview matches the quarterly table layout.
+              Select which columns to include in the exported XLSX file. Preview matches the
+              quarterly table layout.
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <Tabs defaultValue="columns" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3">
+        <Tabs
+          defaultValue="columns"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3"
+        >
           <TabsList className="flex-none mb-3 self-start">
             <TabsTrigger value="columns" className="text-xs gap-1.5">
               Columns
@@ -227,7 +228,10 @@ export function ExportQuarterlyDialog({
             />
           </TabsContent>
 
-          <TabsContent value="preview" className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="preview"
+            className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
+          >
             <LbacQuarterlyExportPreviewTable
               tree={tree}
               year={year}
@@ -243,19 +247,12 @@ export function ExportQuarterlyDialog({
             </Typography>
           )}
           <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={exporting}
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" disabled={exporting} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              disabled={exporting || selected.size === 0}
-              onClick={() => void handleExport()}
-            >
+            <Button disabled={exporting || selected.size === 0} onClick={() => void handleExport()}>
               <Download className="size-3.5" />
-              {exporting ? "Exporting..." : "Export"}
+              {exporting ? 'Exporting...' : 'Export'}
             </Button>
           </DialogFooter>
         </div>

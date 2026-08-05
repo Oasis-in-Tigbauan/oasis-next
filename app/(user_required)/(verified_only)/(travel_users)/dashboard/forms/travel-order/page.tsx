@@ -1,37 +1,14 @@
-"use client";
+'use client';
 
-import { useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
-import { DateTime } from "luxon";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {Check, Pencil, Plus, Printer, Search, Trash2} from 'lucide-react';
+import {DateTime} from 'luxon';
+import {useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import { cn } from "@/lib/utils";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  TravelOrderItemResponse,
-  TravelOrderListResponse,
-  UserResponse,
-} from "@/lib/http/client/responses";
-import * as permissions from "@/lib/db/permissions";
-
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import { TravelOrderFormDialog } from "./travel-order-form-dialog";
-import { TravelOrderPrintDialog } from "./travel-order-print-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -39,37 +16,53 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import * as permissions from '@/lib/db/permissions';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  TravelOrderItemResponse,
+  TravelOrderListResponse,
+  UserResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
+
+import {TravelOrderFormDialog} from './travel-order-form-dialog';
+import {TravelOrderPrintDialog} from './travel-order-print-dialog';
 
 const TOTAL_COLS = 16;
 
 const STATUS_LABELS: Record<string, string> = {
-  "co-hr": "CO-HR",
-  "filed": "Filed",
-  "missing": "Missing",
-  "cancelled": "Cancelled",
+  'co-hr': 'CO-HR',
+  filed: 'Filed',
+  missing: 'Missing',
+  cancelled: 'Cancelled',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  "official": "Official",
-  "personal": "Personal",
+  official: 'Official',
+  personal: 'Personal',
 };
 
 function formatDateOfTravel(item: TravelOrderItemResponse): string {
-  const startFormatted = DateTime.fromISO(item.startDate).toFormat("MMMM d, yyyy");
+  const startFormatted = DateTime.fromISO(item.startDate).toFormat('MMMM d, yyyy');
   if (!item.endDate) return startFormatted;
-  const endFormatted = DateTime.fromISO(item.endDate).toFormat("MMMM d, yyyy");
+  const endFormatted = DateTime.fromISO(item.endDate).toFormat('MMMM d, yyyy');
   return `${startFormatted} \u2013 ${endFormatted}`;
 }
 
 function formatDate(isoString: string): string {
-  return DateTime.fromISO(isoString).toFormat("MMMM d, yyyy");
+  return DateTime.fromISO(isoString).toFormat('MMMM d, yyyy');
 }
 
 export default function Page() {
-  const { data: meData, isLoading: meLoading } = useSWR<
+  const {data: meData, isLoading: meLoading} = useSWR<
     BetterFetchResponse<UserResponse, ApiResponseException>
-  >("/api/account/me", $fetch);
+  >('/api/account/me', $fetch);
 
   const permissionMap = useMemo(
     () => new Set(meData?.data?.data?.office?.role?.permissions ?? []),
@@ -79,12 +72,12 @@ export default function Page() {
   const canWrite = permissionMap.has(permissions.TRAVEL_WRITE);
   const canApprove = permissionMap.has(permissions.TRAVEL_APPROVER);
 
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<TravelOrderListResponse, ApiResponseException>
-  >("/api/forms/travel-order", $fetch);
+  >('/api/forms/travel-order', $fetch);
 
   const [selectedItem, setSelectedItem] = useState<TravelOrderItemResponse | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [addKey, setAddKey] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
@@ -100,7 +93,7 @@ export default function Page() {
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return items;
-    return items.filter(item => {
+    return items.filter((item) => {
       const fields = [
         String(item.refNumber),
         item.travelOrderStatus,
@@ -112,10 +105,10 @@ export default function Page() {
         formatDateOfTravel(item),
         item.location,
         item.purpose,
-        item.notes ?? "",
-        item.approvedBy?.name ?? "",
+        item.notes ?? '',
+        item.approvedBy?.name ?? '',
       ];
-      return fields.some(f => f.toLowerCase().includes(query));
+      return fields.some((f) => f.toLowerCase().includes(query));
     });
   }, [items, searchQuery]);
 
@@ -139,17 +132,16 @@ export default function Page() {
     try {
       const res = await $fetch<unknown, ApiResponseException>(
         `/api/forms/travel-order/${selectedItem.id}`,
-        { method: "DELETE" },
+        {method: 'DELETE'},
       );
       if (res.error) {
-        alert("Failed to delete travel order. Please try again.");
+        alert('Failed to delete travel order. Please try again.');
         return;
       }
       setSelectedItem(null);
       setDeleteOpen(false);
       mutate();
-    }
-    finally {
+    } finally {
       setIsDeleting(false);
     }
   }
@@ -160,17 +152,16 @@ export default function Page() {
     try {
       const res = await $fetch<unknown, ApiResponseException>(
         `/api/forms/travel-order/${selectedItem.id}/approve`,
-        { method: "POST" },
+        {method: 'POST'},
       );
       if (res.error) {
-        alert("Failed to approve travel order. Please try again.");
+        alert('Failed to approve travel order. Please try again.');
         return;
       }
       setSelectedItem(null);
       setApproveOpen(false);
       mutate();
-    }
-    finally {
+    } finally {
       setIsApproving(false);
     }
   }
@@ -188,7 +179,7 @@ export default function Page() {
             className="pl-7 h-8 w-72 text-xs"
             placeholder="Search travel orders..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -199,7 +190,7 @@ export default function Page() {
           size="icon-sm"
           aria-label="New Travel Order"
           onClick={() => {
-            setAddKey(k => k + 1);
+            setAddKey((k) => k + 1);
             setAddOpen(true);
           }}
         >
@@ -239,10 +230,10 @@ export default function Page() {
         <div className="ml-auto flex min-w-0 items-center gap-2">
           <div
             className={cn(
-              "hidden min-w-0 items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors md:flex",
+              'hidden min-w-0 items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors md:flex',
               selectedItem
-                ? "border-[oklch(0.78_0.06_258)] bg-[oklch(0.965_0.018_258)] text-foreground dark:border-[oklch(0.58_0.07_258)] dark:bg-[oklch(0.26_0.035_258)]"
-                : "border-transparent bg-muted/40 text-muted-foreground",
+                ? 'border-[oklch(0.78_0.06_258)] bg-[oklch(0.965_0.018_258)] text-foreground dark:border-[oklch(0.58_0.07_258)] dark:bg-[oklch(0.26_0.035_258)]'
+                : 'border-transparent bg-muted/40 text-muted-foreground',
             )}
           >
             <Printer className="size-3.5 shrink-0" />
@@ -259,9 +250,9 @@ export default function Page() {
           </div>
 
           <Button
-            variant={selectedItem ? "default" : "outline"}
+            variant={selectedItem ? 'default' : 'outline'}
             size="sm"
-            className={cn("h-8 gap-2", !selectedItem && "px-2")}
+            className={cn('h-8 gap-2', !selectedItem && 'px-2')}
             aria-label="Export Printable PDF"
             disabled={!selectedItem}
             onClick={() => {
@@ -292,9 +283,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {filteredItems.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery
-              ? "No results match your search."
-              : "No travel orders found."}
+            {searchQuery ? 'No results match your search.' : 'No travel orders found.'}
           </div>
         ) : (
           <div
@@ -325,11 +314,11 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
 
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const item = filteredItems[vr.index]!;
                   const selected = selectedItem?.id === item.id;
                   return (
@@ -338,16 +327,20 @@ export default function Page() {
                       key={item.id}
                       data-index={vr.index}
                       className={cn(
-                        "cursor-pointer select-none transition-colors duration-150 ease-out",
+                        'cursor-pointer select-none transition-colors duration-150 ease-out',
                         selected
-                          ? "bg-[oklch(0.965_0.018_258)] shadow-[inset_0_0_0_1px_oklch(0.78_0.06_258)] hover:bg-[oklch(0.948_0.024_258)] dark:bg-[oklch(0.26_0.035_258)] dark:shadow-[inset_0_0_0_1px_oklch(0.58_0.07_258)] dark:hover:bg-[oklch(0.29_0.04_258)]"
+                          ? 'bg-[oklch(0.965_0.018_258)] shadow-[inset_0_0_0_1px_oklch(0.78_0.06_258)] hover:bg-[oklch(0.948_0.024_258)] dark:bg-[oklch(0.26_0.035_258)] dark:shadow-[inset_0_0_0_1px_oklch(0.58_0.07_258)] dark:hover:bg-[oklch(0.29_0.04_258)]'
                           : vr.index % 2 === 1
-                            ? "bg-muted/70 hover:bg-muted"
-                            : "hover:bg-muted/45",
+                            ? 'bg-muted/70 hover:bg-muted'
+                            : 'hover:bg-muted/45',
                       )}
-                      title={selected ? "Selected for PDF export. Double-click to edit." : "Click to select for export. Double-click to edit."}
+                      title={
+                        selected
+                          ? 'Selected for PDF export. Double-click to edit.'
+                          : 'Click to select for export. Double-click to edit.'
+                      }
                       onClick={() =>
-                        setSelectedItem(prev => (prev?.id === item.id ? null : item))
+                        setSelectedItem((prev) => (prev?.id === item.id ? null : item))
                       }
                       onDoubleClick={() => {
                         if (!canWrite) return;
@@ -358,10 +351,10 @@ export default function Page() {
                       <TableCell className="w-16 min-w-16 font-mono">
                         <span
                           className={cn(
-                            "inline-flex min-w-8 items-center justify-center rounded px-1.5 py-0.5 text-[11px]",
+                            'inline-flex min-w-8 items-center justify-center rounded px-1.5 py-0.5 text-[11px]',
                             selected
-                              ? "bg-[oklch(0.88_0.045_258)] font-semibold text-[oklch(0.34_0.09_258)] dark:bg-[oklch(0.36_0.05_258)] dark:text-[oklch(0.88_0.04_258)]"
-                              : "bg-transparent",
+                              ? 'bg-[oklch(0.88_0.045_258)] font-semibold text-[oklch(0.34_0.09_258)] dark:bg-[oklch(0.36_0.05_258)] dark:text-[oklch(0.88_0.04_258)]'
+                              : 'bg-transparent',
                           )}
                         >
                           {item.refNumber}
@@ -370,47 +363,29 @@ export default function Page() {
                       <TableCell className="w-24 min-w-24">
                         {STATUS_LABELS[item.travelOrderStatus] ?? item.travelOrderStatus}
                       </TableCell>
-                      <TableCell className="w-36 min-w-36">
-                        {formatDate(item.date)}
-                      </TableCell>
-                      <TableCell className="w-40 min-w-40">
-                        {item.requestor.name}
-                      </TableCell>
-                      <TableCell className="w-40 min-w-40">
-                        {item.requestor.office.name}
-                      </TableCell>
+                      <TableCell className="w-36 min-w-36">{formatDate(item.date)}</TableCell>
+                      <TableCell className="w-40 min-w-40">{item.requestor.name}</TableCell>
+                      <TableCell className="w-40 min-w-40">{item.requestor.office.name}</TableCell>
                       <TableCell className="w-40 min-w-40">
                         {item.requestor.officePosition.name}
                       </TableCell>
                       <TableCell className="w-24 min-w-24">
                         {CATEGORY_LABELS[item.category] ?? item.category}
                       </TableCell>
-                      <TableCell className="w-56 min-w-56">
-                        {formatDateOfTravel(item)}
+                      <TableCell className="w-56 min-w-56">{formatDateOfTravel(item)}</TableCell>
+                      <TableCell className="w-24 min-w-24 text-center">{item.noOfDays}</TableCell>
+                      <TableCell className="w-40 min-w-40">{item.location}</TableCell>
+                      <TableCell className="w-48 min-w-48">{item.purpose}</TableCell>
+                      <TableCell className="w-24 min-w-24">{item.time}</TableCell>
+                      <TableCell className="w-40 min-w-40">
+                        {item.subjectToClaims ? 'Subject to Claims' : 'Not Subject to Claims'}
                       </TableCell>
-                      <TableCell className="w-24 min-w-24 text-center">
-                        {item.noOfDays}
+                      <TableCell className="w-40 min-w-40">{item.notes ?? '-'}</TableCell>
+                      <TableCell className="w-40 min-w-40">
+                        {item.approvedBy?.name ?? '-'}
                       </TableCell>
                       <TableCell className="w-40 min-w-40">
-                        {item.location}
-                      </TableCell>
-                      <TableCell className="w-48 min-w-48">
-                        {item.purpose}
-                      </TableCell>
-                      <TableCell className="w-24 min-w-24">
-                        {item.time}
-                      </TableCell>
-                      <TableCell className="w-40 min-w-40">
-                        {item.subjectToClaims ? "Subject to Claims" : "Not Subject to Claims"}
-                      </TableCell>
-                      <TableCell className="w-40 min-w-40">
-                        {item.notes ?? "-"}
-                      </TableCell>
-                      <TableCell className="w-40 min-w-40">
-                        {item.approvedBy?.name ?? "-"}
-                      </TableCell>
-                      <TableCell className="w-40 min-w-40">
-                        {item.approvedBy?.position.name ?? "-"}
+                        {item.approvedBy?.position.name ?? '-'}
                       </TableCell>
                     </TableRow>
                   );
@@ -418,7 +393,7 @@ export default function Page() {
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -442,7 +417,7 @@ export default function Page() {
 
       {/* Edit dialog */}
       <TravelOrderFormDialog
-        key={selectedItem ? `edit-${selectedItem.id}` : "edit-none"}
+        key={selectedItem ? `edit-${selectedItem.id}` : 'edit-none'}
         mode="edit"
         editItem={selectedItem ?? undefined}
         open={editOpen}
@@ -454,11 +429,7 @@ export default function Page() {
         }}
       />
 
-      <TravelOrderPrintDialog
-        item={selectedItem}
-        open={printOpen}
-        onOpenChange={setPrintOpen}
-      />
+      <TravelOrderPrintDialog item={selectedItem} open={printOpen} onOpenChange={setPrintOpen} />
 
       {/* Delete confirmation */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -466,8 +437,8 @@ export default function Page() {
           <DialogHeader>
             <DialogTitle>Delete Travel Order</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete travel order{" "}
-              <strong>REF #{selectedItem?.refNumber}</strong> for{" "}
+              Are you sure you want to delete travel order{' '}
+              <strong>REF #{selectedItem?.refNumber}</strong> for{' '}
               <strong>{selectedItem?.requestor.name}</strong>? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
@@ -480,13 +451,8 @@ export default function Page() {
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={isDeleting}
-              onClick={handleDelete}
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
+            <Button variant="destructive" size="sm" disabled={isDeleting} onClick={handleDelete}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -498,9 +464,9 @@ export default function Page() {
           <DialogHeader>
             <DialogTitle>Approve Travel Order</DialogTitle>
             <DialogDescription>
-              Approve travel order <strong>REF #{selectedItem?.refNumber}</strong> for{" "}
-              <strong>{selectedItem?.requestor.name}</strong>? Your identity will be recorded
-              as the approver.
+              Approve travel order <strong>REF #{selectedItem?.refNumber}</strong> for{' '}
+              <strong>{selectedItem?.requestor.name}</strong>? Your identity will be recorded as the
+              approver.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -512,12 +478,8 @@ export default function Page() {
             >
               Cancel
             </Button>
-            <Button
-              size="sm"
-              disabled={isApproving}
-              onClick={handleApprove}
-            >
-              {isApproving ? "Approving..." : "Approve"}
+            <Button size="sm" disabled={isApproving} onClick={handleApprove}>
+              {isApproving ? 'Approving...' : 'Approve'}
             </Button>
           </DialogFooter>
         </DialogContent>

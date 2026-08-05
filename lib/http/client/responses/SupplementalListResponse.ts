@@ -1,19 +1,25 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type SupplementalItem = {
   id: string;
   supplementalOrAugmentation: string | null | undefined;
   amount: string;
-  supplementalType: "less" | "add";
-  saaob: {
-    id: string;
-    name: string;
-  } | null | undefined;
-  aipCode: {
-    id: string;
-    aipRefCode: string;
-    description: string;
-  } | null | undefined;
+  supplementalType: 'less' | 'add';
+  saaob:
+    | {
+        id: string;
+        name: string;
+      }
+    | null
+    | undefined;
+  aipCode:
+    | {
+        id: string;
+        aipRefCode: string;
+        description: string;
+      }
+    | null
+    | undefined;
   date: string;
   quarter: string;
 };

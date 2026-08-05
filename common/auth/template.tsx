@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import type { ReactNode } from "react";
+import Image from 'next/image';
+import type {ReactNode} from 'react';
 
-export default function Template({ children }: { children: ReactNode }) {
+export default function Template({children}: {children: ReactNode}) {
   return (
     <main className="grid h-svh min-h-svh overflow-hidden bg-[oklch(0.985_0.006_255)] text-foreground lg:grid-cols-[auto_55%] xl:grid-cols-[60%_auto] dark:bg-background">
       <section className="flex h-svh min-h-0 flex-col overflow-hidden px-6 py-6 sm:px-10 lg:px-14">

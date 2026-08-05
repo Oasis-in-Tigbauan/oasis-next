@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import {AlertTriangle, RefreshCw} from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
+import {Button} from '@/components/ui/button';
 
 export default function DeadHamster() {
   return (
@@ -11,9 +11,12 @@ export default function DeadHamster() {
         <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-full bg-[#FFF3D6] text-[#9A6510]">
           <AlertTriangle className="size-5" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#122033]">This view could not load</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#122033]">
+          This view could not load
+        </h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#52657A]">
-          The request failed before the page could finish loading. Try again, or return to the previous page if the problem continues.
+          The request failed before the page could finish loading. Try again, or return to the
+          previous page if the problem continues.
         </p>
         <div className="mt-6 flex justify-center">
           <Button type="button" variant="outline" onClick={() => window.location.reload()}>

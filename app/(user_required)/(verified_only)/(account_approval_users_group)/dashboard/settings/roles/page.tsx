@@ -1,19 +1,13 @@
-"use client";
+'use client';
 
-import { Plus, RefreshCcw } from "lucide-react";
-import { redirect, RedirectType } from "next/navigation";
-import { type SubmitEvent, useState } from "react";
-import useSWR from "swr";
+import {Plus, RefreshCcw} from 'lucide-react';
+import {redirect, RedirectType} from 'next/navigation';
+import {type SubmitEvent, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  BetterFetchResponse,
-  OfficeSingleResponse,
-  OfficesExtendedListResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -23,29 +17,26 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import DeadHamster from "@/components/dead-hamster";
-import { Field, FieldDescription, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
+} from '@/components/ui/dialog';
+import {Field, FieldDescription, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+  ApiResponseException,
+  BetterFetchResponse,
+  OfficeSingleResponse,
+  OfficesExtendedListResponse,
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function RolesPage() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<OfficesExtendedListResponse, ApiResponseException>>(
-    "/api/management/offices/extended",
-    $fetch,
-  );
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<OfficesExtendedListResponse, ApiResponseException>
+  >('/api/management/offices/extended', $fetch);
 
-  const triggerMutate = (entry: OfficesExtendedListResponse["data"][0]) => {
+  const triggerMutate = (entry: OfficesExtendedListResponse['data'][0]) => {
     if (data?.data && data.data.data) {
       mutate({
         data: {
@@ -58,11 +49,11 @@ export default function RolesPage() {
   };
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (data?.error || error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const offices = data?.data?.data ?? [];
@@ -104,35 +95,28 @@ export default function RolesPage() {
   );
 }
 
-function Row({
-  data,
-  index,
-}: {
-  data: OfficesExtendedListResponse["data"][0];
-  index: number;
-}) {
+function Row({data, index}: {data: OfficesExtendedListResponse['data'][0]; index: number}) {
   const goTo = () => redirect(`/dashboard/settings/roles/${data.id}/roles`, RedirectType.replace);
 
   return (
     <TableRow
-      className={cn(
-        "cursor-pointer",
-        index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
-      )}
+      className={cn('cursor-pointer', index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined)}
       onClick={goTo}
     >
-      <TableCell className="font-medium whitespace-normal wrap-break-word">
-        {data.name}
-      </TableCell>
+      <TableCell className="font-medium whitespace-normal wrap-break-word">{data.name}</TableCell>
       <TableCell className="text-center">{data.userCount}</TableCell>
       <TableCell className="text-center">{data.roleCount}</TableCell>
     </TableRow>
   );
 }
 
-function AddOfficeDialog({ handleCreate }: { handleCreate: (invitation: OfficesExtendedListResponse["data"][0]) => void }) {
+function AddOfficeDialog({
+  handleCreate,
+}: {
+  handleCreate: (invitation: OfficesExtendedListResponse['data'][0]) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [office, setOffice] = useState("");
+  const [office, setOffice] = useState('');
 
   const handleInputOffice = (name: string) => {
     setOffice(name);
@@ -141,12 +125,15 @@ function AddOfficeDialog({ handleCreate }: { handleCreate: (invitation: OfficesE
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const { data } = await $fetch<OfficeSingleResponse, ApiResponseException>("/api/management/offices", {
-      method: "POST",
-      body: {
-        name: office,
+    const {data} = await $fetch<OfficeSingleResponse, ApiResponseException>(
+      '/api/management/offices',
+      {
+        method: 'POST',
+        body: {
+          name: office,
+        },
       },
-    });
+    );
 
     if (data?.ok) {
       handleCreate({
@@ -155,17 +142,17 @@ function AddOfficeDialog({ handleCreate }: { handleCreate: (invitation: OfficesE
         userCount: 0,
         roleCount: 0,
       });
-      alert("Created a new office successfully.");
+      alert('Created a new office successfully.');
 
       // Clear values
-      setOffice("");
+      setOffice('');
 
       // Remove values
       setOpen(false);
       return;
     }
 
-    alert("Failed to create office. Try again later.");
+    alert('Failed to create office. Try again later.');
   };
 
   return (
@@ -179,9 +166,7 @@ function AddOfficeDialog({ handleCreate }: { handleCreate: (invitation: OfficesE
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Create a new office</DialogTitle>
-          <DialogDescription>
-            Enter the name of the office you want to create.
-          </DialogDescription>
+          <DialogDescription>Enter the name of the office you want to create.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
@@ -191,7 +176,7 @@ function AddOfficeDialog({ handleCreate }: { handleCreate: (invitation: OfficesE
                 id="officeName"
                 type="text"
                 placeholder="Office of the President"
-                onInput={e => handleInputOffice(e.currentTarget.value)}
+                onInput={(e) => handleInputOffice(e.currentTarget.value)}
                 value={office}
                 required
               />

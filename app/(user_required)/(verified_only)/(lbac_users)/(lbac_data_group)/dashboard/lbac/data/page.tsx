@@ -1,11 +1,71 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {ExportDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/export-dialog';
+import {ExportFormsDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/export-forms-dialog';
+import {ExportLbeFOneDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/export-lbe-f1-dialog';
+import {ManageTemplatesDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog';
+import {
+  LbacPageGroupRow,
+  LbacPageItemRow,
+  LbacPageSpacerRow,
+  LbacPageTableHeader,
+  LbacPageTotalRow,
+  resolveMainExportColumns,
+  toLbacExportFlatRow,
+  useLbacDataColumnVisibility,
+  type LbacMainExportColumnKey,
+} from '@/common/lbac/page-display';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Switch} from '@/components/ui/switch';
+import {Table, TableBody, TableHeader} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   AipSearchResultItem,
@@ -21,83 +81,29 @@ import type {
   SaaobSearchResponse,
   SaaobSearchGroup,
   SaaobSearchEntry,
-} from "@/lib/http/client/responses";
-import { isSaaobGroup } from "@/lib/http/client/responses";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import {
-  LbacPageGroupRow,
-  LbacPageItemRow,
-  LbacPageSpacerRow,
-  LbacPageTableHeader,
-  LbacPageTotalRow,
-  resolveMainExportColumns,
-  toLbacExportFlatRow,
-  useLbacDataColumnVisibility,
-  type LbacMainExportColumnKey,
-} from "@/common/lbac/page-display";
-
-import { ExportDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-dialog";
-import { ExportFormsDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-forms-dialog";
-import { ExportLbeFOneDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-lbe-f1-dialog";
-import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/lib/http/client/responses';
+import {isSaaobGroup} from '@/lib/http/client/responses';
 
 export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
   const [selectedQuarter, setSelectedQuarter] = useState(() => _getUtc8Quarter());
 
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<LbacDataResponse, ApiResponseException>
   >(`/api/lbac?year=${currentYear}&quarter=${selectedQuarter}`, $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<FlatRow | null>(null);
 
   // Dialog states
-  type DialogMode = "add-group" | "edit-group" | "add-item" | "edit-item" | null;
+  type DialogMode = 'add-group' | 'edit-group' | 'add-item' | 'edit-item' | null;
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportFormType, setExportFormType] = useState<"lbe-f1" | "form-3" | "form-5" | "lbe-f5" | "form-5a" | null>(null);
+  const [exportFormType, setExportFormType] = useState<
+    'lbe-f1' | 'form-3' | 'form-5' | 'lbe-f5' | 'form-5a' | null
+  >(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -135,7 +141,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -144,29 +150,31 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: FlatRow) => {
-    setSelectedRow(prev => (prev?.id === row.id ? null : row));
+    setSelectedRow((prev) => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: FlatRow) => {
     setSelectedRow(row);
-    setDialogMode(row.kind === "group" ? "edit-group" : "edit-item");
+    setDialogMode(row.kind === 'group' ? 'edit-group' : 'edit-item');
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!selectedRow) return;
-    const label = selectedRow.kind === "group"
-      ? `group "${selectedRow.data.name}"`
-      : `item "${(selectedRow.data as LbacItemResponse).mfoPpa}"`;
+    const label =
+      selectedRow.kind === 'group'
+        ? `group "${selectedRow.data.name}"`
+        : `item "${(selectedRow.data as LbacItemResponse).mfoPpa}"`;
     if (!confirm(`Delete this ${label}? This cannot be undone.`)) return;
 
-    const url = selectedRow.kind === "group"
-      ? `/api/lbac/groups/${selectedRow.id}`
-      : `/api/lbac/items/${selectedRow.id}`;
+    const url =
+      selectedRow.kind === 'group'
+        ? `/api/lbac/groups/${selectedRow.id}`
+        : `/api/lbac/items/${selectedRow.id}`;
 
-    const res = await fetch(url, { method: "DELETE" });
+    const res = await fetch(url, {method: 'DELETE'});
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
-      alert(payload?.message ?? "Failed to delete. Please try again.");
+      alert(payload?.message ?? 'Failed to delete. Please try again.');
       return;
     }
     setSelectedRow(null);
@@ -179,13 +187,17 @@ export default function Page() {
   }, []);
 
   const closeDialog = useCallback(() => setDialogMode(null), []);
-  const onSuccess = useCallback(() => { mutate(); closeDialog(); }, [mutate, closeDialog]);
+  const onSuccess = useCallback(() => {
+    mutate();
+    closeDialog();
+  }, [mutate, closeDialog]);
 
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
 
-  const selectedItem = selectedRow?.kind === "item" ? (selectedRow.data as LbacItemResponse) : null;
-  const selectedGroup = selectedRow?.kind === "group" ? (selectedRow.data as LbacGroupResponse) : null;
+  const selectedItem = selectedRow?.kind === 'item' ? (selectedRow.data as LbacItemResponse) : null;
+  const selectedGroup =
+    selectedRow?.kind === 'group' ? (selectedRow.data as LbacGroupResponse) : null;
 
   return (
     <div className="flex flex-col gap-2 p-4 pt-0 w-full">
@@ -197,7 +209,7 @@ export default function Page() {
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search groups, AIP, MFO, output…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -205,7 +217,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add-group")}
+          onClick={() => setDialogMode('add-group')}
         >
           <Plus className="size-3" />
           Group
@@ -214,7 +226,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add-item")}
+          onClick={() => setDialogMode('add-item')}
         >
           <Plus className="size-3" />
           Item
@@ -228,7 +240,7 @@ export default function Page() {
           disabled={!selectedRow}
           onClick={() => {
             if (!selectedRow) return;
-            setDialogMode(selectedRow.kind === "group" ? "edit-group" : "edit-item");
+            setDialogMode(selectedRow.kind === 'group' ? 'edit-group' : 'edit-item');
           }}
         >
           <Pencil />
@@ -247,10 +259,9 @@ export default function Page() {
 
         {selectedRow && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            {selectedRow.kind === "group"
+            {selectedRow.kind === 'group'
               ? `Group: ${(selectedRow.data as LbacGroupResponse).name}`
-              : `Item: ${(selectedRow.data as LbacItemResponse).mfoPpa.slice(0, 40)}${(selectedRow.data as LbacItemResponse).mfoPpa.length > 40 ? "…" : ""}`
-            }
+              : `Item: ${(selectedRow.data as LbacItemResponse).mfoPpa.slice(0, 40)}${(selectedRow.data as LbacItemResponse).mfoPpa.length > 40 ? '…' : ''}`}
           </Badge>
         )}
 
@@ -266,11 +277,7 @@ export default function Page() {
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-              >
+              <Button variant="outline" size="sm" className="h-7 text-xs">
                 <Download className="size-3" />
                 Export
                 <ChevronDown className="size-3" />
@@ -279,13 +286,23 @@ export default function Page() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setExportOpen(true)}>Main Data</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setExportFormType("lbe-f1")}>LBE Form 1</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setExportFormType("lbe-f5")}>LBE Form 5</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setExportFormType("form-5a")}>LBE Form 5A</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType('lbe-f1')}>
+                LBE Form 1
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType('lbe-f5')}>
+                LBE Form 5
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType('form-5a')}>
+                LBE Form 5A
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setExportFormType("form-3")}>LBAC Form 3</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType('form-3')}>
+                LBAC Form 3
+              </DropdownMenuItem>
               <DropdownMenuItem>LBAC Form 4</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setExportFormType("form-5")}>LBAC Form 5</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportFormType('form-5')}>
+                LBAC Form 5
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -339,7 +356,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No LBAC records found."}
+            {searchQuery ? 'No results match your search.' : 'No LBAC records found.'}
           </div>
         ) : (
           <div
@@ -354,17 +371,17 @@ export default function Page() {
                 {paddingTop > 0 && (
                   <LbacPageSpacerRow colCount={visibleExportColumns.length} height={paddingTop} />
                 )}
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
                   const exportRow = toLbacExportFlatRow(row);
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     const isSelected = selectedRow?.id === row.id;
                     return (
                       <LbacPageGroupRow
                         key={row.id}
-                        row={exportRow as Extract<typeof exportRow, { kind: "group" }>}
+                        row={exportRow as Extract<typeof exportRow, {kind: 'group'}>}
                         columns={visibleExportColumns}
                         isCollapsed={isCollapsed}
                         isSelected={isSelected}
@@ -377,11 +394,11 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "group-total") {
+                  if (row.kind === 'group-total') {
                     return (
                       <LbacPageTotalRow
                         key={row.id}
-                        row={exportRow as Extract<typeof exportRow, { kind: "group-total" }>}
+                        row={exportRow as Extract<typeof exportRow, {kind: 'group-total'}>}
                         columns={visibleExportColumns}
                         measureRef={rowVirtualizer.measureElement}
                         dataIndex={vr.index}
@@ -393,14 +410,14 @@ export default function Page() {
                   return (
                     <LbacPageItemRow
                       key={row.id}
-                      row={exportRow as Extract<typeof exportRow, { kind: "item" }>}
+                      row={exportRow as Extract<typeof exportRow, {kind: 'item'}>}
                       columns={visibleExportColumns}
                       rowClassName={
                         isSelected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : vr.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
-                            : ""
+                            ? 'bg-muted hover:bg-muted/50'
+                            : ''
                       }
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
@@ -410,7 +427,10 @@ export default function Page() {
                   );
                 })}
                 {paddingBottom > 0 && (
-                  <LbacPageSpacerRow colCount={visibleExportColumns.length} height={paddingBottom} />
+                  <LbacPageSpacerRow
+                    colCount={visibleExportColumns.length}
+                    height={paddingBottom}
+                  />
                 )}
               </TableBody>
             </Table>
@@ -419,16 +439,16 @@ export default function Page() {
       </div>
 
       {/* Dialogs */}
-      {dialogMode === "add-group" && (
+      {dialogMode === 'add-group' && (
         <GroupFormDialog
           mode="add"
           allGroups={allGroups}
-          defaultParentId={selectedRow?.kind === "group" ? selectedRow.id : undefined}
+          defaultParentId={selectedRow?.kind === 'group' ? selectedRow.id : undefined}
           onSuccess={onSuccess}
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "edit-group" && selectedGroup && (
+      {dialogMode === 'edit-group' && selectedGroup && (
         <GroupFormDialog
           mode="edit"
           editGroup={selectedGroup}
@@ -437,16 +457,16 @@ export default function Page() {
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "add-item" && (
+      {dialogMode === 'add-item' && (
         <ItemFormDialog
           mode="add"
           allGroups={allGroups}
-          defaultGroupId={selectedRow?.kind === "group" ? selectedRow.id : undefined}
+          defaultGroupId={selectedRow?.kind === 'group' ? selectedRow.id : undefined}
           onSuccess={onSuccess}
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "edit-item" && selectedItem && (
+      {dialogMode === 'edit-item' && selectedItem && (
         <ItemFormDialog
           mode="edit"
           editItem={selectedItem}
@@ -467,20 +487,23 @@ export default function Page() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         exportApiBase="/api/lbac/export/data"
-        exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+        exportParams={{year: String(currentYear), quarter: String(selectedQuarter)}}
         tree={tree}
       />
 
       <ExportLbeFOneDialog
-        open={exportFormType === "lbe-f1"}
+        open={exportFormType === 'lbe-f1'}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setExportFormType(null);
         }}
         tree={tree}
-        exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+        exportParams={{year: String(currentYear), quarter: String(selectedQuarter)}}
       />
 
-      {(exportFormType === "form-3" || exportFormType === "form-5" || exportFormType === "lbe-f5" || exportFormType === "form-5a") && (
+      {(exportFormType === 'form-3' ||
+        exportFormType === 'form-5' ||
+        exportFormType === 'lbe-f5' ||
+        exportFormType === 'form-5a') && (
         <ExportFormsDialog
           open
           onOpenChange={(nextOpen) => {
@@ -488,7 +511,7 @@ export default function Page() {
           }}
           formType={exportFormType}
           tree={tree}
-          exportParams={{ year: String(currentYear), quarter: String(selectedQuarter) }}
+          exportParams={{year: String(currentYear), quarter: String(selectedQuarter)}}
         />
       )}
     </div>
@@ -502,15 +525,15 @@ function AipSearchCombobox({
   onChange,
   disabled,
 }: {
-  value: { id: string; code: string; description: string } | null;
-  onChange: (val: { id: string; code: string; description: string } | null) => void;
+  value: {id: string; code: string; description: string} | null;
+  onChange: (val: {id: string; code: string; description: string} | null) => void;
   disabled?: boolean;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const { data, isLoading } = useSWR<
-    BetterFetchResponse<{ ok: true; data: AipSearchResultItem[] }, ApiResponseException>
+  const {data, isLoading} = useSWR<
+    BetterFetchResponse<{ok: true; data: AipSearchResultItem[]}, ApiResponseException>
   >(
     open && query.length >= 2 ? `/api/aip/search?query=${encodeURIComponent(query)}` : null,
     $fetch,
@@ -522,11 +545,11 @@ function AipSearchCombobox({
     <div className="relative flex flex-1 flex-col gap-1">
       <Input
         placeholder="Search AIP code or description…"
-        value={open ? query : (value ? `${value.code} — ${value.description}` : "")}
+        value={open ? query : value ? `${value.code} — ${value.description}` : ''}
         disabled={disabled}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {open && (
         <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
@@ -543,20 +566,24 @@ function AipSearchCombobox({
             <button
               type="button"
               className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent text-muted-foreground"
-              onMouseDown={() => { onChange(null); setOpen(false); setQuery(""); }}
+              onMouseDown={() => {
+                onChange(null);
+                setOpen(false);
+                setQuery('');
+              }}
             >
               Clear selection
             </button>
           )}
-          {results.map(r => (
+          {results.map((r) => (
             <button
               key={r.id}
               type="button"
               className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent"
               onMouseDown={() => {
-                onChange({ id: r.id, code: r.aipReferenceCode, description: r.description });
+                onChange({id: r.id, code: r.aipReferenceCode, description: r.description});
                 setOpen(false);
-                setQuery("");
+                setQuery('');
               }}
             >
               <span className="font-medium">{r.aipReferenceCode}</span>
@@ -579,7 +606,7 @@ function GroupFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editGroup?: LbacGroupResponse;
   allGroups: LbacGroupResponse[];
   defaultParentId?: string;
@@ -587,82 +614,92 @@ function GroupFormDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [name, setName] = useState(editGroup?.name ?? "");
-  const [aipRef, setAipRef] = useState<{ id: string; code: string; description: string } | null>(
+  const [name, setName] = useState(editGroup?.name ?? '');
+  const [aipRef, setAipRef] = useState<{id: string; code: string; description: string} | null>(
     editGroup?.aipRefCode
-      ? { id: editGroup.aipRefCode.id, code: editGroup.aipRefCode.aipReferenceCode, description: editGroup.aipRefCode.description }
+      ? {
+          id: editGroup.aipRefCode.id,
+          code: editGroup.aipRefCode.aipReferenceCode,
+          description: editGroup.aipRefCode.description,
+        }
       : null,
   );
   const [implementingUnitId, setImplementingUnitId] = useState<string>(
-    editGroup?.implementingUnit?.id ?? "",
+    editGroup?.implementingUnit?.id ?? '',
   );
-  const [officeId, setOfficeId] = useState<string>(
-    editGroup?.office?.id ?? "",
-  );
-  const [parentId, setParentId] = useState<string>(defaultParentId ?? "");
+  const [officeId, setOfficeId] = useState<string>(editGroup?.office?.id ?? '');
+  const [parentId, setParentId] = useState<string>(defaultParentId ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data: officeCodesData } = useSWR<
+  const {data: officeCodesData} = useSWR<
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
-  >("/api/management/data/office-codes", $fetch);
+  >('/api/management/data/office-codes', $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
 
-  const { data: officesData } = useSWR<
+  const {data: officesData} = useSWR<
     BetterFetchResponse<LbacOfficesListResponse, ApiResponseException>
-  >("/api/lbac/offices", $fetch);
+  >('/api/lbac/offices', $fetch);
   const offices = officesData?.data?.data ?? [];
 
   const handleSave = async () => {
     if (submitting) return;
-    if (!name.trim()) { setActionError("Name is required."); return; }
+    if (!name.trim()) {
+      setActionError('Name is required.');
+      return;
+    }
     setSubmitting(true);
     setActionError(null);
     try {
-      const body: Record<string, unknown> = { name: name.trim() };
+      const body: Record<string, unknown> = {name: name.trim()};
       if (aipRef) body.aipRefCode = aipRef.id;
       if (implementingUnitId) body.implementingUnitId = implementingUnitId;
-      if (mode === "edit") {
+      if (mode === 'edit') {
         body.officeId = officeId || null;
       } else if (officeId) {
         body.officeId = officeId;
       }
 
       let res: Response;
-      if (mode === "add") {
+      if (mode === 'add') {
         if (parentId) body.groupId = parentId;
-        res = await fetch("/api/lbac/groups", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        res = await fetch('/api/lbac/groups', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         });
       } else {
         res = await fetch(`/api/lbac/groups/${editGroup!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         });
       }
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save. Please try again.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Group" : "Edit Group"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Group' : 'Edit Group'}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? "Create a new LBAC group." : `Editing group: ${editGroup?.name}`}
+            {mode === 'add' ? 'Create a new LBAC group.' : `Editing group: ${editGroup?.name}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -673,7 +710,7 @@ function GroupFormDialog({
               <Input
                 id={`${baseId}-name`}
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 disabled={submitting}
                 placeholder="Group name"
               />
@@ -687,8 +724,8 @@ function GroupFormDialog({
             <div className="flex flex-col gap-1 w-full">
               <Label htmlFor={`${baseId}-unit`}>Implementing Unit</Label>
               <Select
-                value={implementingUnitId || "__none__"}
-                onValueChange={v => setImplementingUnitId(v === "__none__" ? "" : v)}
+                value={implementingUnitId || '__none__'}
+                onValueChange={(v) => setImplementingUnitId(v === '__none__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-unit`}>
@@ -696,8 +733,10 @@ function GroupFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
-                  {officeCodes.map(oc => (
-                    <SelectItem key={oc.id} value={oc.id}>{oc.aa}</SelectItem>
+                  {officeCodes.map((oc) => (
+                    <SelectItem key={oc.id} value={oc.id}>
+                      {oc.aa}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -706,8 +745,8 @@ function GroupFormDialog({
             <div className="flex flex-col gap-1 w-full">
               <Label htmlFor={`${baseId}-office`}>Office</Label>
               <Select
-                value={officeId || "__none__"}
-                onValueChange={v => setOfficeId(v === "__none__" ? "" : v)}
+                value={officeId || '__none__'}
+                onValueChange={(v) => setOfficeId(v === '__none__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-office`}>
@@ -715,19 +754,21 @@ function GroupFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
-                  {offices.map(o => (
-                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  {offices.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {mode === "add" && (
+            {mode === 'add' && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-parent`}>Parent Group</Label>
                 <Select
-                  value={parentId || "__root__"}
-                  onValueChange={v => setParentId(v === "__root__" ? "" : v)}
+                  value={parentId || '__root__'}
+                  onValueChange={(v) => setParentId(v === '__root__' ? '' : v)}
                   disabled={submitting}
                 >
                   <SelectTrigger id={`${baseId}-parent`}>
@@ -735,8 +776,10 @@ function GroupFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__root__">Root (no parent)</SelectItem>
-                    {allGroups.map(g => (
-                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    {allGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -746,13 +789,17 @@ function GroupFormDialog({
         </ScrollArea>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving…" : mode === "add" ? "Create Group" : "Save Changes"}
+            {submitting ? 'Saving…' : mode === 'add' ? 'Create Group' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -770,7 +817,7 @@ function ItemFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: LbacItemResponse;
   allGroups: LbacGroupResponse[];
   defaultGroupId?: string;
@@ -779,63 +826,65 @@ function ItemFormDialog({
 }) {
   const baseId = useId();
 
-  const [groupId, setGroupId] = useState(defaultGroupId ?? allGroups[0]?.id ?? "");
-  const [mfoPpa, setMfoPpa] = useState(editItem?.mfoPpa ?? "");
-  const [majorFinalOutput, setMajorFinalOutput] = useState(editItem?.majorFinalOutput ?? "");
+  const [groupId, setGroupId] = useState(defaultGroupId ?? allGroups[0]?.id ?? '');
+  const [mfoPpa, setMfoPpa] = useState(editItem?.mfoPpa ?? '');
+  const [majorFinalOutput, setMajorFinalOutput] = useState(editItem?.majorFinalOutput ?? '');
   const [performanceOutputIndicator, setPerformanceOutputIndicator] = useState(
-    editItem?.performanceOutputIndicator ?? "",
+    editItem?.performanceOutputIndicator ?? '',
   );
   const [targetForBudgetYear, setTargetForBudgetYear] = useState(
-    editItem?.targetForBudgetYear ?? "",
+    editItem?.targetForBudgetYear ?? '',
   );
-  const [aipRef, setAipRef] = useState<{ id: string; code: string; description: string } | null>(
+  const [aipRef, setAipRef] = useState<{id: string; code: string; description: string} | null>(
     editItem?.aipRefCode
-      ? { id: editItem.aipRefCode.id, code: editItem.aipRefCode.aipReferenceCode, description: editItem.aipRefCode.description }
+      ? {
+          id: editItem.aipRefCode.id,
+          code: editItem.aipRefCode.aipReferenceCode,
+          description: editItem.aipRefCode.description,
+        }
       : null,
   );
   const [implementingUnitId, setImplementingUnitId] = useState(
-    editItem?.implementingUnit?.id ?? "",
+    editItem?.implementingUnit?.id ?? '',
   );
-  const [proposedBudgetPS, setProposedBudgetPS] = useState(editItem?.proposedBudgetPS ?? "0");
-  const [proposedBudgetMOOE, setProposedBudgetMOOE] = useState(editItem?.proposedBudgetMOOE ?? "0");
-  const [proposedBudgetFE, setProposedBudgetFE] = useState(editItem?.proposedBudgetFE ?? "0");
-  const [proposedBudgetCO, setProposedBudgetCO] = useState(editItem?.proposedBudgetCO ?? "0");
-  const [remarks, setRemarks] = useState(editItem?.remarks ?? "");
+  const [proposedBudgetPS, setProposedBudgetPS] = useState(editItem?.proposedBudgetPS ?? '0');
+  const [proposedBudgetMOOE, setProposedBudgetMOOE] = useState(editItem?.proposedBudgetMOOE ?? '0');
+  const [proposedBudgetFE, setProposedBudgetFE] = useState(editItem?.proposedBudgetFE ?? '0');
+  const [proposedBudgetCO, setProposedBudgetCO] = useState(editItem?.proposedBudgetCO ?? '0');
+  const [remarks, setRemarks] = useState(editItem?.remarks ?? '');
   const [gadable, setGadable] = useState(editItem?.other.gadable ?? false);
-  const [tagging, setTagging] = useState(editItem?.other.tagging ?? "");
-  const [amountAttributed, setAmountAttributed] = useState(editItem?.other.amountAttributed ?? "");
-  const [physicalTargets, setPhysicalTargets] = useState(editItem?.other.physicalTargets ?? "");
-  const [saaob, setSaaob] = useState<{ id: string; name: string } | null>(
-    editItem?.other.saaob
-      ? { id: editItem.other.saaob.id, name: editItem.other.saaob.name }
-      : null,
+  const [tagging, setTagging] = useState(editItem?.other.tagging ?? '');
+  const [amountAttributed, setAmountAttributed] = useState(editItem?.other.amountAttributed ?? '');
+  const [physicalTargets, setPhysicalTargets] = useState(editItem?.other.physicalTargets ?? '');
+  const [saaob, setSaaob] = useState<{id: string; name: string} | null>(
+    editItem?.other.saaob ? {id: editItem.other.saaob.id, name: editItem.other.saaob.name} : null,
   );
   const [priorYearAccomplishments, setPriorYearAccomplishments] = useState(
-    editItem?.other.priorYearAccomplishments ?? "",
+    editItem?.other.priorYearAccomplishments ?? '',
   );
-  const [otherRemarks, setOtherRemarks] = useState(editItem?.other.remarks ?? "");
-  const [aroType, setAroType] = useState<"ps" | "mooe" | "finex" | "capex" | null>(
-    (editItem?.other.aro?.type as "ps" | "mooe" | "finex" | "capex" | null) ?? null,
+  const [otherRemarks, setOtherRemarks] = useState(editItem?.other.remarks ?? '');
+  const [aroType, setAroType] = useState<'ps' | 'mooe' | 'finex' | 'capex' | null>(
+    (editItem?.other.aro?.type as 'ps' | 'mooe' | 'finex' | 'capex' | null) ?? null,
   );
-  const [budgetType, setBudgetType] = useState<"ab" | "sb" | "rb" | null>(
-    (editItem?.other.budgetType as "ab" | "sb" | "rb" | null) ?? null,
+  const [budgetType, setBudgetType] = useState<'ab' | 'sb' | 'rb' | null>(
+    (editItem?.other.budgetType as 'ab' | 'sb' | 'rb' | null) ?? null,
   );
-  const [aroLink, setAroLink] = useState<{ id: string; name: string; code: string } | null>(
+  const [aroLink, setAroLink] = useState<{id: string; name: string; code: string} | null>(
     editItem?.other.aro?.office ?? null,
   );
-  const [aroQuery, setAroQuery] = useState("");
+  const [aroQuery, setAroQuery] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data: officeCodesData } = useSWR<
+  const {data: officeCodesData} = useSWR<
     BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
-  >("/api/management/data/office-codes", $fetch);
+  >('/api/management/data/office-codes', $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
 
-  const { data: aroOfficesData } = useSWR<
+  const {data: aroOfficesData} = useSWR<
     BetterFetchResponse<AroOfficeListResponse, ApiResponseException>
-  >("/api/management/data/aro-office", $fetch);
+  >('/api/management/data/aro-office', $fetch);
   const aroOffices = aroOfficesData?.data?.data ?? [];
   const filteredAroOffices = aroOffices.filter(
     (o: AroOfficeItem) =>
@@ -845,8 +894,14 @@ function ItemFormDialog({
 
   const handleSave = async () => {
     if (submitting) return;
-    if (!mfoPpa.trim()) { setActionError("MFO/PPA is required."); return; }
-    if (mode === "add" && !groupId) { setActionError("Please select a parent group."); return; }
+    if (!mfoPpa.trim()) {
+      setActionError('MFO/PPA is required.');
+      return;
+    }
+    if (mode === 'add' && !groupId) {
+      setActionError('Please select a parent group.');
+      return;
+    }
 
     setSubmitting(true);
     setActionError(null);
@@ -857,11 +912,12 @@ function ItemFormDialog({
         gadable,
       };
 
-      if (mode === "add") body.groupId = groupId;
+      if (mode === 'add') body.groupId = groupId;
       if (aipRef) body.aipRefCode = aipRef.id;
       if (implementingUnitId) body.implementingUnitId = implementingUnitId;
       if (majorFinalOutput.trim()) body.majorFinalOutput = majorFinalOutput.trim();
-      if (performanceOutputIndicator.trim()) body.performanceOutputIndicator = performanceOutputIndicator.trim();
+      if (performanceOutputIndicator.trim())
+        body.performanceOutputIndicator = performanceOutputIndicator.trim();
       if (targetForBudgetYear.trim()) body.targetForBudgetYear = targetForBudgetYear.trim();
       if (proposedBudgetPS.trim()) body.proposedBudgetPS = proposedBudgetPS.trim();
       if (proposedBudgetMOOE.trim()) body.proposedBudgetMOOE = proposedBudgetMOOE.trim();
@@ -871,7 +927,8 @@ function ItemFormDialog({
       if (tagging.trim()) body.tagging = tagging.trim();
       if (amountAttributed.trim()) body.amountAttributed = amountAttributed.trim();
       if (physicalTargets.trim()) body.physicalTargets = physicalTargets.trim();
-      if (priorYearAccomplishments.trim()) body.priorYearAccomplishments = priorYearAccomplishments.trim();
+      if (priorYearAccomplishments.trim())
+        body.priorYearAccomplishments = priorYearAccomplishments.trim();
       if (otherRemarks.trim()) body.remarksForOtherMetadata = otherRemarks.trim();
       body.saaobId = saaob?.id ?? null;
       if (aroType) body.aroType = aroType;
@@ -879,60 +936,63 @@ function ItemFormDialog({
       body.aroLink = aroLink?.id ?? null;
 
       let res: Response;
-      if (mode === "add") {
-        res = await fetch("/api/lbac/items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+      if (mode === 'add') {
+        res = await fetch('/api/lbac/items', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         });
       } else {
         res = await fetch(`/api/lbac/items/${editItem!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         });
       }
 
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save. Please try again.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] min-w-[70%]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Item" : "Edit Item"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Item' : 'Edit Item'}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? "Create a new LBAC item." : `Editing: ${editItem?.mfoPpa}`}
+            {mode === 'add' ? 'Create a new LBAC item.' : `Editing: ${editItem?.mfoPpa}`}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[68vh] pr-1">
           <div className="flex flex-col gap-4 pb-2">
             {/* Parent group selector (add mode only) */}
-            {mode === "add" && (
+            {mode === 'add' && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-group`}>Parent Group *</Label>
-                <Select
-                  value={groupId}
-                  onValueChange={setGroupId}
-                  disabled={submitting}
-                >
+                <Select value={groupId} onValueChange={setGroupId} disabled={submitting}>
                   <SelectTrigger id={`${baseId}-group`}>
                     <SelectValue placeholder="Select a group…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {allGroups.map(g => (
-                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    {allGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -949,7 +1009,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-mfo`}
                 value={mfoPpa}
-                onChange={e => setMfoPpa(e.target.value)}
+                onChange={(e) => setMfoPpa(e.target.value)}
                 disabled={submitting}
                 rows={2}
                 placeholder="MFO/PPA value"
@@ -961,7 +1021,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-mfo2`}
                 value={majorFinalOutput}
-                onChange={e => setMajorFinalOutput(e.target.value)}
+                onChange={(e) => setMajorFinalOutput(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -972,7 +1032,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-poi`}
                 value={performanceOutputIndicator}
-                onChange={e => setPerformanceOutputIndicator(e.target.value)}
+                onChange={(e) => setPerformanceOutputIndicator(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -983,7 +1043,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-target`}
                 value={targetForBudgetYear}
-                onChange={e => setTargetForBudgetYear(e.target.value)}
+                onChange={(e) => setTargetForBudgetYear(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -991,22 +1051,27 @@ function ItemFormDialog({
 
             <Separator />
 
-            <Typography variant="small" className="font-semibold uppercase text-muted-foreground text-xs">
+            <Typography
+              variant="small"
+              className="font-semibold uppercase text-muted-foreground text-xs"
+            >
               Proposed Budget for the Budget Year
             </Typography>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {([
-                ["PS", proposedBudgetPS, setProposedBudgetPS],
-                ["MOOE", proposedBudgetMOOE, setProposedBudgetMOOE],
-                ["FE", proposedBudgetFE, setProposedBudgetFE],
-                ["CO", proposedBudgetCO, setProposedBudgetCO],
-              ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
+              {(
+                [
+                  ['PS', proposedBudgetPS, setProposedBudgetPS],
+                  ['MOOE', proposedBudgetMOOE, setProposedBudgetMOOE],
+                  ['FE', proposedBudgetFE, setProposedBudgetFE],
+                  ['CO', proposedBudgetCO, setProposedBudgetCO],
+                ] as [string, string, (v: string) => void][]
+              ).map(([label, val, setter]) => (
                 <div key={label} className="flex flex-col gap-1">
                   <Label htmlFor={`${baseId}-pb${label}`}>{label}</Label>
                   <Input
                     id={`${baseId}-pb${label}`}
                     value={val}
-                    onChange={e => setter(e.target.value)}
+                    onChange={(e) => setter(e.target.value)}
                     disabled={submitting}
                     placeholder="0"
                   />
@@ -1019,8 +1084,8 @@ function ItemFormDialog({
             <div className="flex flex-col gap-1 w-full">
               <Label htmlFor={`${baseId}-unit`}>Implementing Unit</Label>
               <Select
-                value={implementingUnitId || "__none__"}
-                onValueChange={v => setImplementingUnitId(v === "__none__" ? "" : v)}
+                value={implementingUnitId || '__none__'}
+                onValueChange={(v) => setImplementingUnitId(v === '__none__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-unit`}>
@@ -1028,8 +1093,10 @@ function ItemFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
-                  {officeCodes.map(oc => (
-                    <SelectItem key={oc.id} value={oc.id}>{oc.aa}</SelectItem>
+                  {officeCodes.map((oc) => (
+                    <SelectItem key={oc.id} value={oc.id}>
+                      {oc.aa}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1061,7 +1128,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-remarks`}
                 value={remarks}
-                onChange={e => setRemarks(e.target.value)}
+                onChange={(e) => setRemarks(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -1069,7 +1136,10 @@ function ItemFormDialog({
 
             <Separator />
 
-            <Typography variant="small" className="font-semibold uppercase text-muted-foreground text-xs">
+            <Typography
+              variant="small"
+              className="font-semibold uppercase text-muted-foreground text-xs"
+            >
               Other Metadata
             </Typography>
 
@@ -1087,8 +1157,10 @@ function ItemFormDialog({
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-budgetType`}>Budget Type</Label>
                 <Select
-                  value={budgetType ?? "__none__"}
-                  onValueChange={v => setBudgetType(v === "__none__" ? null : (v as "ab" | "sb" | "rb"))}
+                  value={budgetType ?? '__none__'}
+                  onValueChange={(v) =>
+                    setBudgetType(v === '__none__' ? null : (v as 'ab' | 'sb' | 'rb'))
+                  }
                   disabled={submitting}
                 >
                   <SelectTrigger id={`${baseId}-budgetType`}>
@@ -1105,8 +1177,10 @@ function ItemFormDialog({
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-aroType`}>ARO Type</Label>
                 <Select
-                  value={aroType ?? "__none__"}
-                  onValueChange={v => setAroType(v === "__none__" ? null : (v as "ps" | "mooe" | "finex" | "capex"))}
+                  value={aroType ?? '__none__'}
+                  onValueChange={(v) =>
+                    setAroType(v === '__none__' ? null : (v as 'ps' | 'mooe' | 'finex' | 'capex'))
+                  }
                   disabled={submitting}
                 >
                   <SelectTrigger id={`${baseId}-aroType`}>
@@ -1143,7 +1217,7 @@ function ItemFormDialog({
                 <Input
                   id={`${baseId}-tagging`}
                   value={tagging}
-                  onChange={e => setTagging(e.target.value)}
+                  onChange={(e) => setTagging(e.target.value)}
                   disabled={submitting}
                 />
               </div>
@@ -1152,7 +1226,7 @@ function ItemFormDialog({
                 <Input
                   id={`${baseId}-amount`}
                   value={amountAttributed}
-                  onChange={e => setAmountAttributed(e.target.value)}
+                  onChange={(e) => setAmountAttributed(e.target.value)}
                   disabled={submitting}
                   placeholder="0.00"
                 />
@@ -1164,7 +1238,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-physTargets`}
                 value={physicalTargets}
-                onChange={e => setPhysicalTargets(e.target.value)}
+                onChange={(e) => setPhysicalTargets(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -1175,7 +1249,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-priorYear`}
                 value={priorYearAccomplishments}
-                onChange={e => setPriorYearAccomplishments(e.target.value)}
+                onChange={(e) => setPriorYearAccomplishments(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -1186,7 +1260,7 @@ function ItemFormDialog({
               <Textarea
                 id={`${baseId}-otherRemarks`}
                 value={otherRemarks}
-                onChange={e => setOtherRemarks(e.target.value)}
+                onChange={(e) => setOtherRemarks(e.target.value)}
                 disabled={submitting}
                 rows={2}
               />
@@ -1195,13 +1269,17 @@ function ItemFormDialog({
         </ScrollArea>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving…" : mode === "add" ? "Create Item" : "Save Changes"}
+            {submitting ? 'Saving…' : mode === 'add' ? 'Create Item' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1217,8 +1295,8 @@ function AroOfficeCombobox({
   options,
   disabled,
 }: {
-  value: { id: string; name: string; code: string } | null;
-  onChange: (val: { id: string; name: string; code: string } | null) => void;
+  value: {id: string; name: string; code: string} | null;
+  onChange: (val: {id: string; name: string; code: string} | null) => void;
   query: string;
   onQueryChange: (q: string) => void;
   options: AroOfficeItem[];
@@ -1231,10 +1309,10 @@ function AroOfficeCombobox({
       <div className="relative flex flex-1 flex-col gap-1">
         <Input
           placeholder="Search ARO office…"
-          value={open ? query : (value ? `${value.code} — ${value.name}` : "")}
+          value={open ? query : value ? `${value.code} — ${value.name}` : ''}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={e => onQueryChange(e.target.value)}
+          onChange={(e) => onQueryChange(e.target.value)}
           disabled={disabled}
         />
         {open && (
@@ -1242,15 +1320,15 @@ function AroOfficeCombobox({
             {options.length === 0 && (
               <div className="px-3 py-2 text-sm text-muted-foreground">No offices found.</div>
             )}
-            {options.map(o => (
+            {options.map((o) => (
               <button
                 key={o.id}
                 type="button"
                 className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent"
                 onMouseDown={() => {
-                  onChange({ id: o.id, name: o.name, code: o.code });
+                  onChange({id: o.id, name: o.name, code: o.code});
                   setOpen(false);
-                  onQueryChange("");
+                  onQueryChange('');
                 }}
               >
                 <span>{o.name}</span>
@@ -1280,13 +1358,13 @@ function SaaobSearchCombobox({
   value,
   onChange,
 }: {
-  value: { id: string; name: string } | null;
-  onChange: (val: { id: string; name: string } | null) => void;
+  value: {id: string; name: string} | null;
+  onChange: (val: {id: string; name: string} | null) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const { data, isLoading } = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
+  const {data, isLoading} = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
     open && query.length >= 2 ? `/api/saaob/search?query=${encodeURIComponent(query)}` : null,
     $fetch,
   );
@@ -1294,13 +1372,13 @@ function SaaobSearchCombobox({
   const results = data?.data?.data ?? [];
 
   function renderNodes(nodes: Array<SaaobSearchGroup | SaaobSearchEntry>, depth = 0) {
-    return nodes.map(node => {
+    return nodes.map((node) => {
       if (isSaaobGroup(node)) {
         return (
           <div key={node.id}>
             <div
               className="px-3 py-1 text-xs font-semibold text-muted-foreground select-none"
-              style={{ paddingLeft: `${12 + depth * 12}px` }}
+              style={{paddingLeft: `${12 + depth * 12}px`}}
             >
               {node.name}
             </div>
@@ -1313,15 +1391,17 @@ function SaaobSearchCombobox({
           key={node.id}
           type="button"
           className="flex w-full flex-col py-2 pr-3 text-left text-sm hover:bg-accent"
-          style={{ paddingLeft: `${12 + depth * 12}px` }}
+          style={{paddingLeft: `${12 + depth * 12}px`}}
           onMouseDown={() => {
-            onChange({ id: node.id, name: node.name });
+            onChange({id: node.id, name: node.name});
             setOpen(false);
-            setQuery("");
+            setQuery('');
           }}
         >
           <span>{node.name}</span>
-          {node.accountCode && <span className="text-xs text-muted-foreground">{node.accountCode}</span>}
+          {node.accountCode && (
+            <span className="text-xs text-muted-foreground">{node.accountCode}</span>
+          )}
         </button>
       );
     });
@@ -1331,10 +1411,10 @@ function SaaobSearchCombobox({
     <div className="relative flex flex-1 flex-col gap-1">
       <Input
         placeholder="Search SAAOB entry…"
-        value={open ? query : (value ? value.name : "")}
+        value={open ? query : value ? value.name : ''}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {open && (
         <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
@@ -1343,7 +1423,9 @@ function SaaobSearchCombobox({
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
           )}
           {!isLoading && query.length < 2 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Type at least 2 characters to search.
+            </div>
           )}
           {renderNodes(results)}
         </div>
@@ -1398,10 +1480,7 @@ function computeSearchVisibility(
     }
   }
 
-  function walk(
-    nodes2: (LbacGroupResponse | LbacItemResponse)[],
-    ancestors: string[],
-  ): boolean {
+  function walk(nodes2: (LbacGroupResponse | LbacItemResponse)[], ancestors: string[]): boolean {
     let subtreeHasMatch = false;
 
     for (const node of nodes2) {
@@ -1434,7 +1513,7 @@ function computeSearchVisibility(
   }
 
   walk(nodes, []);
-  return { visibleGroupIds, fullSubtreeGroupIds, visibleItemIds };
+  return {visibleGroupIds, fullSubtreeGroupIds, visibleItemIds};
 }
 
 function groupMatchesQuery(group: LbacGroupResponse, query: string): boolean {
@@ -1474,25 +1553,35 @@ function flattenVisible(
       const group = node as LbacGroupResponse;
       if (filtering && !searchVisibility.visibleGroupIds.has(group.id)) continue;
 
-      const includeAllChildren = showAllDescendants
-        || (searchVisibility?.fullSubtreeGroupIds.has(group.id) ?? false);
+      const includeAllChildren =
+        showAllDescendants || (searchVisibility?.fullSubtreeGroupIds.has(group.id) ?? false);
 
-      rows.push({ kind: "group", id: group.id, depth, data: group });
+      rows.push({kind: 'group', id: group.id, depth, data: group});
       const shouldExpand = filtering || !collapsed.has(group.id);
       if (shouldExpand) {
-        rows.push(...flattenVisible(
-          group.children,
-          collapsed,
-          depth + 1,
-          searchVisibility,
-          includeAllChildren,
-        ));
-        rows.push({ kind: "group-total", id: `total-${group.id}`, depth, groupId: group.id, data: group.totals, isRoot: depth === 0 });
+        rows.push(
+          ...flattenVisible(
+            group.children,
+            collapsed,
+            depth + 1,
+            searchVisibility,
+            includeAllChildren,
+          ),
+        );
+        rows.push({
+          kind: 'group-total',
+          id: `total-${group.id}`,
+          depth,
+          groupId: group.id,
+          data: group.totals,
+          isRoot: depth === 0,
+        });
       }
     } else {
       const item = node as LbacItemResponse;
-      if (filtering && !showAllDescendants && !searchVisibility.visibleItemIds.has(item.id)) continue;
-      rows.push({ kind: "item", id: item.id, depth, data: item, groupId: "" });
+      if (filtering && !showAllDescendants && !searchVisibility.visibleItemIds.has(item.id))
+        continue;
+      rows.push({kind: 'item', id: item.id, depth, data: item, groupId: ''});
     }
   }
   return rows;
@@ -1508,6 +1597,13 @@ function _getUtc8Quarter(): number {
 }
 
 type FlatRow =
-  | { kind: "group"; id: string; depth: number; data: LbacGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacItemResponse; groupId: string }
-  | { kind: "group-total"; id: string; depth: number; groupId: string; data: LbacGroupTotals; isRoot: boolean };
+  | {kind: 'group'; id: string; depth: number; data: LbacGroupResponse}
+  | {kind: 'item'; id: string; depth: number; data: LbacItemResponse; groupId: string}
+  | {
+      kind: 'group-total';
+      id: string;
+      depth: number;
+      groupId: string;
+      data: LbacGroupTotals;
+      isRoot: boolean;
+    };

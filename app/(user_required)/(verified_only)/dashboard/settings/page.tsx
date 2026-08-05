@@ -1,13 +1,9 @@
-"use client";
+'use client';
 
-import PasswordSettingsPanel from "./password-settings-panel";
-import TwoFactorSettingsPanel from "./two-factor-settings-panel";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+
+import PasswordSettingsPanel from './password-settings-panel';
+import TwoFactorSettingsPanel from './two-factor-settings-panel';
 
 export default function SettingsPage() {
   return (

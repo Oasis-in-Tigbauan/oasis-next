@@ -1,11 +1,46 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {ChevronDown, Pencil, Plus, Search, Trash2} from 'lucide-react';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {useColumnVisibility} from '@/common/column-visibility';
+import {
+  OBR_MAIN_MANAGE_PAGE_COLUMN_GROUPS,
+  OBR_MAIN_MANAGE_PAGE_COLUMNS,
+  OBR_MAIN_MANAGE_PAGE_STORAGE_KEY,
+} from '@/common/obr/page-columns';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/components/ui/tooltip';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   AipSearchResultItem,
@@ -22,56 +57,8 @@ import type {
   SaaobSearchResponse,
   SaaobSearchGroup,
   SaaobSearchEntry,
-} from "@/lib/http/client/responses";
-import { isSaaobGroup } from "@/lib/http/client/responses";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { useColumnVisibility } from "@/common/column-visibility";
-import {
-  OBR_MAIN_MANAGE_PAGE_COLUMN_GROUPS,
-  OBR_MAIN_MANAGE_PAGE_COLUMNS,
-  OBR_MAIN_MANAGE_PAGE_STORAGE_KEY,
-} from "@/common/obr/page-columns";
+} from '@/lib/http/client/responses';
+import {isSaaobGroup} from '@/lib/http/client/responses';
 
 type AipRefRow = {
   rowId: string;
@@ -91,21 +78,21 @@ type CreateItemRow = {
   amount: string;
   prNumber: string;
   prAmount: string;
-  saaob: { id: string; name: string } | null;
+  saaob: {id: string; name: string} | null;
   aipRefs: AipRefRow[];
 };
 
 function emptyCreateItem(): CreateItemRow {
   return {
     rowId: crypto.randomUUID(),
-    payee: "",
-    address: "",
-    responsibilityCenterId: "",
-    expenseCodeId: "",
-    particulars: "",
-    amount: "",
-    prNumber: "",
-    prAmount: "",
+    payee: '',
+    address: '',
+    responsibilityCenterId: '',
+    expenseCodeId: '',
+    particulars: '',
+    amount: '',
+    prNumber: '',
+    prAmount: '',
     saaob: null,
     aipRefs: [],
   };
@@ -113,62 +100,62 @@ function emptyCreateItem(): CreateItemRow {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
   const year = d.getUTCFullYear();
   return `${day}/${month}/${year}`;
 }
 
 function formatCurrency(value: string | null): string {
-  if (!value) return "-";
+  if (!value) return '-';
 
   const trimmed = value.trim();
-  if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return "-";
+  if (!/^[-+]?\d+(\.\d+)?$/.test(trimmed)) return '-';
 
-  const isNegative = trimmed.startsWith("-");
-  const unsigned = trimmed.replace(/^[-+]/, "");
-  const [rawInt, rawFrac = ""] = unsigned.split(".");
+  const isNegative = trimmed.startsWith('-');
+  const unsigned = trimmed.replace(/^[-+]/, '');
+  const [rawInt, rawFrac = ''] = unsigned.split('.');
 
-  const normalizedInt = rawInt.replace(/^0+(?=\d)/, "") || "0";
-  const paddedFrac = (rawFrac + "000").slice(0, 3);
+  const normalizedInt = rawInt.replace(/^0+(?=\d)/, '') || '0';
+  const paddedFrac = (rawFrac + '000').slice(0, 3);
   const centPart = paddedFrac.slice(0, 2);
-  const roundingDigit = Number.parseInt(paddedFrac[2] ?? "0", 10);
+  const roundingDigit = Number.parseInt(paddedFrac[2] ?? '0', 10);
 
   let cents = BigInt(`${normalizedInt}${centPart}`);
   if (roundingDigit >= 5) cents += 1n;
 
-  const centsStr = cents.toString().padStart(3, "0");
-  const integerPart = centsStr.slice(0, -2) || "0";
+  const centsStr = cents.toString().padStart(3, '0');
+  const integerPart = centsStr.slice(0, -2) || '0';
   const fractionalPart = centsStr.slice(-2);
-  const intWithGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const intWithGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const roundedIsZero = cents === 0n;
-  const sign = isNegative && !roundedIsZero ? "-" : "";
+  const sign = isNegative && !roundedIsZero ? '-' : '';
 
   return `${sign}${intWithGrouping}.${fractionalPart}`;
 }
 
-function DetailText({ value, className }: { value: string; className?: string }) {
+function DetailText({value, className}: {value: string; className?: string}) {
   return (
-    <div className={`rounded-md border bg-muted/30 px-3 py-2 text-sm ${className ?? ""}`.trim()}>
+    <div className={`rounded-md border bg-muted/30 px-3 py-2 text-sm ${className ?? ''}`.trim()}>
       {value}
     </div>
   );
 }
 
 function formatRequestDate(dateStr: string | null | undefined) {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString("en-PH", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleString('en-PH', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
-function ApprovalStatusBadge({ status }: { status: string }) {
-  if (status === "approved") {
+function ApprovalStatusBadge({status}: {status: string}) {
+  if (status === 'approved') {
     return (
       <Badge className="border-green-200 bg-green-100 text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400">
         Approved
@@ -179,20 +166,14 @@ function ApprovalStatusBadge({ status }: { status: string }) {
 }
 
 export default function Page() {
-  const {
-    data,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR<BetterFetchResponse<ObrMainDataListResponse, ApiResponseException>>(
-    "/api/obr/main",
-    $fetch,
-  );
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<ObrMainDataListResponse, ApiResponseException>
+  >('/api/obr/main', $fetch);
 
   const [selected, setSelected] = useState<ObrMainDataItemResponse | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
 
-  type DialogMode = "create" | "edit" | null;
+  type DialogMode = 'create' | 'edit' | null;
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -205,8 +186,8 @@ export default function Page() {
 
   const orderedColumns = useMemo(
     () =>
-      columnVisibility.orderedVisible.map(
-        col => OBR_MAIN_MANAGE_PAGE_COLUMNS.find(c => c.key === col.key)!,
+      columnVisibility.orderedVisible.map((col) =>
+        OBR_MAIN_MANAGE_PAGE_COLUMNS.find((c) => c.key === col.key)!,
       ),
     [columnVisibility.orderedVisible],
   );
@@ -214,17 +195,17 @@ export default function Page() {
   const allItems = data?.data?.data ?? [];
 
   const items = searchQuery.trim()
-    ? allItems.filter(item => {
-      const q = searchQuery.toLowerCase();
-      return (
-        item.obrNumber.toLowerCase().includes(q)
-          || item.alobs.toLowerCase().includes(q)
-          || (item.payee?.toLowerCase().includes(q) ?? false)
-          || item.address.toLowerCase().includes(q)
-          || item.particulars.toLowerCase().includes(q)
-          || (item.prNumber && item.prNumber.toLowerCase().includes(q))
-      );
-    })
+    ? allItems.filter((item) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          item.obrNumber.toLowerCase().includes(q) ||
+          item.alobs.toLowerCase().includes(q) ||
+          (item.payee?.toLowerCase().includes(q) ?? false) ||
+          item.address.toLowerCase().includes(q) ||
+          item.particulars.toLowerCase().includes(q) ||
+          (item.prNumber && item.prNumber.toLowerCase().includes(q))
+        );
+      })
     : allItems;
 
   // eslint-disable-next-line
@@ -238,30 +219,32 @@ export default function Page() {
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length > 0
-    ? totalSize - virtualRows[virtualRows.length - 1].end
-    : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const handleRowClick = useCallback((item: ObrMainDataItemResponse) => {
-    setSelected(prev => (prev?.id === item.id ? null : item));
+    setSelected((prev) => (prev?.id === item.id ? null : item));
   }, []);
 
   const handleRowDoubleClick = useCallback((item: ObrMainDataItemResponse) => {
     setSelected(item);
-    setDialogMode("edit");
+    setDialogMode('edit');
   }, []);
 
   const closeDialog = useCallback(() => setDialogMode(null), []);
-  const onSuccess = useCallback(() => { mutate(); closeDialog(); }, [mutate, closeDialog]);
+  const onSuccess = useCallback(() => {
+    mutate();
+    closeDialog();
+  }, [mutate, closeDialog]);
 
   const handleDelete = useCallback(async () => {
     if (!selected) return;
     if (!confirm(`Delete OBR record "${selected.obrNumber}"? This cannot be undone.`)) return;
 
-    const res = await fetch(`/api/obr/main/${selected.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/obr/main/${selected.id}`, {method: 'DELETE'});
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
-      alert(payload?.message ?? "Failed to delete OBR main data. Please try again.");
+      alert(payload?.message ?? 'Failed to delete OBR main data. Please try again.');
       return;
     }
     setSelected(null);
@@ -281,7 +264,7 @@ export default function Page() {
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search OBR, payee, ALOBS…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -289,7 +272,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("create")}
+          onClick={() => setDialogMode('create')}
         >
           <Plus className="size-3" />
           New
@@ -300,7 +283,9 @@ export default function Page() {
           aria-label="Edit"
           title="Edit selected"
           disabled={!selected}
-          onClick={() => { if (selected) setDialogMode("edit"); }}
+          onClick={() => {
+            if (selected) setDialogMode('edit');
+          }}
         >
           <Pencil />
         </Button>
@@ -340,7 +325,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {items.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No records match your search." : "No OBR main data records found."}
+            {searchQuery ? 'No records match your search.' : 'No OBR main data records found.'}
           </div>
         ) : (
           <div
@@ -350,7 +335,7 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_th:first-child]:border-l [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-10 bg-background [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-background">
                 <TableRow>
-                  {orderedColumns.map(col => (
+                  {orderedColumns.map((col) => (
                     <TableHead key={col.key} className={col.headerClassName}>
                       {col.label}
                     </TableHead>
@@ -360,11 +345,14 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={columnVisibility.visibleCount} style={{ height: `${paddingTop}px` }} />
+                    <TableCell
+                      colSpan={columnVisibility.visibleCount}
+                      style={{height: `${paddingTop}px`}}
+                    />
                   </TableRow>
                 )}
 
-                {virtualRows.map(virtualRow => {
+                {virtualRows.map((virtualRow) => {
                   const item = items[virtualRow.index]!;
                   const isSelected = selected?.id === item.id;
                   return (
@@ -374,16 +362,16 @@ export default function Page() {
                       data-index={virtualRow.index}
                       className={`cursor-pointer select-none ${
                         isSelected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : virtualRow.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
-                            : ""
+                            ? 'bg-muted hover:bg-muted/50'
+                            : ''
                       }`}
                       title="Click to select · Double-click to edit"
                       onClick={() => handleRowClick(item)}
                       onDoubleClick={() => handleRowDoubleClick(item)}
                     >
-                      {orderedColumns.map(col => (
+                      {orderedColumns.map((col) => (
                         <TableCell key={col.key} className={col.cellClassName}>
                           {col.renderCell(item)}
                         </TableCell>
@@ -394,7 +382,10 @@ export default function Page() {
 
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={columnVisibility.visibleCount} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell
+                      colSpan={columnVisibility.visibleCount}
+                      style={{height: `${paddingBottom}px`}}
+                    />
                   </TableRow>
                 )}
               </TableBody>
@@ -403,19 +394,12 @@ export default function Page() {
         )}
       </div>
 
-      {dialogMode === "create" && (
-        <ObrMainDataCreateDialog
-          onSuccess={onSuccess}
-          onClose={closeDialog}
-        />
+      {dialogMode === 'create' && (
+        <ObrMainDataCreateDialog onSuccess={onSuccess} onClose={closeDialog} />
       )}
 
-      {dialogMode === "edit" && selected && (
-        <ObrMainDataEditDialog
-          item={selected}
-          onSuccess={onSuccess}
-          onClose={closeDialog}
-        />
+      {dialogMode === 'edit' && selected && (
+        <ObrMainDataEditDialog item={selected} onSuccess={onSuccess} onClose={closeDialog} />
       )}
     </div>
   );
@@ -427,13 +411,15 @@ function AipSearchCombobox({
   value,
   onChange,
 }: {
-  value: { id: string; code: string; description: string } | null;
-  onChange: (val: { id: string; code: string; description: string }) => void;
+  value: {id: string; code: string; description: string} | null;
+  onChange: (val: {id: string; code: string; description: string}) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const { data, isLoading } = useSWR<BetterFetchResponse<{ ok: true; data: AipSearchResultItem[] }, ApiResponseException>>(
+  const {data, isLoading} = useSWR<
+    BetterFetchResponse<{ok: true; data: AipSearchResultItem[]}, ApiResponseException>
+  >(
     open && query.length >= 2 ? `/api/aip/search?query=${encodeURIComponent(query)}` : null,
     $fetch,
   );
@@ -444,10 +430,12 @@ function AipSearchCombobox({
     <div className="relative flex flex-1 flex-col gap-1">
       <Input
         placeholder="Search AIP code or description…"
-        value={open ? query : (value ? `${value.code} — ${value.description}` : "")}
+        value={open ? query : value ? `${value.code} — ${value.description}` : ''}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => { setQuery(e.target.value); }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+        }}
       />
       {open && (
         <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
@@ -456,17 +444,19 @@ function AipSearchCombobox({
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
           )}
           {!isLoading && query.length < 2 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Type at least 2 characters to search.
+            </div>
           )}
-          {results.map(r => (
+          {results.map((r) => (
             <button
               key={r.id}
               type="button"
               className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent"
               onMouseDown={() => {
-                onChange({ id: r.id, code: r.aipReferenceCode, description: r.description });
+                onChange({id: r.id, code: r.aipReferenceCode, description: r.description});
                 setOpen(false);
-                setQuery("");
+                setQuery('');
               }}
             >
               <span className="font-medium">{r.aipReferenceCode}</span>
@@ -485,13 +475,13 @@ function SaaobSearchCombobox({
   value,
   onChange,
 }: {
-  value: { id: string; name: string } | null;
-  onChange: (val: { id: string; name: string } | null) => void;
+  value: {id: string; name: string} | null;
+  onChange: (val: {id: string; name: string} | null) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const { data, isLoading } = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
+  const {data, isLoading} = useSWR<BetterFetchResponse<SaaobSearchResponse, ApiResponseException>>(
     open && query.length >= 2 ? `/api/saaob/search?query=${encodeURIComponent(query)}` : null,
     $fetch,
   );
@@ -499,13 +489,13 @@ function SaaobSearchCombobox({
   const results = data?.data?.data ?? [];
 
   function renderNodes(nodes: Array<SaaobSearchGroup | SaaobSearchEntry>, depth = 0) {
-    return nodes.map(node => {
+    return nodes.map((node) => {
       if (isSaaobGroup(node)) {
         return (
           <div key={node.id}>
             <div
               className="px-3 py-1 text-xs font-semibold text-muted-foreground select-none"
-              style={{ paddingLeft: `${12 + depth * 12}px` }}
+              style={{paddingLeft: `${12 + depth * 12}px`}}
             >
               {node.name}
             </div>
@@ -518,15 +508,17 @@ function SaaobSearchCombobox({
           key={node.id}
           type="button"
           className="flex w-full flex-col py-2 pr-3 text-left text-sm hover:bg-accent"
-          style={{ paddingLeft: `${12 + depth * 12}px` }}
+          style={{paddingLeft: `${12 + depth * 12}px`}}
           onMouseDown={() => {
-            onChange({ id: node.id, name: node.name });
+            onChange({id: node.id, name: node.name});
             setOpen(false);
-            setQuery("");
+            setQuery('');
           }}
         >
           <span>{node.name}</span>
-          {node.accountCode && <span className="text-xs text-muted-foreground">{node.accountCode}</span>}
+          {node.accountCode && (
+            <span className="text-xs text-muted-foreground">{node.accountCode}</span>
+          )}
         </button>
       );
     });
@@ -536,10 +528,10 @@ function SaaobSearchCombobox({
     <div className="relative flex flex-1 flex-col gap-1">
       <Input
         placeholder="Search SAAOB entry…"
-        value={open ? query : (value ? value.name : "")}
+        value={open ? query : value ? value.name : ''}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {open && (
         <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
@@ -548,7 +540,9 @@ function SaaobSearchCombobox({
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
           )}
           {!isLoading && query.length < 2 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Type at least 2 characters to search.
+            </div>
           )}
           {renderNodes(results)}
         </div>
@@ -568,7 +562,7 @@ function ObrRequestViewDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data, error, isLoading } = useSWR<
+  const {data, error, isLoading} = useSWR<
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
   >(open && id ? `/api/obr/requests/${id}` : null, $fetch);
 
@@ -588,25 +582,43 @@ function ObrRequestViewDialog({
             <div className="flex flex-col gap-6 pb-2">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
-                  <Typography variant="small" className="text-muted-foreground">Request Number</Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.requestNumber}</Typography>
+                  <Typography variant="small" className="text-muted-foreground">
+                    Request Number
+                  </Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.requestNumber}
+                  </Typography>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Typography variant="small" className="text-muted-foreground">Type</Typography>
-                  <Typography variant="p" className="capitalize not-first:mt-0">{detail.type}</Typography>
+                  <Typography variant="small" className="text-muted-foreground">
+                    Type
+                  </Typography>
+                  <Typography variant="p" className="capitalize not-first:mt-0">
+                    {detail.type}
+                  </Typography>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Typography variant="small" className="text-muted-foreground">Payee</Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.payee}</Typography>
+                  <Typography variant="small" className="text-muted-foreground">
+                    Payee
+                  </Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.payee}
+                  </Typography>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Typography variant="small" className="text-muted-foreground">Office Address</Typography>
-                  <Typography variant="p" className="not-first:mt-0">{detail.officeAddress}</Typography>
+                  <Typography variant="small" className="text-muted-foreground">
+                    Office Address
+                  </Typography>
+                  <Typography variant="p" className="not-first:mt-0">
+                    {detail.officeAddress}
+                  </Typography>
                 </div>
               </div>
               <Separator />
               <div>
-                <Typography variant="h4" className="mb-3">Request Items</Typography>
+                <Typography variant="h4" className="mb-3">
+                  Request Items
+                </Typography>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -617,13 +629,13 @@ function ObrRequestViewDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detail.requestItems.map(item => (
+                    {detail.requestItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.particulars}</TableCell>
                         <TableCell>{item.expenseCode.name}</TableCell>
                         <TableCell>{item.responsibilityCenter.name}</TableCell>
                         <TableCell className="text-right font-mono">
-                          {`${parseFloat(item.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
+                          {`${parseFloat(item.amount).toLocaleString('en-PH', {minimumFractionDigits: 2})}`}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -632,17 +644,32 @@ function ObrRequestViewDialog({
               </div>
               <Separator />
               <div>
-                <Typography variant="h4" className="mb-3">Approvers</Typography>
+                <Typography variant="h4" className="mb-3">
+                  Approvers
+                </Typography>
                 <div className="flex flex-col gap-3">
                   {detail.approvers.map((approver, idx) => (
-                    <div key={`${approver.position.id}-${idx}`} className="flex items-start justify-between rounded-md border p-3">
+                    <div
+                      key={`${approver.position.id}-${idx}`}
+                      className="flex items-start justify-between rounded-md border p-3"
+                    >
                       <div className="flex flex-col gap-1">
-                        <Typography variant="small" className="font-medium">{approver.position.name}</Typography>
-                        {approver.signer
-                          ? <Typography variant="small" className="text-muted-foreground">Signed by: {approver.signer.name}</Typography>
-                          : <Typography variant="small" className="text-muted-foreground">Not yet signed</Typography>}
+                        <Typography variant="small" className="font-medium">
+                          {approver.position.name}
+                        </Typography>
+                        {approver.signer ? (
+                          <Typography variant="small" className="text-muted-foreground">
+                            Signed by: {approver.signer.name}
+                          </Typography>
+                        ) : (
+                          <Typography variant="small" className="text-muted-foreground">
+                            Not yet signed
+                          </Typography>
+                        )}
                         {approver.signedAt && (
-                          <Typography variant="small" className="text-muted-foreground">{formatRequestDate(approver.signedAt)}</Typography>
+                          <Typography variant="small" className="text-muted-foreground">
+                            {formatRequestDate(approver.signedAt)}
+                          </Typography>
                         )}
                       </div>
                       <ApprovalStatusBadge status={approver.status} />
@@ -685,19 +712,28 @@ function AipRefList({
   disabled: boolean;
 }) {
   const handleAdd = () => {
-    onChange([...aipRefs, { rowId: crypto.randomUUID(), aipId: "", aipCode: "", aipDescription: "", amount: "" }]);
+    onChange([
+      ...aipRefs,
+      {rowId: crypto.randomUUID(), aipId: '', aipCode: '', aipDescription: '', amount: ''},
+    ]);
   };
 
   const handleRemove = (rowId: string) => {
-    onChange(aipRefs.filter(r => r.rowId !== rowId));
+    onChange(aipRefs.filter((r) => r.rowId !== rowId));
   };
 
-  const handleSelect = (rowId: string, val: { id: string; code: string; description: string }) => {
-    onChange(aipRefs.map(r => r.rowId === rowId ? { ...r, aipId: val.id, aipCode: val.code, aipDescription: val.description } : r));
+  const handleSelect = (rowId: string, val: {id: string; code: string; description: string}) => {
+    onChange(
+      aipRefs.map((r) =>
+        r.rowId === rowId
+          ? {...r, aipId: val.id, aipCode: val.code, aipDescription: val.description}
+          : r,
+      ),
+    );
   };
 
   const handleAmount = (rowId: string, amount: string) => {
-    onChange(aipRefs.map(r => r.rowId === rowId ? { ...r, amount } : r));
+    onChange(aipRefs.map((r) => (r.rowId === rowId ? {...r, amount} : r)));
   };
 
   return (
@@ -705,17 +741,19 @@ function AipRefList({
       <Typography variant="muted" className="text-xs font-semibold uppercase">
         AIP References
       </Typography>
-      {aipRefs.map(ref => (
+      {aipRefs.map((ref) => (
         <div key={ref.rowId} className="flex items-end gap-2">
           <AipSearchCombobox
-            value={ref.aipId ? { id: ref.aipId, code: ref.aipCode, description: ref.aipDescription } : null}
-            onChange={val => handleSelect(ref.rowId, val)}
+            value={
+              ref.aipId ? {id: ref.aipId, code: ref.aipCode, description: ref.aipDescription} : null
+            }
+            onChange={(val) => handleSelect(ref.rowId, val)}
           />
           <div className="w-36 shrink-0">
             <Input
               placeholder="Amount"
               value={ref.amount}
-              onChange={e => handleAmount(ref.rowId, e.target.value)}
+              onChange={(e) => handleAmount(ref.rowId, e.target.value)}
               disabled={disabled}
             />
           </div>
@@ -731,7 +769,13 @@ function AipRefList({
           </Button>
         </div>
       ))}
-      <Button type="button" variant="outline" className="w-full" onClick={handleAdd} disabled={disabled}>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={handleAdd}
+        disabled={disabled}
+      >
         + Add AIP Reference
       </Button>
     </div>
@@ -754,25 +798,28 @@ function ValidRequestCombobox({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
 
   const filtered = query.trim()
-    ? requests.filter(r =>
-      r.requestNumber.toLowerCase().includes(query.toLowerCase())
-        || (r.payee?.toLowerCase().includes(query.toLowerCase()) ?? false),
-    )
+    ? requests.filter(
+        (r) =>
+          r.requestNumber.toLowerCase().includes(query.toLowerCase()) ||
+          (r.payee?.toLowerCase().includes(query.toLowerCase()) ?? false),
+      )
     : requests;
 
-  const displayValue = value ? `${value.requestNumber} — ${value.payee ?? "-"}` : "";
+  const displayValue = value ? `${value.requestNumber} — ${value.payee ?? '-'}` : '';
 
   return (
     <div className="relative flex flex-1 flex-col gap-1">
       <Input
         placeholder="Search by request number or payee…"
         value={open ? query : displayValue}
-        onFocus={() => { if (!disabled) setOpen(true); }}
+        onFocus={() => {
+          if (!disabled) setOpen(true);
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
         disabled={disabled}
       />
       {open && (
@@ -782,10 +829,10 @@ function ValidRequestCombobox({
           )}
           {!isLoading && filtered.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              {query.trim() ? "No requests match your search." : "No approved requests available."}
+              {query.trim() ? 'No requests match your search.' : 'No approved requests available.'}
             </div>
           )}
-          {filtered.map(r => (
+          {filtered.map((r) => (
             <button
               key={r.id}
               type="button"
@@ -793,11 +840,11 @@ function ValidRequestCombobox({
               onMouseDown={() => {
                 onChange(r);
                 setOpen(false);
-                setQuery("");
+                setQuery('');
               }}
             >
               <span className="font-medium">{r.requestNumber}</span>
-              <span className="text-xs text-muted-foreground">{r.payee ?? "-"}</span>
+              <span className="text-xs text-muted-foreground">{r.payee ?? '-'}</span>
               {r.obrNumber && (
                 <span className="text-xs text-muted-foreground">OBR: {r.obrNumber}</span>
               )}
@@ -820,37 +867,35 @@ function ObrMainDataCreateDialog({
 }) {
   const baseId = useId();
 
-  const { data: validRequestsData, isLoading: validRequestsLoading } = useSWR<
+  const {data: validRequestsData, isLoading: validRequestsLoading} = useSWR<
     BetterFetchResponse<ObrRequestSummaryListResponse, ApiResponseException>
-  >("/api/obr/main/valid", $fetch);
+  >('/api/obr/main/valid', $fetch);
   const validRequests = validRequestsData?.data?.data ?? [];
 
-  const { data: officeCodesData } = useSWR<BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>>(
-    "/api/management/data/office-codes",
-    $fetch,
-  );
+  const {data: officeCodesData} = useSWR<
+    BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
+  >('/api/management/data/office-codes', $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
 
-  const { data: expenseClassesData } = useSWR<BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>>(
-    "/api/management/data/expense-classes",
-    $fetch,
-  );
+  const {data: expenseClassesData} = useSWR<
+    BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>
+  >('/api/management/data/expense-classes', $fetch);
   const allExpenseClasses = expenseClassesData?.data?.data ?? [];
 
   const [linkedRequest, setLinkedRequest] = useState<ObrRequestSummaryItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [baseObrNumber, setBaseObrNumber] = useState("");
+  const [baseObrNumber, setBaseObrNumber] = useState('');
   const [items, setItems] = useState<CreateItemRow[]>([emptyCreateItem()]);
   const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const updateItem = useCallback((rowId: string, patch: Partial<Omit<CreateItemRow, "rowId">>) => {
-    setItems(prev => prev.map(item => item.rowId === rowId ? { ...item, ...patch } : item));
+  const updateItem = useCallback((rowId: string, patch: Partial<Omit<CreateItemRow, 'rowId'>>) => {
+    setItems((prev) => prev.map((item) => (item.rowId === rowId ? {...item, ...patch} : item)));
   }, []);
 
   const toggleCollapsed = (rowId: string) => {
-    setCollapsedItems(prev => {
+    setCollapsedItems((prev) => {
       const next = new Set(prev);
       if (next.has(rowId)) next.delete(rowId);
       else next.add(rowId);
@@ -872,7 +917,7 @@ function ObrMainDataCreateDialog({
     try {
       const res = await fetch(`/api/obr/requests/${req.id}`);
       if (res.ok) {
-        const json: { data: ObrRequestDetail } = await res.json();
+        const json: {data: ObrRequestDetail} = await res.json();
         const detail = json.data;
 
         if (detail.requestItems.length === 0) {
@@ -881,23 +926,23 @@ function ObrMainDataCreateDialog({
           return;
         }
 
-        const newItems: CreateItemRow[] = detail.requestItems.map(ri => ({
+        const newItems: CreateItemRow[] = detail.requestItems.map((ri) => ({
           rowId: crypto.randomUUID(),
-          payee: String(detail.payee ?? ""),
-          address: String(detail.officeAddress ?? ""),
-          responsibilityCenterId: String(ri.responsibilityCenter.id ?? ""),
-          expenseCodeId: String(ri.expenseCode.id ?? ""),
-          particulars: String(ri.particulars ?? ""),
-          amount: String(ri.amount ?? ""),
-          prNumber: String(detail.prNumber ?? ""),
-          prAmount: "",
+          payee: String(detail.payee ?? ''),
+          address: String(detail.officeAddress ?? ''),
+          responsibilityCenterId: String(ri.responsibilityCenter.id ?? ''),
+          expenseCodeId: String(ri.expenseCode.id ?? ''),
+          particulars: String(ri.particulars ?? ''),
+          amount: String(ri.amount ?? ''),
+          prNumber: String(detail.prNumber ?? ''),
+          prAmount: '',
           saaob: null,
           aipRefs: [],
         }));
         setItems(newItems);
         // Collapse all but the first item when there are multiple
         if (newItems.length > 1) {
-          setCollapsedItems(new Set(newItems.slice(1).map(i => i.rowId)));
+          setCollapsedItems(new Set(newItems.slice(1).map((i) => i.rowId)));
         } else {
           setCollapsedItems(new Set());
         }
@@ -912,12 +957,16 @@ function ObrMainDataCreateDialog({
 
   const handleAddItem = () => {
     const newItem = emptyCreateItem();
-    setItems(prev => [...prev, newItem]);
+    setItems((prev) => [...prev, newItem]);
   };
 
   const handleRemoveItem = (rowId: string) => {
-    setItems(prev => prev.filter(i => i.rowId !== rowId));
-    setCollapsedItems(prev => { const next = new Set(prev); next.delete(rowId); return next; });
+    setItems((prev) => prev.filter((i) => i.rowId !== rowId));
+    setCollapsedItems((prev) => {
+      const next = new Set(prev);
+      next.delete(rowId);
+      return next;
+    });
   };
 
   const getComputedObrNumber = (idx: number) =>
@@ -927,13 +976,20 @@ function ObrMainDataCreateDialog({
     if (submitting || detailLoading) return;
 
     if (!baseObrNumber.trim()) {
-      setActionError("OBR Number is required.");
+      setActionError('OBR Number is required.');
       return;
     }
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i]!;
-      if (!item.payee.trim() || !item.address.trim() || !item.responsibilityCenterId || !item.expenseCodeId || !item.particulars.trim() || !String(item.amount).trim()) {
+      if (
+        !item.payee.trim() ||
+        !item.address.trim() ||
+        !item.responsibilityCenterId ||
+        !item.expenseCodeId ||
+        !item.particulars.trim() ||
+        !String(item.amount).trim()
+      ) {
         setActionError(`Please fill in all required fields for Item ${i + 1}.`);
         return;
       }
@@ -945,38 +1001,38 @@ function ObrMainDataCreateDialog({
     try {
       const body = {
         obrNumber: baseObrNumber.trim(),
-        ...(linkedRequest ? { requestId: linkedRequest.id } : {}),
-        items: items.map(item => ({
+        ...(linkedRequest ? {requestId: linkedRequest.id} : {}),
+        items: items.map((item) => ({
           payee: item.payee.trim(),
           address: item.address.trim(),
           responsibilityCenterId: item.responsibilityCenterId,
           expenseCodeId: item.expenseCodeId,
           particulars: item.particulars.trim(),
           amount: String(item.amount).trim(),
-          ...(item.prNumber.trim() ? { prNumber: item.prNumber.trim() } : {}),
-          ...(item.prAmount.trim() ? { prAmount: item.prAmount.trim() } : {}),
-          ...(item.saaob ? { saaobId: item.saaob.id } : {}),
+          ...(item.prNumber.trim() ? {prNumber: item.prNumber.trim()} : {}),
+          ...(item.prAmount.trim() ? {prAmount: item.prAmount.trim()} : {}),
+          ...(item.saaob ? {saaobId: item.saaob.id} : {}),
           aipReferences: item.aipRefs
-            .filter(r => r.aipId)
-            .map(r => ({ aipId: r.aipId, amount: r.amount })),
+            .filter((r) => r.aipId)
+            .map((r) => ({aipId: r.aipId, amount: r.amount})),
         })),
       };
 
-      const response = await fetch("/api/obr/main", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/obr/main', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to create OBR main data. Please try again.");
+        setActionError(payload?.message ?? 'Failed to create OBR main data. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -985,14 +1041,19 @@ function ObrMainDataCreateDialog({
   const isRequestLinked = linkedRequest !== null;
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] min-w-[75%]">
         <DialogHeader>
           <DialogTitle>New OBR Main Data</DialogTitle>
           <DialogDescription>
             {isRequestLinked
-              ? `Creating ${items.length} item${items.length > 1 ? "s" : ""} from linked request — adjust fields before saving.`
-              : "Create a standalone OBR main data record. Linking a request is optional and will autofill details."}
+              ? `Creating ${items.length} item${items.length > 1 ? 's' : ''} from linked request — adjust fields before saving.`
+              : 'Create a standalone OBR main data record. Linking a request is optional and will autofill details.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -1040,7 +1101,7 @@ function ObrMainDataCreateDialog({
                 id={`${baseId}-obrNumber`}
                 placeholder="e.g. 099"
                 value={baseObrNumber}
-                onChange={e => setBaseObrNumber(e.target.value)}
+                onChange={(e) => setBaseObrNumber(e.target.value)}
                 disabled={submitting}
               />
               {items.length > 1 && baseObrNumber.trim() && (
@@ -1067,7 +1128,9 @@ function ObrMainDataCreateDialog({
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">Item {idx + 1}</Badge>
                         {computedObr && (
-                          <span className="text-xs font-mono text-muted-foreground">OBR: {computedObr}</span>
+                          <span className="text-xs font-mono text-muted-foreground">
+                            OBR: {computedObr}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1">
@@ -1077,13 +1140,18 @@ function ObrMainDataCreateDialog({
                             variant="ghost"
                             size="icon"
                             className="size-6 text-destructive hover:text-destructive"
-                            onClick={e => { e.stopPropagation(); handleRemoveItem(item.rowId); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveItem(item.rowId);
+                            }}
                             disabled={submitting}
                           >
                             <Trash2 className="size-3.5" />
                           </Button>
                         )}
-                        <ChevronDown className={`size-4 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
+                        <ChevronDown
+                          className={`size-4 text-muted-foreground transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
+                        />
                       </div>
                     </div>
 
@@ -1099,7 +1167,7 @@ function ObrMainDataCreateDialog({
                             <Input
                               id={`${baseId}-${item.rowId}-payee`}
                               value={item.payee}
-                              onChange={e => updateItem(item.rowId, { payee: e.target.value })}
+                              onChange={(e) => updateItem(item.rowId, {payee: e.target.value})}
                               disabled={submitting || detailLoading}
                             />
                           </div>
@@ -1110,7 +1178,7 @@ function ObrMainDataCreateDialog({
                             <Input
                               id={`${baseId}-${item.rowId}-address`}
                               value={item.address}
-                              onChange={e => updateItem(item.rowId, { address: e.target.value })}
+                              onChange={(e) => updateItem(item.rowId, {address: e.target.value})}
                               disabled={submitting || detailLoading}
                             />
                           </div>
@@ -1124,16 +1192,19 @@ function ObrMainDataCreateDialog({
                             </Label>
                             <Select
                               value={item.responsibilityCenterId}
-                              onValueChange={v => updateItem(item.rowId, { responsibilityCenterId: v })}
+                              onValueChange={(v) =>
+                                updateItem(item.rowId, {responsibilityCenterId: v})
+                              }
                               disabled={submitting || detailLoading}
                             >
                               <SelectTrigger id={`${baseId}-${item.rowId}-rc`}>
                                 <SelectValue placeholder="Select RC…" />
                               </SelectTrigger>
                               <SelectContent>
-                                {officeCodes.map(oc => (
+                                {officeCodes.map((oc) => (
                                   <SelectItem key={oc.id} value={oc.id}>
-                                    {oc.aa}{oc.office?.name ? ` — ${oc.office.name}` : ""}
+                                    {oc.aa}
+                                    {oc.office?.name ? ` — ${oc.office.name}` : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1145,16 +1216,17 @@ function ObrMainDataCreateDialog({
                             </Label>
                             <Select
                               value={item.expenseCodeId}
-                              onValueChange={v => updateItem(item.rowId, { expenseCodeId: v })}
+                              onValueChange={(v) => updateItem(item.rowId, {expenseCodeId: v})}
                               disabled={submitting || detailLoading}
                             >
                               <SelectTrigger id={`${baseId}-${item.rowId}-ec`}>
                                 <SelectValue placeholder="Select expense code…" />
                               </SelectTrigger>
                               <SelectContent>
-                                {allExpenseClasses.map(ec => (
+                                {allExpenseClasses.map((ec) => (
                                   <SelectItem key={ec.id} value={ec.id}>
-                                    {ec.accountName}{ec.accountCode ? ` (${ec.accountCode})` : ""}
+                                    {ec.accountName}
+                                    {ec.accountCode ? ` (${ec.accountCode})` : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1170,7 +1242,7 @@ function ObrMainDataCreateDialog({
                               id={`${baseId}-${item.rowId}-prNumber`}
                               placeholder="Optional"
                               value={item.prNumber}
-                              onChange={e => updateItem(item.rowId, { prNumber: e.target.value })}
+                              onChange={(e) => updateItem(item.rowId, {prNumber: e.target.value})}
                               disabled={submitting || detailLoading}
                             />
                           </div>
@@ -1180,7 +1252,7 @@ function ObrMainDataCreateDialog({
                               id={`${baseId}-${item.rowId}-prAmount`}
                               placeholder="0.00"
                               value={item.prAmount}
-                              onChange={e => updateItem(item.rowId, { prAmount: e.target.value })}
+                              onChange={(e) => updateItem(item.rowId, {prAmount: e.target.value})}
                               disabled={submitting || detailLoading}
                             />
                           </div>
@@ -1195,7 +1267,7 @@ function ObrMainDataCreateDialog({
                             id={`${baseId}-${item.rowId}-particulars`}
                             rows={3}
                             value={item.particulars}
-                            onChange={e => updateItem(item.rowId, { particulars: e.target.value })}
+                            onChange={(e) => updateItem(item.rowId, {particulars: e.target.value})}
                             disabled={submitting || detailLoading}
                           />
                         </div>
@@ -1209,7 +1281,7 @@ function ObrMainDataCreateDialog({
                             id={`${baseId}-${item.rowId}-amount`}
                             placeholder="0.00"
                             value={item.amount}
-                            onChange={e => updateItem(item.rowId, { amount: e.target.value })}
+                            onChange={(e) => updateItem(item.rowId, {amount: e.target.value})}
                             disabled={submitting || detailLoading}
                           />
                         </div>
@@ -1224,7 +1296,7 @@ function ObrMainDataCreateDialog({
                           <div className="flex items-center gap-2">
                             <SaaobSearchCombobox
                               value={item.saaob}
-                              onChange={v => updateItem(item.rowId, { saaob: v })}
+                              onChange={(v) => updateItem(item.rowId, {saaob: v})}
                             />
                             {item.saaob && (
                               <Button
@@ -1232,7 +1304,7 @@ function ObrMainDataCreateDialog({
                                 variant="ghost"
                                 size="sm"
                                 className="shrink-0 text-destructive hover:text-destructive"
-                                onClick={() => updateItem(item.rowId, { saaob: null })}
+                                onClick={() => updateItem(item.rowId, {saaob: null})}
                                 disabled={submitting}
                               >
                                 Clear
@@ -1246,7 +1318,7 @@ function ObrMainDataCreateDialog({
                         {/* AIP References */}
                         <AipRefList
                           aipRefs={item.aipRefs}
-                          onChange={refs => updateItem(item.rowId, { aipRefs: refs })}
+                          onChange={(refs) => updateItem(item.rowId, {aipRefs: refs})}
                           disabled={submitting || detailLoading}
                         />
                       </div>
@@ -1285,12 +1357,12 @@ function ObrMainDataCreateDialog({
           </Button>
           <Button onClick={handleSave} disabled={submitting || detailLoading}>
             {submitting
-              ? "Creating…"
+              ? 'Creating…'
               : detailLoading
-                ? "Loading…"
+                ? 'Loading…'
                 : items.length > 1
                   ? `Create ${items.length} Items`
-                  : "Create"}
+                  : 'Create'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1311,29 +1383,29 @@ function ObrMainDataEditDialog({
 }) {
   const baseId = useId();
 
-  const { data: officeCodesData } = useSWR<BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>>(
-    "/api/management/data/office-codes",
-    $fetch,
-  );
+  const {data: officeCodesData} = useSWR<
+    BetterFetchResponse<OfficeCodeListResponse, ApiResponseException>
+  >('/api/management/data/office-codes', $fetch);
   const officeCodes = officeCodesData?.data?.data ?? [];
 
-  const { data: expenseClassesData } = useSWR<BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>>(
-    "/api/management/data/expense-classes",
-    $fetch,
-  );
+  const {data: expenseClassesData} = useSWR<
+    BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>
+  >('/api/management/data/expense-classes', $fetch);
   const allExpenseClasses = expenseClassesData?.data?.data ?? [];
 
   const [obrNumber, setObrNumber] = useState(item.obrNumber);
-  const [payee, setPayee] = useState(item.payee ?? "");
+  const [payee, setPayee] = useState(item.payee ?? '');
   const [address, setAddress] = useState(item.address);
-  const [responsibilityCenterId, setResponsibilityCenterId] = useState(item.responsibilityCenter.id);
+  const [responsibilityCenterId, setResponsibilityCenterId] = useState(
+    item.responsibilityCenter.id,
+  );
   const [expenseCodeId, setExpenseCodeId] = useState(item.expenseCode.id);
   const [particulars, setParticulars] = useState(item.particulars);
-  const [amount, setAmount] = useState(item.obligated ?? "");
-  const [prNumber, setPrNumber] = useState(item.prNumber ?? "");
-  const [prAmount, setPrAmount] = useState(item.prAmount ?? "");
+  const [amount, setAmount] = useState(item.obligated ?? '');
+  const [prNumber, setPrNumber] = useState(item.prNumber ?? '');
+  const [prAmount, setPrAmount] = useState(item.prAmount ?? '');
   const [aipRefs, setAipRefs] = useState<AipRefRow[]>(item.aipReferences.map(aipRefToRow));
-  const [saaob, setSaaob] = useState<{ id: string; name: string } | null>(item.saaob);
+  const [saaob, setSaaob] = useState<{id: string; name: string} | null>(item.saaob);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -1359,24 +1431,24 @@ function ObrMainDataEditDialog({
       if (amount.trim()) body.amount = amount.trim();
       if (prNumber.trim()) body.prNumber = prNumber.trim();
       if (prAmount.trim()) body.prAmount = prAmount.trim();
-      body.aipReferences = aipRefs.map(r => ({ aipId: r.aipId, amount: r.amount }));
+      body.aipReferences = aipRefs.map((r) => ({aipId: r.aipId, amount: r.amount}));
       body.saaobId = saaob ? saaob.id : null;
 
       const response = await fetch(`/api/obr/main/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to update OBR main data. Please try again.");
+        setActionError(payload?.message ?? 'Failed to update OBR main data. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -1384,12 +1456,17 @@ function ObrMainDataEditDialog({
 
   return (
     <>
-      <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <Dialog
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
         <DialogContent className="max-h-[90vh] min-w-[75%]">
           <DialogHeader>
             <DialogTitle>Edit OBR Main Data</DialogTitle>
             <DialogDescription>
-              Update the details for OBR record{" "}
+              Update the details for OBR record{' '}
               <span className="font-medium">{item.obrNumber}</span>.
             </DialogDescription>
           </DialogHeader>
@@ -1416,7 +1493,10 @@ function ObrMainDataEditDialog({
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label>Variance (Disbursed)</Label>
-                  <DetailText value={formatCurrency(item.varianceDisbursed)} className="font-mono" />
+                  <DetailText
+                    value={formatCurrency(item.varianceDisbursed)}
+                    className="font-mono"
+                  />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label>Var OBR vs F4</Label>
@@ -1433,7 +1513,7 @@ function ObrMainDataEditDialog({
                   <Input
                     id={`${baseId}-obrNumber`}
                     value={obrNumber}
-                    onChange={e => setObrNumber(e.target.value)}
+                    onChange={(e) => setObrNumber(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1443,7 +1523,7 @@ function ObrMainDataEditDialog({
                     id={`${baseId}-prNumber`}
                     placeholder="Optional"
                     value={prNumber}
-                    onChange={e => setPrNumber(e.target.value)}
+                    onChange={(e) => setPrNumber(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1453,7 +1533,7 @@ function ObrMainDataEditDialog({
                     id={`${baseId}-prAmount`}
                     placeholder="0.00"
                     value={prAmount}
-                    onChange={e => setPrAmount(e.target.value)}
+                    onChange={(e) => setPrAmount(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1465,7 +1545,7 @@ function ObrMainDataEditDialog({
                   <Input
                     id={`${baseId}-payee`}
                     value={payee}
-                    onChange={e => setPayee(e.target.value)}
+                    onChange={(e) => setPayee(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1474,7 +1554,7 @@ function ObrMainDataEditDialog({
                   <Input
                     id={`${baseId}-address`}
                     value={address}
-                    onChange={e => setAddress(e.target.value)}
+                    onChange={(e) => setAddress(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1492,9 +1572,10 @@ function ObrMainDataEditDialog({
                       <SelectValue placeholder="Select responsibility center…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {officeCodes.map(oc => (
+                      {officeCodes.map((oc) => (
                         <SelectItem key={oc.id} value={oc.id}>
-                          {oc.aa}{oc.office?.name ? ` — ${oc.office.name}` : ""}
+                          {oc.aa}
+                          {oc.office?.name ? ` — ${oc.office.name}` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1511,9 +1592,10 @@ function ObrMainDataEditDialog({
                       <SelectValue placeholder="Select expense code…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {allExpenseClasses.map(ec => (
+                      {allExpenseClasses.map((ec) => (
                         <SelectItem key={ec.id} value={ec.id}>
-                          {ec.accountName}{ec.accountCode ? ` (${ec.accountCode})` : ""}
+                          {ec.accountName}
+                          {ec.accountCode ? ` (${ec.accountCode})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1528,7 +1610,7 @@ function ObrMainDataEditDialog({
                     id={`${baseId}-particulars`}
                     rows={3}
                     value={particulars}
-                    onChange={e => setParticulars(e.target.value)}
+                    onChange={(e) => setParticulars(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1538,7 +1620,7 @@ function ObrMainDataEditDialog({
                     id={`${baseId}-amount`}
                     placeholder="0.00"
                     value={amount}
-                    onChange={e => setAmount(e.target.value)}
+                    onChange={(e) => setAmount(e.target.value)}
                     disabled={submitting}
                   />
                 </div>
@@ -1611,20 +1693,18 @@ function ObrMainDataEditDialog({
               </TooltipProvider>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+              <Button variant="outline" onClick={onClose} disabled={submitting}>
+                Cancel
+              </Button>
               <Button onClick={handleSave} disabled={submitting}>
-                {submitting ? "Saving…" : "Save Changes"}
+                {submitting ? 'Saving…' : 'Save Changes'}
               </Button>
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <ObrRequestViewDialog
-        id={item.requestSourceId}
-        open={viewOpen}
-        onOpenChange={setViewOpen}
-      />
+      <ObrRequestViewDialog id={item.requestSourceId} open={viewOpen} onOpenChange={setViewOpen} />
     </>
   );
 }

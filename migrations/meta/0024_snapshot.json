@@ -110,12 +110,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -378,12 +374,8 @@
           "name": "esre_funding_source_id_fund_types_id_fk",
           "tableFrom": "esre",
           "tableTo": "fund_types",
-          "columnsFrom": [
-            "funding_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["funding_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -391,12 +383,8 @@
           "name": "esre_obr_item_id_obr_items_id_fk",
           "tableFrom": "esre",
           "tableTo": "obr_items",
-          "columnsFrom": [
-            "obr_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["obr_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -404,12 +392,8 @@
           "name": "esre_expense_type_id_expense_type_id_fk",
           "tableFrom": "esre",
           "tableTo": "expense_type",
-          "columnsFrom": [
-            "expense_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["expense_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -602,12 +586,8 @@
           "name": "expense_names_office_codes_expense_name_id_expense_names_id_fk",
           "tableFrom": "expense_names_office_codes",
           "tableTo": "expense_names",
-          "columnsFrom": [
-            "expense_name_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["expense_name_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -615,12 +595,8 @@
           "name": "expense_names_office_codes_office_code_id_office_codes_id_fk",
           "tableFrom": "expense_names_office_codes",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "office_code_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_code_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -780,12 +756,8 @@
           "name": "invitations_office_id_office_id_fk",
           "tableFrom": "invitations",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -795,16 +767,12 @@
         "invitations_email_unique": {
           "name": "invitations_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "invitations_token_unique": {
           "name": "invitations_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -877,12 +845,8 @@
           "name": "lbac_groups_aip_ref_code_aip_references_id_fk",
           "tableFrom": "lbac_groups",
           "tableTo": "aip_references",
-          "columnsFrom": [
-            "aip_ref_code"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["aip_ref_code"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -890,12 +854,8 @@
           "name": "lbac_groups_implementing_unit_id_office_codes_id_fk",
           "tableFrom": "lbac_groups",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "implementing_unit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["implementing_unit_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -903,12 +863,8 @@
           "name": "lbac_groups_office_id_office_id_fk",
           "tableFrom": "lbac_groups",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -916,12 +872,8 @@
           "name": "lbac_groups_author_id_user_id_fk",
           "tableFrom": "lbac_groups",
           "tableTo": "user",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -929,12 +881,8 @@
           "name": "lbac_groups_parent_id_lbac_groups_id_fk",
           "tableFrom": "lbac_groups",
           "tableTo": "lbac_groups",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1108,12 +1056,8 @@
           "name": "lbac_items_aip_ref_code_aip_references_id_fk",
           "tableFrom": "lbac_items",
           "tableTo": "aip_references",
-          "columnsFrom": [
-            "aip_ref_code"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["aip_ref_code"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1121,12 +1065,8 @@
           "name": "lbac_items_implementing_unit_id_office_codes_id_fk",
           "tableFrom": "lbac_items",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "implementing_unit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["implementing_unit_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1134,12 +1074,8 @@
           "name": "lbac_items_expense_code_id_expense_classes_id_fk",
           "tableFrom": "lbac_items",
           "tableTo": "expense_classes",
-          "columnsFrom": [
-            "expense_code_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["expense_code_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1147,12 +1083,8 @@
           "name": "lbac_items_parent_id_lbac_groups_id_fk",
           "tableFrom": "lbac_items",
           "tableTo": "lbac_groups",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1160,12 +1092,8 @@
           "name": "lbac_items_author_id_user_id_fk",
           "tableFrom": "lbac_items",
           "tableTo": "user",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1173,12 +1101,8 @@
           "name": "lbac_items_office_id_office_id_fk",
           "tableFrom": "lbac_items",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1315,12 +1239,8 @@
           "name": "lbac_quarterly_report_lbac_target_id_lbac_items_id_fk",
           "tableFrom": "lbac_quarterly_report",
           "tableTo": "lbac_items",
-          "columnsFrom": [
-            "lbac_target_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lbac_target_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1519,12 +1439,8 @@
           "name": "obr_disbursement_vouchers_reponsibility_center_id_office_codes_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "reponsibility_center_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reponsibility_center_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1532,12 +1448,8 @@
           "name": "obr_disbursement_vouchers_head_user_id_user_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "user",
-          "columnsFrom": [
-            "head_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["head_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1545,12 +1457,8 @@
           "name": "obr_disbursement_vouchers_accountant_user_id_user_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "user",
-          "columnsFrom": [
-            "accountant_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["accountant_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1558,12 +1466,8 @@
           "name": "obr_disbursement_vouchers_treasurer_user_id_user_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "user",
-          "columnsFrom": [
-            "treasurer_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["treasurer_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1571,12 +1475,8 @@
           "name": "obr_disbursement_vouchers_mayor_id_user_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "user",
-          "columnsFrom": [
-            "mayor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mayor_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1584,12 +1484,8 @@
           "name": "obr_disbursement_vouchers_fund_type_id_fund_types_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "fund_types",
-          "columnsFrom": [
-            "fund_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fund_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1597,12 +1493,8 @@
           "name": "obr_disbursement_vouchers_request_id_obr_requests_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "obr_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1610,12 +1502,8 @@
           "name": "obr_disbursement_vouchers_request_item_id_obr_request_items_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "obr_request_items",
-          "columnsFrom": [
-            "request_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1623,12 +1511,8 @@
           "name": "obr_disbursement_vouchers_disbursed_by_user_id_fk",
           "tableFrom": "obr_disbursement_vouchers",
           "tableTo": "user",
-          "columnsFrom": [
-            "disbursed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["disbursed_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1717,12 +1601,8 @@
           "name": "obr_items_requesting_official_id_user_id_fk",
           "tableFrom": "obr_items",
           "tableTo": "user",
-          "columnsFrom": [
-            "requesting_official_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["requesting_official_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1730,12 +1610,8 @@
           "name": "obr_items_disbursement_ref_id_obr_disbursement_vouchers_id_fk",
           "tableFrom": "obr_items",
           "tableTo": "obr_disbursement_vouchers",
-          "columnsFrom": [
-            "disbursement_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["disbursement_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1743,12 +1619,8 @@
           "name": "obr_items_disbursed_by_user_id_fk",
           "tableFrom": "obr_items",
           "tableTo": "user",
-          "columnsFrom": [
-            "disbursed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["disbursed_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1756,12 +1628,8 @@
           "name": "obr_items_request_id_obr_requests_id_fk",
           "tableFrom": "obr_items",
           "tableTo": "obr_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1769,12 +1637,8 @@
           "name": "obr_items_request_item_id_obr_request_items_id_fk",
           "tableFrom": "obr_items",
           "tableTo": "obr_request_items",
-          "columnsFrom": [
-            "request_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1845,12 +1709,8 @@
           "name": "obr_main_data_responsibility_center_id_office_codes_id_fk",
           "tableFrom": "obr_main_data",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "responsibility_center_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["responsibility_center_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1902,12 +1762,8 @@
           "name": "obr_office_item_reponsibility_center_id_office_codes_id_fk",
           "tableFrom": "obr_office_item",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "reponsibility_center_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reponsibility_center_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1915,12 +1771,8 @@
           "name": "obr_office_item_expense_code_id_expense_classes_id_fk",
           "tableFrom": "obr_office_item",
           "tableTo": "expense_classes",
-          "columnsFrom": [
-            "expense_code_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["expense_code_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1928,12 +1780,8 @@
           "name": "obr_office_item_item_id_obr_items_id_fk",
           "tableFrom": "obr_office_item",
           "tableTo": "obr_items",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["item_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1998,12 +1846,8 @@
           "name": "obr_request_approvers_request_id_obr_requests_id_fk",
           "tableFrom": "obr_request_approvers",
           "tableTo": "obr_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2011,12 +1855,8 @@
           "name": "obr_request_approvers_position_id_office_position_id_fk",
           "tableFrom": "obr_request_approvers",
           "tableTo": "office_position",
-          "columnsFrom": [
-            "position_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["position_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2024,12 +1864,8 @@
           "name": "obr_request_approvers_acted_user_id_user_id_fk",
           "tableFrom": "obr_request_approvers",
           "tableTo": "user",
-          "columnsFrom": [
-            "acted_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["acted_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2100,12 +1936,8 @@
           "name": "obr_request_items_request_id_obr_requests_id_fk",
           "tableFrom": "obr_request_items",
           "tableTo": "obr_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2113,12 +1945,8 @@
           "name": "obr_request_items_reponsibility_center_id_office_codes_id_fk",
           "tableFrom": "obr_request_items",
           "tableTo": "office_codes",
-          "columnsFrom": [
-            "reponsibility_center_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reponsibility_center_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2126,12 +1954,8 @@
           "name": "obr_request_items_expense_code_id_expense_classes_id_fk",
           "tableFrom": "obr_request_items",
           "tableTo": "expense_classes",
-          "columnsFrom": [
-            "expense_code_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["expense_code_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2221,12 +2045,8 @@
           "name": "obr_requests_publisher_id_user_id_fk",
           "tableFrom": "obr_requests",
           "tableTo": "user",
-          "columnsFrom": [
-            "publisher_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["publisher_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2234,12 +2054,8 @@
           "name": "obr_requests_originating_office_id_office_id_fk",
           "tableFrom": "obr_requests",
           "tableTo": "office",
-          "columnsFrom": [
-            "originating_office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["originating_office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2374,12 +2190,8 @@
           "name": "office_codes_office_id_office_id_fk",
           "tableFrom": "office_codes",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2387,12 +2199,8 @@
           "name": "office_codes_head_user_id_user_id_fk",
           "tableFrom": "office_codes",
           "tableTo": "user",
-          "columnsFrom": [
-            "head_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["head_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2453,12 +2261,8 @@
           "name": "office_position_office_id_office_id_fk",
           "tableFrom": "office_position",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2545,12 +2349,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2560,9 +2360,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -2636,12 +2434,8 @@
           "name": "supplemental_author_id_user_id_fk",
           "tableFrom": "supplemental",
           "tableTo": "user",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2718,12 +2512,8 @@
           "name": "two_factor_user_id_user_id_fk",
           "tableFrom": "two_factor",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2854,12 +2644,8 @@
           "name": "user_office_id_office_id_fk",
           "tableFrom": "user",
           "tableTo": "office",
-          "columnsFrom": [
-            "office_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2867,12 +2653,8 @@
           "name": "user_office_position_id_office_position_id_fk",
           "tableFrom": "user",
           "tableTo": "office_position",
-          "columnsFrom": [
-            "office_position_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["office_position_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2882,9 +2664,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -2963,66 +2743,37 @@
     "public.aip_reference_type": {
       "name": "aip_reference_type",
       "schema": "public",
-      "values": [
-        "group",
-        "item"
-      ]
+      "values": ["group", "item"]
     },
     "public.check_status_enum": {
       "name": "check_status_enum",
       "schema": "public",
-      "values": [
-        "PAID",
-        "FOR RELEASE",
-        "ON HOLD",
-        "CANCELLED"
-      ]
+      "values": ["PAID", "FOR RELEASE", "ON HOLD", "CANCELLED"]
     },
     "public.disbursement_statuses": {
       "name": "disbursement_statuses",
       "schema": "public",
-      "values": [
-        "PREPARATION",
-        "PROCESSING",
-        "ON HOLD",
-        "FOR RELEASE",
-        "PAID"
-      ]
+      "values": ["PREPARATION", "PROCESSING", "ON HOLD", "FOR RELEASE", "PAID"]
     },
     "public.obr_request_signing_status": {
       "name": "obr_request_signing_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "approved",
-        "binned"
-      ]
+      "values": ["pending", "approved", "binned"]
     },
     "public.obr_request_type": {
       "name": "obr_request_type",
       "schema": "public",
-      "values": [
-        "basic",
-        "advanced"
-      ]
+      "values": ["basic", "advanced"]
     },
     "public.supplemental_type": {
       "name": "supplemental_type",
       "schema": "public",
-      "values": [
-        "less",
-        "add"
-      ]
+      "values": ["less", "add"]
     },
     "public.tax_types": {
       "name": "tax_types",
       "schema": "public",
-      "values": [
-        "vat-g",
-        "vat-s",
-        "nvat-g",
-        "nvat-s"
-      ]
+      "values": ["vat-g", "vat-s", "nvat-g", "nvat-s"]
     }
   },
   "schemas": {},

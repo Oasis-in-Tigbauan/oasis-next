@@ -4,7 +4,7 @@ orbs:
 
 commands:
   setup_and_install_pnpm:
-    description: "Checkout code, install pnpm, and load cached dependencies"
+    description: 'Checkout code, install pnpm, and load cached dependencies'
     steps:
       - checkout
       - restore_cache:

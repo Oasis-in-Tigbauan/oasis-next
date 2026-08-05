@@ -1,12 +1,14 @@
-import { DateTime } from "luxon";
-import { desc, count, eq, isNull } from "drizzle-orm";
+import {desc, count, eq, isNull} from 'drizzle-orm';
+import {DateTime} from 'luxon';
 
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { modeOfProcurements } from "@/lib/db/schema";
-import { validatorUtilities } from "@/lib/validators";
+import {db} from '@/lib/db';
+import {modeOfProcurements} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import {validatorUtilities} from '@/lib/validators';
 
-export async function create(payload: ModeOfProcurementsPayload): Promise<Result<ModeOfProcurementsType>> {
+export async function create(
+  payload: ModeOfProcurementsPayload,
+): Promise<Result<ModeOfProcurementsType>> {
   try {
     const [result] = await db
       .select({
@@ -15,18 +17,20 @@ export async function create(payload: ModeOfProcurementsPayload): Promise<Result
       .from(modeOfProcurements)
       .where(eq(modeOfProcurements.name, payload.name));
     if (result?.any > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Procurement type already exists.", payload);
+      return new Failure(ErrorCodes.ValidationFailure, 'Procurement type already exists.', payload);
     }
 
     const [procurementType] = await db
       .insert(modeOfProcurements)
       .values({
         name: payload.name,
-        ...(validatorUtilities.isNotEmpty(payload.description) ? { description: payload.description } : {}),
+        ...(validatorUtilities.isNotEmpty(payload.description)
+          ? {description: payload.description}
+          : {}),
       })
       .returning();
     if (!procurementType) {
-      return new Failure(ErrorCodes.Fatal, "Unable to create a procurement type.");
+      return new Failure(ErrorCodes.Fatal, 'Unable to create a procurement type.');
     }
 
     return new Success({
@@ -35,7 +39,7 @@ export async function create(payload: ModeOfProcurementsPayload): Promise<Result
       description: procurementType.description,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create procurement type.", payload, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create procurement type.', payload, e);
   }
 }
 
@@ -53,11 +57,14 @@ export async function all(): Promise<Result<Array<ModeOfProcurementsType>>> {
 
     return new Success(allProcurementTypes);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch procurement types.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch procurement types.', {}, e);
   }
 }
 
-export async function update(id: string, payload: Partial<UpdateModeOfProcurementsPayload>): Promise<Result<ModeOfProcurementsType>> {
+export async function update(
+  id: string,
+  payload: Partial<UpdateModeOfProcurementsPayload>,
+): Promise<Result<ModeOfProcurementsType>> {
   try {
     const [target] = await db
       .select({
@@ -69,18 +76,21 @@ export async function update(id: string, payload: Partial<UpdateModeOfProcuremen
       .where(eq(modeOfProcurements.id, id))
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such procurement type found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such procurement type found.', {id});
     }
 
     // Filter out unserializable content and empty values
-    const values: Partial<ModeOfProcurementsPayload> = validatorUtilities.filterUpdatedFields(payload);
+    const values: Partial<ModeOfProcurementsPayload> =
+      validatorUtilities.filterUpdatedFields(payload);
 
     // Apply updates
     const [updated] = await db
       .update(modeOfProcurements)
       .set({
-        ...(validatorUtilities.isExisty(values.name) ? { name: values.name } : {}),
-        ...(validatorUtilities.isExisty(values.description) ? { description: values.description } : {}),
+        ...(validatorUtilities.isExisty(values.name) ? {name: values.name} : {}),
+        ...(validatorUtilities.isExisty(values.description)
+          ? {description: values.description}
+          : {}),
       })
       .where(eq(modeOfProcurements.id, target.id))
       .returning();
@@ -91,28 +101,29 @@ export async function update(id: string, payload: Partial<UpdateModeOfProcuremen
       description: updated.description,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update procurement type.", { ...payload, id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update procurement type.', {...payload, id}, e);
   }
 }
 
 export async function removeSoftly(id: string): Promise<Result<null>> {
   try {
     const [targetProcurementType] = await db
-      .select({ id: modeOfProcurements.id, deletedAt: modeOfProcurements.deletedAt })
+      .select({id: modeOfProcurements.id, deletedAt: modeOfProcurements.deletedAt})
       .from(modeOfProcurements)
       .where(eq(modeOfProcurements.id, id))
       .limit(1);
     if (!targetProcurementType || targetProcurementType.deletedAt) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Procurement type not found.");
+      return new Failure(ErrorCodes.ResourceNotFound, 'Procurement type not found.');
     }
 
-    await db.update(modeOfProcurements)
-      .set({ deletedAt: DateTime.utc().toJSDate() })
+    await db
+      .update(modeOfProcurements)
+      .set({deletedAt: DateTime.utc().toJSDate()})
       .where(eq(modeOfProcurements.id, targetProcurementType.id));
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to remove the procurement type.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to remove the procurement type.', {id}, e);
   }
 }
 
@@ -127,4 +138,4 @@ export type ModeOfProcurementsType = {
   id: string;
   name: string;
   description: Optional<string>;
-}
+};

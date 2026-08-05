@@ -1,12 +1,9 @@
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of/types";
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of/types';
 
 class OneOf<T> {
   constructor(private readonly result: Result<T>) {}
 
-  match<R>(
-    onSuccess: (val: T) => R,
-    onFailure: (err: Failure) => R,
-  ): R {
+  match<R>(onSuccess: (val: T) => R, onFailure: (err: Failure) => R): R {
     if (this.result instanceof Success) {
       return onSuccess(this.result.value);
     }
@@ -19,7 +16,7 @@ class UnwrappedException extends Error {
     public readonly type: ErrorCodes,
     public readonly message: string,
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     public readonly additionalContext?: Record<string, any>,
   ) {
     super(`Type: ${type}: ${message}`);
@@ -73,6 +70,6 @@ export async function unwrap<T>(fn: Promise<Result<T>>): Promise<T> {
   return (result as Success<T>).value;
 }
 
-export type { Result };
+export type {Result};
 
-export { ErrorCodes, Failure, Success, UnwrappedException };
+export {ErrorCodes, Failure, Success, UnwrappedException};

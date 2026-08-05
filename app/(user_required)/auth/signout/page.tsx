@@ -1,21 +1,20 @@
-"use client";
+'use client';
 
-import { redirect, RedirectType } from "next/navigation";
-import { useEffect } from "react";
+import Image from 'next/image';
+import {redirect, RedirectType} from 'next/navigation';
+import {useEffect} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import { Spinner } from "@/components/ui/spinner";
-import Image from "next/image";
+import {Spinner} from '@/components/ui/spinner';
+import {$fetch} from '@/lib/http/client/fetch';
 
 export default function SignoutPage() {
   useEffect(() => {
     const signOut = async () => {
-      await $fetch("/api/auth/sign-out", { method: "POST" });
+      await $fetch('/api/auth/sign-out', {method: 'POST'});
     };
-    signOut()
-      .then(() => {
-        redirect("/", RedirectType.replace);
-      });
+    signOut().then(() => {
+      redirect('/', RedirectType.replace);
+    });
   }, []);
 
   return (

@@ -1,11 +1,65 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  MoveRight,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {ExportDialog} from '@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog';
+import {ManageTemplatesDialog} from '@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog';
+import {
+  collectSaaobGroups,
+  filterSaaobTreeByQuery,
+  flattenSaaobVisible,
+  type SaaobFlatRow,
+} from '@/common/saaob/client';
+import {
+  SaaobPageEntryRow,
+  SaaobPageGroupRow,
+  SaaobPageSpacerRow,
+  SaaobPageTableHeader,
+  SaaobPageTotalRow,
+  useSaaobColumnVisibility,
+} from '@/common/saaob/page-table';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableHeader} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -14,93 +68,54 @@ import type {
   SaaobDataResponse,
   SaaobEntryResponse,
   SaaobGroupResponse,
-} from "@/lib/http/client/responses";
-import {
-  collectSaaobGroups,
-  filterSaaobTreeByQuery,
-  flattenSaaobVisible,
-  type SaaobFlatRow,
-} from "@/common/saaob/client";
-import {
-  SaaobPageEntryRow,
-  SaaobPageGroupRow,
-  SaaobPageSpacerRow,
-  SaaobPageTableHeader,
-  SaaobPageTotalRow,
-  useSaaobColumnVisibility,
-} from "@/common/saaob/page-table";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
-import { ExportDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog";
+} from '@/lib/http/client/responses';
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April",
-  "May", "June", "July", "August",
-  "September", "October", "November", "December",
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
-type DialogMode = "add-group" | "edit-group" | "add-entry" | "edit-entry" | "move-entry" | "move-group" | null;
-type ExpenseClassOption = ExpenseClassListResponse["data"][number];
-type OfficeOption = OfficesListResponse["data"][number];
-type SelectedEntryRow = Extract<SaaobFlatRow, { kind: "entry" }>;
-type SelectedGroupRow = Extract<SaaobFlatRow, { kind: "group" }>;
+type DialogMode =
+  | 'add-group'
+  | 'edit-group'
+  | 'add-entry'
+  | 'edit-entry'
+  | 'move-entry'
+  | 'move-group'
+  | null;
+type ExpenseClassOption = ExpenseClassListResponse['data'][number];
+type OfficeOption = OfficesListResponse['data'][number];
+type SelectedEntryRow = Extract<SaaobFlatRow, {kind: 'entry'}>;
+type SelectedGroupRow = Extract<SaaobFlatRow, {kind: 'group'}>;
 
 export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
   const [selectedMonth, setSelectedMonth] = useState(() => _getUtc8Month());
 
-  const {
-    data,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR<BetterFetchResponse<SaaobDataResponse, ApiResponseException>>(
-    `/api/saaob?year=${currentYear}&month=${selectedMonth}`,
-    $fetch,
-  );
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<SaaobDataResponse, ApiResponseException>
+  >(`/api/saaob?year=${currentYear}&month=${selectedMonth}`, $fetch);
 
-  const { data: expenseClassesData } = useSWR<
+  const {data: expenseClassesData} = useSWR<
     BetterFetchResponse<ExpenseClassListResponse, ApiResponseException>
-  >("/api/management/data/expense-classes", $fetch);
+  >('/api/management/data/expense-classes', $fetch);
 
-  const { data: officesData } = useSWR<
+  const {data: officesData} = useSWR<
     BetterFetchResponse<OfficesListResponse, ApiResponseException>
-  >("/api/saaob/offices", $fetch);
+  >('/api/saaob/offices', $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<SaaobFlatRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
@@ -108,7 +123,7 @@ export default function Page() {
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const columnVisibility = useSaaobColumnVisibility("data");
+  const columnVisibility = useSaaobColumnVisibility('data');
 
   const tree = useMemo(() => data?.data?.data ?? [], [data]);
   const expenseClasses = useMemo(() => expenseClassesData?.data?.data ?? [], [expenseClassesData]);
@@ -140,12 +155,12 @@ export default function Page() {
   const paddingBottom =
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
-  const selectedEntryRow = selectedRow?.kind === "entry" ? selectedRow : null;
-  const selectedGroupRow = selectedRow?.kind === "group" ? selectedRow : null;
-  const selectedGroup = selectedRow?.kind === "group" ? selectedRow.data : null;
+  const selectedEntryRow = selectedRow?.kind === 'entry' ? selectedRow : null;
+  const selectedGroupRow = selectedRow?.kind === 'group' ? selectedRow : null;
+  const selectedGroup = selectedRow?.kind === 'group' ? selectedRow.data : null;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -154,35 +169,37 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: SaaobFlatRow) => {
-    if (row.kind === "total") return;
-    setSelectedRow(prev => (prev?.id === row.id ? null : row));
+    if (row.kind === 'total') return;
+    setSelectedRow((prev) => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: SaaobFlatRow) => {
-    if (row.kind === "total") return;
+    if (row.kind === 'total') return;
     setSelectedRow(row);
-    setDialogMode(row.kind === "group" ? "edit-group" : "edit-entry");
+    setDialogMode(row.kind === 'group' ? 'edit-group' : 'edit-entry');
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!selectedRow) return;
 
-    if (selectedRow.kind === "total") return;
+    if (selectedRow.kind === 'total') return;
 
-    const label = selectedRow.kind === "group"
-      ? `group \"${selectedRow.data.name}\"`
-      : `entry \"${selectedRow.data.name}\"`;
+    const label =
+      selectedRow.kind === 'group'
+        ? `group \"${selectedRow.data.name}\"`
+        : `entry \"${selectedRow.data.name}\"`;
 
     if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
 
-    const url = selectedRow.kind === "group"
-      ? `/api/saaob/groups/${selectedRow.id}`
-      : `/api/saaob/entries/${selectedRow.id}`;
+    const url =
+      selectedRow.kind === 'group'
+        ? `/api/saaob/groups/${selectedRow.id}`
+        : `/api/saaob/entries/${selectedRow.id}`;
 
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await fetch(url, {method: 'DELETE'});
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
-      alert(payload?.message ?? "Failed to delete. Please try again.");
+      alert(payload?.message ?? 'Failed to delete. Please try again.');
       return;
     }
 
@@ -209,7 +226,7 @@ export default function Page() {
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search SAAOB data..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -219,7 +236,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add-group")}
+          onClick={() => setDialogMode('add-group')}
         >
           <Plus className="size-3" />
           Group
@@ -230,7 +247,7 @@ export default function Page() {
           size="sm"
           className="h-7 text-xs"
           disabled={allGroups.length === 0}
-          onClick={() => setDialogMode("add-entry")}
+          onClick={() => setDialogMode('add-entry')}
         >
           <Plus className="size-3" />
           Entry
@@ -244,7 +261,7 @@ export default function Page() {
           disabled={!selectedRow}
           onClick={() => {
             if (!selectedRow) return;
-            setDialogMode(selectedRow.kind === "group" ? "edit-group" : "edit-entry");
+            setDialogMode(selectedRow.kind === 'group' ? 'edit-group' : 'edit-entry');
           }}
         >
           <Pencil />
@@ -257,7 +274,7 @@ export default function Page() {
           disabled={!selectedEntryRow}
           onClick={() => {
             if (!selectedEntryRow) return;
-            setDialogMode("move-entry");
+            setDialogMode('move-entry');
           }}
         >
           <MoveRight className="size-3" />
@@ -271,7 +288,7 @@ export default function Page() {
           disabled={!selectedGroupRow}
           onClick={() => {
             if (!selectedGroupRow) return;
-            setDialogMode("move-group");
+            setDialogMode('move-group');
           }}
         >
           <MoveRight className="size-3" />
@@ -290,9 +307,9 @@ export default function Page() {
           <Trash2 />
         </Button>
 
-        {selectedRow && selectedRow.kind !== "total" && (
+        {selectedRow && selectedRow.kind !== 'total' && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            {selectedRow.kind === "group"
+            {selectedRow.kind === 'group'
               ? `Group: ${selectedRow.data.name}`
               : `Entry: ${selectedRow.data.name}`}
           </Badge>
@@ -333,21 +350,20 @@ export default function Page() {
             size="icon-sm"
             aria-label="Previous month"
             disabled={selectedMonth === 1}
-            onClick={() => setSelectedMonth(m => m - 1)}
+            onClick={() => setSelectedMonth((m) => m - 1)}
           >
             <ChevronLeft />
           </Button>
 
-          <Select
-            value={String(selectedMonth)}
-            onValueChange={v => setSelectedMonth(Number(v))}
-          >
+          <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
             <SelectTrigger className="h-7 w-32 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {MONTH_NAMES.map((name, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>{name}</SelectItem>
+                <SelectItem key={i + 1} value={String(i + 1)}>
+                  {name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -357,7 +373,7 @@ export default function Page() {
             size="icon-sm"
             aria-label="Next month"
             disabled={selectedMonth === 12}
-            onClick={() => setSelectedMonth(m => m + 1)}
+            onClick={() => setSelectedMonth((m) => m + 1)}
           >
             <ChevronRight />
           </Button>
@@ -367,7 +383,7 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No SAAOB records found."}
+            {searchQuery ? 'No results match your search.' : 'No SAAOB records found.'}
           </div>
         ) : (
           <div
@@ -381,13 +397,16 @@ export default function Page() {
 
               <TableBody>
                 {paddingTop > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingTop} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingTop}
+                  />
                 )}
 
-                {virtualRows.map(virtualRow => {
+                {virtualRows.map((virtualRow) => {
                   const row = flatRows[virtualRow.index]!;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     const isSelected = selectedRow?.id === row.id;
 
@@ -409,7 +428,7 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "total") {
+                  if (row.kind === 'total') {
                     return (
                       <SaaobPageTotalRow
                         key={row.id}
@@ -435,7 +454,10 @@ export default function Page() {
                       accountCode={entryItem.accountCode}
                       remarks={entryItem.other.remarks}
                       depth={row.depth}
-                      rowClassName={_qabRowClass(entryItem.other.quarterlyAllotmentBalance.percentage, isSelected)}
+                      rowClassName={_qabRowClass(
+                        entryItem.other.quarterlyAllotmentBalance.percentage,
+                        isSelected,
+                      )}
                       measureRef={rowVirtualizer.measureElement}
                       dataIndex={virtualRow.index}
                       title="Double-click to edit"
@@ -446,7 +468,10 @@ export default function Page() {
                 })}
 
                 {paddingBottom > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingBottom} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingBottom}
+                  />
                 )}
               </TableBody>
             </Table>
@@ -454,7 +479,7 @@ export default function Page() {
         )}
       </div>
 
-      {dialogMode === "add-group" && (
+      {dialogMode === 'add-group' && (
         <GroupFormDialog
           mode="add"
           allGroups={allGroups}
@@ -465,7 +490,7 @@ export default function Page() {
         />
       )}
 
-      {dialogMode === "edit-group" && selectedGroup && (
+      {dialogMode === 'edit-group' && selectedGroup && (
         <GroupFormDialog
           mode="edit"
           editGroup={selectedGroup}
@@ -476,18 +501,18 @@ export default function Page() {
         />
       )}
 
-      {dialogMode === "add-entry" && (
+      {dialogMode === 'add-entry' && (
         <EntryFormDialog
           mode="add"
           allGroups={allGroups}
           expenseClasses={expenseClasses}
-          defaultGroupId={selectedGroup?.id ?? allGroups[0]?.id ?? ""}
+          defaultGroupId={selectedGroup?.id ?? allGroups[0]?.id ?? ''}
           onSuccess={onSuccess}
           onClose={closeDialog}
         />
       )}
 
-      {dialogMode === "edit-entry" && selectedEntryRow && (
+      {dialogMode === 'edit-entry' && selectedEntryRow && (
         <EntryFormDialog
           mode="edit"
           editEntry={selectedEntryRow.data}
@@ -498,7 +523,7 @@ export default function Page() {
         />
       )}
 
-      {dialogMode === "move-entry" && selectedEntryRow && (
+      {dialogMode === 'move-entry' && selectedEntryRow && (
         <MoveEntryDialog
           entryRow={selectedEntryRow}
           allGroups={allGroups}
@@ -507,7 +532,7 @@ export default function Page() {
         />
       )}
 
-      {dialogMode === "move-group" && selectedGroupRow && (
+      {dialogMode === 'move-group' && selectedGroupRow && (
         <MoveGroupDialog
           groupRow={selectedGroupRow}
           allGroups={allGroups}
@@ -526,7 +551,7 @@ export default function Page() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         exportApiBase="/api/saaob/export/data"
-        exportParams={{ year: String(currentYear), month: String(selectedMonth) }}
+        exportParams={{year: String(currentYear), month: String(selectedMonth)}}
         tree={tree}
       />
     </div>
@@ -542,7 +567,7 @@ function GroupFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editGroup?: SaaobGroupResponse;
   allGroups: SaaobGroupResponse[];
   offices: OfficeOption[];
@@ -551,16 +576,16 @@ function GroupFormDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [name, setName] = useState(editGroup?.name ?? "");
-  const [parentId, setParentId] = useState(defaultParentId ?? "");
-  const [officeId, setOfficeId] = useState(editGroup?.officeId ?? "");
+  const [name, setName] = useState(editGroup?.name ?? '');
+  const [parentId, setParentId] = useState(defaultParentId ?? '');
+  const [officeId, setOfficeId] = useState(editGroup?.officeId ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (submitting) return;
     if (!name.trim()) {
-      setActionError("Group name is required.");
+      setActionError('Group name is required.');
       return;
     }
 
@@ -568,42 +593,47 @@ function GroupFormDialog({
     setActionError(null);
 
     try {
-      const body: Record<string, unknown> = { name: name.trim() };
+      const body: Record<string, unknown> = {name: name.trim()};
       body.officeId = officeId || null;
-      if (mode === "add" && parentId) {
+      if (mode === 'add' && parentId) {
         body.parentId = parentId;
       }
 
       const response = await fetch(
-        mode === "add" ? "/api/saaob/groups" : `/api/saaob/groups/${editGroup!.id}`,
+        mode === 'add' ? '/api/saaob/groups' : `/api/saaob/groups/${editGroup!.id}`,
         {
-          method: mode === "add" ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: mode === 'add' ? 'POST' : 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         },
       );
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save group. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save group. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Group" : "Edit Group"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Group' : 'Edit Group'}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? "Create a new SAAOB group." : `Editing group: ${editGroup?.name}`}
+            {mode === 'add' ? 'Create a new SAAOB group.' : `Editing group: ${editGroup?.name}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -613,18 +643,18 @@ function GroupFormDialog({
             <Input
               id={`${baseId}-name`}
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               disabled={submitting}
               placeholder="Group name"
             />
           </div>
 
-          {mode === "add" && (
+          {mode === 'add' && (
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-parent`}>Parent Group</Label>
               <Select
-                value={parentId || "__root__"}
-                onValueChange={v => setParentId(v === "__root__" ? "" : v)}
+                value={parentId || '__root__'}
+                onValueChange={(v) => setParentId(v === '__root__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-parent`}>
@@ -632,8 +662,10 @@ function GroupFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__root__">Root (no parent)</SelectItem>
-                  {allGroups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                  {allGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -643,8 +675,8 @@ function GroupFormDialog({
           <div className="flex flex-col gap-1">
             <Label htmlFor={`${baseId}-office`}>Assigned Office</Label>
             <Select
-              value={officeId || "__none__"}
-              onValueChange={value => setOfficeId(value === "__none__" ? "" : value)}
+              value={officeId || '__none__'}
+              onValueChange={(value) => setOfficeId(value === '__none__' ? '' : value)}
               disabled={submitting}
             >
               <SelectTrigger id={`${baseId}-office`}>
@@ -652,8 +684,10 @@ function GroupFormDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">None</SelectItem>
-                {offices.map(item => (
-                  <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                {offices.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -661,13 +695,17 @@ function GroupFormDialog({
         </div>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create Group" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Group' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -684,7 +722,7 @@ function EntryFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editEntry?: SaaobEntryResponse;
   allGroups: SaaobGroupResponse[];
   expenseClasses: ExpenseClassOption[];
@@ -694,13 +732,13 @@ function EntryFormDialog({
 }) {
   const baseId = useId();
 
-  const [parentId, setParentId] = useState(defaultGroupId ?? "");
-  const [name, setName] = useState(editEntry?.name ?? "");
-  const [annualBudget, setAnnualBudget] = useState(editEntry?.annualBudget ?? "");
+  const [parentId, setParentId] = useState(defaultGroupId ?? '');
+  const [name, setName] = useState(editEntry?.name ?? '');
+  const [annualBudget, setAnnualBudget] = useState(editEntry?.annualBudget ?? '');
   const [allotmentShouldCopyFromAppropriation, setAllotmentShouldCopyFromAppropriation] = useState(
     editEntry?.allotmentShouldCopyFromAppropriation ?? false,
   );
-  const [remarks, setRemarks] = useState(editEntry?.other.remarks ?? "");
+  const [remarks, setRemarks] = useState(editEntry?.other.remarks ?? '');
   const [linkedExpenseClass, setLinkedExpenseClass] = useState<ExpenseClassOption | null>(null);
 
   const [nameFocused, setNameFocused] = useState(false);
@@ -712,25 +750,25 @@ function EntryFormDialog({
     if (!normalized) return [];
 
     return expenseClasses
-      .filter(item => item.accountName.toLowerCase().includes(normalized))
+      .filter((item) => item.accountName.toLowerCase().includes(normalized))
       .slice(0, 10);
   }, [expenseClasses, name]);
 
   const handleSave = async () => {
     if (submitting) return;
 
-    if (mode === "add" && !parentId) {
-      setActionError("Please select a parent group.");
+    if (mode === 'add' && !parentId) {
+      setActionError('Please select a parent group.');
       return;
     }
 
     if (!name.trim()) {
-      setActionError("Function/Program/Project/Activity is required.");
+      setActionError('Function/Program/Project/Activity is required.');
       return;
     }
 
     if (!annualBudget.trim()) {
-      setActionError("Annual Budget is required.");
+      setActionError('Annual Budget is required.');
       return;
     }
 
@@ -747,61 +785,62 @@ function EntryFormDialog({
       if (linkedExpenseClass?.id) body.expenseCodeId = linkedExpenseClass.id;
       body.allotmentShouldCopyFromAppropriation = allotmentShouldCopyFromAppropriation;
 
-      if (mode === "add") {
+      if (mode === 'add') {
         body.parentId = parentId;
       }
 
       const response = await fetch(
-        mode === "add" ? "/api/saaob/entries" : `/api/saaob/entries/${editEntry!.id}`,
+        mode === 'add' ? '/api/saaob/entries' : `/api/saaob/entries/${editEntry!.id}`,
         {
-          method: mode === "add" ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: mode === 'add' ? 'POST' : 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         },
       );
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save entry. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save entry. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] min-w-[60%]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Entry" : "Edit Entry"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Entry' : 'Edit Entry'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Create a new SAAOB entry."
-              : `Editing entry: ${editEntry?.name}`}
+            {mode === 'add' ? 'Create a new SAAOB entry.' : `Editing entry: ${editEntry?.name}`}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[68vh] pr-1">
           <div className="flex flex-col gap-4 pb-2">
-            {mode === "add" && (
+            {mode === 'add' && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-group`}>Parent Group *</Label>
-                <Select
-                  value={parentId}
-                  onValueChange={setParentId}
-                  disabled={submitting}
-                >
+                <Select value={parentId} onValueChange={setParentId} disabled={submitting}>
                   <SelectTrigger id={`${baseId}-group`}>
                     <SelectValue placeholder="Select a group..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {allGroups.map(group => (
-                      <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                    {allGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -817,13 +856,13 @@ function EntryFormDialog({
                   value={name}
                   onFocus={() => setNameFocused(true)}
                   onBlur={() => setTimeout(() => setNameFocused(false), 120)}
-                  onChange={e => {
+                  onChange={(e) => {
                     const next = e.target.value;
                     setName(next);
 
                     if (
-                      linkedExpenseClass
-                      && next.trim().toLowerCase() !== linkedExpenseClass.accountName.toLowerCase()
+                      linkedExpenseClass &&
+                      next.trim().toLowerCase() !== linkedExpenseClass.accountName.toLowerCase()
                     ) {
                       setLinkedExpenseClass(null);
                     }
@@ -834,7 +873,7 @@ function EntryFormDialog({
 
                 {nameFocused && filteredExpenseClasses.length > 0 && (
                   <div className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
-                    {filteredExpenseClasses.map(item => (
+                    {filteredExpenseClasses.map((item) => (
                       <button
                         key={item.id}
                         type="button"
@@ -846,7 +885,9 @@ function EntryFormDialog({
                         }}
                       >
                         <span className="font-medium">{item.accountName}</span>
-                        <span className="text-xs text-muted-foreground">{item.accountCode ?? "No account code"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {item.accountCode ?? 'No account code'}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -854,14 +895,15 @@ function EntryFormDialog({
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Selecting a suggestion links this entry to its expense code. Typing a different value removes the link.
+                Selecting a suggestion links this entry to its expense code. Typing a different
+                value removes the link.
               </p>
 
               {linkedExpenseClass && (
                 <div className="flex items-center gap-2 text-xs">
                   <Badge variant="secondary">
                     Linked: {linkedExpenseClass.accountName}
-                    {linkedExpenseClass.accountCode ? ` (${linkedExpenseClass.accountCode})` : ""}
+                    {linkedExpenseClass.accountCode ? ` (${linkedExpenseClass.accountCode})` : ''}
                   </Badge>
                   <Button
                     type="button"
@@ -882,7 +924,7 @@ function EntryFormDialog({
                 <Input
                   id={`${baseId}-annual-budget`}
                   value={annualBudget}
-                  onChange={e => setAnnualBudget(e.target.value)}
+                  onChange={(e) => setAnnualBudget(e.target.value)}
                   disabled={submitting}
                   placeholder="0.00"
                 />
@@ -890,7 +932,7 @@ function EntryFormDialog({
                   <Checkbox
                     id={`${baseId}-allotment-copy`}
                     checked={allotmentShouldCopyFromAppropriation}
-                    onCheckedChange={v => setAllotmentShouldCopyFromAppropriation(v === true)}
+                    onCheckedChange={(v) => setAllotmentShouldCopyFromAppropriation(v === true)}
                     disabled={submitting}
                   />
                   <span className="text-xs text-muted-foreground">
@@ -907,7 +949,7 @@ function EntryFormDialog({
               <Textarea
                 id={`${baseId}-remarks`}
                 value={remarks}
-                onChange={e => setRemarks(e.target.value)}
+                onChange={(e) => setRemarks(e.target.value)}
                 disabled={submitting}
                 rows={3}
               />
@@ -916,13 +958,17 @@ function EntryFormDialog({
         </ScrollArea>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create Entry" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Entry' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -949,7 +995,7 @@ function MoveEntryDialog({
   const handleSave = async () => {
     if (submitting) return;
     if (!targetGroupId) {
-      setActionError("Please select a target group.");
+      setActionError('Please select a target group.');
       return;
     }
 
@@ -963,61 +1009,66 @@ function MoveEntryDialog({
 
     try {
       const response = await fetch(`/api/saaob/entries/${entryRow.id}/move`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetGroupId }),
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({targetGroupId}),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to move entry. Please try again.");
+        setActionError(payload?.message ?? 'Failed to move entry. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Move Entry</DialogTitle>
-          <DialogDescription>
-            Move {entryRow.data.name} to a different group.
-          </DialogDescription>
+          <DialogDescription>Move {entryRow.data.name} to a different group.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-1">
           <Label htmlFor={`${baseId}-target-group`}>Target Group</Label>
-          <Select
-            value={targetGroupId}
-            onValueChange={setTargetGroupId}
-            disabled={submitting}
-          >
+          <Select value={targetGroupId} onValueChange={setTargetGroupId} disabled={submitting}>
             <SelectTrigger id={`${baseId}-target-group`}>
               <SelectValue placeholder="Select target group..." />
             </SelectTrigger>
             <SelectContent>
-              {allGroups.map(group => (
-                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+              {allGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Moving..." : "Move Entry"}
+            {submitting ? 'Moving...' : 'Move Entry'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1037,7 +1088,7 @@ function MoveGroupDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [targetGroupId, setTargetGroupId] = useState<string>("__root__");
+  const [targetGroupId, setTargetGroupId] = useState<string>('__root__');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -1046,7 +1097,7 @@ function MoveGroupDialog({
     const ids = new Set<string>([groupRow.id]);
     const collectDescendants = (id: string) => {
       for (const g of allGroups) {
-        if ((g as SaaobGroupResponse & { parentId?: string }).parentId === id) {
+        if ((g as SaaobGroupResponse & {parentId?: string}).parentId === id) {
           ids.add(g.id);
           collectDescendants(g.id);
         }
@@ -1056,74 +1107,82 @@ function MoveGroupDialog({
     return ids;
   }, [groupRow.id, allGroups]);
 
-  const eligibleGroups = allGroups.filter(g => !excludedIds.has(g.id));
+  const eligibleGroups = allGroups.filter((g) => !excludedIds.has(g.id));
 
   const handleSave = async () => {
     if (submitting) return;
 
-    const resolvedTarget = targetGroupId === "__root__" ? null : targetGroupId;
+    const resolvedTarget = targetGroupId === '__root__' ? null : targetGroupId;
 
     setSubmitting(true);
     setActionError(null);
 
     try {
       const response = await fetch(`/api/saaob/groups/${groupRow.id}/move`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetGroupId: resolvedTarget }),
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({targetGroupId: resolvedTarget}),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to move group. Please try again.");
+        setActionError(payload?.message ?? 'Failed to move group. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Move Group</DialogTitle>
           <DialogDescription>
-            Move &ldquo;{groupRow.data.name}&rdquo; to a different parent group, or to the root level.
+            Move &ldquo;{groupRow.data.name}&rdquo; to a different parent group, or to the root
+            level.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-1">
           <Label htmlFor={`${baseId}-target-group`}>Target Parent</Label>
-          <Select
-            value={targetGroupId}
-            onValueChange={setTargetGroupId}
-            disabled={submitting}
-          >
+          <Select value={targetGroupId} onValueChange={setTargetGroupId} disabled={submitting}>
             <SelectTrigger id={`${baseId}-target-group`}>
               <SelectValue placeholder="Select target..." />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__root__">Root (no parent)</SelectItem>
-              {eligibleGroups.map(group => (
-                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+              {eligibleGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Moving..." : "Move Group"}
+            {submitting ? 'Moving...' : 'Move Group'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1132,12 +1191,12 @@ function MoveGroupDialog({
 }
 
 function _qabRowClass(qabPercentage: string | undefined, isSelected: boolean): string {
-  if (isSelected) return "bg-accent";
+  if (isSelected) return 'bg-accent';
   const pct = Number(qabPercentage);
-  if (Number.isNaN(pct)) return "";
-  if (pct < 0) return "bg-red-50 hover:bg-red-100/80";
-  if (Math.abs(pct - 100) < 0.01) return "bg-green-50 hover:bg-green-100/80";
-  return "";
+  if (Number.isNaN(pct)) return '';
+  if (pct < 0) return 'bg-red-50 hover:bg-red-100/80';
+  if (Math.abs(pct - 100) < 0.01) return 'bg-green-50 hover:bg-green-100/80';
+  return '';
 }
 
 function _getUtc8Year(): number {

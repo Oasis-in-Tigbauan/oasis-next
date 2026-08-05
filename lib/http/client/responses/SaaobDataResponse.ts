@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type SaaobGroupTotalResponse = {
   annualBudget: string;
@@ -9,10 +9,10 @@ export type SaaobGroupTotalResponse = {
   unObligatedBalance: string;
   percentage: string;
   other: {
-    quarterlyAllotmentBalance: { value: string; percentage: string };
-    disbursed: { value: string; percentage: string; variance: string };
-    lbacBudget: { value: string; variance: string; obligated: string; varianceObligated: string };
-    obligationWithPRs: { value: string; balance: string; percentage: string };
+    quarterlyAllotmentBalance: {value: string; percentage: string};
+    disbursed: {value: string; percentage: string; variance: string};
+    lbacBudget: {value: string; variance: string; obligated: string; varianceObligated: string};
+    obligationWithPRs: {value: string; balance: string; percentage: string};
     pr: string;
   };
 };
@@ -69,5 +69,5 @@ export type SaaobOfficeResponse = GenericOkResponse<SaaobGroupResponse[]>;
 export function isSaaobDataGroup(
   node: SaaobGroupResponse | SaaobEntryResponse,
 ): node is SaaobGroupResponse {
-  return "children" in node;
+  return 'children' in node;
 }

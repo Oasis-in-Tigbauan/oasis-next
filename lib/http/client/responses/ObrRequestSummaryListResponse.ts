@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type ObrRequestSummaryItem = {
   id: string;
@@ -9,7 +9,7 @@ export type ObrRequestSummaryItem = {
   obrNumber: Optional<string>;
   prNumber: Optional<string>;
   requestItemsCount: number;
-  approvalStatus: "pending" | "approved" | "binned" | "mixed";
+  approvalStatus: 'pending' | 'approved' | 'binned' | 'mixed';
 };
 
 export type ObrRequestSummaryListResponse = GenericOkResponse<Array<ObrRequestSummaryItem>>;

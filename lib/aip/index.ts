@@ -1,10 +1,10 @@
-import { and, eq, ilike, or } from "drizzle-orm";
+import {and, eq, ilike, or} from 'drizzle-orm';
 
-import * as casts from "@/lib/types/casts";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { aipReferences } from "@/lib/db/schema";
-import { validatorUtilities } from "@/lib/validators";
+import {db} from '@/lib/db';
+import {aipReferences} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
+import {validatorUtilities} from '@/lib/validators';
 
 /**
  * Retrieves all AIP references as a nested tree structure.
@@ -29,15 +29,12 @@ import { validatorUtilities } from "@/lib/validators";
  */
 export async function all(): Promise<Result<AipNode[]>> {
   try {
-    const rows = await db
-      .select()
-      .from(aipReferences)
-      .orderBy(aipReferences.createdAt);
+    const rows = await db.select().from(aipReferences).orderBy(aipReferences.createdAt);
 
     const items = rows.map(_mapRow);
     const map = new Map<string, AipNode>();
     for (const item of items) {
-      map.set(item.id, { ...item, children: [] });
+      map.set(item.id, {...item, children: []});
     }
 
     const roots: AipNode[] = [];
@@ -54,7 +51,7 @@ export async function all(): Promise<Result<AipNode[]>> {
 
     return new Success(roots);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch AIP references.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch AIP references.', {}, e);
   }
 }
 
@@ -84,56 +81,80 @@ export async function createGroup(payload: CreateGroupPayload): Promise<Result<A
   try {
     if (validatorUtilities.isUuid(payload.parentId)) {
       const [parent] = await db
-        .select({ id: aipReferences.id, type: aipReferences.type })
+        .select({id: aipReferences.id, type: aipReferences.type})
         .from(aipReferences)
         .where(eq(aipReferences.id, payload.parentId!))
         .limit(1);
       if (!parent) {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent group not found.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent group not found.', {payload});
       }
-      if (parent.type !== "group") {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent must be a group.", { payload });
+      if (parent.type !== 'group') {
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent must be a group.', {payload});
       }
     }
 
     const [inserted] = await db
       .insert(aipReferences)
       .values({
-        type: "group",
-        ...(validatorUtilities.isUuid(payload.parentId) ? { parentId: payload.parentId } : {}),
+        type: 'group',
+        ...(validatorUtilities.isUuid(payload.parentId) ? {parentId: payload.parentId} : {}),
         aipReferenceCode: payload.aipReferenceCode,
         description: payload.description,
-        ...(payload.implementationStart !== undefined ? { implementationStart: payload.implementationStart } : {}),
-        ...(payload.implementationCompletion !== undefined ? { implementationCompletion: payload.implementationCompletion } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.sector) ? { sector: payload.sector } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.code) ? { code: payload.code } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.office) ? { office: payload.office } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.implementingOffice) ? { implementingOffice: payload.implementingOffice } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs) ? { expectedOutputs: payload.expectedOutputs } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.fundingSource) ? { fundingSource: payload.fundingSource } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode) ? { ccTopologyCode: payload.ccTopologyCode } : {}),
-        ...(payload.amountPS !== undefined ? { amountPS: casts.castToDecimal(payload.amountPS) } : {}),
-        ...(payload.amountMOOE !== undefined ? { amountMOOE: casts.castToDecimal(payload.amountMOOE) } : {}),
-        ...(payload.amountCO !== undefined ? { amountCO: casts.castToDecimal(payload.amountCO) } : {}),
-        ...(payload.amountCCAdapt !== undefined ? { amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt) } : {}),
-        ...(payload.amountCCMitigate !== undefined ? { amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate) } : {}),
-        ...(payload.gadAmount !== undefined ? { gadAmount: casts.castToDecimal(payload.gadAmount) } : {}),
-        ...(payload.gadable !== undefined ? { gadable: payload.gadable } : {}),
+        ...(payload.implementationStart !== undefined
+          ? {implementationStart: payload.implementationStart}
+          : {}),
+        ...(payload.implementationCompletion !== undefined
+          ? {implementationCompletion: payload.implementationCompletion}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.sector) ? {sector: payload.sector} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.code) ? {code: payload.code} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.office) ? {office: payload.office} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.implementingOffice)
+          ? {implementingOffice: payload.implementingOffice}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs)
+          ? {expectedOutputs: payload.expectedOutputs}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.fundingSource)
+          ? {fundingSource: payload.fundingSource}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode)
+          ? {ccTopologyCode: payload.ccTopologyCode}
+          : {}),
+        ...(payload.amountPS !== undefined
+          ? {amountPS: casts.castToDecimal(payload.amountPS)}
+          : {}),
+        ...(payload.amountMOOE !== undefined
+          ? {amountMOOE: casts.castToDecimal(payload.amountMOOE)}
+          : {}),
+        ...(payload.amountCO !== undefined
+          ? {amountCO: casts.castToDecimal(payload.amountCO)}
+          : {}),
+        ...(payload.amountCCAdapt !== undefined
+          ? {amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt)}
+          : {}),
+        ...(payload.amountCCMitigate !== undefined
+          ? {amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate)}
+          : {}),
+        ...(payload.gadAmount !== undefined
+          ? {gadAmount: casts.castToDecimal(payload.gadAmount)}
+          : {}),
+        ...(payload.gadable !== undefined ? {gadable: payload.gadable} : {}),
       })
-      .returning({ id: aipReferences.id });
+      .returning({id: aipReferences.id});
 
     if (!inserted) {
-      return new Failure(ErrorCodes.Fatal, "Failed to create group.", { payload });
+      return new Failure(ErrorCodes.Fatal, 'Failed to create group.', {payload});
     }
 
     const item = await _getAipReferenceById(inserted.id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve created group.", { id: inserted.id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve created group.', {id: inserted.id});
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create group.", { payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create group.', {payload}, e);
   }
 }
 
@@ -163,57 +184,77 @@ export async function addItem(payload: AddItemPayload): Promise<Result<AipRefere
   try {
     if (validatorUtilities.isUuid(payload.parentId)) {
       const [parent] = await db
-        .select({ id: aipReferences.id, type: aipReferences.type })
+        .select({id: aipReferences.id, type: aipReferences.type})
         .from(aipReferences)
         .where(eq(aipReferences.id, payload.parentId!))
         .limit(1);
 
       if (!parent) {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent group not found.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent group not found.', {payload});
       }
-      if (parent.type !== "group") {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent must be a group.", { payload });
+      if (parent.type !== 'group') {
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent must be a group.', {payload});
       }
     }
 
     const [inserted] = await db
       .insert(aipReferences)
       .values({
-        type: "item",
-        ...(validatorUtilities.isUuid(payload.parentId) ? { parentId: payload.parentId } : {}),
+        type: 'item',
+        ...(validatorUtilities.isUuid(payload.parentId) ? {parentId: payload.parentId} : {}),
         aipReferenceCode: payload.aipReferenceCode,
         description: payload.description,
         implementationStart: payload.implementationStart,
         implementationCompletion: payload.implementationCompletion,
-        ...(validatorUtilities.isNotEmpty(payload.sector) ? { sector: payload.sector } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.code) ? { code: payload.code } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.office) ? { office: payload.office } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.implementingOffice) ? { implementingOffice: payload.implementingOffice } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs) ? { expectedOutputs: payload.expectedOutputs } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.fundingSource) ? { fundingSource: payload.fundingSource } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode) ? { ccTopologyCode: payload.ccTopologyCode } : {}),
-        ...(payload.amountPS !== undefined ? { amountPS: casts.castToDecimal(payload.amountPS) } : {}),
-        ...(payload.amountMOOE !== undefined ? { amountMOOE: casts.castToDecimal(payload.amountMOOE) } : {}),
-        ...(payload.amountCO !== undefined ? { amountCO: casts.castToDecimal(payload.amountCO) } : {}),
-        ...(payload.amountCCAdapt !== undefined ? { amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt) } : {}),
-        ...(payload.amountCCMitigate !== undefined ? { amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate) } : {}),
-        ...(payload.gadAmount !== undefined ? { gadAmount: casts.castToDecimal(payload.gadAmount) } : {}),
-        ...(payload.gadable !== undefined ? { gadable: payload.gadable } : {}),
+        ...(validatorUtilities.isNotEmpty(payload.sector) ? {sector: payload.sector} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.code) ? {code: payload.code} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.office) ? {office: payload.office} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.implementingOffice)
+          ? {implementingOffice: payload.implementingOffice}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs)
+          ? {expectedOutputs: payload.expectedOutputs}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.fundingSource)
+          ? {fundingSource: payload.fundingSource}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode)
+          ? {ccTopologyCode: payload.ccTopologyCode}
+          : {}),
+        ...(payload.amountPS !== undefined
+          ? {amountPS: casts.castToDecimal(payload.amountPS)}
+          : {}),
+        ...(payload.amountMOOE !== undefined
+          ? {amountMOOE: casts.castToDecimal(payload.amountMOOE)}
+          : {}),
+        ...(payload.amountCO !== undefined
+          ? {amountCO: casts.castToDecimal(payload.amountCO)}
+          : {}),
+        ...(payload.amountCCAdapt !== undefined
+          ? {amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt)}
+          : {}),
+        ...(payload.amountCCMitigate !== undefined
+          ? {amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate)}
+          : {}),
+        ...(payload.gadAmount !== undefined
+          ? {gadAmount: casts.castToDecimal(payload.gadAmount)}
+          : {}),
+        ...(payload.gadable !== undefined ? {gadable: payload.gadable} : {}),
       })
-      .returning({ id: aipReferences.id });
+      .returning({id: aipReferences.id});
 
     if (!inserted) {
-      return new Failure(ErrorCodes.Fatal, "Failed to create item.", { payload });
+      return new Failure(ErrorCodes.Fatal, 'Failed to create item.', {payload});
     }
 
     const item = await _getAipReferenceById(inserted.id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve created item.", { id: inserted.id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve created item.', {id: inserted.id});
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create item.", { payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create item.', {payload}, e);
   }
 }
 
@@ -244,40 +285,47 @@ export async function addItem(payload: AddItemPayload): Promise<Result<AipRefere
  * - Omitting `parentId` from the payload leaves the existing parent relationship unchanged.
  * - Circular reference detection performs sequential DB lookups up the ancestor chain.
  */
-export async function updateGroup(id: string, payload: UpdateGroupPayload): Promise<Result<AipReferenceItem>> {
+export async function updateGroup(
+  id: string,
+  payload: UpdateGroupPayload,
+): Promise<Result<AipReferenceItem>> {
   try {
     const [existing] = await db
-      .select({ id: aipReferences.id, type: aipReferences.type })
+      .select({id: aipReferences.id, type: aipReferences.type})
       .from(aipReferences)
-      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, "group")))
+      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, 'group')))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such group found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such group found.', {id});
     }
 
-    if (typeof payload.parentId !== "undefined") {
+    if (typeof payload.parentId !== 'undefined') {
       if (payload.parentId === null) {
         // Clearing parent — becoming a root group, allowed
       } else if (validatorUtilities.isUuid(payload.parentId)) {
         const [newParent] = await db
-          .select({ id: aipReferences.id, type: aipReferences.type })
+          .select({id: aipReferences.id, type: aipReferences.type})
           .from(aipReferences)
           .where(eq(aipReferences.id, payload.parentId))
           .limit(1);
 
         if (!newParent) {
-          return new Failure(ErrorCodes.ValidationFailure, "Parent group not found.", { payload });
+          return new Failure(ErrorCodes.ValidationFailure, 'Parent group not found.', {payload});
         }
-        if (newParent.type !== "group") {
-          return new Failure(ErrorCodes.ValidationFailure, "Parent must be a group.", { payload });
+        if (newParent.type !== 'group') {
+          return new Failure(ErrorCodes.ValidationFailure, 'Parent must be a group.', {payload});
         }
 
         // Prevent circular reference: walk up from the proposed parent and ensure
         // we never encounter the current group's id
         const isCircular = await _isDescendant(id, payload.parentId);
         if (isCircular) {
-          return new Failure(ErrorCodes.ValidationFailure, "Cannot set a descendant as parent (circular reference).", { id, payload });
+          return new Failure(
+            ErrorCodes.ValidationFailure,
+            'Cannot set a descendant as parent (circular reference).',
+            {id, payload},
+          );
         }
       }
     }
@@ -285,36 +333,64 @@ export async function updateGroup(id: string, payload: UpdateGroupPayload): Prom
     await db
       .update(aipReferences)
       .set({
-        ...(validatorUtilities.isNotEmpty(payload.aipReferenceCode) ? { aipReferenceCode: payload.aipReferenceCode } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.description) ? { description: payload.description } : {}),
-        ...(payload.implementationStart !== undefined ? { implementationStart: payload.implementationStart } : {}),
-        ...(payload.implementationCompletion !== undefined ? { implementationCompletion: payload.implementationCompletion } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.sector) ? { sector: payload.sector } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.code) ? { code: payload.code } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.office) ? { office: payload.office } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.implementingOffice) ? { implementingOffice: payload.implementingOffice } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs) ? { expectedOutputs: payload.expectedOutputs } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.fundingSource) ? { fundingSource: payload.fundingSource } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode) ? { ccTopologyCode: payload.ccTopologyCode } : {}),
-        ...(payload.amountPS !== undefined ? { amountPS: casts.castToDecimal(payload.amountPS) } : {}),
-        ...(payload.amountMOOE !== undefined ? { amountMOOE: casts.castToDecimal(payload.amountMOOE) } : {}),
-        ...(payload.amountCO !== undefined ? { amountCO: casts.castToDecimal(payload.amountCO) } : {}),
-        ...(payload.amountCCAdapt !== undefined ? { amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt) } : {}),
-        ...(payload.amountCCMitigate !== undefined ? { amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate) } : {}),
-        ...(payload.gadAmount !== undefined ? { gadAmount: casts.castToDecimal(payload.gadAmount) } : {}),
-        ...(payload.gadable !== undefined ? { gadable: payload.gadable } : {}),
-        ...(typeof payload.parentId !== "undefined" ? { parentId: payload.parentId } : {}),
+        ...(validatorUtilities.isNotEmpty(payload.aipReferenceCode)
+          ? {aipReferenceCode: payload.aipReferenceCode}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.description)
+          ? {description: payload.description}
+          : {}),
+        ...(payload.implementationStart !== undefined
+          ? {implementationStart: payload.implementationStart}
+          : {}),
+        ...(payload.implementationCompletion !== undefined
+          ? {implementationCompletion: payload.implementationCompletion}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.sector) ? {sector: payload.sector} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.code) ? {code: payload.code} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.office) ? {office: payload.office} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.implementingOffice)
+          ? {implementingOffice: payload.implementingOffice}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs)
+          ? {expectedOutputs: payload.expectedOutputs}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.fundingSource)
+          ? {fundingSource: payload.fundingSource}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode)
+          ? {ccTopologyCode: payload.ccTopologyCode}
+          : {}),
+        ...(payload.amountPS !== undefined
+          ? {amountPS: casts.castToDecimal(payload.amountPS)}
+          : {}),
+        ...(payload.amountMOOE !== undefined
+          ? {amountMOOE: casts.castToDecimal(payload.amountMOOE)}
+          : {}),
+        ...(payload.amountCO !== undefined
+          ? {amountCO: casts.castToDecimal(payload.amountCO)}
+          : {}),
+        ...(payload.amountCCAdapt !== undefined
+          ? {amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt)}
+          : {}),
+        ...(payload.amountCCMitigate !== undefined
+          ? {amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate)}
+          : {}),
+        ...(payload.gadAmount !== undefined
+          ? {gadAmount: casts.castToDecimal(payload.gadAmount)}
+          : {}),
+        ...(payload.gadable !== undefined ? {gadable: payload.gadable} : {}),
+        ...(typeof payload.parentId !== 'undefined' ? {parentId: payload.parentId} : {}),
       })
       .where(eq(aipReferences.id, id));
 
     const item = await _getAipReferenceById(id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve updated group.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve updated group.', {id});
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update group.", { id, payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update group.', {id, payload}, e);
   }
 }
 
@@ -338,66 +414,97 @@ export async function updateGroup(id: string, payload: UpdateGroupPayload): Prom
  * @returns {Promise<Result<AipReferenceItem>>} A result wrapper containing the updated item on success,
  *                                              or a failure result on error.
  */
-export async function updateItem(id: string, payload: UpdateItemPayload): Promise<Result<AipReferenceItem>> {
+export async function updateItem(
+  id: string,
+  payload: UpdateItemPayload,
+): Promise<Result<AipReferenceItem>> {
   try {
     const [existing] = await db
-      .select({ id: aipReferences.id, type: aipReferences.type })
+      .select({id: aipReferences.id, type: aipReferences.type})
       .from(aipReferences)
-      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, "item")))
+      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, 'item')))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such item found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such item found.', {id});
     }
 
     if (validatorUtilities.isUuid(payload.parentId)) {
       const [newParent] = await db
-        .select({ id: aipReferences.id, type: aipReferences.type })
+        .select({id: aipReferences.id, type: aipReferences.type})
         .from(aipReferences)
         .where(eq(aipReferences.id, payload.parentId!))
         .limit(1);
 
       if (!newParent) {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent group not found.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent group not found.', {payload});
       }
-      if (newParent.type !== "group") {
-        return new Failure(ErrorCodes.ValidationFailure, "Parent must be a group.", { payload });
+      if (newParent.type !== 'group') {
+        return new Failure(ErrorCodes.ValidationFailure, 'Parent must be a group.', {payload});
       }
     }
 
     await db
       .update(aipReferences)
       .set({
-        ...(validatorUtilities.isNotEmpty(payload.aipReferenceCode) ? { aipReferenceCode: payload.aipReferenceCode } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.description) ? { description: payload.description } : {}),
-        ...(payload.implementationStart !== undefined ? { implementationStart: payload.implementationStart } : {}),
-        ...(payload.implementationCompletion !== undefined ? { implementationCompletion: payload.implementationCompletion } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.sector) ? { sector: payload.sector } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.code) ? { code: payload.code } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.office) ? { office: payload.office } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.implementingOffice) ? { implementingOffice: payload.implementingOffice } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs) ? { expectedOutputs: payload.expectedOutputs } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.fundingSource) ? { fundingSource: payload.fundingSource } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode) ? { ccTopologyCode: payload.ccTopologyCode } : {}),
-        ...(payload.amountPS !== undefined ? { amountPS: casts.castToDecimal(payload.amountPS) } : {}),
-        ...(payload.amountMOOE !== undefined ? { amountMOOE: casts.castToDecimal(payload.amountMOOE) } : {}),
-        ...(payload.amountCO !== undefined ? { amountCO: casts.castToDecimal(payload.amountCO) } : {}),
-        ...(payload.amountCCAdapt !== undefined ? { amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt) } : {}),
-        ...(payload.amountCCMitigate !== undefined ? { amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate) } : {}),
-        ...(payload.gadAmount !== undefined ? { gadAmount: casts.castToDecimal(payload.gadAmount) } : {}),
-        ...(payload.gadable !== undefined ? { gadable: payload.gadable } : {}),
-        ...(typeof payload.parentId !== "undefined" ? { parentId: payload.parentId } : {}),
+        ...(validatorUtilities.isNotEmpty(payload.aipReferenceCode)
+          ? {aipReferenceCode: payload.aipReferenceCode}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.description)
+          ? {description: payload.description}
+          : {}),
+        ...(payload.implementationStart !== undefined
+          ? {implementationStart: payload.implementationStart}
+          : {}),
+        ...(payload.implementationCompletion !== undefined
+          ? {implementationCompletion: payload.implementationCompletion}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.sector) ? {sector: payload.sector} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.code) ? {code: payload.code} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.office) ? {office: payload.office} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.implementingOffice)
+          ? {implementingOffice: payload.implementingOffice}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.expectedOutputs)
+          ? {expectedOutputs: payload.expectedOutputs}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.fundingSource)
+          ? {fundingSource: payload.fundingSource}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.ccTopologyCode)
+          ? {ccTopologyCode: payload.ccTopologyCode}
+          : {}),
+        ...(payload.amountPS !== undefined
+          ? {amountPS: casts.castToDecimal(payload.amountPS)}
+          : {}),
+        ...(payload.amountMOOE !== undefined
+          ? {amountMOOE: casts.castToDecimal(payload.amountMOOE)}
+          : {}),
+        ...(payload.amountCO !== undefined
+          ? {amountCO: casts.castToDecimal(payload.amountCO)}
+          : {}),
+        ...(payload.amountCCAdapt !== undefined
+          ? {amountCCAdapt: casts.castToDecimal(payload.amountCCAdapt)}
+          : {}),
+        ...(payload.amountCCMitigate !== undefined
+          ? {amountCCMitigate: casts.castToDecimal(payload.amountCCMitigate)}
+          : {}),
+        ...(payload.gadAmount !== undefined
+          ? {gadAmount: casts.castToDecimal(payload.gadAmount)}
+          : {}),
+        ...(payload.gadable !== undefined ? {gadable: payload.gadable} : {}),
+        ...(typeof payload.parentId !== 'undefined' ? {parentId: payload.parentId} : {}),
       })
       .where(eq(aipReferences.id, id));
 
     const item = await _getAipReferenceById(id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve updated item.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve updated item.', {id});
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update item.", { id, payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update item.', {id, payload}, e);
   }
 }
 
@@ -425,29 +532,33 @@ export async function updateItem(id: string, payload: UpdateItemPayload): Promis
 export async function deleteGroup(id: string): Promise<Result<void>> {
   try {
     const [existing] = await db
-      .select({ id: aipReferences.id })
+      .select({id: aipReferences.id})
       .from(aipReferences)
-      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, "group")))
+      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, 'group')))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such group found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such group found.', {id});
     }
 
     const [child] = await db
-      .select({ id: aipReferences.id })
+      .select({id: aipReferences.id})
       .from(aipReferences)
       .where(eq(aipReferences.parentId, id))
       .limit(1);
 
     if (child) {
-      return new Failure(ErrorCodes.ValidationFailure, "Group has children. Move them out before deleting.", { id });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'Group has children. Move them out before deleting.',
+        {id},
+      );
     }
 
     await db.delete(aipReferences).where(eq(aipReferences.id, id));
     return new Success(undefined);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete group.', {id}, e);
   }
 }
 
@@ -474,29 +585,33 @@ export async function deleteGroup(id: string): Promise<Result<void>> {
 export async function deleteItem(id: string): Promise<Result<void>> {
   try {
     const [existing] = await db
-      .select({ id: aipReferences.id })
+      .select({id: aipReferences.id})
       .from(aipReferences)
-      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, "item")))
+      .where(and(eq(aipReferences.id, id), eq(aipReferences.type, 'item')))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such item found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such item found.', {id});
     }
 
     const [child] = await db
-      .select({ id: aipReferences.id })
+      .select({id: aipReferences.id})
       .from(aipReferences)
       .where(eq(aipReferences.parentId, id))
       .limit(1);
 
     if (child) {
-      return new Failure(ErrorCodes.ValidationFailure, "Item has nested children. Remove them before deleting.", { id });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'Item has nested children. Remove them before deleting.',
+        {id},
+      );
     }
 
     await db.delete(aipReferences).where(eq(aipReferences.id, id));
     return new Success(undefined);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete item.', {id}, e);
   }
 }
 
@@ -522,30 +637,30 @@ export async function deleteItem(id: string): Promise<Result<void>> {
  */
 export async function convert(
   id: string,
-  targetType: "group" | "item",
+  targetType: 'group' | 'item',
 ): Promise<Result<AipReferenceItem>> {
   try {
     const [existing] = await db
-      .select({ id: aipReferences.id, type: aipReferences.type, parentId: aipReferences.parentId })
+      .select({id: aipReferences.id, type: aipReferences.type, parentId: aipReferences.parentId})
       .from(aipReferences)
       .where(eq(aipReferences.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such AIP reference found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such AIP reference found.', {id});
     }
 
     if (existing.type === targetType) {
       const item = await _getAipReferenceById(id);
       if (!item) {
-        return new Failure(ErrorCodes.Fatal, "Failed to retrieve AIP reference.", { id });
+        return new Failure(ErrorCodes.Fatal, 'Failed to retrieve AIP reference.', {id});
       }
       return new Success(item);
     }
 
-    if (targetType === "item") {
+    if (targetType === 'item') {
       const [child] = await db
-        .select({ id: aipReferences.id })
+        .select({id: aipReferences.id})
         .from(aipReferences)
         .where(eq(aipReferences.parentId, id))
         .limit(1);
@@ -553,25 +668,22 @@ export async function convert(
       if (child) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "Cannot convert a group with children into an item. Move or delete its children first.",
-          { id },
+          'Cannot convert a group with children into an item. Move or delete its children first.',
+          {id},
         );
       }
     }
 
-    await db
-      .update(aipReferences)
-      .set({ type: targetType })
-      .where(eq(aipReferences.id, id));
+    await db.update(aipReferences).set({type: targetType}).where(eq(aipReferences.id, id));
 
     const item = await _getAipReferenceById(id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve converted AIP reference.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve converted AIP reference.', {id});
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to convert AIP reference.", { id, targetType }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to convert AIP reference.', {id, targetType}, e);
   }
 }
 
@@ -596,63 +708,80 @@ export async function convert(
 export async function move(ids: string[], parentId: string | null): Promise<Result<void>> {
   try {
     if (ids.length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "At least one item is required to move.", { ids, parentId });
+      return new Failure(ErrorCodes.ValidationFailure, 'At least one item is required to move.', {
+        ids,
+        parentId,
+      });
     }
 
     const uniqueIds = [...new Set(ids)];
     const records = await db
-      .select({ id: aipReferences.id, type: aipReferences.type })
+      .select({id: aipReferences.id, type: aipReferences.type})
       .from(aipReferences);
 
-    const recordMap = new Map(records.map(record => [record.id, record]));
+    const recordMap = new Map(records.map((record) => [record.id, record]));
     for (const id of uniqueIds) {
       if (!recordMap.has(id)) {
-        return new Failure(ErrorCodes.ResourceNotFound, "One or more AIP references do not exist.", { ids, parentId, missingId: id });
+        return new Failure(
+          ErrorCodes.ResourceNotFound,
+          'One or more AIP references do not exist.',
+          {ids, parentId, missingId: id},
+        );
       }
     }
 
     if (parentId !== null) {
       if (!validatorUtilities.isUuid(parentId)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid target parent ID.", { ids, parentId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid target parent ID.', {
+          ids,
+          parentId,
+        });
       }
 
       const parent = recordMap.get(parentId);
       if (!parent) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target parent group not found.", { ids, parentId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Target parent group not found.', {
+          ids,
+          parentId,
+        });
       }
-      if (parent.type !== "group") {
-        return new Failure(ErrorCodes.ValidationFailure, "Target parent must be a group.", { ids, parentId });
+      if (parent.type !== 'group') {
+        return new Failure(ErrorCodes.ValidationFailure, 'Target parent must be a group.', {
+          ids,
+          parentId,
+        });
       }
     }
 
     for (const id of uniqueIds) {
       if (id === parentId) {
-        return new Failure(ErrorCodes.ValidationFailure, "A reference cannot be moved under itself.", { ids, parentId, id });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'A reference cannot be moved under itself.',
+          {ids, parentId, id},
+        );
       }
 
       const record = recordMap.get(id)!;
-      if (record.type === "group" && parentId !== null) {
+      if (record.type === 'group' && parentId !== null) {
         const isCircular = await _isDescendant(id, parentId);
         if (isCircular) {
           return new Failure(
             ErrorCodes.ValidationFailure,
-            "Cannot move a group under one of its descendants.",
-            { ids, parentId, id },
+            'Cannot move a group under one of its descendants.',
+            {ids, parentId, id},
           );
         }
       }
     }
 
     for (const id of uniqueIds) {
-      await db
-        .update(aipReferences)
-        .set({ parentId })
-        .where(eq(aipReferences.id, id));
+      await db.update(aipReferences).set({parentId}).where(eq(aipReferences.id, id));
     }
 
     return new Success(undefined);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move AIP references.", { ids, parentId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to move AIP references.', {ids, parentId}, e);
   }
 }
 
@@ -666,7 +795,7 @@ async function _isDescendant(ancestorId: string, nodeId: string): Promise<boolea
   while (currentId !== null) {
     if (currentId === ancestorId) return true;
     const [row] = await db
-      .select({ parentId: aipReferences.parentId })
+      .select({parentId: aipReferences.parentId})
       .from(aipReferences)
       .where(eq(aipReferences.id, currentId))
       .limit(1);
@@ -676,11 +805,7 @@ async function _isDescendant(ancestorId: string, nodeId: string): Promise<boolea
 }
 
 async function _getAipReferenceById(id: string): Promise<AipReferenceItem | null> {
-  const [row] = await db
-    .select()
-    .from(aipReferences)
-    .where(eq(aipReferences.id, id))
-    .limit(1);
+  const [row] = await db.select().from(aipReferences).where(eq(aipReferences.id, id)).limit(1);
   if (!row) return null;
   return _mapRow(row);
 }
@@ -715,7 +840,7 @@ function _mapRow(row: typeof aipReferences.$inferSelect): AipReferenceItem {
 
 export type AipReferenceItem = {
   id: string;
-  type: "group" | "item";
+  type: 'group' | 'item';
   parentId: string | null;
   sector: string | null;
   code: string | null;
@@ -768,7 +893,10 @@ export type CreateGroupPayload = SharedPayload & {
   parentId?: string;
 };
 
-export type AddItemPayload = Omit<SharedPayload, "implementationStart" | "implementationCompletion"> & {
+export type AddItemPayload = Omit<
+  SharedPayload,
+  'implementationStart' | 'implementationCompletion'
+> & {
   parentId?: string | null;
   implementationStart: number;
   implementationCompletion: number;
@@ -835,16 +963,20 @@ export async function searchAipCode(query: string): Promise<Result<AipSearchResu
         description: aipReferences.description,
       })
       .from(aipReferences)
-      .where(or(ilike(aipReferences.aipReferenceCode, term), ilike(aipReferences.description, term)))
+      .where(
+        or(ilike(aipReferences.aipReferenceCode, term), ilike(aipReferences.description, term)),
+      )
       .orderBy(aipReferences.aipReferenceCode)
       .limit(20);
 
-    return new Success(rows.map(r => ({
-      id: r.id,
-      aipReferenceCode: r.aipReferenceCode,
-      description: r.description,
-    })));
+    return new Success(
+      rows.map((r) => ({
+        id: r.id,
+        aipReferenceCode: r.aipReferenceCode,
+        description: r.description,
+      })),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to search AIP references.", { query }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to search AIP references.', {query}, e);
   }
 }

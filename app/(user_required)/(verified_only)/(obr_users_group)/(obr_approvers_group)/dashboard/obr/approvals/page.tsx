@@ -1,19 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import useSWR from "swr";
+import {useState, useCallback} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  ObrRequestSummaryListResponse,
-  ObrRequestDetailResponse,
-} from "@/lib/http/client/responses";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -22,46 +18,42 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  ObrRequestSummaryListResponse,
+  ObrRequestDetailResponse,
+} from '@/lib/http/client/responses';
 
 // --- ApprovalStatusBadge ---
 
-function ApprovalStatusBadge({ status }: { status: string }) {
-  if (status === "approved") {
+function ApprovalStatusBadge({status}: {status: string}) {
+  if (status === 'approved') {
     return (
       <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
         Approved
       </Badge>
     );
   }
-  if (status === "binned") {
+  if (status === 'binned') {
     return <Badge variant="destructive">Binned</Badge>;
   }
-  if (status === "mixed") {
+  if (status === 'mixed') {
     return <Badge variant="secondary">Mixed</Badge>;
   }
   return (
@@ -80,7 +72,7 @@ export default function Page() {
     isLoading: listLoading,
     mutate: mutateList,
   } = useSWR<BetterFetchResponse<ObrRequestSummaryListResponse, ApiResponseException>>(
-    "/api/obr/requests",
+    '/api/obr/requests',
     $fetch,
   );
 
@@ -156,23 +148,20 @@ export default function Page() {
                       key={req.id}
                       className={`cursor-pointer select-none ${
                         isSelected
-                          ? "bg-accent"
+                          ? 'bg-accent'
                           : index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50"
-                            : ""
+                            ? 'bg-muted hover:bg-muted/50'
+                            : ''
                       }`}
                       onClick={() => handleRowClick(req.id)}
                     >
-                      <TableCell
-                        className="p-0"
-                        onClick={e => e.stopPropagation()}
-                      >
+                      <TableCell className="p-0" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center py-2">
                           <Checkbox
                             aria-label={`Select request ${req.requestNumber}`}
                             checked={isSelected}
-                            onCheckedChange={checked => {
-                              setSelectedRequestIds(prev => {
+                            onCheckedChange={(checked) => {
+                              setSelectedRequestIds((prev) => {
                                 const next = new Set(prev);
                                 if (checked === true) {
                                   next.add(req.id);
@@ -206,11 +195,11 @@ export default function Page() {
         <ApprovalDetailDialog
           id={selectedId}
           open={detailOpen}
-          onOpenChange={open => {
+          onOpenChange={(open) => {
             setDetailOpen(open);
           }}
           onActionSuccess={() => {
-            setSelectedRequestIds(prev => {
+            setSelectedRequestIds((prev) => {
               if (!selectedId) return prev;
               const next = new Set(prev);
               next.delete(selectedId);
@@ -225,10 +214,10 @@ export default function Page() {
         open={bulkApproveOpen}
         onOpenChange={setBulkApproveOpen}
         selectedIds={[...selectedRequestIds]}
-        onSuccess={succeededIds => {
-          setSelectedRequestIds(prev => {
+        onSuccess={(succeededIds) => {
+          setSelectedRequestIds((prev) => {
             const next = new Set(prev);
-            succeededIds.forEach(id => next.delete(id));
+            succeededIds.forEach((id) => next.delete(id));
             return next;
           });
           mutateList();
@@ -238,10 +227,10 @@ export default function Page() {
         open={bulkDeclineOpen}
         onOpenChange={setBulkDeclineOpen}
         selectedIds={[...selectedRequestIds]}
-        onSuccess={succeededIds => {
-          setSelectedRequestIds(prev => {
+        onSuccess={(succeededIds) => {
+          setSelectedRequestIds((prev) => {
             const next = new Set(prev);
-            succeededIds.forEach(id => next.delete(id));
+            succeededIds.forEach((id) => next.delete(id));
             return next;
           });
           mutateList();
@@ -264,7 +253,7 @@ function ApprovalDetailDialog({
   onOpenChange: (open: boolean) => void;
   onActionSuccess: () => void;
 }) {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<ObrRequestDetailResponse, ApiResponseException>
   >(open ? `/api/obr/requests/${id}` : null, $fetch);
 
@@ -279,20 +268,22 @@ function ApprovalDetailDialog({
     obrNumber: string;
     prNumber: string;
   } | null>(null);
-  const [itemEdits, setItemEdits] = useState<Record<string, { particulars: string; amount: string }>>({});
+  const [itemEdits, setItemEdits] = useState<Record<string, {particulars: string; amount: string}>>(
+    {},
+  );
 
   const headerForm = headerEdits ?? {
-    payee: detail?.payee ?? "",
-    officeAddress: detail?.officeAddress ?? "",
-    obrNumber: detail?.obrNumber ?? "",
-    prNumber: detail?.prNumber ?? "",
+    payee: detail?.payee ?? '',
+    officeAddress: detail?.officeAddress ?? '',
+    obrNumber: detail?.obrNumber ?? '',
+    prNumber: detail?.prNumber ?? '',
   };
 
   const isHeaderDirty = headerEdits !== null;
   const hasItemEdits = Object.keys(itemEdits).length > 0;
 
   const getItemEdit = (itemId: string, particulars: string, amount: string) =>
-    itemEdits[itemId] ?? { particulars, amount };
+    itemEdits[itemId] ?? {particulars, amount};
 
   const saveAllChanges = async (): Promise<boolean> => {
     if (!detail) return false;
@@ -300,17 +291,17 @@ function ApprovalDetailDialog({
 
     if (isHeaderDirty) {
       const res = await $fetch<unknown, ApiResponseException>(`/api/obr/requests/${id}`, {
-        method: "PUT",
+        method: 'PUT',
         body: {
           payee: headerForm.payee.trim(),
           officeAddress: headerForm.officeAddress.trim(),
-          ...(headerForm.obrNumber.trim() ? { obrNumber: headerForm.obrNumber.trim() } : {}),
-          ...(headerForm.prNumber.trim() ? { prNumber: headerForm.prNumber.trim() } : {}),
+          ...(headerForm.obrNumber.trim() ? {obrNumber: headerForm.obrNumber.trim()} : {}),
+          ...(headerForm.prNumber.trim() ? {prNumber: headerForm.prNumber.trim()} : {}),
         },
       });
       if (res.error) {
         setSaving(false);
-        alert(res.error.message ?? "Failed to update request header.");
+        alert(res.error.message ?? 'Failed to update request header.');
         return false;
       }
       setHeaderEdits(null);
@@ -320,7 +311,7 @@ function ApprovalDetailDialog({
       const res = await $fetch<unknown, ApiResponseException>(
         `/api/obr/requests/${id}/items/${itemId}`,
         {
-          method: "PATCH",
+          method: 'PATCH',
           body: {
             particulars: edit.particulars.trim(),
             amount: edit.amount.trim(),
@@ -329,7 +320,7 @@ function ApprovalDetailDialog({
       );
       if (res.error) {
         setSaving(false);
-        alert(res.error.message ?? "Failed to update request item.");
+        alert(res.error.message ?? 'Failed to update request item.');
         return false;
       }
     }
@@ -342,21 +333,21 @@ function ApprovalDetailDialog({
   const formatAmount = (amount: string) => {
     const num = parseFloat(amount);
     if (isNaN(num)) return amount;
-    return `₱${num.toLocaleString("en-PH", {
+    return `₱${num.toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
   };
 
   const formatDate = (dateStr: Optional<string>) => {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleString("en-PH", {
-      timeZone: "Asia/Manila",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -380,7 +371,8 @@ function ApprovalDetailDialog({
                   <Alert>
                     <AlertTitle>Disbursement already approved</AlertTitle>
                     <AlertDescription>
-                      This request can no longer be edited because its disbursement has already been approved.
+                      This request can no longer be edited because its disbursement has already been
+                      approved.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -390,7 +382,9 @@ function ApprovalDetailDialog({
                     <Typography variant="small" className="text-muted-foreground">
                       Request Number
                     </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.requestNumber}</Typography>
+                    <Typography variant="p" className="not-first:mt-0">
+                      {detail.requestNumber}
+                    </Typography>
                   </div>
                   <div className="flex flex-col gap-1">
                     <Typography variant="small" className="text-muted-foreground">
@@ -406,18 +400,22 @@ function ApprovalDetailDialog({
                       <Input
                         id="payee"
                         value={headerForm.payee}
-                        onChange={e => setHeaderEdits(prev => ({
-                          ...(prev ?? {
-                            payee: detail.payee ?? "",
-                            officeAddress: detail.officeAddress,
-                            obrNumber: detail.obrNumber ?? "",
-                            prNumber: detail.prNumber ?? "",
-                          }),
-                          payee: e.target.value,
-                        }))}
+                        onChange={(e) =>
+                          setHeaderEdits((prev) => ({
+                            ...(prev ?? {
+                              payee: detail.payee ?? '',
+                              officeAddress: detail.officeAddress,
+                              obrNumber: detail.obrNumber ?? '',
+                              prNumber: detail.prNumber ?? '',
+                            }),
+                            payee: e.target.value,
+                          }))
+                        }
                       />
                     ) : (
-                      <Typography variant="p" className="not-first:mt-0">{detail.payee}</Typography>
+                      <Typography variant="p" className="not-first:mt-0">
+                        {detail.payee}
+                      </Typography>
                     )}
                   </Field>
                   <Field>
@@ -426,18 +424,22 @@ function ApprovalDetailDialog({
                       <Input
                         id="officeAddress"
                         value={headerForm.officeAddress}
-                        onChange={e => setHeaderEdits(prev => ({
-                          ...(prev ?? {
-                            payee: detail.payee ?? "",
-                            officeAddress: detail.officeAddress,
-                            obrNumber: detail.obrNumber ?? "",
-                            prNumber: detail.prNumber ?? "",
-                          }),
-                          officeAddress: e.target.value,
-                        }))}
+                        onChange={(e) =>
+                          setHeaderEdits((prev) => ({
+                            ...(prev ?? {
+                              payee: detail.payee ?? '',
+                              officeAddress: detail.officeAddress,
+                              obrNumber: detail.obrNumber ?? '',
+                              prNumber: detail.prNumber ?? '',
+                            }),
+                            officeAddress: e.target.value,
+                          }))
+                        }
                       />
                     ) : (
-                      <Typography variant="p" className="not-first:mt-0">{detail.officeAddress}</Typography>
+                      <Typography variant="p" className="not-first:mt-0">
+                        {detail.officeAddress}
+                      </Typography>
                     )}
                   </Field>
                   <Field>
@@ -446,18 +448,22 @@ function ApprovalDetailDialog({
                       <Input
                         id="obrNumber"
                         value={headerForm.obrNumber}
-                        onChange={e => setHeaderEdits(prev => ({
-                          ...(prev ?? {
-                            payee: detail.payee ?? "",
-                            officeAddress: detail.officeAddress,
-                            obrNumber: detail.obrNumber ?? "",
-                            prNumber: detail.prNumber ?? "",
-                          }),
-                          obrNumber: e.target.value,
-                        }))}
+                        onChange={(e) =>
+                          setHeaderEdits((prev) => ({
+                            ...(prev ?? {
+                              payee: detail.payee ?? '',
+                              officeAddress: detail.officeAddress,
+                              obrNumber: detail.obrNumber ?? '',
+                              prNumber: detail.prNumber ?? '',
+                            }),
+                            obrNumber: e.target.value,
+                          }))
+                        }
                       />
                     ) : (
-                      <Typography variant="p" className="not-first:mt-0">{detail.obrNumber ?? "—"}</Typography>
+                      <Typography variant="p" className="not-first:mt-0">
+                        {detail.obrNumber ?? '—'}
+                      </Typography>
                     )}
                   </Field>
                   <Field>
@@ -466,31 +472,39 @@ function ApprovalDetailDialog({
                       <Input
                         id="prNumber"
                         value={headerForm.prNumber}
-                        onChange={e => setHeaderEdits(prev => ({
-                          ...(prev ?? {
-                            payee: detail.payee ?? "",
-                            officeAddress: detail.officeAddress,
-                            obrNumber: detail.obrNumber ?? "",
-                            prNumber: detail.prNumber ?? "",
-                          }),
-                          prNumber: e.target.value,
-                        }))}
+                        onChange={(e) =>
+                          setHeaderEdits((prev) => ({
+                            ...(prev ?? {
+                              payee: detail.payee ?? '',
+                              officeAddress: detail.officeAddress,
+                              obrNumber: detail.obrNumber ?? '',
+                              prNumber: detail.prNumber ?? '',
+                            }),
+                            prNumber: e.target.value,
+                          }))
+                        }
                       />
                     ) : (
-                      <Typography variant="p" className="not-first:mt-0">{detail.prNumber ?? "—"}</Typography>
+                      <Typography variant="p" className="not-first:mt-0">
+                        {detail.prNumber ?? '—'}
+                      </Typography>
                     )}
                   </Field>
                   <div className="flex flex-col gap-1">
                     <Typography variant="small" className="text-muted-foreground">
                       Originating Office
                     </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.office.name}</Typography>
+                    <Typography variant="p" className="not-first:mt-0">
+                      {detail.office.name}
+                    </Typography>
                   </div>
                   <div className="flex flex-col gap-1">
                     <Typography variant="small" className="text-muted-foreground">
                       Published By
                     </Typography>
-                    <Typography variant="p" className="not-first:mt-0">{detail.publisher.name}</Typography>
+                    <Typography variant="p" className="not-first:mt-0">
+                      {detail.publisher.name}
+                    </Typography>
                   </div>
                 </div>
 
@@ -519,27 +533,35 @@ function ApprovalDetailDialog({
                               {canEdit ? (
                                 <Input
                                   value={edit.particulars}
-                                  onChange={e => setItemEdits(prev => ({
-                                    ...prev,
-                                    [item.id]: { ...edit, particulars: e.target.value },
-                                  }))}
+                                  onChange={(e) =>
+                                    setItemEdits((prev) => ({
+                                      ...prev,
+                                      [item.id]: {...edit, particulars: e.target.value},
+                                    }))
+                                  }
                                 />
-                              ) : item.particulars}
+                              ) : (
+                                item.particulars
+                              )}
                             </TableCell>
                             <TableCell>{item.expenseCode.name}</TableCell>
-                            <TableCell>{item.expenseCode.accountCode ?? "—"}</TableCell>
+                            <TableCell>{item.expenseCode.accountCode ?? '—'}</TableCell>
                             <TableCell>{item.responsibilityCenter.name}</TableCell>
                             <TableCell className="text-right font-mono">
                               {canEdit ? (
                                 <Input
                                   className="text-right font-mono"
                                   value={edit.amount}
-                                  onChange={e => setItemEdits(prev => ({
-                                    ...prev,
-                                    [item.id]: { ...edit, amount: e.target.value },
-                                  }))}
+                                  onChange={(e) =>
+                                    setItemEdits((prev) => ({
+                                      ...prev,
+                                      [item.id]: {...edit, amount: e.target.value},
+                                    }))
+                                  }
                                 />
-                              ) : formatAmount(item.amount)}
+                              ) : (
+                                formatAmount(item.amount)
+                              )}
                             </TableCell>
                           </TableRow>
                         );
@@ -599,13 +621,11 @@ function ApprovalDetailDialog({
             </DialogClose>
             {canEdit && (isHeaderDirty || hasItemEdits) && (
               <Button variant="outline" disabled={saving} onClick={saveAllChanges}>
-                {saving ? "Saving…" : "Save Changes"}
+                {saving ? 'Saving…' : 'Save Changes'}
               </Button>
             )}
             {detail && !detail.promoted && (
-              <Button onClick={() => setActionOpen(true)}>
-                Submit Decision
-              </Button>
+              <Button onClick={() => setActionOpen(true)}>Submit Decision</Button>
             )}
           </DialogFooter>
         </DialogContent>
@@ -631,21 +651,21 @@ function ApprovalDetailDialog({
 
 async function submitBulkApproverState(
   selectedIds: string[],
-  status: "approved" | "binned",
+  status: 'approved' | 'binned',
   reason?: string,
-): Promise<{ succeededIds: string[]; failedCount: number }> {
+): Promise<{succeededIds: string[]; failedCount: number}> {
   const results = await Promise.allSettled(
-    selectedIds.map(async id => {
-      const body: Record<string, string> = { status };
+    selectedIds.map(async (id) => {
+      const body: Record<string, string> = {status};
       if (reason?.trim()) body.reason = reason.trim();
 
       const res = await fetch(`/api/obr/requests/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error("failed");
+      if (!res.ok) throw new Error('failed');
       return id;
     }),
   );
@@ -654,14 +674,14 @@ async function submitBulkApproverState(
   let failedCount = 0;
 
   for (const result of results) {
-    if (result.status === "fulfilled") {
+    if (result.status === 'fulfilled') {
       succeededIds.push(result.value);
     } else {
       failedCount += 1;
     }
   }
 
-  return { succeededIds, failedCount };
+  return {succeededIds, failedCount};
 }
 
 // --- Bulk Approve Dialog ---
@@ -693,25 +713,20 @@ function BulkApproveDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const { succeededIds, failedCount } = await submitBulkApproverState(
-        selectedIds,
-        "approved",
-      );
+      const {succeededIds, failedCount} = await submitBulkApproverState(selectedIds, 'approved');
 
       if (succeededIds.length > 0) {
         onSuccess(succeededIds);
       }
 
       if (failedCount > 0) {
-        setError(
-          `${failedCount} request(s) could not be processed. They remain selected.`,
-        );
+        setError(`${failedCount} request(s) could not be processed. They remain selected.`);
         return;
       }
 
       onOpenChange(false);
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -724,7 +739,7 @@ function BulkApproveDialog({
           <DialogTitle>Bulk Approve Requests</DialogTitle>
           <DialogDescription>
             You are about to approve <strong>{count}</strong> request
-            {count === 1 ? "" : "s"}. This action cannot be undone.
+            {count === 1 ? '' : 's'}. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
@@ -745,7 +760,7 @@ function BulkApproveDialog({
             onClick={handleSubmit}
             disabled={submitting || count === 0}
           >
-            {submitting ? "Approving…" : `Approve ${count} Request${count === 1 ? "" : "s"}`}
+            {submitting ? 'Approving…' : `Approve ${count} Request${count === 1 ? '' : 's'}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -766,7 +781,7 @@ function BulkDeclineDialog({
   selectedIds: string[];
   onSuccess: (succeededIds: string[]) => void;
 }) {
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -774,7 +789,7 @@ function BulkDeclineDialog({
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setReason("");
+      setReason('');
       setError(null);
     }
     onOpenChange(nextOpen);
@@ -784,9 +799,9 @@ function BulkDeclineDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const { succeededIds, failedCount } = await submitBulkApproverState(
+      const {succeededIds, failedCount} = await submitBulkApproverState(
         selectedIds,
-        "binned",
+        'binned',
         reason,
       );
 
@@ -795,15 +810,13 @@ function BulkDeclineDialog({
       }
 
       if (failedCount > 0) {
-        setError(
-          `${failedCount} request(s) could not be processed. They remain selected.`,
-        );
+        setError(`${failedCount} request(s) could not be processed. They remain selected.`);
         return;
       }
 
       onOpenChange(false);
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -816,7 +829,7 @@ function BulkDeclineDialog({
           <DialogTitle>Bulk Decline/Bin Requests</DialogTitle>
           <DialogDescription>
             You are about to decline/bin <strong>{count}</strong> request
-            {count === 1 ? "" : "s"}. This action cannot be undone.
+            {count === 1 ? '' : 's'}. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
@@ -824,13 +837,12 @@ function BulkDeclineDialog({
           <FieldGroup>
             <Field>
               <Label>
-                Reason{" "}
-                <span className="text-muted-foreground font-normal">(optional)</span>
+                Reason <span className="text-muted-foreground font-normal">(optional)</span>
               </Label>
               <Input
                 placeholder="Enter decline reason…"
                 value={reason}
-                onChange={e => setReason(e.target.value)}
+                onChange={(e) => setReason(e.target.value)}
                 disabled={submitting}
               />
             </Field>
@@ -849,14 +861,8 @@ function BulkDeclineDialog({
               Cancel
             </Button>
           </DialogClose>
-          <Button
-            variant="destructive"
-            onClick={handleSubmit}
-            disabled={submitting || count === 0}
-          >
-            {submitting
-              ? "Declining…"
-              : `Decline/Bin ${count} Request${count === 1 ? "" : "s"}`}
+          <Button variant="destructive" onClick={handleSubmit} disabled={submitting || count === 0}>
+            {submitting ? 'Declining…' : `Decline/Bin ${count} Request${count === 1 ? '' : 's'}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -877,15 +883,15 @@ function ApprovalActionDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
-  const [status, setStatus] = useState<"approved" | "binned" | "pending">("approved");
-  const [reason, setReason] = useState("");
+  const [status, setStatus] = useState<'approved' | 'binned' | 'pending'>('approved');
+  const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setStatus("approved");
-      setReason("");
+      setStatus('approved');
+      setReason('');
       setError(null);
     }
     onOpenChange(nextOpen);
@@ -895,24 +901,24 @@ function ApprovalActionDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const body: Record<string, string> = { status };
+      const body: Record<string, string> = {status};
       if (reason.trim()) body.reason = reason.trim();
 
       const res = await fetch(`/api/obr/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setError(payload?.message ?? "Failed to submit decision. Please try again.");
+        setError(payload?.message ?? 'Failed to submit decision. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -924,7 +930,8 @@ function ApprovalActionDialog({
         <DialogHeader>
           <DialogTitle>Submit Approval Decision</DialogTitle>
           <DialogDescription>
-            Choose your decision for this request. A reason is optional but recommended when binning.
+            Choose your decision for this request. A reason is optional but recommended when
+            binning.
           </DialogDescription>
         </DialogHeader>
 
@@ -934,7 +941,7 @@ function ApprovalActionDialog({
               <Label>Decision</Label>
               <Select
                 value={status}
-                onValueChange={v => setStatus(v as typeof status)}
+                onValueChange={(v) => setStatus(v as typeof status)}
                 disabled={submitting}
               >
                 <SelectTrigger>
@@ -948,11 +955,13 @@ function ApprovalActionDialog({
               </Select>
             </Field>
             <Field>
-              <Label>Reason <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Label>
+                Reason <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Input
                 placeholder="Enter reason…"
                 value={reason}
-                onChange={e => setReason(e.target.value)}
+                onChange={(e) => setReason(e.target.value)}
                 disabled={submitting}
               />
             </Field>
@@ -972,7 +981,7 @@ function ApprovalActionDialog({
             </Button>
           </DialogClose>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Submitting…" : "Confirm"}
+            {submitting ? 'Submitting…' : 'Confirm'}
           </Button>
         </DialogFooter>
       </DialogContent>

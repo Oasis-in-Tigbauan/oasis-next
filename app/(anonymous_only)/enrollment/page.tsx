@@ -1,50 +1,51 @@
-"use client";
+'use client';
 
-import { Check, Eye, EyeOff, LockKeyhole, User, X } from "lucide-react";
-import { type SyntheticEvent, useMemo, useState } from "react";
-import { redirect, RedirectType, useSearchParams } from "next/navigation";
-import useSWR from "swr";
+import {Check, Eye, EyeOff, LockKeyhole, User, X} from 'lucide-react';
+import {redirect, RedirectType, useSearchParams} from 'next/navigation';
+import {type SyntheticEvent, useMemo, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import Template from '@/common/auth/template';
+import ErrorTextRenderer from '@/components/error-text-renderer';
+import {Button} from '@/components/ui/button';
+import {Field, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Spinner} from '@/components/ui/spinner';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
   EnrollmentEligibilityResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import ErrorTextRenderer from "@/components/error-text-renderer";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import Template from "@/common/auth/template";
+} from '@/lib/http/client/responses';
 
 export default function SignupPage() {
   const searchParams = useSearchParams();
-  const eligibilityToken = searchParams.get("token");
+  const eligibilityToken = searchParams.get('token');
 
   const [onFocus, setOnFocus] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [enrollmentFields, setEnrollmentFields] = useState<EnrollmentFormState>({
-    fullName: "",
-    password: "",
-    confirmPassword: "",
+    fullName: '',
+    password: '',
+    confirmPassword: '',
   });
 
-  const requirements = useMemo(() => [
-    { label: "At least 2 lowercase", regex: /(.*[a-z]){2,}/ },
-    { label: "At least 2 uppercase", regex: /(.*[A-Z]){2,}/ },
-    { label: "At least 2 numbers", regex: /(.*\d){2,}/ },
-    { label: "At least 2 symbols", regex: /(.*[!@#$%^&*(),.?":{}|<>]){2,}/ },
-  ], []);
+  const requirements = useMemo(
+    () => [
+      {label: 'At least 2 lowercase', regex: /(.*[a-z]){2,}/},
+      {label: 'At least 2 uppercase', regex: /(.*[A-Z]){2,}/},
+      {label: 'At least 2 numbers', regex: /(.*\d){2,}/},
+      {label: 'At least 2 symbols', regex: /(.*[!@#$%^&*(),.?":{}|<>]){2,}/},
+    ],
+    [],
+  );
 
   // Fetch data from the API and see if the user is eligible to enroll.
-  const { data, error, isLoading } = useSWR<BetterFetchResponse<EnrollmentEligibilityResponse, ApiResponseException>>(
-    eligibilityToken ? `/api/enrollment/eligibility?token=${eligibilityToken}` : null,
-    $fetch,
-  );
+  const {data, error, isLoading} = useSWR<
+    BetterFetchResponse<EnrollmentEligibilityResponse, ApiResponseException>
+  >(eligibilityToken ? `/api/enrollment/eligibility?token=${eligibilityToken}` : null, $fetch);
 
   // No token
   if (!eligibilityToken) {
@@ -76,7 +77,7 @@ export default function SignupPage() {
               <h1 className="text-2xl font-bold">Oops!</h1>
               <ErrorTextRenderer
                 className="text-muted-foreground text-sm text-balance"
-                message={data?.error?.details || "Unknown Error Occurred"}
+                message={data?.error?.details || 'Unknown Error Occurred'}
               />
             </div>
           </div>
@@ -104,7 +105,7 @@ export default function SignupPage() {
   }
 
   const handleInput = (e: SyntheticEvent<HTMLInputElement>, key: keyof EnrollmentFormState) => {
-    setEnrollmentFields(l => ({ ...l, [key]: (e.target as HTMLInputElement).value }));
+    setEnrollmentFields((l) => ({...l, [key]: (e.target as HTMLInputElement).value}));
   };
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
@@ -112,23 +113,22 @@ export default function SignupPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await $fetch("/api/enrollment/enroll", {
-        method: "POST",
+      const result = await $fetch('/api/enrollment/enroll', {
+        method: 'POST',
         body: {
           fullName: enrollmentFields.fullName,
           password: enrollmentFields.password,
-          token: data?.data?.data.token || "",
+          token: data?.data?.data.token || '',
         },
       });
       if (result.error) {
-        alert("Failed to enroll. Please try again.");
+        alert('Failed to enroll. Please try again.');
         return;
       }
 
       // Redirect after a successful enrollment
-      redirect("/enrollment/pending", RedirectType.replace);
-    }
-    finally {
+      redirect('/enrollment/pending', RedirectType.replace);
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -142,9 +142,7 @@ export default function SignupPage() {
             <form onSubmit={handleSubmit}>
               <FieldGroup className="gap-5">
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    Enroll your account
-                  </h1>
+                  <h1 className="text-2xl font-semibold tracking-tight">Enroll your account</h1>
                   <p className="text-sm leading-6 text-muted-foreground">
                     Fill in the form below to complete your municipal account setup.
                   </p>
@@ -160,7 +158,7 @@ export default function SignupPage() {
                       type="text"
                       placeholder="John Doe"
                       value={enrollmentFields.fullName}
-                      onInput={e => handleInput(e, "fullName")}
+                      onInput={(e) => handleInput(e, 'fullName')}
                       disabled={isSubmitting}
                       required
                     />
@@ -174,45 +172,46 @@ export default function SignupPage() {
                     <Input
                       id="password"
                       className="h-10 pl-9 pr-9"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={enrollmentFields.password}
                       onFocus={() => setOnFocus(true)}
                       onBlur={() => setOnFocus(false)}
-                      onInput={e => handleInput(e, "password")}
+                      onInput={(e) => handleInput(e, 'password')}
                       disabled={isSubmitting}
                       required
                     />
                     <button
                       type="button"
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                      onClick={() => setShowPassword(v => !v)}
+                      onClick={() => setShowPassword((v) => !v)}
                       disabled={isSubmitting}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
-                  {
-                    onFocus && (
-                      <ul className="grid grid-cols-1 gap-2">
-                        {requirements.map((req, index) => {
-                          const isMet = req.regex.test(enrollmentFields.password);
-                          return (
-                            <li key={index} className="flex items-center gap-2 text-sm transition-colors">
-                              {isMet ? (
-                                <Check className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <X className="w-4 h-4 text-muted-foreground/50" />
-                              )}
-                              <span className={isMet ? "text-foreground" : "text-muted-foreground"}>
-                                {req.label}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )
-                  }
+                  {onFocus && (
+                    <ul className="grid grid-cols-1 gap-2">
+                      {requirements.map((req, index) => {
+                        const isMet = req.regex.test(enrollmentFields.password);
+                        return (
+                          <li
+                            key={index}
+                            className="flex items-center gap-2 text-sm transition-colors"
+                          >
+                            {isMet ? (
+                              <Check className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <X className="w-4 h-4 text-muted-foreground/50" />
+                            )}
+                            <span className={isMet ? 'text-foreground' : 'text-muted-foreground'}>
+                              {req.label}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </Field>
 
                 <Field>
@@ -222,20 +221,26 @@ export default function SignupPage() {
                     <Input
                       id="confirm-password"
                       className="h-10 pl-9 pr-9"
-                      type={showConfirmPassword ? "text" : "password"}
+                      type={showConfirmPassword ? 'text' : 'password'}
                       value={enrollmentFields.confirmPassword}
-                      onInput={e => handleInput(e, "confirmPassword")}
+                      onInput={(e) => handleInput(e, 'confirmPassword')}
                       disabled={isSubmitting}
                       required
                     />
                     <button
                       type="button"
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                      onClick={() => setShowConfirmPassword(v => !v)}
+                      onClick={() => setShowConfirmPassword((v) => !v)}
                       disabled={isSubmitting}
-                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                      aria-label={
+                        showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'
+                      }
                     >
-                      {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      {showConfirmPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
                     </button>
                   </div>
                   <FieldDescription>Please confirm your password.</FieldDescription>
@@ -243,7 +248,7 @@ export default function SignupPage() {
 
                 <Button className="h-10 w-full" type="submit" disabled={isSubmitting}>
                   {isSubmitting && <Spinner />}
-                  {isSubmitting ? "Creating account..." : "Create Account"}
+                  {isSubmitting ? 'Creating account...' : 'Create Account'}
                 </Button>
               </FieldGroup>
             </form>

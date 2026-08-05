@@ -1,16 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { FileImage, Loader2, Printer, X } from "lucide-react";
+import {FileImage, Loader2, Printer, X} from 'lucide-react';
+import {useEffect, useRef, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  TravelOrderItemResponse,
-  TravelOrderUserItemResponse,
-  TravelOrderUserListResponse,
-} from "@/lib/http/client/responses";
-import { Button } from "@/components/ui/button";
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -18,9 +11,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  TravelOrderItemResponse,
+  TravelOrderUserItemResponse,
+  TravelOrderUserListResponse,
+} from '@/lib/http/client/responses';
 
 type TravelOrderPrintDialogProps = {
   item: TravelOrderItemResponse | null;
@@ -28,15 +28,11 @@ type TravelOrderPrintDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-export function TravelOrderPrintDialog({
-  item,
-  open,
-  onOpenChange,
-}: TravelOrderPrintDialogProps) {
+export function TravelOrderPrintDialog({item, open, onOpenChange}: TravelOrderPrintDialogProps) {
   const [headerFile, setHeaderFile] = useState<File | null>(null);
   const [footerFile, setFooterFile] = useState<File | null>(null);
-  const [approvedByName, setApprovedByName] = useState("");
-  const [approvedByPosition, setApprovedByPosition] = useState("");
+  const [approvedByName, setApprovedByName] = useState('');
+  const [approvedByPosition, setApprovedByPosition] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [approverResults, setApproverResults] = useState<TravelOrderUserItemResponse[]>([]);
@@ -61,8 +57,7 @@ export function TravelOrderPrintDialog({
           setApproverResults(res.data.data);
           setApproverDropdownOpen(res.data.data.length > 0);
         }
-      }
-      finally {
+      } finally {
         setIsSearchingApprover(false);
       }
     }, 300);
@@ -78,15 +73,15 @@ export function TravelOrderPrintDialog({
         setApproverDropdownOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
   function resetLocalState() {
     setHeaderFile(null);
     setFooterFile(null);
-    setApprovedByName("");
-    setApprovedByPosition("");
+    setApprovedByName('');
+    setApprovedByPosition('');
     setApproverResults([]);
     setApproverDropdownOpen(false);
     setError(null);
@@ -105,13 +100,14 @@ export function TravelOrderPrintDialog({
     setIsExporting(true);
     try {
       const formData = new FormData();
-      if (headerFile) formData.append("header", headerFile);
-      if (footerFile) formData.append("footer", footerFile);
-      if (approvedByName.trim()) formData.append("approvedByName", approvedByName.trim());
-      if (approvedByPosition.trim()) formData.append("approvedByPosition", approvedByPosition.trim());
+      if (headerFile) formData.append('header', headerFile);
+      if (footerFile) formData.append('footer', footerFile);
+      if (approvedByName.trim()) formData.append('approvedByName', approvedByName.trim());
+      if (approvedByPosition.trim())
+        formData.append('approvedByPosition', approvedByPosition.trim());
 
       const response = await fetch(`/api/forms/travel-order/${item.id}/export`, {
-        method: "POST",
+        method: 'POST',
         body: formData,
       });
 
@@ -123,10 +119,10 @@ export function TravelOrderPrintDialog({
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
+      const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = _filenameFromDisposition(
-        response.headers.get("Content-Disposition"),
+        response.headers.get('Content-Disposition'),
         `travel-order-${item.refNumber}.pdf`,
       );
       document.body.appendChild(anchor);
@@ -134,11 +130,9 @@ export function TravelOrderPrintDialog({
       anchor.remove();
       URL.revokeObjectURL(url);
       handleOpenChange(false);
-    }
-    catch {
-      setError("Unable to export the travel order PDF. Please try again.");
-    }
-    finally {
+    } catch {
+      setError('Unable to export the travel order PDF. Please try again.');
+    } finally {
       setIsExporting(false);
     }
   }
@@ -155,8 +149,8 @@ export function TravelOrderPrintDialog({
         <DialogHeader>
           <DialogTitle>Export Travel Order</DialogTitle>
           <DialogDescription>
-            Generate a printable PDF for REF #{item?.refNumber ?? ""}. Header and footer
-            images are used only for this export and are not saved.
+            Generate a printable PDF for REF #{item?.refNumber ?? ''}. Header and footer images are
+            used only for this export and are not saved.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,7 +161,8 @@ export function TravelOrderPrintDialog({
                 Approved by
               </Label>
               <p className="text-xs text-muted-foreground">
-                Type an approving official or search and select a user. Blank fields use the default approving official.
+                Type an approving official or search and select a user. Blank fields use the default
+                approving official.
               </p>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -175,9 +170,9 @@ export function TravelOrderPrintDialog({
                 <Input
                   id="travel-order-approved-by"
                   className="h-8 text-xs"
-                  placeholder={item?.approvedBy?.name ?? "Search or type approving official..."}
+                  placeholder={item?.approvedBy?.name ?? 'Search or type approving official...'}
                   value={approvedByName}
-                  onChange={event => {
+                  onChange={(event) => {
                     setApprovedByName(event.target.value);
                     if (!event.target.value) {
                       setApproverResults([]);
@@ -193,12 +188,12 @@ export function TravelOrderPrintDialog({
                 )}
                 {approverDropdownOpen && approverResults.length > 0 && (
                   <div className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover shadow-md">
-                    {approverResults.map(user => (
+                    {approverResults.map((user) => (
                       <button
                         key={user.id}
                         type="button"
                         className="w-full px-3 py-2 text-left text-xs hover:bg-accent hover:text-accent-foreground"
-                        onMouseDown={event => {
+                        onMouseDown={(event) => {
                           event.preventDefault();
                           selectApprover(user);
                         }}
@@ -214,9 +209,9 @@ export function TravelOrderPrintDialog({
               </div>
               <Input
                 className="h-8 text-xs sm:col-span-2"
-                placeholder={item?.approvedBy?.position.name ?? "Approving official position"}
+                placeholder={item?.approvedBy?.position.name ?? 'Approving official position'}
                 value={approvedByPosition}
-                onChange={event => setApprovedByPosition(event.target.value)}
+                onChange={(event) => setApprovedByPosition(event.target.value)}
               />
             </div>
           </div>
@@ -279,13 +274,7 @@ type ImageUploadFieldProps = {
   onFileChange: (file: File | null) => void;
 };
 
-function ImageUploadField({
-  id,
-  label,
-  description,
-  file,
-  onFileChange,
-}: ImageUploadFieldProps) {
+function ImageUploadField({id, label, description, file, onFileChange}: ImageUploadFieldProps) {
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -309,12 +298,12 @@ function ImageUploadField({
         )}
       </div>
       <Input
-        key={file ? "selected" : "empty"}
+        key={file ? 'selected' : 'empty'}
         id={id}
         className="mt-3"
         type="file"
         accept="image/png,image/jpeg"
-        onChange={event => onFileChange(event.currentTarget.files?.[0] ?? null)}
+        onChange={(event) => onFileChange(event.currentTarget.files?.[0] ?? null)}
       />
       {file && (
         <p className="mt-2 truncate text-xs text-muted-foreground">
@@ -328,13 +317,12 @@ function ImageUploadField({
 async function _readErrorMessage(response: Response): Promise<string> {
   try {
     const payload = await response.json();
-    if (typeof payload?.message === "string") return payload.message;
-    if (typeof payload?.error?.message === "string") return payload.error.message;
-  }
-  catch {
+    if (typeof payload?.message === 'string') return payload.message;
+    if (typeof payload?.error?.message === 'string') return payload.error.message;
+  } catch {
     // Fall back to the generic message below when the response is not JSON.
   }
-  return "Unable to export the travel order PDF. Please try again.";
+  return 'Unable to export the travel order PDF. Please try again.';
 }
 
 function _filenameFromDisposition(disposition: string | null, fallback: string): string {

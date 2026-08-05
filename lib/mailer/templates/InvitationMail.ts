@@ -1,6 +1,6 @@
-const { BETTER_AUTH_URL } = process.env;
+const {BETTER_AUTH_URL} = process.env;
 
-export const InvitationEmailHtml = ({ inviteUrl, expiresAt }: InvitationMailProps) => `
+export const InvitationEmailHtml = ({inviteUrl, expiresAt}: InvitationMailProps) => `
 <!doctype html>
 <html lang="en">
   <head>
@@ -50,4 +50,4 @@ export const InvitationEmailHtml = ({ inviteUrl, expiresAt }: InvitationMailProp
 type InvitationMailProps = {
   inviteUrl: string;
   expiresAt: string;
-}
+};

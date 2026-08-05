@@ -1,12 +1,33 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { DateTime } from "luxon";
-import { FileSpreadsheet, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import useSWR from "swr";
+import {FileSpreadsheet, Trash2} from 'lucide-react';
+import {DateTime} from 'luxon';
+import {useMemo, useState} from 'react';
+import {toast} from 'sonner';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -16,33 +37,11 @@ import type {
   ProcurementTypesListResponse,
   PurchasingItemResponse,
   PurchasingValidSignatoriesResponse,
-} from "@/lib/http/client/responses";
-import { isLbacSearchGroup } from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+} from '@/lib/http/client/responses';
+import {isLbacSearchGroup} from '@/lib/http/client/responses';
 
 type PurchasingFormDialogProps = {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -96,17 +95,17 @@ type SelectedAip = {
 
 function makeEmptyForm(): PurchasingFormState {
   return {
-    prNumber: "",
-    purpose: "",
-    supplier: "",
-    address: "",
-    tinNumber: "",
-    purchaseOrderNumber: "",
-    modeOfProcurementId: "",
-    placeOfDelivery: "",
-    dateOfDelivery: "",
-    deliveryTerm: "",
-    paymentTerm: "",
+    prNumber: '',
+    purpose: '',
+    supplier: '',
+    address: '',
+    tinNumber: '',
+    purchaseOrderNumber: '',
+    modeOfProcurementId: '',
+    placeOfDelivery: '',
+    dateOfDelivery: '',
+    deliveryTerm: '',
+    paymentTerm: '',
   };
 }
 
@@ -114,25 +113,25 @@ function makeEditForm(item: PurchasingItemResponse): PurchasingFormState {
   return {
     prNumber: item.prNumber,
     purpose: item.purpose,
-    supplier: item.supplier ?? "",
-    address: item.address ?? "",
-    tinNumber: item.tinNumber ?? "",
-    purchaseOrderNumber: item.purchaseOrderNumber ?? "",
-    modeOfProcurementId: item.modeOfProcurement?.id ?? "",
-    placeOfDelivery: item.placeOfDelivery ?? "",
+    supplier: item.supplier ?? '',
+    address: item.address ?? '',
+    tinNumber: item.tinNumber ?? '',
+    purchaseOrderNumber: item.purchaseOrderNumber ?? '',
+    modeOfProcurementId: item.modeOfProcurement?.id ?? '',
+    placeOfDelivery: item.placeOfDelivery ?? '',
     dateOfDelivery: toDateInputValue(item.dateOfDelivery),
-    deliveryTerm: item.deliveryTerm ?? "",
-    paymentTerm: item.paymentTerm ?? "",
+    deliveryTerm: item.deliveryTerm ?? '',
+    paymentTerm: item.paymentTerm ?? '',
   };
 }
 
 function makeEmptyRequestItem(): RequestItemFormState {
   return {
     key: crypto.randomUUID(),
-    unit: "",
-    itemDescription: "",
-    quantity: "",
-    unitCost: "",
+    unit: '',
+    itemDescription: '',
+    quantity: '',
+    unitCost: '',
   };
 }
 
@@ -141,21 +140,23 @@ function makeInitialRequestItems(item: Optional<PurchasingItemResponse>): Reques
     return [makeEmptyRequestItem()];
   }
 
-  return [{
-    key: crypto.randomUUID(),
-    unit: item.unit,
-    itemDescription: item.itemDescription,
-    quantity: item.quantity,
-    unitCost: item.unitCost,
-  }];
+  return [
+    {
+      key: crypto.randomUUID(),
+      unit: item.unit,
+      itemDescription: item.itemDescription,
+      quantity: item.quantity,
+      unitCost: item.unitCost,
+    },
+  ];
 }
 
 function makeInitialSignatories(item: Optional<PurchasingItemResponse>): SignatoryFormState {
   if (!item) {
     return {
-      headOfOfficeId: "",
-      treasurerId: "",
-      approverId: "",
+      headOfOfficeId: '',
+      treasurerId: '',
+      approverId: '',
     };
   }
 
@@ -171,39 +172,43 @@ function makeInitialAips(item: Optional<PurchasingItemResponse>): SelectedAip[] 
     return [];
   }
 
-  return item.aip.map(entry => ({
+  return item.aip.map((entry) => ({
     key: crypto.randomUUID(),
     id: entry.id,
     label: `${entry.aipCode} - ${entry.ppa}`,
     aipCode: entry.aipCode,
     mfoPpa: entry.ppa,
-    sourceOfFund: entry.sourceOfFund ?? "",
-    implementingOffice: entry.implementingOffice ?? "",
+    sourceOfFund: entry.sourceOfFund ?? '',
+    implementingOffice: entry.implementingOffice ?? '',
   }));
 }
 
-export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, editItem }: PurchasingFormDialogProps) {
+export function PurchasingFormDialog({
+  mode,
+  open,
+  onOpenChange,
+  onSuccess,
+  editItem,
+}: PurchasingFormDialogProps) {
   const [form, setForm] = useState<PurchasingFormState>(() =>
-    mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm(),
+    mode === 'edit' && editItem ? makeEditForm(editItem) : makeEmptyForm(),
   );
-  const [requestItems, setRequestItems] = useState<RequestItemFormState[]>(() => makeInitialRequestItems(editItem));
-  const [signatories, setSignatories] = useState<SignatoryFormState>(() => makeInitialSignatories(editItem));
+  const [requestItems, setRequestItems] = useState<RequestItemFormState[]>(() =>
+    makeInitialRequestItems(editItem),
+  );
+  const [signatories, setSignatories] = useState<SignatoryFormState>(() =>
+    makeInitialSignatories(editItem),
+  );
   const [selectedAips, setSelectedAips] = useState<SelectedAip[]>(() => makeInitialAips(editItem));
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: signatoryResponse, isLoading: signatoryLoading } = useSWR<
+  const {data: signatoryResponse, isLoading: signatoryLoading} = useSWR<
     BetterFetchResponse<PurchasingValidSignatoriesResponse, ApiResponseException>
-  >(
-    open ? "/api/forms/purchasing/valid/signatories" : null,
-    $fetch,
-  );
+  >(open ? '/api/forms/purchasing/valid/signatories' : null, $fetch);
 
-  const { data: procurementTypeResponse } = useSWR<
+  const {data: procurementTypeResponse} = useSWR<
     BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>
-  >(
-    open ? "/api/management/data/procurement-types" : null,
-    $fetch,
-  );
+  >(open ? '/api/management/data/procurement-types' : null, $fetch);
 
   const procurementTypes = procurementTypeResponse?.data?.data ?? [];
 
@@ -216,74 +221,88 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     return ids;
   }, [signatoryData]);
 
-  const itemFieldsDisabled = mode === "edit";
+  const itemFieldsDisabled = mode === 'edit';
 
   const updateField = (key: keyof PurchasingFormState, value: string) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({...prev, [key]: value}));
   };
 
   const updateRequestItemRow = (
     key: string,
-    field: keyof Omit<RequestItemFormState, "key">,
+    field: keyof Omit<RequestItemFormState, 'key'>,
     value: string,
   ) => {
-    setRequestItems(prev => prev.map(item => {
-      if (item.key !== key) return item;
-      return { ...item, [field]: value };
-    }));
+    setRequestItems((prev) =>
+      prev.map((item) => {
+        if (item.key !== key) return item;
+        return {...item, [field]: value};
+      }),
+    );
   };
 
   const addRequestItemRow = () => {
-    setRequestItems(prev => [...prev, makeEmptyRequestItem()]);
+    setRequestItems((prev) => [...prev, makeEmptyRequestItem()]);
   };
 
   const removeRequestItemRow = (key: string) => {
-    setRequestItems(prev => {
+    setRequestItems((prev) => {
       if (prev.length <= 1) {
         return prev;
       }
 
-      return prev.filter(item => item.key !== key);
+      return prev.filter((item) => item.key !== key);
     });
   };
 
   const addAipRow = () => {
-    setSelectedAips(prev => [
+    setSelectedAips((prev) => [
       ...prev,
       {
         key: crypto.randomUUID(),
-        id: "",
-        label: "",
+        id: '',
+        label: '',
         aipCode: null,
-        mfoPpa: "",
-        sourceOfFund: "",
-        implementingOffice: "",
+        mfoPpa: '',
+        sourceOfFund: '',
+        implementingOffice: '',
       },
     ]);
   };
 
-  const updateAipRow = (key: string, selected: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string; sourceOfFund: string; implementingOffice: string }) => {
-    setSelectedAips(prev => prev.map(row => {
-      if (row.key !== key) return row;
+  const updateAipRow = (
+    key: string,
+    selected: {
+      id: string;
+      label: string;
+      aipCode: Optional<string>;
+      mfoPpa: string;
+      sourceOfFund: string;
+      implementingOffice: string;
+    },
+  ) => {
+    setSelectedAips((prev) =>
+      prev.map((row) => {
+        if (row.key !== key) return row;
 
-      return {
-        ...row,
-        id: selected.id,
-        label: selected.label,
-        aipCode: selected.aipCode,
-        mfoPpa: selected.mfoPpa,
-        sourceOfFund: selected.sourceOfFund,
-        implementingOffice: selected.implementingOffice,
-      };
-    }));
+        return {
+          ...row,
+          id: selected.id,
+          label: selected.label,
+          aipCode: selected.aipCode,
+          mfoPpa: selected.mfoPpa,
+          sourceOfFund: selected.sourceOfFund,
+          implementingOffice: selected.implementingOffice,
+        };
+      }),
+    );
   };
 
   const removeAipRow = (key: string) => {
-    setSelectedAips(prev => prev.filter(row => row.key !== key));
+    setSelectedAips((prev) => prev.filter((row) => row.key !== key));
   };
 
   const resetDialogState = () => {
-    setForm(mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm());
+    setForm(mode === 'edit' && editItem ? makeEditForm(editItem) : makeEmptyForm());
     setRequestItems(makeInitialRequestItems(editItem));
     setSignatories(makeInitialSignatories(editItem));
     setSelectedAips(makeInitialAips(editItem));
@@ -293,36 +312,36 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     e.preventDefault();
 
     const selectedAipPayload = selectedAips
-      .filter(row => row.id)
-      .map((row, idx) => ({ idx, id: row.id }));
+      .filter((row) => row.id)
+      .map((row, idx) => ({idx, id: row.id}));
 
-    if (mode === "add") {
+    if (mode === 'add') {
       const normalizedRequestItems = requestItems
-        .map(item => ({
+        .map((item) => ({
           unit: item.unit.trim(),
           description: item.itemDescription.trim(),
           quantity: item.quantity.trim(),
           unitCost: item.unitCost.trim(),
         }))
-        .filter(item => item.unit || item.description || item.quantity || item.unitCost);
+        .filter((item) => item.unit || item.description || item.quantity || item.unitCost);
 
       if (!form.prNumber.trim()) {
-        toast.warning("PR number is required");
+        toast.warning('PR number is required');
         return;
       }
 
       if (!form.purpose.trim()) {
-        toast.warning("Purpose is required");
+        toast.warning('Purpose is required');
         return;
       }
 
       if (normalizedRequestItems.length === 0) {
-        toast.warning("Add at least one item");
+        toast.warning('Add at least one item');
         return;
       }
 
-      const incompleteIndex = normalizedRequestItems.findIndex(item =>
-        !item.unit || !item.description || !item.quantity || !item.unitCost,
+      const incompleteIndex = normalizedRequestItems.findIndex(
+        (item) => !item.unit || !item.description || !item.quantity || !item.unitCost,
       );
       if (incompleteIndex >= 0) {
         toast.warning(`Complete all item fields for row ${incompleteIndex + 1}`);
@@ -330,19 +349,19 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
       }
 
       if (selectedAipPayload.length === 0) {
-        toast.warning("Select at least one AIP link");
+        toast.warning('Select at least one AIP link');
         return;
       }
 
       if (!signatories.headOfOfficeId || !signatories.treasurerId || !signatories.approverId) {
-        toast.warning("Select all signatories");
+        toast.warning('Select all signatories');
         return;
       }
 
       setSubmitting(true);
 
-      const result = await $fetch<unknown, ApiResponseException>("/api/forms/purchasing", {
-        method: "POST",
+      const result = await $fetch<unknown, ApiResponseException>('/api/forms/purchasing', {
+        method: 'POST',
         body: {
           prNumber: form.prNumber.trim(),
           purpose: form.purpose.trim(),
@@ -359,8 +378,10 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
       setSubmitting(false);
 
       if (result.error) {
-        toast.error("Purchase request was not created", {
-          description: (result.error as ApiResponseException).message ?? "Please review the form and try again.",
+        toast.error('Purchase request was not created', {
+          description:
+            (result.error as ApiResponseException).message ??
+            'Please review the form and try again.',
         });
         return;
       }
@@ -368,12 +389,12 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
       onSuccess();
       onOpenChange(false);
       resetDialogState();
-      toast.success("Purchase request created");
+      toast.success('Purchase request created');
       return;
     }
 
     if (!editItem) {
-      toast.warning("Select a purchase request to update");
+      toast.warning('Select a purchase request to update');
       return;
     }
 
@@ -386,8 +407,10 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     if (form.supplier.trim()) payload.supplier = form.supplier.trim();
     if (form.address.trim()) payload.address = form.address.trim();
     if (form.tinNumber.trim()) payload.tinNumber = form.tinNumber.trim();
-    if (form.purchaseOrderNumber.trim()) payload.purchaseOrderNumber = form.purchaseOrderNumber.trim();
-    if (form.modeOfProcurementId.trim()) payload.modeOfProcurementId = form.modeOfProcurementId.trim();
+    if (form.purchaseOrderNumber.trim())
+      payload.purchaseOrderNumber = form.purchaseOrderNumber.trim();
+    if (form.modeOfProcurementId.trim())
+      payload.modeOfProcurementId = form.modeOfProcurementId.trim();
     if (form.placeOfDelivery.trim()) payload.placeOfDelivery = form.placeOfDelivery.trim();
     if (form.dateOfDelivery.trim()) payload.dateOfDelivery = form.dateOfDelivery.trim();
     if (form.deliveryTerm.trim()) payload.deliveryTerm = form.deliveryTerm.trim();
@@ -395,16 +418,20 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
 
     setSubmitting(true);
 
-    const result = await $fetch<unknown, ApiResponseException>(`/api/forms/purchasing/${editItem.id}`, {
-      method: "PATCH",
-      body: payload,
-    });
+    const result = await $fetch<unknown, ApiResponseException>(
+      `/api/forms/purchasing/${editItem.id}`,
+      {
+        method: 'PATCH',
+        body: payload,
+      },
+    );
 
     setSubmitting(false);
 
     if (result.error) {
-      toast.error("Purchase request was not updated", {
-        description: (result.error as ApiResponseException).message ?? "Please review the form and try again.",
+      toast.error('Purchase request was not updated', {
+        description:
+          (result.error as ApiResponseException).message ?? 'Please review the form and try again.',
       });
       return;
     }
@@ -412,7 +439,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
     onSuccess();
     onOpenChange(false);
     resetDialogState();
-    toast.success("Purchase request updated");
+    toast.success('Purchase request updated');
   };
 
   const exportPRToExcel = async () => {
@@ -422,33 +449,35 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
 
     const res = await fetch(`/api/forms/purchasing/export/pr?id=${editItem.id}`);
     if (!res.ok) {
-      toast.error("PR export failed", {
-        description: "Please refresh the request and try again.",
+      toast.error('PR export failed', {
+        description: 'Please refresh the request and try again.',
       });
       return;
     }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
     a.download = `Purchase_Request_${editItem.prNumber || Date.now()}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast.success("PR workbook is ready");
+    toast.success('PR workbook is ready');
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Create Purchase Request" : "Edit Purchase Request"}</DialogTitle>
+          <DialogTitle>
+            {mode === 'add' ? 'Create Purchase Request' : 'Edit Purchase Request'}
+          </DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Enter purchase request details and signatories."
-              : "Update request and purchase-order fields for this selected item."}
+            {mode === 'add'
+              ? 'Enter purchase request details and signatories.'
+              : 'Update request and purchase-order fields for this selected item.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -462,7 +491,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                 <Input
                   id="pr-number"
                   value={form.prNumber}
-                  onChange={e => updateField("prNumber", e.target.value)}
+                  onChange={(e) => updateField('prNumber', e.target.value)}
                   disabled={submitting}
                 />
               </div>
@@ -473,7 +502,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                 <Input
                   id="purpose"
                   value={form.purpose}
-                  onChange={e => updateField("purpose", e.target.value)}
+                  onChange={(e) => updateField('purpose', e.target.value)}
                   disabled={submitting}
                 />
               </div>
@@ -495,7 +524,9 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                 {requestItems.map((row, index) => (
                   <div key={row.key} className="rounded-md border p-3">
                     <div className="mb-3 flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">Item #{index + 1}</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Item #{index + 1}
+                      </span>
                       {!itemFieldsDisabled && requestItems.length > 1 && (
                         <Button
                           type="button"
@@ -516,7 +547,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                         <Input
                           id={`unit-${row.key}`}
                           value={row.unit}
-                          onChange={e => updateRequestItemRow(row.key, "unit", e.target.value)}
+                          onChange={(e) => updateRequestItemRow(row.key, 'unit', e.target.value)}
                           disabled={submitting || itemFieldsDisabled}
                         />
                       </div>
@@ -525,7 +556,9 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                         <Input
                           id={`item-description-${row.key}`}
                           value={row.itemDescription}
-                          onChange={e => updateRequestItemRow(row.key, "itemDescription", e.target.value)}
+                          onChange={(e) =>
+                            updateRequestItemRow(row.key, 'itemDescription', e.target.value)
+                          }
                           disabled={submitting || itemFieldsDisabled}
                         />
                       </div>
@@ -534,7 +567,9 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                         <Input
                           id={`quantity-${row.key}`}
                           value={row.quantity}
-                          onChange={e => updateRequestItemRow(row.key, "quantity", e.target.value)}
+                          onChange={(e) =>
+                            updateRequestItemRow(row.key, 'quantity', e.target.value)
+                          }
                           disabled={submitting || itemFieldsDisabled}
                         />
                       </div>
@@ -543,7 +578,9 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                         <Input
                           id={`unit-cost-${row.key}`}
                           value={row.unitCost}
-                          onChange={e => updateRequestItemRow(row.key, "unitCost", e.target.value)}
+                          onChange={(e) =>
+                            updateRequestItemRow(row.key, 'unitCost', e.target.value)
+                          }
                           disabled={submitting || itemFieldsDisabled}
                         />
                       </div>
@@ -565,7 +602,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
               </div>
             </div>
 
-            {mode === "edit" && (
+            {mode === 'edit' && (
               <>
                 <Separator />
 
@@ -578,7 +615,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="supplier"
                         value={form.supplier}
-                        onChange={e => updateField("supplier", e.target.value)}
+                        onChange={(e) => updateField('supplier', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -587,7 +624,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="address"
                         value={form.address}
-                        onChange={e => updateField("address", e.target.value)}
+                        onChange={(e) => updateField('address', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -596,7 +633,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="tin-number"
                         value={form.tinNumber}
-                        onChange={e => updateField("tinNumber", e.target.value)}
+                        onChange={(e) => updateField('tinNumber', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -605,7 +642,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="purchase-order-number"
                         value={form.purchaseOrderNumber}
-                        onChange={e => updateField("purchaseOrderNumber", e.target.value)}
+                        onChange={(e) => updateField('purchaseOrderNumber', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -613,16 +650,24 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Label htmlFor="mode-of-procurement">Mode of Procurement (Optional)</Label>
                       <Select
                         value={form.modeOfProcurementId}
-                        onValueChange={value => updateField("modeOfProcurementId", value === "__none__" ? "" : value)}
+                        onValueChange={(value) =>
+                          updateField('modeOfProcurementId', value === '__none__' ? '' : value)
+                        }
                         disabled={submitting || procurementTypes.length === 0}
                       >
                         <SelectTrigger id="mode-of-procurement">
-                          <SelectValue placeholder={procurementTypes.length === 0 ? "No options loaded" : "Select a mode"} />
+                          <SelectValue
+                            placeholder={
+                              procurementTypes.length === 0 ? 'No options loaded' : 'Select a mode'
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">No mode of procurement</SelectItem>
-                          {procurementTypes.map(option => (
-                            <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+                          {procurementTypes.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -630,7 +675,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                         <Input
                           placeholder="Paste modeOfProcurementId"
                           value={form.modeOfProcurementId}
-                          onChange={e => updateField("modeOfProcurementId", e.target.value)}
+                          onChange={(e) => updateField('modeOfProcurementId', e.target.value)}
                           disabled={submitting}
                         />
                       )}
@@ -640,7 +685,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="place-of-delivery"
                         value={form.placeOfDelivery}
-                        onChange={e => updateField("placeOfDelivery", e.target.value)}
+                        onChange={(e) => updateField('placeOfDelivery', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -650,7 +695,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                         id="date-of-delivery"
                         type="date"
                         value={form.dateOfDelivery}
-                        onChange={e => updateField("dateOfDelivery", e.target.value)}
+                        onChange={(e) => updateField('dateOfDelivery', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -659,7 +704,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="delivery-term"
                         value={form.deliveryTerm}
-                        onChange={e => updateField("deliveryTerm", e.target.value)}
+                        onChange={(e) => updateField('deliveryTerm', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -668,7 +713,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                       <Input
                         id="payment-term"
                         value={form.paymentTerm}
-                        onChange={e => updateField("paymentTerm", e.target.value)}
+                        onChange={(e) => updateField('paymentTerm', e.target.value)}
                         disabled={submitting}
                       />
                     </div>
@@ -686,21 +731,23 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                   No linked AIP yet. Add at least one before saving.
                 </div>
               )}
-              {selectedAips.map(row => (
+              {selectedAips.map((row) => (
                 <div key={row.key} className="flex items-start gap-2">
                   <div className="flex-1">
                     <LbacSearchCombobox
-                      value={row.id
-                        ? {
-                          id: row.id,
-                          label: row.label,
-                          aipCode: row.aipCode,
-                          mfoPpa: row.mfoPpa,
-                          sourceOfFund: row.sourceOfFund,
-                          implementingOffice: row.implementingOffice,
-                        }
-                        : null}
-                      onChange={value => updateAipRow(row.key, value)}
+                      value={
+                        row.id
+                          ? {
+                              id: row.id,
+                              label: row.label,
+                              aipCode: row.aipCode,
+                              mfoPpa: row.mfoPpa,
+                              sourceOfFund: row.sourceOfFund,
+                              implementingOffice: row.implementingOffice,
+                            }
+                          : null
+                      }
+                      onChange={(value) => updateAipRow(row.key, value)}
                       disabled={submitting}
                     />
                   </div>
@@ -733,7 +780,7 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
             <div className="grid gap-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Signatories</h3>
-                {mode === "edit" && (
+                {mode === 'edit' && (
                   <span className="text-xs text-muted-foreground">
                     Signatories are fixed after creation.
                   </span>
@@ -745,15 +792,19 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                   <Label>Head of Office (Requested by)</Label>
                   <Select
                     value={signatories.headOfOfficeId}
-                    onValueChange={value => setSignatories(prev => ({ ...prev, headOfOfficeId: value }))}
-                    disabled={submitting || signatoryLoading || mode === "edit"}
+                    onValueChange={(value) =>
+                      setSignatories((prev) => ({...prev, headOfOfficeId: value}))
+                    }
+                    disabled={submitting || signatoryLoading || mode === 'edit'}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select head of office" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(signatoryData?.headOfOffice ?? []).map(signer => (
-                        <SelectItem key={signer.id} value={signer.id}>{signer.name} - {signer.position}</SelectItem>
+                      {(signatoryData?.headOfOffice ?? []).map((signer) => (
+                        <SelectItem key={signer.id} value={signer.id}>
+                          {signer.name} - {signer.position}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -763,15 +814,19 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                   <Label>Treasurer (Cash Availability)</Label>
                   <Select
                     value={signatories.treasurerId}
-                    onValueChange={value => setSignatories(prev => ({ ...prev, treasurerId: value }))}
-                    disabled={submitting || signatoryLoading || mode === "edit"}
+                    onValueChange={(value) =>
+                      setSignatories((prev) => ({...prev, treasurerId: value}))
+                    }
+                    disabled={submitting || signatoryLoading || mode === 'edit'}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select treasurer" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(signatoryData?.treasurer ?? []).map(signer => (
-                        <SelectItem key={signer.id} value={signer.id}>{signer.name} - {signer.position}</SelectItem>
+                      {(signatoryData?.treasurer ?? []).map((signer) => (
+                        <SelectItem key={signer.id} value={signer.id}>
+                          {signer.name} - {signer.position}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -781,27 +836,32 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
                   <Label>Mayor (Approved by)</Label>
                   <Select
                     value={signatories.approverId}
-                    onValueChange={value => setSignatories(prev => ({ ...prev, approverId: value }))}
-                    disabled={submitting || signatoryLoading || mode === "edit"}
+                    onValueChange={(value) =>
+                      setSignatories((prev) => ({...prev, approverId: value}))
+                    }
+                    disabled={submitting || signatoryLoading || mode === 'edit'}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select mayor" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(signatoryData?.mayor ?? []).map(signer => (
-                        <SelectItem key={signer.id} value={signer.id}>{signer.name} - {signer.position}</SelectItem>
+                      {(signatoryData?.mayor ?? []).map((signer) => (
+                        <SelectItem key={signer.id} value={signer.id}>
+                          {signer.name} - {signer.position}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {mode === "edit" && (
+              {mode === 'edit' && (
                 <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
-                  Current signatories are shown from the selected row. The update API does not modify signatory assignments.
+                  Current signatories are shown from the selected row. The update API does not
+                  modify signatory assignments.
                 </div>
               )}
-              {mode === "add" && availableSignatoryIds.size === 0 && (
+              {mode === 'add' && availableSignatoryIds.size === 0 && (
                 <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
                   No valid signatories available for your role/office.
                 </div>
@@ -811,20 +871,18 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
         </ScrollArea>
 
         <DialogFooter>
-          {mode === "edit" && editItem && (
+          {mode === 'edit' && editItem && (
             <Button type="button" variant="outline" onClick={exportPRToExcel} disabled={submitting}>
               <FileSpreadsheet className="size-4 mr-2" /> Export PR (.xlsx)
             </Button>
           )}
           <DialogClose asChild>
-            <Button variant="outline" disabled={submitting}>Cancel</Button>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
           </DialogClose>
           <Button type="submit" form="purchasing-form" disabled={submitting}>
-            {submitting
-              ? "Saving..."
-              : mode === "add"
-                ? "Create Purchase Request"
-                : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Purchase Request' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -832,27 +890,35 @@ export function PurchasingFormDialog({ mode, open, onOpenChange, onSuccess, edit
   );
 }
 
-export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: PurchaseOrderDialogProps) {
+export function PurchaseOrderDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+  items,
+}: PurchaseOrderDialogProps) {
   const selectedItems = items ?? [];
   const primaryItem = selectedItems[0];
 
   const [submitting, setSubmitting] = useState(false);
-  const [supplier, setSupplier] = useState(() => primaryItem?.supplier ?? "");
-  const [address, setAddress] = useState(() => primaryItem?.address ?? "");
-  const [tinNumber, setTinNumber] = useState(() => primaryItem?.tinNumber ?? "");
-  const [purchaseOrderNumber, setPurchaseOrderNumber] = useState(() => primaryItem?.purchaseOrderNumber ?? "");
-  const [modeOfProcurementId, setModeOfProcurementId] = useState(() => primaryItem?.modeOfProcurement?.id ?? "");
-  const [placeOfDelivery, setPlaceOfDelivery] = useState(() => primaryItem?.placeOfDelivery ?? "");
-  const [dateOfDelivery, setDateOfDelivery] = useState(() => toDateInputValue(primaryItem?.dateOfDelivery));
-  const [deliveryTerm, setDeliveryTerm] = useState(() => primaryItem?.deliveryTerm ?? "");
-  const [paymentTerm, setPaymentTerm] = useState(() => primaryItem?.paymentTerm ?? "");
-
-  const { data: procurementTypeResponse } = useSWR<
-    BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>
-  >(
-    open ? "/api/management/data/procurement-types" : null,
-    $fetch,
+  const [supplier, setSupplier] = useState(() => primaryItem?.supplier ?? '');
+  const [address, setAddress] = useState(() => primaryItem?.address ?? '');
+  const [tinNumber, setTinNumber] = useState(() => primaryItem?.tinNumber ?? '');
+  const [purchaseOrderNumber, setPurchaseOrderNumber] = useState(
+    () => primaryItem?.purchaseOrderNumber ?? '',
   );
+  const [modeOfProcurementId, setModeOfProcurementId] = useState(
+    () => primaryItem?.modeOfProcurement?.id ?? '',
+  );
+  const [placeOfDelivery, setPlaceOfDelivery] = useState(() => primaryItem?.placeOfDelivery ?? '');
+  const [dateOfDelivery, setDateOfDelivery] = useState(() =>
+    toDateInputValue(primaryItem?.dateOfDelivery),
+  );
+  const [deliveryTerm, setDeliveryTerm] = useState(() => primaryItem?.deliveryTerm ?? '');
+  const [paymentTerm, setPaymentTerm] = useState(() => primaryItem?.paymentTerm ?? '');
+
+  const {data: procurementTypeResponse} = useSWR<
+    BetterFetchResponse<ProcurementTypesListResponse, ApiResponseException>
+  >(open ? '/api/management/data/procurement-types' : null, $fetch);
 
   const procurementTypes = procurementTypeResponse?.data?.data ?? [];
 
@@ -860,50 +926,54 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
     e.preventDefault();
 
     if (selectedItems.length === 0) {
-      toast.warning("Select at least one purchase request item first");
+      toast.warning('Select at least one purchase request item first');
       return;
     }
 
-    if (selectedItems.some(item => item.purchaseOrderNumber?.trim())) {
-      toast.warning("Some selected items already have a purchase order");
+    if (selectedItems.some((item) => item.purchaseOrderNumber?.trim())) {
+      toast.warning('Some selected items already have a purchase order');
       return;
     }
 
     if (!supplier.trim() || !address.trim() || !purchaseOrderNumber.trim()) {
-      toast.warning("Supplier, address, and PO number are required");
+      toast.warning('Supplier, address, and PO number are required');
       return;
     }
 
     setSubmitting(true);
 
-    const result = await $fetch<unknown, ApiResponseException>(`/api/forms/purchasing/${selectedItems[0]!.id}/order`, {
-      method: "POST",
-      body: {
-        supplier: supplier.trim(),
-        address: address.trim(),
-        tinNumber: tinNumber.trim() ? tinNumber.trim() : undefined,
-        purchaseOrderNumber: purchaseOrderNumber.trim(),
-        modeOfProcurementId: modeOfProcurementId.trim() ? modeOfProcurementId.trim() : undefined,
-        placeOfDelivery: placeOfDelivery.trim() ? placeOfDelivery.trim() : undefined,
-        dateOfDelivery: dateOfDelivery.trim() ? dateOfDelivery.trim() : undefined,
-        deliveryTerm: deliveryTerm.trim() ? deliveryTerm.trim() : undefined,
-        paymentTerm: paymentTerm.trim() ? paymentTerm.trim() : undefined,
-        items: selectedItems.map(v => v.id),
+    const result = await $fetch<unknown, ApiResponseException>(
+      `/api/forms/purchasing/${selectedItems[0]!.id}/order`,
+      {
+        method: 'POST',
+        body: {
+          supplier: supplier.trim(),
+          address: address.trim(),
+          tinNumber: tinNumber.trim() ? tinNumber.trim() : undefined,
+          purchaseOrderNumber: purchaseOrderNumber.trim(),
+          modeOfProcurementId: modeOfProcurementId.trim() ? modeOfProcurementId.trim() : undefined,
+          placeOfDelivery: placeOfDelivery.trim() ? placeOfDelivery.trim() : undefined,
+          dateOfDelivery: dateOfDelivery.trim() ? dateOfDelivery.trim() : undefined,
+          deliveryTerm: deliveryTerm.trim() ? deliveryTerm.trim() : undefined,
+          paymentTerm: paymentTerm.trim() ? paymentTerm.trim() : undefined,
+          items: selectedItems.map((v) => v.id),
+        },
       },
-    });
+    );
 
     setSubmitting(false);
 
     if (result.error) {
-      toast.error("Purchase order was not created", {
-        description: (result.error as ApiResponseException).message ?? "Please review the form and try again.",
+      toast.error('Purchase order was not created', {
+        description:
+          (result.error as ApiResponseException).message ?? 'Please review the form and try again.',
       });
       return;
     }
 
     onSuccess();
     onOpenChange(false);
-    toast.success("Purchase order created");
+    toast.success('Purchase order created');
   };
 
   return (
@@ -913,7 +983,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
           <DialogTitle>Create Purchase Order</DialogTitle>
           <DialogDescription>
             {selectedItems.length === 0
-              ? "Create a purchase order for selected purchase request items."
+              ? 'Create a purchase order for selected purchase request items.'
               : `Create a purchase order for ${selectedItems.length} selected item(s).`}
           </DialogDescription>
         </DialogHeader>
@@ -921,23 +991,43 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
         <form id="purchase-order-form" onSubmit={handleSubmit} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="po-supplier">Supplier</Label>
-            <Input id="po-supplier" value={supplier} onChange={e => setSupplier(e.target.value)} disabled={submitting} />
+            <Input
+              id="po-supplier"
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              disabled={submitting}
+            />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="po-address">Address</Label>
-            <Input id="po-address" value={address} onChange={e => setAddress(e.target.value)} disabled={submitting} />
+            <Input
+              id="po-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              disabled={submitting}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="po-tin">TIN Number</Label>
-              <Input id="po-tin" value={tinNumber} onChange={e => setTinNumber(e.target.value)} disabled={submitting} />
+              <Input
+                id="po-tin"
+                value={tinNumber}
+                onChange={(e) => setTinNumber(e.target.value)}
+                disabled={submitting}
+              />
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="po-number">PO #</Label>
-              <Input id="po-number" value={purchaseOrderNumber} onChange={e => setPurchaseOrderNumber(e.target.value)} disabled={submitting} />
+              <Input
+                id="po-number"
+                value={purchaseOrderNumber}
+                onChange={(e) => setPurchaseOrderNumber(e.target.value)}
+                disabled={submitting}
+              />
             </div>
           </div>
 
@@ -945,16 +1035,22 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
             <Label htmlFor="po-mode">Mode of Procurement (Optional)</Label>
             <Select
               value={modeOfProcurementId}
-              onValueChange={value => setModeOfProcurementId(value === "__none__" ? "" : value)}
+              onValueChange={(value) => setModeOfProcurementId(value === '__none__' ? '' : value)}
               disabled={submitting || procurementTypes.length === 0}
             >
               <SelectTrigger id="po-mode">
-                <SelectValue placeholder={procurementTypes.length === 0 ? "No options loaded" : "Select a mode"} />
+                <SelectValue
+                  placeholder={
+                    procurementTypes.length === 0 ? 'No options loaded' : 'Select a mode'
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">No mode of procurement</SelectItem>
-                {procurementTypes.map(option => (
-                  <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+                {procurementTypes.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -962,7 +1058,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
               <Input
                 placeholder="Paste modeOfProcurementId"
                 value={modeOfProcurementId}
-                onChange={e => setModeOfProcurementId(e.target.value)}
+                onChange={(e) => setModeOfProcurementId(e.target.value)}
                 disabled={submitting}
               />
             )}
@@ -971,29 +1067,52 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess, items }: Pu
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="po-place">Place of Delivery</Label>
-              <Input id="po-place" value={placeOfDelivery} onChange={e => setPlaceOfDelivery(e.target.value)} disabled={submitting} />
+              <Input
+                id="po-place"
+                value={placeOfDelivery}
+                onChange={(e) => setPlaceOfDelivery(e.target.value)}
+                disabled={submitting}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="po-date">Date of Delivery</Label>
-              <Input id="po-date" type="date" value={dateOfDelivery} onChange={e => setDateOfDelivery(e.target.value)} disabled={submitting} />
+              <Input
+                id="po-date"
+                type="date"
+                value={dateOfDelivery}
+                onChange={(e) => setDateOfDelivery(e.target.value)}
+                disabled={submitting}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="po-delivery-term">Delivery Term</Label>
-              <Input id="po-delivery-term" value={deliveryTerm} onChange={e => setDeliveryTerm(e.target.value)} disabled={submitting} />
+              <Input
+                id="po-delivery-term"
+                value={deliveryTerm}
+                onChange={(e) => setDeliveryTerm(e.target.value)}
+                disabled={submitting}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="po-payment-term">Payment Term</Label>
-              <Input id="po-payment-term" value={paymentTerm} onChange={e => setPaymentTerm(e.target.value)} disabled={submitting} />
+              <Input
+                id="po-payment-term"
+                value={paymentTerm}
+                onChange={(e) => setPaymentTerm(e.target.value)}
+                disabled={submitting}
+              />
             </div>
           </div>
         </form>
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" disabled={submitting}>Cancel</Button>
+            <Button variant="outline" disabled={submitting}>
+              Cancel
+            </Button>
           </DialogClose>
           <Button type="submit" form="purchase-order-form" disabled={submitting}>
-            {submitting ? "Saving..." : "Create Purchase Order"}
+            {submitting ? 'Saving...' : 'Create Purchase Order'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1006,14 +1125,28 @@ function LbacSearchCombobox({
   onChange,
   disabled,
 }: {
-  value: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string; sourceOfFund: string; implementingOffice: string } | null;
-  onChange: (value: { id: string; label: string; aipCode: Optional<string>; mfoPpa: string; sourceOfFund: string; implementingOffice: string }) => void;
+  value: {
+    id: string;
+    label: string;
+    aipCode: Optional<string>;
+    mfoPpa: string;
+    sourceOfFund: string;
+    implementingOffice: string;
+  } | null;
+  onChange: (value: {
+    id: string;
+    label: string;
+    aipCode: Optional<string>;
+    mfoPpa: string;
+    sourceOfFund: string;
+    implementingOffice: string;
+  }) => void;
   disabled: boolean;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const { data, isLoading } = useSWR<BetterFetchResponse<LbacSearchResponse, ApiResponseException>>(
+  const {data, isLoading} = useSWR<BetterFetchResponse<LbacSearchResponse, ApiResponseException>>(
     !disabled && open && query.length >= 2
       ? `/api/lbac/search?query=${encodeURIComponent(query)}`
       : null,
@@ -1026,41 +1159,43 @@ function LbacSearchCombobox({
     <div className="relative flex flex-1 flex-col gap-1">
       <Input
         placeholder="Search AIP reference code or MFO/PPA..."
-        value={open ? query : (value ? value.label : "")}
+        value={open ? query : value ? value.label : ''}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => setQuery(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
         disabled={disabled}
       />
 
       {open && (
         <div className="absolute top-full z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
-          {isLoading && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>
-          )}
+          {isLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>}
           {!isLoading && query.length < 2 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters to search.</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Type at least 2 characters to search.
+            </div>
           )}
           {!isLoading && query.length >= 2 && results.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No results found.</div>
           )}
-          {!isLoading && query.length >= 2 && renderLbacNodes(results, 0, item => {
-            const sourceOfFund = item.other?.expenseCode
-              ? item.other.expenseCode.accountCode
-                ? `${item.other.expenseCode.accountName} ${item.other.expenseCode.accountCode}`
-                : item.other.expenseCode.accountName
-              : "";
-            onChange({
-              id: item.id,
-              label: `${item.aipRefCode?.aipReferenceCode ?? "N/A"} - ${item.mfoPpa}`,
-              aipCode: item.aipRefCode?.aipReferenceCode ?? null,
-              mfoPpa: item.mfoPpa,
-              sourceOfFund,
-              implementingOffice: item.aipRefCode?.implementingOffice ?? "",
-            });
-            setOpen(false);
-            setQuery("");
-          })}
+          {!isLoading &&
+            query.length >= 2 &&
+            renderLbacNodes(results, 0, (item) => {
+              const sourceOfFund = item.other?.expenseCode
+                ? item.other.expenseCode.accountCode
+                  ? `${item.other.expenseCode.accountName} ${item.other.expenseCode.accountCode}`
+                  : item.other.expenseCode.accountName
+                : '';
+              onChange({
+                id: item.id,
+                label: `${item.aipRefCode?.aipReferenceCode ?? 'N/A'} - ${item.mfoPpa}`,
+                aipCode: item.aipRefCode?.aipReferenceCode ?? null,
+                mfoPpa: item.mfoPpa,
+                sourceOfFund,
+                implementingOffice: item.aipRefCode?.implementingOffice ?? '',
+              });
+              setOpen(false);
+              setQuery('');
+            })}
         </div>
       )}
     </div>
@@ -1072,13 +1207,13 @@ function renderLbacNodes(
   depth: number,
   onSelect: (item: LbacSearchResultItem) => void,
 ): React.ReactNode {
-  return nodes.map(node => {
+  return nodes.map((node) => {
     if (isLbacSearchGroup(node)) {
       return (
         <div key={node.id}>
           <div
             className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide select-none"
-            style={{ paddingLeft: `${12 + depth * 12}px` }}
+            style={{paddingLeft: `${12 + depth * 12}px`}}
           >
             {node.name}
           </div>
@@ -1092,10 +1227,10 @@ function renderLbacNodes(
         key={node.id}
         type="button"
         className="flex w-full flex-col items-start py-2 text-left text-sm hover:bg-accent"
-        style={{ paddingLeft: `${12 + depth * 12}px` }}
+        style={{paddingLeft: `${12 + depth * 12}px`}}
         onMouseDown={() => onSelect(node)}
       >
-        <span className="font-medium">{node.aipRefCode?.aipReferenceCode ?? "N/A"}</span>
+        <span className="font-medium">{node.aipRefCode?.aipReferenceCode ?? 'N/A'}</span>
         <span className="text-xs text-muted-foreground">{node.mfoPpa}</span>
       </button>
     );
@@ -1104,18 +1239,18 @@ function renderLbacNodes(
 
 function toDateInputValue(value: Optional<string>): string {
   if (!value) {
-    return "";
+    return '';
   }
 
-  const fromDisplay = DateTime.fromFormat(value, "MM/dd/yyyy", { zone: "Asia/Manila" });
+  const fromDisplay = DateTime.fromFormat(value, 'MM/dd/yyyy', {zone: 'Asia/Manila'});
   if (fromDisplay.isValid) {
-    return fromDisplay.toFormat("yyyy-MM-dd");
+    return fromDisplay.toFormat('yyyy-MM-dd');
   }
 
-  const fromIso = DateTime.fromISO(value, { zone: "Asia/Manila" });
+  const fromIso = DateTime.fromISO(value, {zone: 'Asia/Manila'});
   if (fromIso.isValid) {
-    return fromIso.toFormat("yyyy-MM-dd");
+    return fromIso.toFormat('yyyy-MM-dd');
   }
 
-  return "";
+  return '';
 }

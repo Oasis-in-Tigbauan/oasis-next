@@ -1,11 +1,48 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, Download, FileSpreadsheet, MoveRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  MoveRight,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {ExportCollPerfDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/export-coll-perf-dialog';
+import {ManageTemplatesDialog} from '@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
@@ -14,64 +51,29 @@ import type {
   CollPerfItemResponse,
   CollPerfMonthlyData,
   CollPerfResponse,
-} from "@/lib/http/client/responses";
+} from '@/lib/http/client/responses';
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ExportCollPerfDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/export-coll-perf-dialog";
-import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(lbac_users)/manage-templates-dialog";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-
-const TOTAL_ROOT_BG = "#FFFF99";
-const TOTAL_DEPTH1_BG = "#CCFFFF";
-const TOTAL_DEEPER_BG = "#FDE9D9";
-const GROUP_ROOT_BG = "#0B5394";
-const GROUP_CHILD_BG = "#26a69a";
+const TOTAL_ROOT_BG = '#FFFF99';
+const TOTAL_DEPTH1_BG = '#CCFFFF';
+const TOTAL_DEEPER_BG = '#FDE9D9';
+const GROUP_ROOT_BG = '#0B5394';
+const GROUP_CHILD_BG = '#26a69a';
 const INDENT_BASE_PX = 12;
 const INDENT_PER_DEPTH_PX = 20;
 
 const MONTH_LABELS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ] as const;
 
 const MONTH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
@@ -79,32 +81,39 @@ const MONTH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 const TOTAL_COLS = 22;
 
 type DialogMode =
-  | "add-group"
-  | "edit-group"
-  | "add-item"
-  | "edit-item"
-  | "move-group"
-  | "move-item"
+  | 'add-group'
+  | 'edit-group'
+  | 'add-item'
+  | 'edit-item'
+  | 'move-group'
+  | 'move-item'
   | null;
 
 type SelectableRow =
-  | { kind: "group"; id: string; depth: number; data: CollPerfGroupResponse }
-  | { kind: "item"; id: string; depth: number; groupId: string; data: CollPerfItemResponse };
+  | {kind: 'group'; id: string; depth: number; data: CollPerfGroupResponse}
+  | {kind: 'item'; id: string; depth: number; groupId: string; data: CollPerfItemResponse};
 
 type FlatRow =
   | SelectableRow
-  | { kind: "group-total"; id: string; depth: number; groupId: string; data: CollPerfGroupTotals; isRoot: boolean };
+  | {
+      kind: 'group-total';
+      id: string;
+      depth: number;
+      groupId: string;
+      data: CollPerfGroupTotals;
+      isRoot: boolean;
+    };
 
 export default function Page() {
   const currentYear = useMemo(() => _getUtc8Year(), []);
   const defaultQuarter = useMemo(() => _getUtc8Quarter(), []);
 
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<CollPerfResponse, ApiResponseException>
-  >("/api/lbac/coll-perf", $fetch);
+  >('/api/lbac/coll-perf', $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<SelectableRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -140,7 +149,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -149,29 +158,31 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: SelectableRow) => {
-    setSelectedRow(prev => (prev?.id === row.id ? null : row));
+    setSelectedRow((prev) => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: SelectableRow) => {
     setSelectedRow(row);
-    setDialogMode(row.kind === "group" ? "edit-group" : "edit-item");
+    setDialogMode(row.kind === 'group' ? 'edit-group' : 'edit-item');
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!selectedRow) return;
-    const label = selectedRow.kind === "group"
-      ? `group "${selectedRow.data.name}"`
-      : `item "${selectedRow.data.particulars}"`;
+    const label =
+      selectedRow.kind === 'group'
+        ? `group "${selectedRow.data.name}"`
+        : `item "${selectedRow.data.particulars}"`;
     if (!confirm(`Delete this ${label}? This cannot be undone.`)) return;
 
-    const url = selectedRow.kind === "group"
-      ? `/api/lbac/coll-perf/groups/${selectedRow.id}`
-      : `/api/lbac/coll-perf/items/${selectedRow.id}`;
+    const url =
+      selectedRow.kind === 'group'
+        ? `/api/lbac/coll-perf/groups/${selectedRow.id}`
+        : `/api/lbac/coll-perf/items/${selectedRow.id}`;
 
-    const res = await fetch(url, { method: "DELETE" });
+    const res = await fetch(url, {method: 'DELETE'});
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
-      alert(payload?.message ?? "Failed to delete. Please try again.");
+      alert(payload?.message ?? 'Failed to delete. Please try again.');
       return;
     }
     setSelectedRow(null);
@@ -187,8 +198,8 @@ export default function Page() {
   if (isLoading) return <Loading />;
   if (error || data?.error) return <DeadHamster />;
 
-  const selectedItem = selectedRow?.kind === "item" ? selectedRow.data : null;
-  const selectedGroup = selectedRow?.kind === "group" ? selectedRow.data : null;
+  const selectedItem = selectedRow?.kind === 'item' ? selectedRow.data : null;
+  const selectedGroup = selectedRow?.kind === 'group' ? selectedRow.data : null;
 
   return (
     <div className="flex flex-col gap-2 p-4 pt-0 w-full">
@@ -199,7 +210,7 @@ export default function Page() {
             className="pl-7 h-8 w-64 text-xs"
             placeholder="Search particulars, account code…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -207,7 +218,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add-group")}
+          onClick={() => setDialogMode('add-group')}
         >
           <Plus className="size-3" />
           Group
@@ -217,7 +228,7 @@ export default function Page() {
           size="sm"
           className="h-7 text-xs"
           disabled={allGroups.length === 0}
-          onClick={() => setDialogMode("add-item")}
+          onClick={() => setDialogMode('add-item')}
         >
           <Plus className="size-3" />
           Item
@@ -230,7 +241,7 @@ export default function Page() {
           disabled={!selectedRow}
           onClick={() => {
             if (!selectedRow) return;
-            setDialogMode(selectedRow.kind === "group" ? "edit-group" : "edit-item");
+            setDialogMode(selectedRow.kind === 'group' ? 'edit-group' : 'edit-item');
           }}
         >
           <Pencil />
@@ -239,10 +250,10 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          disabled={selectedRow?.kind !== "item"}
+          disabled={selectedRow?.kind !== 'item'}
           onClick={() => {
-            if (selectedRow?.kind !== "item") return;
-            setDialogMode("move-item");
+            if (selectedRow?.kind !== 'item') return;
+            setDialogMode('move-item');
           }}
         >
           <MoveRight className="size-3" />
@@ -252,10 +263,10 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          disabled={selectedRow?.kind !== "group"}
+          disabled={selectedRow?.kind !== 'group'}
           onClick={() => {
-            if (selectedRow?.kind !== "group") return;
-            setDialogMode("move-group");
+            if (selectedRow?.kind !== 'group') return;
+            setDialogMode('move-group');
           }}
         >
           <MoveRight className="size-3" />
@@ -293,9 +304,9 @@ export default function Page() {
         </Button>
         {selectedRow && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            {selectedRow.kind === "group"
+            {selectedRow.kind === 'group'
               ? `Group: ${selectedRow.data.name}`
-              : `Item: ${selectedRow.data.particulars.slice(0, 40)}${selectedRow.data.particulars.length > 40 ? "…" : ""}`}
+              : `Item: ${selectedRow.data.particulars.slice(0, 40)}${selectedRow.data.particulars.length > 40 ? '…' : ''}`}
           </Badge>
         )}
       </div>
@@ -303,7 +314,9 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No collection performance records found."}
+            {searchQuery
+              ? 'No results match your search.'
+              : 'No collection performance records found.'}
           </div>
         ) : (
           <div
@@ -313,20 +326,39 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#D4F3F3]">
                 <TableRow>
-                  <TableHead rowSpan={2} className="min-w-[220px] align-middle border-l whitespace-normal break-words">
+                  <TableHead
+                    rowSpan={2}
+                    className="min-w-[220px] align-middle border-l whitespace-normal break-words"
+                  >
                     Particulars
                   </TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle">Account Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">Income Target</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">Total Collection</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">Collection Performance</TableHead>
-                  <TableHead rowSpan={2} className="min-w-28 align-middle text-right">Excess/Deficit</TableHead>
-                  <TableHead colSpan={12} className="text-center border-b">Monthly</TableHead>
-                  <TableHead colSpan={4} className="text-center border-b">Quarterly</TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle">
+                    Account Code
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">
+                    Income Target
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">
+                    Total Collection
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">
+                    Collection Performance
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-28 align-middle text-right">
+                    Excess/Deficit
+                  </TableHead>
+                  <TableHead colSpan={12} className="text-center border-b">
+                    Monthly
+                  </TableHead>
+                  <TableHead colSpan={4} className="text-center border-b">
+                    Quarterly
+                  </TableHead>
                 </TableRow>
                 <TableRow>
-                  {MONTH_LABELS.map(label => (
-                    <TableHead key={label} className="min-w-24 text-right">{label}</TableHead>
+                  {MONTH_LABELS.map((label) => (
+                    <TableHead key={label} className="min-w-24 text-right">
+                      {label}
+                    </TableHead>
                   ))}
                   <TableHead className="min-w-24 text-right">Q1</TableHead>
                   <TableHead className="min-w-24 text-right">Q2</TableHead>
@@ -337,13 +369,13 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     const isSelected = selectedRow?.id === row.id;
                     return (
@@ -351,8 +383,8 @@ export default function Page() {
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className={`cursor-pointer select-none text-white ${isSelected ? "outline outline-2 outline-primary" : ""}`}
-                        style={{ backgroundColor: row.depth === 0 ? GROUP_ROOT_BG : GROUP_CHILD_BG }}
+                        className={`cursor-pointer select-none text-white ${isSelected ? 'outline outline-2 outline-primary' : ''}`}
+                        style={{backgroundColor: row.depth === 0 ? GROUP_ROOT_BG : GROUP_CHILD_BG}}
                         onClick={() => handleRowClick(row)}
                         onDoubleClick={() => handleRowDoubleClick(row)}
                       >
@@ -363,11 +395,16 @@ export default function Page() {
                           <button
                             type="button"
                             className="flex items-center gap-1 font-semibold uppercase text-white text-left hover:opacity-80 w-full"
-                            onClick={e => { e.stopPropagation(); toggleCollapse(row.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCollapse(row.id);
+                            }}
                           >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
+                            {isCollapsed ? (
+                              <ChevronRight className="size-3 shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3 shrink-0" />
+                            )}
                             <span>{row.data.name}</span>
                           </button>
                         </TableCell>
@@ -376,15 +413,15 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "group-total") {
-                    const label = row.isRoot ? "Grand Total" : "Total";
+                  if (row.kind === 'group-total') {
+                    const label = row.isRoot ? 'Grand Total' : 'Total';
                     return (
                       <TableRow
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
                         className="font-bold"
-                        style={{ backgroundColor: totalRowBackground(row.depth, row.isRoot) }}
+                        style={{backgroundColor: totalRowBackground(row.depth, row.isRoot)}}
                       >
                         <TableCell
                           className="min-w-[220px] whitespace-normal break-words font-semibold"
@@ -421,7 +458,7 @@ export default function Page() {
                 })}
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -430,16 +467,16 @@ export default function Page() {
         )}
       </div>
 
-      {dialogMode === "add-group" && (
+      {dialogMode === 'add-group' && (
         <GroupFormDialog
           mode="add"
           allGroups={allGroups}
-          defaultParentId={selectedRow?.kind === "group" ? selectedRow.id : undefined}
+          defaultParentId={selectedRow?.kind === 'group' ? selectedRow.id : undefined}
           onSuccess={onSuccess}
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "edit-group" && selectedGroup && (
+      {dialogMode === 'edit-group' && selectedGroup && (
         <GroupFormDialog
           mode="edit"
           editGroup={selectedGroup}
@@ -448,17 +485,17 @@ export default function Page() {
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "add-item" && (
+      {dialogMode === 'add-item' && (
         <ItemFormDialog
           mode="add"
           currentYear={currentYear}
           allGroups={allGroups}
-          defaultGroupId={selectedRow?.kind === "group" ? selectedRow.id : undefined}
+          defaultGroupId={selectedRow?.kind === 'group' ? selectedRow.id : undefined}
           onSuccess={onSuccess}
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "edit-item" && selectedItem && (
+      {dialogMode === 'edit-item' && selectedItem && (
         <ItemFormDialog
           mode="edit"
           currentYear={currentYear}
@@ -468,7 +505,7 @@ export default function Page() {
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "move-item" && selectedRow?.kind === "item" && (
+      {dialogMode === 'move-item' && selectedRow?.kind === 'item' && (
         <MoveItemDialog
           itemRow={selectedRow}
           allGroups={allGroups}
@@ -476,7 +513,7 @@ export default function Page() {
           onClose={closeDialog}
         />
       )}
-      {dialogMode === "move-group" && selectedRow?.kind === "group" && (
+      {dialogMode === 'move-group' && selectedRow?.kind === 'group' && (
         <MoveGroupDialog
           groupRow={selectedRow}
           tree={tree}
@@ -492,7 +529,7 @@ export default function Page() {
         apiPath="/api/lbac/templates/coll-perf"
         title="Manage Export Footer"
         description="Upload or replace the Excel footer template appended to collection performance exports (LBac Form No. 1)."
-        templateSections={["footer"]}
+        templateSections={['footer']}
       />
 
       <ExportCollPerfDialog
@@ -515,7 +552,7 @@ function GroupFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editGroup?: CollPerfGroupResponse;
   allGroups: CollPerfGroupResponse[];
   defaultParentId?: string;
@@ -523,52 +560,61 @@ function GroupFormDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [name, setName] = useState(editGroup?.name ?? "");
-  const [parentId, setParentId] = useState(defaultParentId ?? "");
+  const [name, setName] = useState(editGroup?.name ?? '');
+  const [parentId, setParentId] = useState(defaultParentId ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (submitting) return;
     if (!name.trim()) {
-      setActionError("Group name is required.");
+      setActionError('Group name is required.');
       return;
     }
     setSubmitting(true);
     setActionError(null);
     try {
-      const body: Record<string, unknown> = { name: name.trim() };
-      if (mode === "add" && parentId) {
+      const body: Record<string, unknown> = {name: name.trim()};
+      if (mode === 'add' && parentId) {
         body.parentId = parentId;
       }
       const res = await fetch(
-        mode === "add" ? "/api/lbac/coll-perf/groups" : `/api/lbac/coll-perf/groups/${editGroup!.id}`,
+        mode === 'add'
+          ? '/api/lbac/coll-perf/groups'
+          : `/api/lbac/coll-perf/groups/${editGroup!.id}`,
         {
-          method: mode === "add" ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: mode === 'add' ? 'POST' : 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         },
       );
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save group. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save group. Please try again.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Group" : "Edit Group"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Group' : 'Edit Group'}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? "Create a new collection performance group." : `Editing group: ${editGroup?.name}`}
+            {mode === 'add'
+              ? 'Create a new collection performance group.'
+              : `Editing group: ${editGroup?.name}`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -577,17 +623,17 @@ function GroupFormDialog({
             <Input
               id={`${baseId}-name`}
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               disabled={submitting}
               placeholder="Group name"
             />
           </div>
-          {mode === "add" && (
+          {mode === 'add' && (
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-parent`}>Parent Group</Label>
               <Select
-                value={parentId || "__root__"}
-                onValueChange={v => setParentId(v === "__root__" ? "" : v)}
+                value={parentId || '__root__'}
+                onValueChange={(v) => setParentId(v === '__root__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-parent`}>
@@ -595,8 +641,10 @@ function GroupFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__root__">Root (no parent)</SelectItem>
-                  {allGroups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                  {allGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -604,12 +652,16 @@ function GroupFormDialog({
           )}
         </div>
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create Group" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Group' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -626,7 +678,7 @@ function ItemFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: CollPerfItemResponse;
   allGroups: CollPerfGroupResponse[];
   defaultGroupId?: string;
@@ -635,10 +687,10 @@ function ItemFormDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [parentId, setParentId] = useState(defaultGroupId ?? "");
-  const [particulars, setParticulars] = useState(editItem?.particulars ?? "");
-  const [accountCode, setAccountCode] = useState(editItem?.accountCode ?? "");
-  const [incomeTarget, setIncomeTarget] = useState(editItem?.incomeTarget ?? "");
+  const [parentId, setParentId] = useState(defaultGroupId ?? '');
+  const [particulars, setParticulars] = useState(editItem?.particulars ?? '');
+  const [accountCode, setAccountCode] = useState(editItem?.accountCode ?? '');
+  const [incomeTarget, setIncomeTarget] = useState(editItem?.incomeTarget ?? '');
   const [monthlyValues, setMonthlyValues] = useState<Record<number, string>>(() =>
     buildMonthlyValueMap(editItem?.monthlyData),
   );
@@ -648,25 +700,25 @@ function ItemFormDialog({
   const handleSave = async () => {
     if (submitting) return;
     if (!particulars.trim()) {
-      setActionError("Particulars is required.");
+      setActionError('Particulars is required.');
       return;
     }
-    if (mode === "add" && !parentId) {
-      setActionError("Please select a parent group.");
+    if (mode === 'add' && !parentId) {
+      setActionError('Please select a parent group.');
       return;
     }
     if (!incomeTarget.trim() || Number.isNaN(Number(incomeTarget))) {
-      setActionError("Income target must be a valid number.");
+      setActionError('Income target must be a valid number.');
       return;
     }
 
     setSubmitting(true);
     setActionError(null);
     try {
-      const monthlyData = MONTH_NUMBERS.map(month => ({
+      const monthlyData = MONTH_NUMBERS.map((month) => ({
         month,
         year: currentYear,
-        value: monthlyValues[month]?.trim() || "0",
+        value: monthlyValues[month]?.trim() || '0',
       }));
 
       const body: Record<string, unknown> = {
@@ -677,47 +729,52 @@ function ItemFormDialog({
       };
 
       let res: Response;
-      if (mode === "add") {
-        res = await fetch("/api/lbac/coll-perf/items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ parentId, ...body }),
+      if (mode === 'add') {
+        res = await fetch('/api/lbac/coll-perf/items', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({parentId, ...body}),
         });
       } else {
         res = await fetch(`/api/lbac/coll-perf/items/${editItem!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         });
       }
 
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save item. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save item. Please try again.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Item" : "Edit Item"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Item' : 'Edit Item'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Create a collection performance item with monthly values for the current year."
+            {mode === 'add'
+              ? 'Create a collection performance item with monthly values for the current year.'
               : `Editing: ${editItem?.particulars}`}
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-1">
           <div className="flex flex-col gap-4">
-            {mode === "add" && (
+            {mode === 'add' && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-parent`}>Parent Group *</Label>
                 <Select value={parentId} onValueChange={setParentId} disabled={submitting}>
@@ -725,8 +782,10 @@ function ItemFormDialog({
                     <SelectValue placeholder="Select group..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {allGroups.map(group => (
-                      <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                    {allGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -737,7 +796,7 @@ function ItemFormDialog({
               <Input
                 id={`${baseId}-particulars`}
                 value={particulars}
-                onChange={e => setParticulars(e.target.value)}
+                onChange={(e) => setParticulars(e.target.value)}
                 disabled={submitting}
               />
             </div>
@@ -746,7 +805,7 @@ function ItemFormDialog({
               <Input
                 id={`${baseId}-account`}
                 value={accountCode}
-                onChange={e => setAccountCode(e.target.value)}
+                onChange={(e) => setAccountCode(e.target.value)}
                 disabled={submitting}
               />
             </div>
@@ -755,7 +814,7 @@ function ItemFormDialog({
               <Input
                 id={`${baseId}-income`}
                 value={incomeTarget}
-                onChange={e => setIncomeTarget(e.target.value)}
+                onChange={(e) => setIncomeTarget(e.target.value)}
                 disabled={submitting}
                 className="font-mono"
                 inputMode="decimal"
@@ -766,13 +825,18 @@ function ItemFormDialog({
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {MONTH_NUMBERS.map((month, idx) => (
                   <div key={month} className="flex flex-col gap-1">
-                    <Label htmlFor={`${baseId}-m${month}`} className="text-xs text-muted-foreground">
+                    <Label
+                      htmlFor={`${baseId}-m${month}`}
+                      className="text-xs text-muted-foreground"
+                    >
                       {MONTH_LABELS[idx]}
                     </Label>
                     <Input
                       id={`${baseId}-m${month}`}
-                      value={monthlyValues[month] ?? ""}
-                      onChange={e => setMonthlyValues(prev => ({ ...prev, [month]: e.target.value }))}
+                      value={monthlyValues[month] ?? ''}
+                      onChange={(e) =>
+                        setMonthlyValues((prev) => ({...prev, [month]: e.target.value}))
+                      }
                       disabled={submitting}
                       className="font-mono text-right h-8 text-xs"
                       inputMode="decimal"
@@ -782,18 +846,23 @@ function ItemFormDialog({
                 ))}
               </div>
               <Typography variant="small" className="text-muted-foreground">
-                Quarterly totals, collection performance, and excess/deficit are calculated automatically after save.
+                Quarterly totals, collection performance, and excess/deficit are calculated
+                automatically after save.
               </Typography>
             </div>
           </div>
         </ScrollArea>
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create Item" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Item' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -807,7 +876,7 @@ function MoveItemDialog({
   onSuccess,
   onClose,
 }: {
-  itemRow: Extract<SelectableRow, { kind: "item" }>;
+  itemRow: Extract<SelectableRow, {kind: 'item'}>;
   allGroups: CollPerfGroupResponse[];
   onSuccess: () => void;
   onClose: () => void;
@@ -820,7 +889,7 @@ function MoveItemDialog({
   const handleSave = async () => {
     if (submitting) return;
     if (!targetGroupId) {
-      setActionError("Please select a target group.");
+      setActionError('Please select a target group.');
       return;
     }
     if (targetGroupId === itemRow.groupId) {
@@ -831,25 +900,30 @@ function MoveItemDialog({
     setActionError(null);
     try {
       const res = await fetch(`/api/lbac/coll-perf/items/${itemRow.id}/move`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentId: targetGroupId }),
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({parentId: targetGroupId}),
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to move item. Please try again.");
+        setActionError(payload?.message ?? 'Failed to move item. Please try again.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Move Item</DialogTitle>
@@ -864,19 +938,25 @@ function MoveItemDialog({
               <SelectValue placeholder="Select target group..." />
             </SelectTrigger>
             <SelectContent>
-              {allGroups.map(group => (
-                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+              {allGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Moving..." : "Move Item"}
+            {submitting ? 'Moving...' : 'Move Item'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -891,14 +971,14 @@ function MoveGroupDialog({
   onSuccess,
   onClose,
 }: {
-  groupRow: Extract<SelectableRow, { kind: "group" }>;
+  groupRow: Extract<SelectableRow, {kind: 'group'}>;
   tree: CollPerfGroupResponse[];
   allGroups: CollPerfGroupResponse[];
   onSuccess: () => void;
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [targetGroupId, setTargetGroupId] = useState<string>("__root__");
+  const [targetGroupId, setTargetGroupId] = useState<string>('__root__');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -913,7 +993,7 @@ function MoveGroupDialog({
     return ids;
   }, [groupRow.id, tree]);
 
-  const eligibleGroups = allGroups.filter(g => !excludedIds.has(g.id));
+  const eligibleGroups = allGroups.filter((g) => !excludedIds.has(g.id));
 
   const handleSave = async () => {
     if (submitting) return;
@@ -921,32 +1001,38 @@ function MoveGroupDialog({
     setActionError(null);
     try {
       const res = await fetch(`/api/lbac/coll-perf/groups/${groupRow.id}/move`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          parentId: targetGroupId === "__root__" ? null : targetGroupId,
+          parentId: targetGroupId === '__root__' ? null : targetGroupId,
         }),
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to move group. Please try again.");
+        setActionError(payload?.message ?? 'Failed to move group. Please try again.');
         return;
       }
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Move Group</DialogTitle>
           <DialogDescription>
-            Move &ldquo;{groupRow.data.name}&rdquo; to a different parent group, or to the root level.
+            Move &ldquo;{groupRow.data.name}&rdquo; to a different parent group, or to the root
+            level.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1">
@@ -957,19 +1043,25 @@ function MoveGroupDialog({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__root__">Root (no parent)</SelectItem>
-              {eligibleGroups.map(group => (
-                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+              {eligibleGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Moving..." : "Move Group"}
+            {submitting ? 'Moving...' : 'Move Group'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1010,7 +1102,7 @@ function collectDescendantGroupIds(group: CollPerfGroupResponse): string[] {
 function buildMonthlyValueMap(monthlyData?: CollPerfMonthlyData[]): Record<number, string> {
   const map: Record<number, string> = {};
   for (const month of MONTH_NUMBERS) {
-    map[month] = "";
+    map[month] = '';
   }
   if (monthlyData) {
     for (const entry of monthlyData) {
@@ -1046,9 +1138,11 @@ function CollPerfNumericCells({
       <TableCell>{accountCodeCell}</TableCell>
       <TableCell className="text-right font-mono">{fmt(data.incomeTarget)}</TableCell>
       <TableCell className="text-right font-mono">{fmt(data.totalCollection)}</TableCell>
-      <TableCell className="text-right font-mono">{fmtPercent(data.collectionPerformance)}</TableCell>
+      <TableCell className="text-right font-mono">
+        {fmtPercent(data.collectionPerformance)}
+      </TableCell>
       <TableCell className="text-right font-mono">{fmt(data.excessOrDeficit)}</TableCell>
-      {MONTH_NUMBERS.map(month => (
+      {MONTH_NUMBERS.map((month) => (
         <TableCell key={month} className="text-right font-mono">
           {fmt(monthValue(data.monthlyData, month))}
         </TableCell>
@@ -1061,8 +1155,8 @@ function CollPerfNumericCells({
   );
 }
 
-function particularsIndentStyle(depth: number): { paddingLeft: string } {
-  return { paddingLeft: `${INDENT_BASE_PX + depth * INDENT_PER_DEPTH_PX}px` };
+function particularsIndentStyle(depth: number): {paddingLeft: string} {
+  return {paddingLeft: `${INDENT_BASE_PX + depth * INDENT_PER_DEPTH_PX}px`};
 }
 
 function totalRowBackground(depth: number, isRoot: boolean): string {
@@ -1072,7 +1166,7 @@ function totalRowBackground(depth: number, isRoot: boolean): string {
 }
 
 function monthValue(monthlyData: CollPerfMonthlyData[], month: number): string | undefined {
-  return monthlyData.find(m => m.month === month)?.value;
+  return monthlyData.find((m) => m.month === month)?.value;
 }
 
 function collectMatchingGroupIds(
@@ -1127,22 +1221,20 @@ function flattenVisible(
     if (node.type === 6780) {
       const group = node as CollPerfGroupResponse;
       if (filtering && !matchingGroupIds.has(group.id)) continue;
-      rows.push({ kind: "group", id: group.id, depth, data: group });
+      rows.push({kind: 'group', id: group.id, depth, data: group});
       const shouldExpand = filtering || !collapsed.has(group.id);
       if (shouldExpand) {
         for (const child of group.children) {
           if (child.type === 6781) {
             const item = child as CollPerfItemResponse;
             if (filtering && !itemMatchesQuery(item, query)) continue;
-            rows.push({ kind: "item", id: item.id, depth: depth + 1, groupId: group.id, data: item });
+            rows.push({kind: 'item', id: item.id, depth: depth + 1, groupId: group.id, data: item});
           } else {
-            rows.push(
-              ...flattenVisible([child], collapsed, depth + 1, query, matchingGroupIds),
-            );
+            rows.push(...flattenVisible([child], collapsed, depth + 1, query, matchingGroupIds));
           }
         }
         rows.push({
-          kind: "group-total",
+          kind: 'group-total',
           id: `total-${group.id}`,
           depth,
           groupId: group.id,
@@ -1156,30 +1248,30 @@ function flattenVisible(
 }
 
 function fmt(val: string | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return '—';
   const n = Number(val);
   if (Number.isNaN(n)) return val;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 function fmtPercent(val: string | null | undefined): string {
-  if (!val) return "—";
+  if (!val) return '—';
   const n = Number(val);
   if (Number.isNaN(n)) return val;
-  return `${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  return `${n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}%`;
 }
 
 function txt(val: string | null | undefined): string {
-  return val ?? "—";
+  return val ?? '—';
 }
 
 function _collPerfRowClass(collectionPerformance: string | undefined, isSelected: boolean): string {
-  if (isSelected) return "bg-accent";
+  if (isSelected) return 'bg-accent';
   const pct = Number(collectionPerformance);
-  if (Number.isNaN(pct)) return "";
-  if (pct < 0) return "bg-red-50 hover:bg-red-100/80";
-  if (Math.abs(pct - 100) < 0.01) return "bg-green-50 hover:bg-green-100/80";
-  return "";
+  if (Number.isNaN(pct)) return '';
+  if (pct < 0) return 'bg-red-50 hover:bg-red-100/80';
+  if (Math.abs(pct - 100) < 0.01) return 'bg-green-50 hover:bg-green-100/80';
+  return '';
 }
 
 function _getUtc8Year(): number {

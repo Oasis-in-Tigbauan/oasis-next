@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type LbacSearchResultItem = {
   id: string;
@@ -29,5 +29,5 @@ export type LbacSearchResponse = GenericOkResponse<LbacSearchGroupItem[]>;
 export function isLbacSearchGroup(
   node: LbacSearchGroupItem | LbacSearchResultItem,
 ): node is LbacSearchGroupItem {
-  return "children" in node;
+  return 'children' in node;
 }

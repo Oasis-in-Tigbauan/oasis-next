@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 type Response = {
   id: string;
@@ -11,11 +11,11 @@ type Response = {
   office: {
     id: string;
     name: string;
-  },
+  };
   headUser: {
     id: string;
     name: string;
-  }
-}
+  };
+};
 
 export type OfficeCodeListResponse = GenericOkResponse<Array<Response>>;

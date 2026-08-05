@@ -1,9 +1,20 @@
-﻿import { and, asc, eq, ilike, inArray, not, or } from "drizzle-orm";
-import { DateTime } from "luxon";
-import { Decimal } from "decimal.js";
+﻿import {Decimal} from 'decimal.js';
+import {and, asc, eq, ilike, inArray, not, or} from 'drizzle-orm';
+import {DateTime} from 'luxon';
 
-import * as templateBucket from "@/lib/buckets/templates";
-import type { TemplateBucketItem } from "@/lib/buckets/templates";
+import {
+  buildCollPerfHeaderLayout,
+  COLL_PERF_GROUP_DEPTH_CHILD_COLOR,
+  COLL_PERF_GROUP_DEPTH_ROOT_COLOR,
+  collPerfTotalRowColor,
+  flattenCollPerfForExport,
+  getCollPerfCellValue,
+  quarterEndingLabel,
+  resolveCollPerfExportColumns,
+  type CollPerfExportColDef,
+  type CollPerfExportColumnKey,
+  type CollPerfExportFlatRow,
+} from '@/common/lbac/coll-perf-export-layout';
 import {
   buildMainDataHeaderLayout,
   buildQuarterlyHeaderLayout,
@@ -23,20 +34,7 @@ import {
   type LbacQuarterlyExportColDef,
   type LbacQuarterlyExportColumnKey,
   type LbacQuarterlyExportFlatRow,
-} from "@/common/lbac/export-layout";
-import {
-  buildCollPerfHeaderLayout,
-  COLL_PERF_GROUP_DEPTH_CHILD_COLOR,
-  COLL_PERF_GROUP_DEPTH_ROOT_COLOR,
-  collPerfTotalRowColor,
-  flattenCollPerfForExport,
-  getCollPerfCellValue,
-  quarterEndingLabel,
-  resolveCollPerfExportColumns,
-  type CollPerfExportColDef,
-  type CollPerfExportColumnKey,
-  type CollPerfExportFlatRow,
-} from "@/common/lbac/coll-perf-export-layout";
+} from '@/common/lbac/export-layout';
 import {
   LBAC_FORM3_EXPORT_COLUMNS,
   LBAC_FORM5A_EXPORT_COLUMNS,
@@ -48,10 +46,12 @@ import {
   getLbeF1FormNo,
   getLbeF1Title,
   type LbeF1AroType,
-} from "@/common/lbac/forms-export-layout";
-import * as casts from "@/lib/types/casts";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
+} from '@/common/lbac/forms-export-layout';
+import {type User} from '@/lib/accounts';
+import * as templateBucket from '@/lib/buckets/templates';
+import type {TemplateBucketItem} from '@/lib/buckets/templates';
+import {db} from '@/lib/db';
+import {LBAC_DATA_READ, LBAC_DATA_WRITE, type Permissions} from '@/lib/db/permissions';
 import {
   aipReferences,
   aroOfficeDefinitions,
@@ -70,11 +70,11 @@ import {
   officeCodes,
   saaobEntries,
   supplemental,
-} from "@/lib/db/schema";
-import { type User } from "@/lib/accounts";
-import { LBAC_DATA_READ, LBAC_DATA_WRITE, type Permissions } from "@/lib/db/permissions";
+} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
 
-const CARDINAL_ADMINISTRATORS_OFFICE_NAME = "Cardinal Administrators";
+const CARDINAL_ADMINISTRATORS_OFFICE_NAME = 'Cardinal Administrators';
 
 /**
  * Resolves whether LBAC data should be restricted to the user's office.
@@ -87,32 +87,37 @@ export function resolveLbacOfficeRestriction(
   permissions: Permissions[],
   userOfficeId: string,
 ): string | undefined {
-  const hasFullAccess = permissions.includes(LBAC_DATA_READ) && permissions.includes(LBAC_DATA_WRITE);
+  const hasFullAccess =
+    permissions.includes(LBAC_DATA_READ) && permissions.includes(LBAC_DATA_WRITE);
   return hasFullAccess ? undefined : userOfficeId;
 }
 
-export const LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER = "lbac.main-data";
-export const LBAC_QUARTERLY_TEMPLATE_IDENTIFIER = "lbac.quarterly";
-export const LBAC_COLL_PERF_TEMPLATE_IDENTIFIER = "lbac.coll-perf";
-export const LBAC_LBE_F1_TEMPLATE_IDENTIFIER = "lbac.lbe-f1";
-export const LBAC_LBE_F5_TEMPLATE_IDENTIFIER = "lbac.lbe-f5";
-export const LBAC_FORM3_TEMPLATE_IDENTIFIER = "lbac.form-3";
-export const LBAC_FORM5_TEMPLATE_IDENTIFIER = "lbac.form-5";
-export const LBAC_FORM5A_TEMPLATE_IDENTIFIER = "lbac.form-5a";
+export const LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER = 'lbac.main-data';
+export const LBAC_QUARTERLY_TEMPLATE_IDENTIFIER = 'lbac.quarterly';
+export const LBAC_COLL_PERF_TEMPLATE_IDENTIFIER = 'lbac.coll-perf';
+export const LBAC_LBE_F1_TEMPLATE_IDENTIFIER = 'lbac.lbe-f1';
+export const LBAC_LBE_F5_TEMPLATE_IDENTIFIER = 'lbac.lbe-f5';
+export const LBAC_FORM3_TEMPLATE_IDENTIFIER = 'lbac.form-3';
+export const LBAC_FORM5_TEMPLATE_IDENTIFIER = 'lbac.form-5';
+export const LBAC_FORM5A_TEMPLATE_IDENTIFIER = 'lbac.form-5a';
 
 /** ExcelTS numeric number format for monetary amounts. */
-const _NUM_FMT_AMOUNT = "#,##0.00";
+const _NUM_FMT_AMOUNT = '#,##0.00';
 /** ExcelTS number format for percentages stored as 0-100. */
-const _NUM_FMT_PCT = "0.00";
+const _NUM_FMT_PCT = '0.00';
 
 const _THIN_BORDER = {
-  top: { style: "thin" as const },
-  left: { style: "thin" as const },
-  bottom: { style: "thin" as const },
-  right: { style: "thin" as const },
+  top: {style: 'thin' as const},
+  left: {style: 'thin' as const},
+  bottom: {style: 'thin' as const},
+  right: {style: 'thin' as const},
 };
 
-const _HEADER_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFFFF2CC" } };
+const _HEADER_FILL = {
+  type: 'pattern' as const,
+  pattern: 'solid' as const,
+  fgColor: {argb: 'FFFFF2CC'},
+};
 const _MERGE_CELL_TYPE = 1;
 
 /**
@@ -145,12 +150,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
       .from(lbacItems)
       .leftJoin(aipReferences, eq(aipReferences.id, lbacItems.aipRefCode))
       .leftJoin(expenseClasses, eq(expenseClasses.id, lbacItems.expenseCodeId))
-      .where(
-        or(
-          ilike(lbacItems.mfoPpa, pattern),
-          ilike(aipReferences.aipReferenceCode, pattern),
-        ),
-      )
+      .where(or(ilike(lbacItems.mfoPpa, pattern), ilike(aipReferences.aipReferenceCode, pattern)))
       .orderBy(asc(lbacItems.createdAt));
 
     if (rows.length === 0) return new Success([]);
@@ -176,11 +176,20 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
         id: row.id,
         mfoPpa: row.mfoPpa,
         aipRefCode: row.aipRefId
-          ? { id: row.aipRefId, aipReferenceCode: row.aipReferenceCode!, description: row.aipDescription!, implementingOffice: row.aipImplementingOffice ?? null }
+          ? {
+              id: row.aipRefId,
+              aipReferenceCode: row.aipReferenceCode!,
+              description: row.aipDescription!,
+              implementingOffice: row.aipImplementingOffice ?? null,
+            }
           : null,
         other: {
           expenseCode: row.expenseCodeId
-            ? { id: row.expenseCodeId, accountName: row.expenseAccountName!, accountCode: row.expenseAccountCode }
+            ? {
+                id: row.expenseCodeId,
+                accountName: row.expenseAccountName!,
+                accountCode: row.expenseAccountCode,
+              }
             : null,
         },
       };
@@ -193,7 +202,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
     const nodeMap = new Map<string, LbacSearchGroupItem>();
     for (const g of allGroups) {
       if (!relevantGroupIds.has(g.id)) continue;
-      nodeMap.set(g.id, { id: g.id, name: g.name, children: [] });
+      nodeMap.set(g.id, {id: g.id, name: g.name, children: []});
     }
 
     const roots: LbacSearchGroupItem[] = [];
@@ -211,7 +220,7 @@ export async function searchLbacItems(query: string): Promise<Result<LbacSearchR
 
     return new Success(roots);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to search LBAC items.", { query }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to search LBAC items.', {query}, e);
   }
 }
 
@@ -244,11 +253,7 @@ export async function getAllItems(
     }
 
     const reportIds = items.map((i) => i.quarterlyReportId);
-    const aipRefIds = [
-      ...new Set([
-        ...items.filter((i) => i.aipRefId).map((i) => i.aipRefId!),
-      ]),
-    ];
+    const aipRefIds = [...new Set([...items.filter((i) => i.aipRefId).map((i) => i.aipRefId!)])];
 
     const [reports, supplementals, obrAmounts] = await Promise.all([
       _fetchQuarterlyReports(reportIds),
@@ -260,7 +265,14 @@ export async function getAllItems(
 
     const itemsByGroup = new Map<string, LbacObject[]>();
     for (const item of items) {
-      const obj = _buildLbacItemObject(item, reportMap.get(item.quarterlyReportId), supplementals, obrAmounts, resolvedYear, resolvedQuarter);
+      const obj = _buildLbacItemObject(
+        item,
+        reportMap.get(item.quarterlyReportId),
+        supplementals,
+        obrAmounts,
+        resolvedYear,
+        resolvedQuarter,
+      );
       const existing = itemsByGroup.get(item.parentId) ?? [];
       existing.push(obj);
       itemsByGroup.set(item.parentId, existing);
@@ -269,7 +281,7 @@ export async function getAllItems(
     const tree = _buildGroupTree(groups, itemsByGroup);
     return new Success(tree);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC items.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve LBAC items.', {}, e);
   }
 }
 
@@ -293,10 +305,7 @@ export async function getAllQuarterlyReports(
     const resolvedYear = year ?? _getCurrentYearUtc8();
     const resolvedQuarter = quarter ?? _getCurrentQuarterUtc8();
 
-    let [groups, items] = await Promise.all([
-      _fetchGroups(),
-      _fetchItems(),
-    ]);
+    let [groups, items] = await Promise.all([_fetchGroups(), _fetchItems()]);
 
     if (restrictToOfficeId) {
       groups = _filterGroupsByOffice(groups, restrictToOfficeId);
@@ -305,9 +314,7 @@ export async function getAllQuarterlyReports(
     }
 
     const reportIds = items.map((i) => i.quarterlyReportId);
-    const aipRefIds = [
-      ...new Set(items.filter((i) => i.aipRefId).map((i) => i.aipRefId!)),
-    ];
+    const aipRefIds = [...new Set(items.filter((i) => i.aipRefId).map((i) => i.aipRefId!))];
 
     const [reports, supplementals, obrAmounts] = await Promise.all([
       _fetchQuarterlyReports(reportIds),
@@ -319,7 +326,14 @@ export async function getAllQuarterlyReports(
 
     const itemsByGroup = new Map<string, LbacQuarterlyObject[]>();
     for (const item of items) {
-      const obj = _buildLbacQuarterlyObject(item, reportMap.get(item.quarterlyReportId), supplementals, obrAmounts, resolvedYear, resolvedQuarter);
+      const obj = _buildLbacQuarterlyObject(
+        item,
+        reportMap.get(item.quarterlyReportId),
+        supplementals,
+        obrAmounts,
+        resolvedYear,
+        resolvedQuarter,
+      );
       const existing = itemsByGroup.get(item.parentId) ?? [];
       existing.push(obj);
       itemsByGroup.set(item.parentId, existing);
@@ -328,7 +342,7 @@ export async function getAllQuarterlyReports(
     const tree = _buildQuarterlyGroupTree(groups, itemsByGroup);
     return new Success(tree);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC quarterly reports.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve LBAC quarterly reports.', {}, e);
   }
 }
 
@@ -360,9 +374,7 @@ export async function getAllViewerItems(
     }
 
     const reportIds = items.map((i) => i.quarterlyReportId);
-    const aipRefIds = [
-      ...new Set(items.filter((i) => i.aipRefId).map((i) => i.aipRefId!)),
-    ];
+    const aipRefIds = [...new Set(items.filter((i) => i.aipRefId).map((i) => i.aipRefId!))];
 
     const [reports, supplementals, obrAmounts] = await Promise.all([
       _fetchQuarterlyReports(reportIds),
@@ -390,7 +402,7 @@ export async function getAllViewerItems(
     const tree = _buildViewerGroupTree(groups, itemsByGroup);
     return new Success(tree);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC viewer items.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve LBAC viewer items.', {}, e);
   }
 }
 
@@ -417,7 +429,7 @@ export async function getLbacAssignableOffices(): Promise<Result<LbacAssignableO
 
     return new Success(offices);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC assignable offices.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve LBAC assignable offices.', {}, e);
   }
 }
 
@@ -443,80 +455,128 @@ export async function createLbacItem(
 ): Promise<Result<LbacObject>> {
   try {
     // Validate parent group exists
-    const [groupRow] = await db.select({ id: lbacGroups.id })
-      .from(lbacGroups).where(eq(lbacGroups.id, groupId)).limit(1);
+    const [groupRow] = await db
+      .select({id: lbacGroups.id})
+      .from(lbacGroups)
+      .where(eq(lbacGroups.id, groupId))
+      .limit(1);
     if (!groupRow) {
-      return new Failure(ErrorCodes.ValidationFailure, "The specified group does not exist.", { groupId });
+      return new Failure(ErrorCodes.ValidationFailure, 'The specified group does not exist.', {
+        groupId,
+      });
     }
 
     // Validate optional FKs
     if (payload.aipRefCode) {
-      const [ref] = await db.select({ id: aipReferences.id }).from(aipReferences)
-        .where(eq(aipReferences.id, payload.aipRefCode)).limit(1);
+      const [ref] = await db
+        .select({id: aipReferences.id})
+        .from(aipReferences)
+        .where(eq(aipReferences.id, payload.aipRefCode))
+        .limit(1);
       if (!ref) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified AIP reference does not exist.", { aipRefCode: payload.aipRefCode });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified AIP reference does not exist.',
+          {aipRefCode: payload.aipRefCode},
+        );
       }
     }
     if (payload.implementingUnitId) {
-      const [unit] = await db.select({ id: officeCodes.id }).from(officeCodes)
-        .where(eq(officeCodes.id, payload.implementingUnitId)).limit(1);
+      const [unit] = await db
+        .select({id: officeCodes.id})
+        .from(officeCodes)
+        .where(eq(officeCodes.id, payload.implementingUnitId))
+        .limit(1);
       if (!unit) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified implementing unit does not exist.", { implementingUnitId: payload.implementingUnitId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified implementing unit does not exist.',
+          {implementingUnitId: payload.implementingUnitId},
+        );
       }
     }
     if (payload.expenseCodeId) {
-      const [expCode] = await db.select({ id: expenseClasses.id }).from(expenseClasses)
-        .where(eq(expenseClasses.id, payload.expenseCodeId)).limit(1);
+      const [expCode] = await db
+        .select({id: expenseClasses.id})
+        .from(expenseClasses)
+        .where(eq(expenseClasses.id, payload.expenseCodeId))
+        .limit(1);
       if (!expCode) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified expense code does not exist.", { expenseCodeId: payload.expenseCodeId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified expense code does not exist.',
+          {expenseCodeId: payload.expenseCodeId},
+        );
       }
     }
     if (payload.saaobId) {
-      const [saaob] = await db.select({ id: saaobEntries.id }).from(saaobEntries)
-        .where(eq(saaobEntries.id, payload.saaobId)).limit(1);
+      const [saaob] = await db
+        .select({id: saaobEntries.id})
+        .from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId))
+        .limit(1);
       if (!saaob) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified SAAOB entry does not exist.", { saaobId: payload.saaobId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified SAAOB entry does not exist.',
+          {saaobId: payload.saaobId},
+        );
       }
     }
     if (payload.aroLink) {
-      const [aroRow] = await db.select({ id: aroOfficeDefinitions.id }).from(aroOfficeDefinitions)
-        .where(eq(aroOfficeDefinitions.id, payload.aroLink)).limit(1);
+      const [aroRow] = await db
+        .select({id: aroOfficeDefinitions.id})
+        .from(aroOfficeDefinitions)
+        .where(eq(aroOfficeDefinitions.id, payload.aroLink))
+        .limit(1);
       if (!aroRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified ARO office does not exist.", { aroLink: payload.aroLink });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified ARO office does not exist.',
+          {aroLink: payload.aroLink},
+        );
       }
     }
 
     const newItemId = await db.transaction(async (tx) => {
-      const [qr] = await tx.insert(lbacQuarterlyReport).values({}).returning({ id: lbacQuarterlyReport.id });
+      const [qr] = await tx
+        .insert(lbacQuarterlyReport)
+        .values({})
+        .returning({id: lbacQuarterlyReport.id});
 
-      const [newItem] = await tx.insert(lbacItems).values({
-        aipRefCode: payload.aipRefCode ?? null,
-        mfoPpa: payload.mfoPpa,
-        majorFinalOutput: payload.majorFinalOutput ?? null,
-        performanceOutputIndicator: payload.performanceOutputIndicator ?? null,
-        targetForBudgetYear: payload.targetForBudgetYear ?? null,
-        proposedBudgetPS: casts.castToDecimal(payload.proposedBudgetPS ?? "0"),
-        proposedBudgetMOOE: casts.castToDecimal(payload.proposedBudgetMOOE ?? "0"),
-        proposedBudgetFE: casts.castToDecimal(payload.proposedBudgetFE ?? "0"),
-        proposedBudgetCO: casts.castToDecimal(payload.proposedBudgetCO ?? "0"),
-        remarks: payload.remarks ?? null,
-        remarksForAllocation: payload.remarksForAllocation ?? null,
-        gadable: payload.gadable ?? false,
-        tagging: payload.tagging ?? null,
-        amountAttributed: payload.amountAttributed ? casts.castToDecimal(payload.amountAttributed) : null,
-        physicalTargets: payload.physicalTargets ?? null,
-        priorYearAccomplishments: payload.priorYearAccomplishments ?? null,
-        remarksForOtherMetadata: payload.remarksForOtherMetadata ?? null,
-        implementingUnitId: payload.implementingUnitId ?? null,
-        expenseCodeId: payload.expenseCodeId ?? null,
-        saaobId: payload.saaobId ?? null,
-        aroType: payload.aroType ?? null,
-        budgetType: payload.budgetType ?? null,
-        aroLink: payload.aroLink ?? null,
-        quarterlyReportId: qr.id,
-        parentId: groupId,
-        authorId: user.id,
-      }).returning({ id: lbacItems.id });
+      const [newItem] = await tx
+        .insert(lbacItems)
+        .values({
+          aipRefCode: payload.aipRefCode ?? null,
+          mfoPpa: payload.mfoPpa,
+          majorFinalOutput: payload.majorFinalOutput ?? null,
+          performanceOutputIndicator: payload.performanceOutputIndicator ?? null,
+          targetForBudgetYear: payload.targetForBudgetYear ?? null,
+          proposedBudgetPS: casts.castToDecimal(payload.proposedBudgetPS ?? '0'),
+          proposedBudgetMOOE: casts.castToDecimal(payload.proposedBudgetMOOE ?? '0'),
+          proposedBudgetFE: casts.castToDecimal(payload.proposedBudgetFE ?? '0'),
+          proposedBudgetCO: casts.castToDecimal(payload.proposedBudgetCO ?? '0'),
+          remarks: payload.remarks ?? null,
+          remarksForAllocation: payload.remarksForAllocation ?? null,
+          gadable: payload.gadable ?? false,
+          tagging: payload.tagging ?? null,
+          amountAttributed: payload.amountAttributed
+            ? casts.castToDecimal(payload.amountAttributed)
+            : null,
+          physicalTargets: payload.physicalTargets ?? null,
+          priorYearAccomplishments: payload.priorYearAccomplishments ?? null,
+          remarksForOtherMetadata: payload.remarksForOtherMetadata ?? null,
+          implementingUnitId: payload.implementingUnitId ?? null,
+          expenseCodeId: payload.expenseCodeId ?? null,
+          saaobId: payload.saaobId ?? null,
+          aroType: payload.aroType ?? null,
+          budgetType: payload.budgetType ?? null,
+          aroLink: payload.aroLink ?? null,
+          quarterlyReportId: qr.id,
+          parentId: groupId,
+          authorId: user.id,
+        })
+        .returning({id: lbacItems.id});
 
       await tx.insert(lbacMonitoring).values({
         itemId: newItem.id,
@@ -528,7 +588,7 @@ export async function createLbacItem(
     const fetchedItems = await _fetchItems().then((all) => all.filter((i) => i.id === newItemId));
     const item = fetchedItems[0];
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve created LBAC item.", { newItemId });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve created LBAC item.', {newItemId});
     }
 
     const aipRefIds = item.aipRefId ? [item.aipRefId] : [];
@@ -537,11 +597,23 @@ export async function createLbacItem(
       _fetchSupplementalByAipRef(aipRefIds),
       _fetchObrAipAmounts(aipRefIds),
     ]);
-    const obj = _buildLbacItemObject(item, reports[0], supplementals, obrAmounts, _getCurrentYearUtc8(), _getCurrentQuarterUtc8());
+    const obj = _buildLbacItemObject(
+      item,
+      reports[0],
+      supplementals,
+      obrAmounts,
+      _getCurrentYearUtc8(),
+      _getCurrentQuarterUtc8(),
+    );
 
     return new Success(obj);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create LBAC item.", { groupId, userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create LBAC item.',
+      {groupId, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -567,26 +639,47 @@ export async function createLbacGroup(
 ): Promise<Result<BaseLbacGroupObject>> {
   try {
     if (groupId) {
-      const [parentGroup] = await db.select({ id: lbacGroups.id })
-        .from(lbacGroups).where(eq(lbacGroups.id, groupId)).limit(1);
+      const [parentGroup] = await db
+        .select({id: lbacGroups.id})
+        .from(lbacGroups)
+        .where(eq(lbacGroups.id, groupId))
+        .limit(1);
       if (!parentGroup) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified parent group does not exist.", { groupId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified parent group does not exist.',
+          {groupId},
+        );
       }
     }
 
     if (payload.aipRefCode) {
-      const [ref] = await db.select({ id: aipReferences.id }).from(aipReferences)
-        .where(eq(aipReferences.id, payload.aipRefCode)).limit(1);
+      const [ref] = await db
+        .select({id: aipReferences.id})
+        .from(aipReferences)
+        .where(eq(aipReferences.id, payload.aipRefCode))
+        .limit(1);
       if (!ref) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified AIP reference does not exist.", { aipRefCode: payload.aipRefCode });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified AIP reference does not exist.',
+          {aipRefCode: payload.aipRefCode},
+        );
       }
     }
 
     if (payload.implementingUnitId) {
-      const [unit] = await db.select({ id: officeCodes.id }).from(officeCodes)
-        .where(eq(officeCodes.id, payload.implementingUnitId)).limit(1);
+      const [unit] = await db
+        .select({id: officeCodes.id})
+        .from(officeCodes)
+        .where(eq(officeCodes.id, payload.implementingUnitId))
+        .limit(1);
       if (!unit) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified implementing unit does not exist.", { implementingUnitId: payload.implementingUnitId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified implementing unit does not exist.',
+          {implementingUnitId: payload.implementingUnitId},
+        );
       }
     }
 
@@ -597,26 +690,31 @@ export async function createLbacGroup(
       }
     }
 
-    const [newGroup] = await db.insert(lbacGroups).values({
-      name: payload.name,
-      aipRefCode: payload.aipRefCode ?? null,
-      implementingUnitId: payload.implementingUnitId ?? null,
-      officeId: payload.officeId ?? null,
-      parentId: groupId ?? null,
-      authorId: user.id,
-    }).returning({ id: lbacGroups.id });
+    const [newGroup] = await db
+      .insert(lbacGroups)
+      .values({
+        name: payload.name,
+        aipRefCode: payload.aipRefCode ?? null,
+        implementingUnitId: payload.implementingUnitId ?? null,
+        officeId: payload.officeId ?? null,
+        parentId: groupId ?? null,
+        authorId: user.id,
+      })
+      .returning({id: lbacGroups.id});
 
     const fetchedGroups = await _fetchGroups().then((all) =>
       all.filter((g) => g.id === newGroup.id),
     );
     const fetchedGroup = fetchedGroups[0];
     if (!fetchedGroup) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve created LBAC group.", { newGroupId: newGroup.id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve created LBAC group.', {
+        newGroupId: newGroup.id,
+      });
     }
 
     return new Success(_buildBaseLbacGroupObject(fetchedGroup));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create LBAC group.", { userId: user.id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create LBAC group.', {userId: user.id}, e);
   }
 }
 
@@ -639,67 +737,120 @@ export async function updateLbacItem(
   payload: UpdateLbacItemPayload,
 ): Promise<Result<LbacObject>> {
   try {
-    const [existingCheck] = await db.select({ id: lbacItems.id }).from(lbacItems)
-      .where(eq(lbacItems.id, lbacId)).limit(1);
+    const [existingCheck] = await db
+      .select({id: lbacItems.id})
+      .from(lbacItems)
+      .where(eq(lbacItems.id, lbacId))
+      .limit(1);
     if (!existingCheck) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC item not found.', {lbacId});
     }
 
     if (payload.aipRefCode) {
-      const [ref] = await db.select({ id: aipReferences.id }).from(aipReferences)
-        .where(eq(aipReferences.id, payload.aipRefCode)).limit(1);
+      const [ref] = await db
+        .select({id: aipReferences.id})
+        .from(aipReferences)
+        .where(eq(aipReferences.id, payload.aipRefCode))
+        .limit(1);
       if (!ref) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified AIP reference does not exist.", { aipRefCode: payload.aipRefCode });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified AIP reference does not exist.',
+          {aipRefCode: payload.aipRefCode},
+        );
       }
     }
     if (payload.implementingUnitId) {
-      const [unit] = await db.select({ id: officeCodes.id }).from(officeCodes)
-        .where(eq(officeCodes.id, payload.implementingUnitId)).limit(1);
+      const [unit] = await db
+        .select({id: officeCodes.id})
+        .from(officeCodes)
+        .where(eq(officeCodes.id, payload.implementingUnitId))
+        .limit(1);
       if (!unit) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified implementing unit does not exist.", { implementingUnitId: payload.implementingUnitId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified implementing unit does not exist.',
+          {implementingUnitId: payload.implementingUnitId},
+        );
       }
     }
     if (payload.expenseCodeId) {
-      const [expCode] = await db.select({ id: expenseClasses.id }).from(expenseClasses)
-        .where(eq(expenseClasses.id, payload.expenseCodeId)).limit(1);
+      const [expCode] = await db
+        .select({id: expenseClasses.id})
+        .from(expenseClasses)
+        .where(eq(expenseClasses.id, payload.expenseCodeId))
+        .limit(1);
       if (!expCode) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified expense code does not exist.", { expenseCodeId: payload.expenseCodeId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified expense code does not exist.',
+          {expenseCodeId: payload.expenseCodeId},
+        );
       }
     }
     if (payload.saaobId) {
-      const [saaob] = await db.select({ id: saaobEntries.id }).from(saaobEntries)
-        .where(eq(saaobEntries.id, payload.saaobId)).limit(1);
+      const [saaob] = await db
+        .select({id: saaobEntries.id})
+        .from(saaobEntries)
+        .where(eq(saaobEntries.id, payload.saaobId))
+        .limit(1);
       if (!saaob) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified SAAOB entry does not exist.", { saaobId: payload.saaobId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified SAAOB entry does not exist.',
+          {saaobId: payload.saaobId},
+        );
       }
     }
     if (payload.aroLink) {
-      const [aroRow] = await db.select({ id: aroOfficeDefinitions.id }).from(aroOfficeDefinitions)
-        .where(eq(aroOfficeDefinitions.id, payload.aroLink)).limit(1);
+      const [aroRow] = await db
+        .select({id: aroOfficeDefinitions.id})
+        .from(aroOfficeDefinitions)
+        .where(eq(aroOfficeDefinitions.id, payload.aroLink))
+        .limit(1);
       if (!aroRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified ARO office does not exist.", { aroLink: payload.aroLink });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified ARO office does not exist.',
+          {aroLink: payload.aroLink},
+        );
       }
     }
 
     const updateValues: Record<string, unknown> = {};
     if (payload.aipRefCode !== undefined) updateValues.aipRefCode = payload.aipRefCode;
     if (payload.mfoPpa !== undefined) updateValues.mfoPpa = payload.mfoPpa;
-    if (payload.majorFinalOutput !== undefined) updateValues.majorFinalOutput = payload.majorFinalOutput;
-    if (payload.performanceOutputIndicator !== undefined) updateValues.performanceOutputIndicator = payload.performanceOutputIndicator;
-    if (payload.targetForBudgetYear !== undefined) updateValues.targetForBudgetYear = payload.targetForBudgetYear;
-    if (payload.proposedBudgetPS !== undefined) updateValues.proposedBudgetPS = casts.castToDecimal(payload.proposedBudgetPS);
-    if (payload.proposedBudgetMOOE !== undefined) updateValues.proposedBudgetMOOE = casts.castToDecimal(payload.proposedBudgetMOOE);
-    if (payload.proposedBudgetFE !== undefined) updateValues.proposedBudgetFE = casts.castToDecimal(payload.proposedBudgetFE);
-    if (payload.proposedBudgetCO !== undefined) updateValues.proposedBudgetCO = casts.castToDecimal(payload.proposedBudgetCO);
+    if (payload.majorFinalOutput !== undefined)
+      updateValues.majorFinalOutput = payload.majorFinalOutput;
+    if (payload.performanceOutputIndicator !== undefined)
+      updateValues.performanceOutputIndicator = payload.performanceOutputIndicator;
+    if (payload.targetForBudgetYear !== undefined)
+      updateValues.targetForBudgetYear = payload.targetForBudgetYear;
+    if (payload.proposedBudgetPS !== undefined)
+      updateValues.proposedBudgetPS = casts.castToDecimal(payload.proposedBudgetPS);
+    if (payload.proposedBudgetMOOE !== undefined)
+      updateValues.proposedBudgetMOOE = casts.castToDecimal(payload.proposedBudgetMOOE);
+    if (payload.proposedBudgetFE !== undefined)
+      updateValues.proposedBudgetFE = casts.castToDecimal(payload.proposedBudgetFE);
+    if (payload.proposedBudgetCO !== undefined)
+      updateValues.proposedBudgetCO = casts.castToDecimal(payload.proposedBudgetCO);
     if (payload.remarks !== undefined) updateValues.remarks = payload.remarks;
-    if (payload.remarksForAllocation !== undefined) updateValues.remarksForAllocation = payload.remarksForAllocation;
+    if (payload.remarksForAllocation !== undefined)
+      updateValues.remarksForAllocation = payload.remarksForAllocation;
     if (payload.gadable !== undefined) updateValues.gadable = payload.gadable;
     if (payload.tagging !== undefined) updateValues.tagging = payload.tagging;
-    if (payload.amountAttributed !== undefined) updateValues.amountAttributed = payload.amountAttributed ? casts.castToDecimal(payload.amountAttributed) : null;
-    if (payload.physicalTargets !== undefined) updateValues.physicalTargets = payload.physicalTargets;
-    if (payload.priorYearAccomplishments !== undefined) updateValues.priorYearAccomplishments = payload.priorYearAccomplishments;
-    if (payload.remarksForOtherMetadata !== undefined) updateValues.remarksForOtherMetadata = payload.remarksForOtherMetadata;
-    if (payload.implementingUnitId !== undefined) updateValues.implementingUnitId = payload.implementingUnitId;
+    if (payload.amountAttributed !== undefined)
+      updateValues.amountAttributed = payload.amountAttributed
+        ? casts.castToDecimal(payload.amountAttributed)
+        : null;
+    if (payload.physicalTargets !== undefined)
+      updateValues.physicalTargets = payload.physicalTargets;
+    if (payload.priorYearAccomplishments !== undefined)
+      updateValues.priorYearAccomplishments = payload.priorYearAccomplishments;
+    if (payload.remarksForOtherMetadata !== undefined)
+      updateValues.remarksForOtherMetadata = payload.remarksForOtherMetadata;
+    if (payload.implementingUnitId !== undefined)
+      updateValues.implementingUnitId = payload.implementingUnitId;
     if (payload.expenseCodeId !== undefined) updateValues.expenseCodeId = payload.expenseCodeId;
     if (payload.saaobId !== undefined) updateValues.saaobId = payload.saaobId;
     if (payload.aroType !== undefined) updateValues.aroType = payload.aroType;
@@ -713,7 +864,7 @@ export async function updateLbacItem(
     const updatedItems = await _fetchItems().then((all) => all.filter((i) => i.id === lbacId));
     const updatedItem = updatedItems[0];
     if (!updatedItem) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC item.", { lbacId });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated LBAC item.', {lbacId});
     }
 
     const aipRefIds = updatedItem.aipRefId ? [updatedItem.aipRefId] : [];
@@ -723,10 +874,17 @@ export async function updateLbacItem(
       _fetchObrAipAmounts(aipRefIds),
     ]);
 
-    const obj = _buildLbacItemObject(updatedItem, reports[0], supplementals, obrAmounts, _getCurrentYearUtc8(), _getCurrentQuarterUtc8());
+    const obj = _buildLbacItemObject(
+      updatedItem,
+      reports[0],
+      supplementals,
+      obrAmounts,
+      _getCurrentYearUtc8(),
+      _getCurrentQuarterUtc8(),
+    );
     return new Success(obj);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC item.", { lbacId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update LBAC item.', {lbacId}, e);
   }
 }
 
@@ -749,51 +907,63 @@ export async function updateLbacQuarterlyReport(
   restrictToOfficeId?: string,
 ): Promise<Result<LbacQuarterlyObject>> {
   try {
-    const [item] = await db.select({
-      id: lbacItems.id,
-      quarterlyReportId: lbacItems.quarterlyReportId,
-      parentId: lbacItems.parentId,
-    })
-      .from(lbacItems).where(eq(lbacItems.id, lbacId)).limit(1);
+    const [item] = await db
+      .select({
+        id: lbacItems.id,
+        quarterlyReportId: lbacItems.quarterlyReportId,
+        parentId: lbacItems.parentId,
+      })
+      .from(lbacItems)
+      .where(eq(lbacItems.id, lbacId))
+      .limit(1);
     if (!item) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC item not found.', {lbacId});
     }
 
     if (restrictToOfficeId) {
       const groups = await _fetchGroups();
       const groupsById = new Map(groups.map((g) => [g.id, g]));
-      const effectiveOfficeId = _resolveEffectiveOfficeId(
-        item.parentId,
-        groupsById,
-        new Map(),
-      );
+      const effectiveOfficeId = _resolveEffectiveOfficeId(item.parentId, groupsById, new Map());
       if (effectiveOfficeId !== restrictToOfficeId) {
         return new Failure(
           ErrorCodes.InsufficientPermissions,
           "You do not have access to update this item's quarterly report.",
-          { lbacId, restrictToOfficeId },
+          {lbacId, restrictToOfficeId},
         );
       }
     }
 
     const updateValues: Record<string, unknown> = {};
-    if (payload.priorYearAccomplishments !== undefined) updateValues.priorYearAccomplishments = payload.priorYearAccomplishments;
-    if (payload.physicalTargetQ1 !== undefined) updateValues.physicalTargetQ1 = payload.physicalTargetQ1;
-    if (payload.physicalTargetQ2 !== undefined) updateValues.physicalTargetQ2 = payload.physicalTargetQ2;
-    if (payload.physicalTargetQ3 !== undefined) updateValues.physicalTargetQ3 = payload.physicalTargetQ3;
-    if (payload.physicalTargetQ4 !== undefined) updateValues.physicalTargetQ4 = payload.physicalTargetQ4;
-    if (payload.physicalTargetTotal !== undefined) updateValues.physicalTargetTotal = payload.physicalTargetTotal;
-    if (payload.actualPhysicalPerformanceQ1 !== undefined) updateValues.actualPhysicalPerformanceQ1 = payload.actualPhysicalPerformanceQ1;
-    if (payload.actualPhysicalPerformanceQ2 !== undefined) updateValues.actualPhysicalPerformanceQ2 = payload.actualPhysicalPerformanceQ2;
-    if (payload.actualPhysicalPerformanceQ3 !== undefined) updateValues.actualPhysicalPerformanceQ3 = payload.actualPhysicalPerformanceQ3;
-    if (payload.actualPhysicalPerformanceQ4 !== undefined) updateValues.actualPhysicalPerformanceQ4 = payload.actualPhysicalPerformanceQ4;
+    if (payload.priorYearAccomplishments !== undefined)
+      updateValues.priorYearAccomplishments = payload.priorYearAccomplishments;
+    if (payload.physicalTargetQ1 !== undefined)
+      updateValues.physicalTargetQ1 = payload.physicalTargetQ1;
+    if (payload.physicalTargetQ2 !== undefined)
+      updateValues.physicalTargetQ2 = payload.physicalTargetQ2;
+    if (payload.physicalTargetQ3 !== undefined)
+      updateValues.physicalTargetQ3 = payload.physicalTargetQ3;
+    if (payload.physicalTargetQ4 !== undefined)
+      updateValues.physicalTargetQ4 = payload.physicalTargetQ4;
+    if (payload.physicalTargetTotal !== undefined)
+      updateValues.physicalTargetTotal = payload.physicalTargetTotal;
+    if (payload.actualPhysicalPerformanceQ1 !== undefined)
+      updateValues.actualPhysicalPerformanceQ1 = payload.actualPhysicalPerformanceQ1;
+    if (payload.actualPhysicalPerformanceQ2 !== undefined)
+      updateValues.actualPhysicalPerformanceQ2 = payload.actualPhysicalPerformanceQ2;
+    if (payload.actualPhysicalPerformanceQ3 !== undefined)
+      updateValues.actualPhysicalPerformanceQ3 = payload.actualPhysicalPerformanceQ3;
+    if (payload.actualPhysicalPerformanceQ4 !== undefined)
+      updateValues.actualPhysicalPerformanceQ4 = payload.actualPhysicalPerformanceQ4;
     if (payload.variance !== undefined) updateValues.variance = payload.variance;
-    if (payload.accomplishmentPercentage !== undefined) updateValues.accomplishmentPercentage = payload.accomplishmentPercentage;
+    if (payload.accomplishmentPercentage !== undefined)
+      updateValues.accomplishmentPercentage = payload.accomplishmentPercentage;
     if (payload.remarks !== undefined) updateValues.remarks = payload.remarks;
-    if (payload.targetForBudgetYear !== undefined) updateValues.targetForBudgetYear = payload.targetForBudgetYear;
+    if (payload.targetForBudgetYear !== undefined)
+      updateValues.targetForBudgetYear = payload.targetForBudgetYear;
 
     if (Object.keys(updateValues).length > 0) {
-      await db.update(lbacQuarterlyReport)
+      await db
+        .update(lbacQuarterlyReport)
         .set(updateValues)
         .where(eq(lbacQuarterlyReport.id, item.quarterlyReportId));
     }
@@ -801,7 +971,11 @@ export async function updateLbacQuarterlyReport(
     const fetchedItems = await _fetchItems().then((all) => all.filter((i) => i.id === lbacId));
     const fetchedItem = fetchedItems[0];
     if (!fetchedItem) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC item after quarterly report update.", { lbacId });
+      return new Failure(
+        ErrorCodes.Fatal,
+        'Unable to retrieve LBAC item after quarterly report update.',
+        {lbacId},
+      );
     }
 
     const aipRefIds = fetchedItem.aipRefId ? [fetchedItem.aipRefId] : [];
@@ -811,10 +985,17 @@ export async function updateLbacQuarterlyReport(
       _fetchObrAipAmounts(aipRefIds),
     ]);
 
-    const obj = _buildLbacQuarterlyObject(fetchedItem, reports[0], supplementals, obrAmounts, _getCurrentYearUtc8(), _getCurrentQuarterUtc8());
+    const obj = _buildLbacQuarterlyObject(
+      fetchedItem,
+      reports[0],
+      supplementals,
+      obrAmounts,
+      _getCurrentYearUtc8(),
+      _getCurrentQuarterUtc8(),
+    );
     return new Success(obj);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC quarterly report.", { lbacId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update LBAC quarterly report.', {lbacId}, e);
   }
 }
 
@@ -837,24 +1018,41 @@ export async function updateLbacGroup(
   payload: UpdateLbacGroupPayload,
 ): Promise<Result<BaseLbacGroupObject>> {
   try {
-    const [existing] = await db.select({ id: lbacGroups.id }).from(lbacGroups)
-      .where(eq(lbacGroups.id, lbacGroupId)).limit(1);
+    const [existing] = await db
+      .select({id: lbacGroups.id})
+      .from(lbacGroups)
+      .where(eq(lbacGroups.id, lbacGroupId))
+      .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC group not found.", { lbacGroupId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC group not found.', {lbacGroupId});
     }
 
     if (payload.aipRefCode) {
-      const [ref] = await db.select({ id: aipReferences.id }).from(aipReferences)
-        .where(eq(aipReferences.id, payload.aipRefCode)).limit(1);
+      const [ref] = await db
+        .select({id: aipReferences.id})
+        .from(aipReferences)
+        .where(eq(aipReferences.id, payload.aipRefCode))
+        .limit(1);
       if (!ref) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified AIP reference does not exist.", { aipRefCode: payload.aipRefCode });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified AIP reference does not exist.',
+          {aipRefCode: payload.aipRefCode},
+        );
       }
     }
     if (payload.implementingUnitId) {
-      const [unit] = await db.select({ id: officeCodes.id }).from(officeCodes)
-        .where(eq(officeCodes.id, payload.implementingUnitId)).limit(1);
+      const [unit] = await db
+        .select({id: officeCodes.id})
+        .from(officeCodes)
+        .where(eq(officeCodes.id, payload.implementingUnitId))
+        .limit(1);
       if (!unit) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified implementing unit does not exist.", { implementingUnitId: payload.implementingUnitId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified implementing unit does not exist.',
+          {implementingUnitId: payload.implementingUnitId},
+        );
       }
     }
 
@@ -868,22 +1066,25 @@ export async function updateLbacGroup(
     const updateValues: Record<string, unknown> = {};
     if (payload.name !== undefined) updateValues.name = payload.name;
     if (payload.aipRefCode !== undefined) updateValues.aipRefCode = payload.aipRefCode;
-    if (payload.implementingUnitId !== undefined) updateValues.implementingUnitId = payload.implementingUnitId;
+    if (payload.implementingUnitId !== undefined)
+      updateValues.implementingUnitId = payload.implementingUnitId;
     if (payload.officeId !== undefined) updateValues.officeId = payload.officeId;
 
     if (Object.keys(updateValues).length > 0) {
       await db.update(lbacGroups).set(updateValues).where(eq(lbacGroups.id, lbacGroupId));
     }
 
-    const fetchedGroups = await _fetchGroups().then((all) => all.filter((g) => g.id === lbacGroupId));
+    const fetchedGroups = await _fetchGroups().then((all) =>
+      all.filter((g) => g.id === lbacGroupId),
+    );
     const fetchedGroup = fetchedGroups[0];
     if (!fetchedGroup) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC group.", { lbacGroupId });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated LBAC group.', {lbacGroupId});
     }
 
     return new Success(_buildBaseLbacGroupObject(fetchedGroup));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC group.", { lbacGroupId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update LBAC group.', {lbacGroupId}, e);
   }
 }
 
@@ -911,29 +1112,41 @@ export async function moveLbacGroup(
 
     const existing = allGroups.find((g) => g.id === lbacGroupId);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC group not found.", { lbacGroupId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC group not found.', {lbacGroupId});
     }
 
     if (targetLbacGroup !== null) {
       const target = allGroups.find((g) => g.id === targetLbacGroup);
       if (!target) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { targetLbacGroup });
+        return new Failure(ErrorCodes.ValidationFailure, 'Target group does not exist.', {
+          targetLbacGroup,
+        });
       }
 
       // Prevent cycles: targetLbacGroup must not be a descendant of lbacGroupId
       const descendants = _collectDescendantGroupIds(lbacGroupId, allGroups);
       if (descendants.includes(targetLbacGroup)) {
-        return new Failure(ErrorCodes.ValidationFailure, "Cannot move a group into one of its own descendants.", { lbacGroupId, targetLbacGroup });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'Cannot move a group into one of its own descendants.',
+          {lbacGroupId, targetLbacGroup},
+        );
       }
     }
 
-    await db.update(lbacGroups)
-      .set({ parentId: targetLbacGroup })
+    await db
+      .update(lbacGroups)
+      .set({parentId: targetLbacGroup})
       .where(eq(lbacGroups.id, lbacGroupId));
 
     return new Success(lbacGroupId);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move LBAC group.", { lbacGroupId, targetLbacGroup }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to move LBAC group.',
+      {lbacGroupId, targetLbacGroup},
+      e,
+    );
   }
 }
 
@@ -956,23 +1169,36 @@ export async function moveLbacItem(
   targetLbacGroup: string,
 ): Promise<Result<string>> {
   try {
-    const [item] = await db.select({ id: lbacItems.id }).from(lbacItems)
-      .where(eq(lbacItems.id, lbacItemId)).limit(1);
+    const [item] = await db
+      .select({id: lbacItems.id})
+      .from(lbacItems)
+      .where(eq(lbacItems.id, lbacItemId))
+      .limit(1);
     if (!item) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacItemId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC item not found.', {lbacItemId});
     }
 
-    const [targetGroup] = await db.select({ id: lbacGroups.id }).from(lbacGroups)
-      .where(eq(lbacGroups.id, targetLbacGroup)).limit(1);
+    const [targetGroup] = await db
+      .select({id: lbacGroups.id})
+      .from(lbacGroups)
+      .where(eq(lbacGroups.id, targetLbacGroup))
+      .limit(1);
     if (!targetGroup) {
-      return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { targetLbacGroup });
+      return new Failure(ErrorCodes.ValidationFailure, 'Target group does not exist.', {
+        targetLbacGroup,
+      });
     }
 
-    await db.update(lbacItems).set({ parentId: targetLbacGroup }).where(eq(lbacItems.id, lbacItemId));
+    await db.update(lbacItems).set({parentId: targetLbacGroup}).where(eq(lbacItems.id, lbacItemId));
 
     return new Success(lbacItemId);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move LBAC item.", { lbacItemId, targetLbacGroup }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to move LBAC item.',
+      {lbacItemId, targetLbacGroup},
+      e,
+    );
   }
 }
 
@@ -991,23 +1217,25 @@ export async function moveLbacItem(
 export async function deleteLbacItem(lbacItemId: string): Promise<Result<null>> {
   try {
     const [item] = await db
-      .select({ id: lbacItems.id, quarterlyReportId: lbacItems.quarterlyReportId })
+      .select({id: lbacItems.id, quarterlyReportId: lbacItems.quarterlyReportId})
       .from(lbacItems)
       .where(eq(lbacItems.id, lbacItemId))
       .limit(1);
     if (!item) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacItemId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC item not found.', {lbacItemId});
     }
 
     await db.transaction(async (tx) => {
       await tx.delete(lbacMonitoring).where(eq(lbacMonitoring.itemId, lbacItemId));
       await tx.delete(lbacItems).where(eq(lbacItems.id, lbacItemId));
-      await tx.delete(lbacQuarterlyReport).where(eq(lbacQuarterlyReport.id, item.quarterlyReportId));
+      await tx
+        .delete(lbacQuarterlyReport)
+        .where(eq(lbacQuarterlyReport.id, item.quarterlyReportId));
     });
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete LBAC item.", { lbacItemId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete LBAC item.', {lbacItemId}, e);
   }
 }
 
@@ -1034,23 +1262,28 @@ export async function updateMonitoringItem(
 ): Promise<Result<LbacMonitoringItem>> {
   try {
     const [existing] = await db
-      .select({ id: lbacMonitoring.id })
+      .select({id: lbacMonitoring.id})
       .from(lbacMonitoring)
       .where(eq(lbacMonitoring.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC monitoring item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC monitoring item not found.', {id});
     }
 
     const updateValues: Record<string, unknown> = {};
 
     if (payload.ab !== undefined) updateValues.ab = payload.ab;
-    if (payload.actualAccomplishment !== undefined) updateValues.actualAccomplishment = payload.actualAccomplishment;
+    if (payload.actualAccomplishment !== undefined)
+      updateValues.actualAccomplishment = payload.actualAccomplishment;
     if (payload.abEstimatedCost !== undefined) {
-      updateValues.abEstimatedCost = payload.abEstimatedCost ? casts.castToDecimal(payload.abEstimatedCost) : null;
+      updateValues.abEstimatedCost = payload.abEstimatedCost
+        ? casts.castToDecimal(payload.abEstimatedCost)
+        : null;
     }
     if (payload.actualExpenditure !== undefined) {
-      updateValues.actualExpenditure = payload.actualExpenditure ? casts.castToDecimal(payload.actualExpenditure) : null;
+      updateValues.actualExpenditure = payload.actualExpenditure
+        ? casts.castToDecimal(payload.actualExpenditure)
+        : null;
     }
     if (payload.remarks !== undefined) updateValues.remarks = payload.remarks;
 
@@ -1061,12 +1294,14 @@ export async function updateMonitoringItem(
     const rows = await _fetchMonitoringRowsByMonitoringIds([id]);
     const row = rows[0];
     if (!row) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC monitoring item.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated LBAC monitoring item.', {
+        id,
+      });
     }
 
     return new Success(_buildMonitoringItemObject(row));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC monitoring item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update LBAC monitoring item.', {id}, e);
   }
 }
 
@@ -1088,10 +1323,7 @@ export async function updateMonitoringItem(
  */
 export async function getAllMonitoringItems(): Promise<Result<LbacMonitoringTree>> {
   try {
-    const [groups, rows] = await Promise.all([
-      _fetchGroups(),
-      _fetchMonitoringRows(),
-    ]);
+    const [groups, rows] = await Promise.all([_fetchGroups(), _fetchMonitoringRows()]);
 
     const itemsByGroup = new Map<string, LbacMonitoringItem[]>();
     for (const row of rows) {
@@ -1103,7 +1335,7 @@ export async function getAllMonitoringItems(): Promise<Result<LbacMonitoringTree
 
     return new Success(_buildMonitoringTree(groups, itemsByGroup));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve LBAC monitoring items.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve LBAC monitoring items.', {}, e);
   }
 }
 
@@ -1127,7 +1359,7 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
 
     const existing = allGroups.find((g) => g.id === lbacGroupId);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC group not found.", { lbacGroupId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC group not found.', {lbacGroupId});
     }
 
     const descendants = _collectDescendantGroupIds(lbacGroupId, allGroups);
@@ -1135,7 +1367,7 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
 
     // Check for any items in this group or descendants
     const itemsInGroup = await db
-      .select({ id: lbacItems.id })
+      .select({id: lbacItems.id})
       .from(lbacItems)
       .where(inArray(lbacItems.parentId, allGroupIds))
       .limit(1);
@@ -1143,8 +1375,8 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
     if (itemsInGroup.length > 0) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete a group that still contains LBAC items. Remove all items first.",
-        { lbacGroupId },
+        'Cannot delete a group that still contains LBAC items. Remove all items first.',
+        {lbacGroupId},
       );
     }
 
@@ -1159,7 +1391,9 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
     };
     _computeDepth(lbacGroupId, 0);
 
-    const sortedIds = [...allGroupIds].sort((a, b) => (groupsByDepth.get(b) ?? 0) - (groupsByDepth.get(a) ?? 0));
+    const sortedIds = [...allGroupIds].sort(
+      (a, b) => (groupsByDepth.get(b) ?? 0) - (groupsByDepth.get(a) ?? 0),
+    );
 
     await db.transaction(async (tx) => {
       for (const id of sortedIds) {
@@ -1169,7 +1403,7 @@ export async function deleteLbacGroup(lbacGroupId: string): Promise<Result<null>
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete LBAC group.", { lbacGroupId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete LBAC group.', {lbacGroupId}, e);
   }
 }
 
@@ -1219,7 +1453,7 @@ export async function collGetAll(): Promise<Result<CollPerfGroupObject[]>> {
 
     const monthlyByDataId = new Map<string, CollPerfMonthlyRow[]>();
     for (const m of allMonthly) {
-      const row: CollPerfMonthlyRow = { ...m, value: String(m.value) };
+      const row: CollPerfMonthlyRow = {...m, value: String(m.value)};
       const list = monthlyByDataId.get(m.dataId) ?? [];
       list.push(row);
       monthlyByDataId.set(m.dataId, list);
@@ -1239,7 +1473,12 @@ export async function collGetAll(): Promise<Result<CollPerfGroupObject[]>> {
 
     return new Success(buildCollPerfTree(allGroups, itemsByGroup));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch collection performance data.", undefined, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to fetch collection performance data.',
+      undefined,
+      e,
+    );
   }
 }
 
@@ -1263,16 +1502,20 @@ export async function collCreateGroup(
   user: User,
   name: string,
   parentId?: string,
-): Promise<Result<{ id: string; name: string; parentId: string | null }>> {
+): Promise<Result<{id: string; name: string; parentId: string | null}>> {
   try {
     if (parentId) {
       const [parent] = await db
-        .select({ id: lbacCollectionPerformanceGroup.id })
+        .select({id: lbacCollectionPerformanceGroup.id})
         .from(lbacCollectionPerformanceGroup)
         .where(eq(lbacCollectionPerformanceGroup.id, parentId))
         .limit(1);
       if (!parent) {
-        return new Failure(ErrorCodes.ValidationFailure, "The specified parent group does not exist.", { parentId });
+        return new Failure(
+          ErrorCodes.ValidationFailure,
+          'The specified parent group does not exist.',
+          {parentId},
+        );
       }
     }
 
@@ -1291,7 +1534,12 @@ export async function collCreateGroup(
 
     return new Success(created);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create collection performance group.", { userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create collection performance group.',
+      {userId: user.id},
+      e,
+    );
   }
 }
 
@@ -1310,25 +1558,27 @@ export async function collCreateGroup(
 export async function collModifyGroup(
   id: string,
   name: string,
-): Promise<Result<{ id: string; name: string }>> {
+): Promise<Result<{id: string; name: string}>> {
   try {
     const [existing] = await db
-      .select({ id: lbacCollectionPerformanceGroup.id })
+      .select({id: lbacCollectionPerformanceGroup.id})
       .from(lbacCollectionPerformanceGroup)
       .where(eq(lbacCollectionPerformanceGroup.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Collection performance group not found.', {
+        id,
+      });
     }
 
     await db
       .update(lbacCollectionPerformanceGroup)
-      .set({ name })
+      .set({name})
       .where(eq(lbacCollectionPerformanceGroup.id, id));
 
-    return new Success({ id, name });
+    return new Success({id, name});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update collection performance group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update collection performance group.', {id}, e);
   }
 }
 
@@ -1345,19 +1595,21 @@ export async function collModifyGroup(
  * - Returns ValidationFailure when the group or any descendant still contains items or child groups with items.
  * - Deletes empty descendant groups deepest-first before removing the target group.
  */
-export async function collDeleteGroup(id: string): Promise<Result<{ id: string }>> {
+export async function collDeleteGroup(id: string): Promise<Result<{id: string}>> {
   try {
     const allGroups = await fetchCollPerfGroups();
     const existing = allGroups.find((g) => g.id === id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Collection performance group not found.', {
+        id,
+      });
     }
 
     const descendants = collectCollPerfDescendantGroupIds(id, allGroups);
     const allGroupIds = [id, ...descendants];
 
     const itemsInTree = await db
-      .select({ id: lbacCollectionPerformanceData.id })
+      .select({id: lbacCollectionPerformanceData.id})
       .from(lbacCollectionPerformanceData)
       .where(inArray(lbacCollectionPerformanceData.groupId, allGroupIds))
       .limit(1);
@@ -1365,8 +1617,8 @@ export async function collDeleteGroup(id: string): Promise<Result<{ id: string }
     if (itemsInTree.length > 0) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete a group that still contains collection performance items. Remove all items first.",
-        { id },
+        'Cannot delete a group that still contains collection performance items. Remove all items first.',
+        {id},
       );
     }
 
@@ -1392,9 +1644,9 @@ export async function collDeleteGroup(id: string): Promise<Result<{ id: string }
       }
     });
 
-    return new Success({ id });
+    return new Success({id});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete collection performance group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete collection performance group.', {id}, e);
   }
 }
 
@@ -1414,12 +1666,14 @@ export async function collDeleteGroup(id: string): Promise<Result<{ id: string }
 export async function collMoveGroup(
   id: string,
   parentId?: string,
-): Promise<Result<{ id: string; parentId: string | null }>> {
+): Promise<Result<{id: string; parentId: string | null}>> {
   try {
     const allGroups = await fetchCollPerfGroups();
     const existing = allGroups.find((g) => g.id === id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Collection performance group not found.', {
+        id,
+      });
     }
 
     const targetParentId = parentId ?? null;
@@ -1427,27 +1681,34 @@ export async function collMoveGroup(
     if (targetParentId !== null) {
       const target = allGroups.find((g) => g.id === targetParentId);
       if (!target) {
-        return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { parentId: targetParentId });
+        return new Failure(ErrorCodes.ValidationFailure, 'Target group does not exist.', {
+          parentId: targetParentId,
+        });
       }
 
       const descendants = collectCollPerfDescendantGroupIds(id, allGroups);
       if (descendants.includes(targetParentId) || targetParentId === id) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "Cannot move a group into itself or one of its descendants.",
-          { id, parentId: targetParentId },
+          'Cannot move a group into itself or one of its descendants.',
+          {id, parentId: targetParentId},
         );
       }
     }
 
     await db
       .update(lbacCollectionPerformanceGroup)
-      .set({ parentId: targetParentId })
+      .set({parentId: targetParentId})
       .where(eq(lbacCollectionPerformanceGroup.id, id));
 
-    return new Success({ id, parentId: targetParentId });
+    return new Success({id, parentId: targetParentId});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move collection performance group.", { id, parentId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to move collection performance group.',
+      {id, parentId},
+      e,
+    );
   }
 }
 
@@ -1475,12 +1736,16 @@ export async function collCreateItem(
 ): Promise<Result<CollPerfData>> {
   try {
     const [parent] = await db
-      .select({ id: lbacCollectionPerformanceGroup.id })
+      .select({id: lbacCollectionPerformanceGroup.id})
       .from(lbacCollectionPerformanceGroup)
       .where(eq(lbacCollectionPerformanceGroup.id, parentId))
       .limit(1);
     if (!parent) {
-      return new Failure(ErrorCodes.ValidationFailure, "The specified parent group does not exist.", { parentId });
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'The specified parent group does not exist.',
+        {parentId},
+      );
     }
 
     const [created] = await db
@@ -1492,7 +1757,7 @@ export async function collCreateItem(
         groupId: parentId,
         authorId: user.id,
       })
-      .returning({ id: lbacCollectionPerformanceData.id });
+      .returning({id: lbacCollectionPerformanceData.id});
 
     if (payload.monthlyData && payload.monthlyData.length > 0) {
       await upsertCollPerfMonthlyData(created.id, payload.monthlyData);
@@ -1500,12 +1765,21 @@ export async function collCreateItem(
 
     const item = await fetchCollPerfItemById(created.id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve created collection performance item.", { id: created.id });
+      return new Failure(
+        ErrorCodes.Fatal,
+        'Unable to retrieve created collection performance item.',
+        {id: created.id},
+      );
     }
 
     return new Success(toCollPerfData(item));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create collection performance item.", { parentId, userId: user.id }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create collection performance item.',
+      {parentId, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -1531,18 +1805,21 @@ export async function collModifyItem(
 ): Promise<Result<CollPerfData>> {
   try {
     const [existing] = await db
-      .select({ id: lbacCollectionPerformanceData.id })
+      .select({id: lbacCollectionPerformanceData.id})
       .from(lbacCollectionPerformanceData)
       .where(eq(lbacCollectionPerformanceData.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Collection performance item not found.', {
+        id,
+      });
     }
 
     const updateValues: Record<string, unknown> = {};
     if (payload.particulars !== undefined) updateValues.particulars = payload.particulars;
     if (payload.accountCode !== undefined) updateValues.accountCode = payload.accountCode;
-    if (payload.incomeTarget !== undefined) updateValues.incomeTarget = casts.castToDecimal(payload.incomeTarget);
+    if (payload.incomeTarget !== undefined)
+      updateValues.incomeTarget = casts.castToDecimal(payload.incomeTarget);
 
     if (Object.keys(updateValues).length > 0) {
       await db
@@ -1557,12 +1834,16 @@ export async function collModifyItem(
 
     const item = await fetchCollPerfItemById(id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated collection performance item.", { id });
+      return new Failure(
+        ErrorCodes.Fatal,
+        'Unable to retrieve updated collection performance item.',
+        {id},
+      );
     }
 
     return new Success(toCollPerfData(item));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update collection performance item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update collection performance item.', {id}, e);
   }
 }
 
@@ -1577,27 +1858,31 @@ export async function collModifyItem(
  * @remarks
  * - Returns ResourceNotFound when the item does not exist.
  */
-export async function collDeleteItem(id: string): Promise<Result<{ id: string }>> {
+export async function collDeleteItem(id: string): Promise<Result<{id: string}>> {
   try {
     const [existing] = await db
-      .select({ id: lbacCollectionPerformanceData.id })
+      .select({id: lbacCollectionPerformanceData.id})
       .from(lbacCollectionPerformanceData)
       .where(eq(lbacCollectionPerformanceData.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Collection performance item not found.', {
+        id,
+      });
     }
 
     await db.transaction(async (tx) => {
       await tx
         .delete(lbacCollectionPerformanceMonthlyData)
         .where(eq(lbacCollectionPerformanceMonthlyData.dataId, id));
-      await tx.delete(lbacCollectionPerformanceData).where(eq(lbacCollectionPerformanceData.id, id));
+      await tx
+        .delete(lbacCollectionPerformanceData)
+        .where(eq(lbacCollectionPerformanceData.id, id));
     });
 
-    return new Success({ id });
+    return new Success({id});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete collection performance item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete collection performance item.', {id}, e);
   }
 }
 
@@ -1617,34 +1902,41 @@ export async function collDeleteItem(id: string): Promise<Result<{ id: string }>
 export async function collMoveItem(
   id: string,
   parentId: string,
-): Promise<Result<{ id: string; parentId: string }>> {
+): Promise<Result<{id: string; parentId: string}>> {
   try {
     const [existing] = await db
-      .select({ id: lbacCollectionPerformanceData.id })
+      .select({id: lbacCollectionPerformanceData.id})
       .from(lbacCollectionPerformanceData)
       .where(eq(lbacCollectionPerformanceData.id, id))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Collection performance item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Collection performance item not found.', {
+        id,
+      });
     }
 
     const [target] = await db
-      .select({ id: lbacCollectionPerformanceGroup.id })
+      .select({id: lbacCollectionPerformanceGroup.id})
       .from(lbacCollectionPerformanceGroup)
       .where(eq(lbacCollectionPerformanceGroup.id, parentId))
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ValidationFailure, "Target group does not exist.", { parentId });
+      return new Failure(ErrorCodes.ValidationFailure, 'Target group does not exist.', {parentId});
     }
 
     await db
       .update(lbacCollectionPerformanceData)
-      .set({ groupId: parentId })
+      .set({groupId: parentId})
       .where(eq(lbacCollectionPerformanceData.id, id));
 
-    return new Success({ id, parentId });
+    return new Success({id, parentId});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move collection performance item.", { id, parentId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to move collection performance item.',
+      {id, parentId},
+      e,
+    );
   }
 }
 
@@ -1655,7 +1947,7 @@ export async function collMoveItem(
  * @returns {Result<LbacTemplateType>} Parsed type or validation failure.
  */
 export function parseLbacTemplateType(type: unknown): Result<LbacTemplateType> {
-  if (type !== "header" && type !== "footer") {
+  if (type !== 'header' && type !== 'footer') {
     return new Failure(
       ErrorCodes.ValidationFailure,
       "Invalid template type. Must be 'header' or 'footer'.",
@@ -2105,8 +2397,8 @@ export async function exportMainDataToBuffer(
     if (dataResult instanceof Failure) return dataResult;
 
     const [headerResult, footerResult] = await Promise.all([
-      templateBucket.get({ identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "header" }),
-      templateBucket.get({ identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER, type: "footer" }),
+      templateBucket.get({identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER, type: 'header'}),
+      templateBucket.get({identifier: LBAC_MAIN_DATA_TEMPLATE_IDENTIFIER, type: 'footer'}),
     ]);
     const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
@@ -2121,7 +2413,7 @@ export async function exportMainDataToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC main data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBAC main data.', {}, e);
   }
 }
 
@@ -2149,8 +2441,8 @@ export async function exportQuarterlyToBuffer(
     if (dataResult instanceof Failure) return dataResult;
 
     const [headerResult, footerResult] = await Promise.all([
-      templateBucket.get({ identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER, type: "header" }),
-      templateBucket.get({ identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER, type: "footer" }),
+      templateBucket.get({identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER, type: 'header'}),
+      templateBucket.get({identifier: LBAC_QUARTERLY_TEMPLATE_IDENTIFIER, type: 'footer'}),
     ]);
     const headerPath = headerResult instanceof Success ? headerResult.value.templatePath : null;
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
@@ -2165,7 +2457,7 @@ export async function exportQuarterlyToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC quarterly data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBAC quarterly data.', {}, e);
   }
 }
 
@@ -2191,7 +2483,7 @@ export async function exportCollPerfToBuffer(
 
     const footerResult = await templateBucket.get({
       identifier: LBAC_COLL_PERF_TEMPLATE_IDENTIFIER,
-      type: "footer",
+      type: 'footer',
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
@@ -2204,7 +2496,7 @@ export async function exportCollPerfToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export collection performance data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export collection performance data.', {}, e);
   }
 }
 
@@ -2216,18 +2508,19 @@ export async function exportLbeFOneToBuffer(
     if (dataResult instanceof Failure) return dataResult;
 
     const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
-    const flatItems = _flattenItemsForLbeFOne(filteredTree)
-      .filter(item => item.other.aro?.type === options.aroType);
-    const itemMap = new Map(flatItems.map(item => [item.id, item]));
+    const flatItems = _flattenItemsForLbeFOne(filteredTree).filter(
+      (item) => item.other.aro?.type === options.aroType,
+    );
+    const itemMap = new Map(flatItems.map((item) => [item.id, item]));
 
     const selectedItems: LbacObject[] = [];
-    const overrides = new Map<string, { forLaterRelease: string; previouslyReleased: string }>();
+    const overrides = new Map<string, {forLaterRelease: string; previouslyReleased: string}>();
     for (const selected of options.items) {
       const found = itemMap.get(selected.id);
       if (!found) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "One or more selected items were not found for the selected ARO office/type.",
+          'One or more selected items were not found for the selected ARO office/type.',
         );
       }
       selectedItems.push(found);
@@ -2239,7 +2532,7 @@ export async function exportLbeFOneToBuffer(
 
     const footerResult = await templateBucket.get({
       identifier: LBAC_LBE_F1_TEMPLATE_IDENTIFIER,
-      type: "footer",
+      type: 'footer',
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
@@ -2253,13 +2546,11 @@ export async function exportLbeFOneToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBE Form 1.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBE Form 1.', {}, e);
   }
 }
 
-export async function exportForm3ToBuffer(
-  options: Form3ExportOptions,
-): Promise<Result<Buffer>> {
+export async function exportForm3ToBuffer(options: Form3ExportOptions): Promise<Result<Buffer>> {
   try {
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
@@ -2267,16 +2558,22 @@ export async function exportForm3ToBuffer(
     const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_FORM3_TEMPLATE_IDENTIFIER,
-      type: "footer",
+      type: 'footer',
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
-    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? "";
+    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? '';
 
-    const buffer = await _buildForm3ExcelBuffer(filteredTree, options.year, options.quarter, officeName, footerPath);
+    const buffer = await _buildForm3ExcelBuffer(
+      filteredTree,
+      options.year,
+      options.quarter,
+      officeName,
+      footerPath,
+    );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 3.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBAC Form 3.', {}, e);
   }
 }
 
@@ -2290,11 +2587,11 @@ export async function exportLbeForm5ToBuffer(
     const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_LBE_F5_TEMPLATE_IDENTIFIER,
-      type: "footer",
+      type: 'footer',
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
-    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? "";
+    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? '';
 
     const buffer = await _buildLbeForm5ExcelBuffer(
       filteredTree,
@@ -2307,13 +2604,11 @@ export async function exportLbeForm5ToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBE Form 5.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBE Form 5.', {}, e);
   }
 }
 
-export async function exportForm5ToBuffer(
-  options: Form5ExportOptions,
-): Promise<Result<Buffer>> {
+export async function exportForm5ToBuffer(options: Form5ExportOptions): Promise<Result<Buffer>> {
   try {
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
@@ -2321,11 +2616,11 @@ export async function exportForm5ToBuffer(
     const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_FORM5_TEMPLATE_IDENTIFIER,
-      type: "footer",
+      type: 'footer',
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
-    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? "";
+    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? '';
 
     const buffer = await _buildForm5ExcelBuffer(
       filteredTree,
@@ -2336,13 +2631,11 @@ export async function exportForm5ToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 5.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBAC Form 5.', {}, e);
   }
 }
 
-export async function exportForm5AToBuffer(
-  options: Form5AExportOptions,
-): Promise<Result<Buffer>> {
+export async function exportForm5AToBuffer(options: Form5AExportOptions): Promise<Result<Buffer>> {
   try {
     const dataResult = await getAllItems(options.year, options.quarter);
     if (dataResult instanceof Failure) return dataResult;
@@ -2350,11 +2643,11 @@ export async function exportForm5AToBuffer(
     const filteredTree = _filterTreeByAroLink(dataResult.value, options.aroLink);
     const footerResult = await templateBucket.get({
       identifier: LBAC_FORM5A_TEMPLATE_IDENTIFIER,
-      type: "footer",
+      type: 'footer',
     });
     const footerPath = footerResult instanceof Success ? footerResult.value.templatePath : null;
 
-    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? "";
+    const officeName = _flattenItemsForLbeFOne(filteredTree)[0]?.other.aro?.office.name ?? '';
 
     const buffer = await _buildForm5AExcelBuffer(
       filteredTree,
@@ -2367,7 +2660,7 @@ export async function exportForm5AToBuffer(
     );
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBE Form 5A.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBE Form 5A.', {}, e);
   }
 }
 
@@ -2392,10 +2685,9 @@ export async function exportForm6ToBuffer(): Promise<Result<Buffer>> {
     const buffer = await _buildForm6ExcelBuffer(monitoringResult.value, fiscalYear);
     return new Success(buffer);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to export LBAC Form 6.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Failed to export LBAC Form 6.', {}, e);
   }
 }
-
 
 /**
  * Retrieves all LBAC F4 statement items, optionally filtered by fiscal year.
@@ -2438,7 +2730,7 @@ export async function getAllF4Items(forFiscalYear?: number): Promise<Result<Lbac
 
     return new Success(_buildF4Tree(rows));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch LBAC F4 items.", { forFiscalYear }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch LBAC F4 items.', {forFiscalYear}, e);
   }
 }
 
@@ -2484,16 +2776,16 @@ export async function createF4Items(
       if (!parent) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "The specified parent item does not exist.",
-          { parentId: item.parentId },
+          'The specified parent item does not exist.',
+          {parentId: item.parentId},
         );
       }
 
       if (parent.forFiscalYear !== forFiscalYear) {
         return new Failure(
           ErrorCodes.ValidationFailure,
-          "Parent item belongs to a different fiscal year.",
-          { parentId: item.parentId, forFiscalYear },
+          'Parent item belongs to a different fiscal year.',
+          {parentId: item.parentId, forFiscalYear},
         );
       }
     }
@@ -2507,7 +2799,7 @@ export async function createF4Items(
 
     return getAllF4Items(forFiscalYear);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create LBAC F4 items.", { forFiscalYear }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create LBAC F4 items.', {forFiscalYear}, e);
   }
 }
 
@@ -2533,13 +2825,13 @@ export async function updateF4Item(
 ): Promise<Result<LbacF4Item>> {
   try {
     const [existing] = await db
-      .select({ id: lbacStatementOfExpenditures.id })
+      .select({id: lbacStatementOfExpenditures.id})
       .from(lbacStatementOfExpenditures)
       .where(eq(lbacStatementOfExpenditures.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC F4 item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC F4 item not found.', {id});
     }
 
     const updateValues: Record<string, unknown> = {};
@@ -2551,14 +2843,11 @@ export async function updateF4Item(
       updateValues.accountCode = payload.accountCode;
     }
     if (payload.estimate !== undefined) {
-      updateValues.estimate = payload.estimate === null
-        ? null
-        : casts.castToDecimal(payload.estimate);
+      updateValues.estimate =
+        payload.estimate === null ? null : casts.castToDecimal(payload.estimate);
     }
     if (payload.actual !== undefined) {
-      updateValues.actual = payload.actual === null
-        ? null
-        : casts.castToDecimal(payload.actual);
+      updateValues.actual = payload.actual === null ? null : casts.castToDecimal(payload.actual);
     }
     if (payload.remarks !== undefined) {
       updateValues.remarks = payload.remarks;
@@ -2587,12 +2876,12 @@ export async function updateF4Item(
       .limit(1);
 
     if (!row) {
-      return new Failure(ErrorCodes.Fatal, "Unable to retrieve updated LBAC F4 item.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to retrieve updated LBAC F4 item.', {id});
     }
 
     return new Success(_mapF4RowToItem(row));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update LBAC F4 item.", { id, payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update LBAC F4 item.', {id, payload}, e);
   }
 }
 
@@ -2617,17 +2906,17 @@ export async function updateF4Item(
 export async function deleteF4Item(id: string): Promise<Result<void>> {
   try {
     const [existing] = await db
-      .select({ id: lbacStatementOfExpenditures.id })
+      .select({id: lbacStatementOfExpenditures.id})
       .from(lbacStatementOfExpenditures)
       .where(eq(lbacStatementOfExpenditures.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC F4 item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC F4 item not found.', {id});
     }
 
     const [child] = await db
-      .select({ id: lbacStatementOfExpenditures.id })
+      .select({id: lbacStatementOfExpenditures.id})
       .from(lbacStatementOfExpenditures)
       .where(eq(lbacStatementOfExpenditures.parentId, id))
       .limit(1);
@@ -2635,8 +2924,8 @@ export async function deleteF4Item(id: string): Promise<Result<void>> {
     if (child) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete an item that still has nested entries. Remove all children first.",
-        { id },
+        'Cannot delete an item that still has nested entries. Remove all children first.',
+        {id},
       );
     }
 
@@ -2644,7 +2933,7 @@ export async function deleteF4Item(id: string): Promise<Result<void>> {
 
     return new Success(undefined);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete LBAC F4 item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete LBAC F4 item.', {id}, e);
   }
 }
 
@@ -2652,14 +2941,14 @@ export async function deleteF4Item(id: string): Promise<Result<void>> {
  * Returns the current year in UTC+8.
  */
 function _getCurrentYearUtc8(): number {
-  return DateTime.now().setZone("UTC+8").year;
+  return DateTime.now().setZone('UTC+8').year;
 }
 
 /**
  * Returns the current quarter (1窶・) in UTC+8.
  */
 function _getCurrentQuarterUtc8(): number {
-  return DateTime.now().setZone("UTC+8").quarter;
+  return DateTime.now().setZone('UTC+8').quarter;
 }
 
 /**
@@ -2670,14 +2959,21 @@ function _getCurrentQuarterUtc8(): number {
  * @param {number} quarter - Quarter number (1窶・).
  * @returns {{ start: Date; end: Date }} The start (inclusive) and end (exclusive) boundaries.
  */
-function _getQuarterBoundsUtc8(year: number, quarter: number): { start: Date; end: Date } {
+function _getQuarterBoundsUtc8(year: number, quarter: number): {start: Date; end: Date} {
   const startMonth = (quarter - 1) * 3 + 1;
-  const start = DateTime.fromObject({ year, month: startMonth, day: 1 }, { zone: "UTC+8" }).toUTC().toJSDate();
+  const start = DateTime.fromObject({year, month: startMonth, day: 1}, {zone: 'UTC+8'})
+    .toUTC()
+    .toJSDate();
   const endMonth = startMonth + 3;
   const endYear = endMonth > 12 ? year + 1 : year;
   const normalizedEndMonth = endMonth > 12 ? 1 : endMonth;
-  const end = DateTime.fromObject({ year: endYear, month: normalizedEndMonth, day: 1 }, { zone: "UTC+8" }).toUTC().toJSDate();
-  return { start, end };
+  const end = DateTime.fromObject(
+    {year: endYear, month: normalizedEndMonth, day: 1},
+    {zone: 'UTC+8'},
+  )
+    .toUTC()
+    .toJSDate();
+  return {start, end};
 }
 
 /**
@@ -2686,8 +2982,10 @@ function _getQuarterBoundsUtc8(year: number, quarter: number): { start: Date; en
  * @returns {Date} The start of the current month (UTC).
  */
 function _getCurrentMonthStartUtc8(): Date {
-  const now = DateTime.now().setZone("UTC+8");
-  return DateTime.fromObject({ year: now.year, month: now.month, day: 1 }, { zone: "UTC+8" }).toUTC().toJSDate();
+  const now = DateTime.now().setZone('UTC+8');
+  return DateTime.fromObject({year: now.year, month: now.month, day: 1}, {zone: 'UTC+8'})
+    .toUTC()
+    .toJSDate();
 }
 
 /**
@@ -2730,9 +3028,11 @@ async function _fetchSupplementalByAipRef(aipRefIds: string[]): Promise<Suppleme
     .where(inArray(supplemental.aipRefCode, aipRefIds));
 
   return rows
-    .filter((r): r is typeof r & { aipRefCode: string } => r.aipRefCode !== null)
+    .filter((r): r is typeof r & {aipRefCode: string} => r.aipRefCode !== null)
     .map((r) => {
-      const dt = DateTime.fromJSDate(r.createdAt as unknown as Date, { zone: "utc" }).setZone("UTC+8");
+      const dt = DateTime.fromJSDate(r.createdAt as unknown as Date, {zone: 'utc'}).setZone(
+        'UTC+8',
+      );
       return {
         aipRefId: r.aipRefCode,
         amount: r.amount,
@@ -2765,11 +3065,14 @@ async function _fetchObrAipAmounts(aipRefIds: string[]): Promise<ObrAipEntry[]> 
     .where(inArray(obrMainAipReferences.aipReferenceId, aipRefIds));
 
   return rows
-    .filter((r): r is typeof r & { aipReferenceId: string; amount: string } =>
-      r.aipReferenceId !== null && r.amount !== null,
+    .filter(
+      (r): r is typeof r & {aipReferenceId: string; amount: string} =>
+        r.aipReferenceId !== null && r.amount !== null,
     )
     .map((r) => {
-      const dt = DateTime.fromJSDate(r.createdAt as unknown as Date, { zone: "utc" }).setZone("UTC+8");
+      const dt = DateTime.fromJSDate(r.createdAt as unknown as Date, {zone: 'utc'}).setZone(
+        'UTC+8',
+      );
       return {
         aipReferenceId: r.aipReferenceId,
         amount: r.amount,
@@ -2787,7 +3090,7 @@ async function _fetchObrAipAmounts(aipRefIds: string[]): Promise<ObrAipEntry[]> 
  * @returns {string} The sum as a decimal string.
  */
 function _sumAmounts(amounts: string[]): string {
-  if (amounts.length === 0) return "0";
+  if (amounts.length === 0) return '0';
   return amounts.reduce((acc, a) => acc.plus(casts.castFromDecimal(a)), new Decimal(0)).toString();
 }
 
@@ -2818,7 +3121,7 @@ function _computeSupplementalAmount(
   );
   return relevant.reduce((acc, s) => {
     const amt = casts.castFromDecimal(s.amount);
-    return s.supplementalType === "less" ? acc.minus(amt) : acc.plus(amt);
+    return s.supplementalType === 'less' ? acc.minus(amt) : acc.plus(amt);
   }, new Decimal(0));
 }
 
@@ -2831,7 +3134,12 @@ function _computeSupplementalAmount(
  * @param {number} quarter - The quarter to filter by (1窶・).
  * @returns {string} The sum as a decimal string.
  */
-function _obrSumForQuarter(obrAmounts: ObrAipEntry[], aipRefId: string, year: number, quarter: number): string {
+function _obrSumForQuarter(
+  obrAmounts: ObrAipEntry[],
+  aipRefId: string,
+  year: number,
+  quarter: number,
+): string {
   return _sumAmounts(
     obrAmounts
       .filter((e) => e.aipReferenceId === aipRefId && e.year === year && e.quarter === quarter)
@@ -2931,17 +3239,21 @@ function _filterGroupsByOffice(groups: LbacGroupRow[], officeId: string): LbacGr
  */
 async function _validateLbacGroupOfficeId(officeId: string): Promise<Result<null>> {
   const [officeRow] = await db
-    .select({ id: office.id, name: office.name })
+    .select({id: office.id, name: office.name})
     .from(office)
     .where(eq(office.id, officeId))
     .limit(1);
 
   if (!officeRow) {
-    return new Failure(ErrorCodes.ValidationFailure, "The specified office does not exist.", { officeId });
+    return new Failure(ErrorCodes.ValidationFailure, 'The specified office does not exist.', {
+      officeId,
+    });
   }
 
   if (officeRow.name === CARDINAL_ADMINISTRATORS_OFFICE_NAME) {
-    return new Failure(ErrorCodes.ValidationFailure, "Asuna is on different game, Kirito.", { officeId });
+    return new Failure(ErrorCodes.ValidationFailure, 'Asuna is on different game, Kirito.', {
+      officeId,
+    });
   }
 
   return new Success(null);
@@ -3069,7 +3381,9 @@ async function _fetchMonitoringRows(): Promise<LbacMonitoringRow[]> {
  * @param {string[]} monitoringIds - Monitoring IDs to fetch.
  * @returns {Promise<LbacMonitoringRow[]>} Matching monitoring rows.
  */
-async function _fetchMonitoringRowsByMonitoringIds(monitoringIds: string[]): Promise<LbacMonitoringRow[]> {
+async function _fetchMonitoringRowsByMonitoringIds(
+  monitoringIds: string[],
+): Promise<LbacMonitoringRow[]> {
   if (monitoringIds.length === 0) return [];
 
   return db
@@ -3185,17 +3499,17 @@ function _buildLbacItemObject(
     : new Decimal(0);
   const obligationsThis = item.aipRefId
     ? casts.castFromDecimal(
-      _sumAmounts(
-        obrAmounts
-          .filter(
-            (e) =>
-              e.aipReferenceId === item.aipRefId &&
-              e.createdAt >= currentQBounds.start &&
-              e.createdAt < currentQBounds.end,
-          )
-          .map((e) => e.amount),
-      ),
-    )
+        _sumAmounts(
+          obrAmounts
+            .filter(
+              (e) =>
+                e.aipReferenceId === item.aipRefId &&
+                e.createdAt >= currentQBounds.start &&
+                e.createdAt < currentQBounds.end,
+            )
+            .map((e) => e.amount),
+        ),
+      )
     : new Decimal(0);
   const obligationsTotal = obligationsPrev.plus(obligationsThis);
   const unobligatedAmount = appropriationTotal.minus(obligationsTotal);
@@ -3251,10 +3565,14 @@ function _buildLbacItemObject(
     proposedBudgetCO: item.proposedBudgetCO,
     proposedBudgetTotal: proposedBudgetTotal.toString(),
     aipRefCode: item.aipRefId
-      ? { id: item.aipRefId, aipReferenceCode: item.aipReferenceCode!, description: item.aipDescription! }
+      ? {
+          id: item.aipRefId,
+          aipReferenceCode: item.aipReferenceCode!,
+          description: item.aipDescription!,
+        }
       : null,
     implementingUnit: item.implementingUnitId
-      ? { id: item.implementingUnitId, name: item.implementingUnitName! }
+      ? {id: item.implementingUnitId, name: item.implementingUnitName!}
       : null,
     appropriation: {
       contOrSupplementalAugmentation: contOrSupplemental.toString(),
@@ -3280,35 +3598,36 @@ function _buildLbacItemObject(
       percentage: cutOffPercentage.toString(),
     },
     other: {
-      aro: item.aroType && item.aroOfficeId
-        ? {
-          number: `${item.createdAt.getFullYear()}-${item.aroOfficeCode!}`,
-          id: `${item.aroType.toUpperCase()}-${item.createdAt.getFullYear()}-${item.aroOfficeCode!}`,
-          type: item.aroType,
-          office: {
-            id: item.aroOfficeId,
-            name: item.aroOfficeName!,
-            code: item.aroOfficeCode!,
-          },
-        }
-        : null,
+      aro:
+        item.aroType && item.aroOfficeId
+          ? {
+              number: `${item.createdAt.getFullYear()}-${item.aroOfficeCode!}`,
+              id: `${item.aroType.toUpperCase()}-${item.createdAt.getFullYear()}-${item.aroOfficeCode!}`,
+              type: item.aroType,
+              office: {
+                id: item.aroOfficeId,
+                name: item.aroOfficeName!,
+                code: item.aroOfficeCode!,
+              },
+            }
+          : null,
       budgetType: item.budgetType ?? null,
       gadable: item.gadable,
       tagging: item.tagging,
       amountAttributed: item.amountAttributed,
       expenseCode: item.expenseCodeId
         ? {
-          id: item.expenseCodeId,
-          accountName: item.expenseAccountName!,
-          accountCode: item.expenseAccountCode,
-        }
+            id: item.expenseCodeId,
+            accountName: item.expenseAccountName!,
+            accountCode: item.expenseAccountCode,
+          }
         : null,
       saaob: item.saaobId
         ? {
-          id: item.saaobId,
-          name: item.saaobName!,
-          accountCode: item.saaobAccountCode,
-        }
+            id: item.saaobId,
+            name: item.saaobName!,
+            accountCode: item.saaobAccountCode,
+          }
         : null,
       priorYearAccomplishments: item.priorYearAccomplishments,
       physicalTargets: item.physicalTargets,
@@ -3431,10 +3750,14 @@ function _buildLbacQuarterlyObject(
     type: LbacObjectType.Item,
     mfoPpa: item.mfoPpa,
     aipRefCode: item.aipRefId
-      ? { id: item.aipRefId, aipReferenceCode: item.aipReferenceCode!, description: item.aipDescription! }
+      ? {
+          id: item.aipRefId,
+          aipReferenceCode: item.aipReferenceCode!,
+          description: item.aipDescription!,
+        }
       : null,
     implementingUnit: item.implementingUnitId
-      ? { id: item.implementingUnitId, name: item.implementingUnitName! }
+      ? {id: item.implementingUnitId, name: item.implementingUnitName!}
       : null,
     appropriation: {
       contOrSupplementalAugmentation: contOrSupplemental.toString(),
@@ -3479,14 +3802,16 @@ function _buildBaseLbacGroupObject(group: LbacGroupRow): BaseLbacGroupObject {
     type: LbacObjectType.Group,
     name: group.name,
     aipRefCode: group.aipRefId
-      ? { id: group.aipRefId, aipReferenceCode: group.aipReferenceCode!, description: group.aipDescription! }
+      ? {
+          id: group.aipRefId,
+          aipReferenceCode: group.aipReferenceCode!,
+          description: group.aipDescription!,
+        }
       : null,
     implementingUnit: group.implementingUnitId
-      ? { id: group.implementingUnitId, name: group.implementingUnitName! }
+      ? {id: group.implementingUnitId, name: group.implementingUnitName!}
       : null,
-    office: group.officeId
-      ? { id: group.officeId, name: group.officeName! }
-      : null,
+    office: group.officeId ? {id: group.officeId, name: group.officeName!} : null,
   } satisfies BaseLbacGroupObject;
 }
 
@@ -3498,8 +3823,8 @@ function _buildBaseLbacGroupObject(group: LbacGroupRow): BaseLbacGroupObject {
  */
 function _buildMonitoringItemObject(row: LbacMonitoringRow): LbacMonitoringItem {
   const aipAmount = _computeMonitoringAipAmount(row);
-  const abEstimatedCost = casts.castFromDecimal(row.abEstimatedCost ?? "0");
-  const actualExpenditure = casts.castFromDecimal(row.actualExpenditure ?? "0");
+  const abEstimatedCost = casts.castFromDecimal(row.abEstimatedCost ?? '0');
+  const actualExpenditure = casts.castFromDecimal(row.actualExpenditure ?? '0');
 
   return {
     id: row.id,
@@ -3509,17 +3834,17 @@ function _buildMonitoringItemObject(row: LbacMonitoringRow): LbacMonitoringItem 
       mfoPpa: row.mfoPpa,
       aipRefCode: row.aipRefId
         ? {
-          id: row.aipRefId,
-          code: row.aipReferenceCode!,
-          description: row.aipDescription!,
-          amount: aipAmount,
-        }
+            id: row.aipRefId,
+            code: row.aipReferenceCode!,
+            description: row.aipDescription!,
+            amount: aipAmount,
+          }
         : null,
       implementingUnit: row.implementingUnitId
         ? {
-          id: row.implementingUnitId,
-          name: row.implementingUnitName!,
-        }
+            id: row.implementingUnitId,
+            name: row.implementingUnitName!,
+          }
         : null,
     },
     ab: row.ab ?? undefined,
@@ -3580,42 +3905,47 @@ function _buildMonitoringTree(
  * @returns {string} Summed amount as decimal string.
  */
 function _computeMonitoringAipAmount(row: LbacMonitoringRow): string {
-  return casts.castFromDecimal(row.aipAmountPS ?? "0")
-    .plus(casts.castFromDecimal(row.aipAmountMOOE ?? "0"))
-    .plus(casts.castFromDecimal(row.aipAmountCO ?? "0"))
+  return casts
+    .castFromDecimal(row.aipAmountPS ?? '0')
+    .plus(casts.castFromDecimal(row.aipAmountMOOE ?? '0'))
+    .plus(casts.castFromDecimal(row.aipAmountCO ?? '0'))
     .toString();
 }
 
 function _zeroLbacGroupTotals(): LbacGroupTotals {
-  const z = "0";
+  const z = '0';
   return {
-    proposedBudgetPS: z, proposedBudgetMOOE: z, proposedBudgetFE: z, proposedBudgetCO: z, proposedBudgetTotal: z,
-    appropriation: { contOrSupplementalAugmentation: z, current: z, total: z },
-    allotmentReleased: { previousQuarters: z, thisQuarter: z, total: z },
+    proposedBudgetPS: z,
+    proposedBudgetMOOE: z,
+    proposedBudgetFE: z,
+    proposedBudgetCO: z,
+    proposedBudgetTotal: z,
+    appropriation: {contOrSupplementalAugmentation: z, current: z, total: z},
+    allotmentReleased: {previousQuarters: z, thisQuarter: z, total: z},
     balanceOfAppropriation: z,
-    obligations: { previousQuarters: z, thisQuarter: z, total: z },
+    obligations: {previousQuarters: z, thisQuarter: z, total: z},
     unobligatedAmount: z,
-    asCutOffMonth: { obligation: z, balance: z, percentage: z },
-    other: { amountAttributed: z },
-    financialAllocation: { Q1: z, Q2: z, Q3: z, Q4: z, total: z },
-    actualFinancialPerformance: { Q1: z, Q2: z, Q3: z, Q4: z, total: z },
+    asCutOffMonth: {obligation: z, balance: z, percentage: z},
+    other: {amountAttributed: z},
+    financialAllocation: {Q1: z, Q2: z, Q3: z, Q4: z, total: z},
+    actualFinancialPerformance: {Q1: z, Q2: z, Q3: z, Q4: z, total: z},
     variance: z,
   };
 }
 
 function _zeroLbacQuarterlyGroupTotals(): LbacQuarterlyGroupTotals {
-  const z = "0";
+  const z = '0';
   return {
-    appropriation: { contOrSupplementalAugmentation: z, current: z, total: z },
-    asCutOffMonth: { obligation: z, balance: z },
+    appropriation: {contOrSupplementalAugmentation: z, current: z, total: z},
+    asCutOffMonth: {obligation: z, balance: z},
   };
 }
 
 function _zeroLbacViewerGroupTotals(): LbacViewerGroupTotals {
-  const z = "0";
+  const z = '0';
   return {
     proposedBudgetTotal: z,
-    asCutOffMonth: { obligation: z, balance: z, percentage: z },
+    asCutOffMonth: {obligation: z, balance: z, percentage: z},
   };
 }
 
@@ -3656,16 +3986,36 @@ function _collectAllViewerItems(group: LbacViewerGroupObject): LbacViewerObject[
 }
 
 function _computeLbacGroupTotals(items: LbacObject[]): LbacGroupTotals {
-  let ps = new Decimal(0), mooe = new Decimal(0), fe = new Decimal(0), co = new Decimal(0), propTotal = new Decimal(0);
-  let appCsa = new Decimal(0), appCurrent = new Decimal(0), appTotal = new Decimal(0);
-  let allPrev = new Decimal(0), allThis = new Decimal(0), allTotal = new Decimal(0);
+  let ps = new Decimal(0),
+    mooe = new Decimal(0),
+    fe = new Decimal(0),
+    co = new Decimal(0),
+    propTotal = new Decimal(0);
+  let appCsa = new Decimal(0),
+    appCurrent = new Decimal(0),
+    appTotal = new Decimal(0);
+  let allPrev = new Decimal(0),
+    allThis = new Decimal(0),
+    allTotal = new Decimal(0);
   let balApp = new Decimal(0);
-  let obPrev = new Decimal(0), obThis = new Decimal(0), obTotal = new Decimal(0);
+  let obPrev = new Decimal(0),
+    obThis = new Decimal(0),
+    obTotal = new Decimal(0);
   let unob = new Decimal(0);
-  let cutObligation = new Decimal(0), cutBalance = new Decimal(0), cutPct = new Decimal(0);
+  let cutObligation = new Decimal(0),
+    cutBalance = new Decimal(0),
+    cutPct = new Decimal(0);
   let amtAttributed = new Decimal(0);
-  let fa1 = new Decimal(0), fa2 = new Decimal(0), fa3 = new Decimal(0), fa4 = new Decimal(0), faTotal = new Decimal(0);
-  let afp1 = new Decimal(0), afp2 = new Decimal(0), afp3 = new Decimal(0), afp4 = new Decimal(0), afpTotal = new Decimal(0);
+  let fa1 = new Decimal(0),
+    fa2 = new Decimal(0),
+    fa3 = new Decimal(0),
+    fa4 = new Decimal(0),
+    faTotal = new Decimal(0);
+  let afp1 = new Decimal(0),
+    afp2 = new Decimal(0),
+    afp3 = new Decimal(0),
+    afp4 = new Decimal(0),
+    afpTotal = new Decimal(0);
   let variance = new Decimal(0);
 
   for (const item of items) {
@@ -3710,22 +4060,53 @@ function _computeLbacGroupTotals(items: LbacObject[]): LbacGroupTotals {
     proposedBudgetFE: fe.toString(),
     proposedBudgetCO: co.toString(),
     proposedBudgetTotal: propTotal.toString(),
-    appropriation: { contOrSupplementalAugmentation: appCsa.toString(), current: appCurrent.toString(), total: appTotal.toString() },
-    allotmentReleased: { previousQuarters: allPrev.toString(), thisQuarter: allThis.toString(), total: allTotal.toString() },
+    appropriation: {
+      contOrSupplementalAugmentation: appCsa.toString(),
+      current: appCurrent.toString(),
+      total: appTotal.toString(),
+    },
+    allotmentReleased: {
+      previousQuarters: allPrev.toString(),
+      thisQuarter: allThis.toString(),
+      total: allTotal.toString(),
+    },
     balanceOfAppropriation: balApp.toString(),
-    obligations: { previousQuarters: obPrev.toString(), thisQuarter: obThis.toString(), total: obTotal.toString() },
+    obligations: {
+      previousQuarters: obPrev.toString(),
+      thisQuarter: obThis.toString(),
+      total: obTotal.toString(),
+    },
     unobligatedAmount: unob.toString(),
-    asCutOffMonth: { obligation: cutObligation.toString(), balance: cutBalance.toString(), percentage: cutPct.toString() },
-    other: { amountAttributed: amtAttributed.toString() },
-    financialAllocation: { Q1: fa1.toString(), Q2: fa2.toString(), Q3: fa3.toString(), Q4: fa4.toString(), total: faTotal.toString() },
-    actualFinancialPerformance: { Q1: afp1.toString(), Q2: afp2.toString(), Q3: afp3.toString(), Q4: afp4.toString(), total: afpTotal.toString() },
+    asCutOffMonth: {
+      obligation: cutObligation.toString(),
+      balance: cutBalance.toString(),
+      percentage: cutPct.toString(),
+    },
+    other: {amountAttributed: amtAttributed.toString()},
+    financialAllocation: {
+      Q1: fa1.toString(),
+      Q2: fa2.toString(),
+      Q3: fa3.toString(),
+      Q4: fa4.toString(),
+      total: faTotal.toString(),
+    },
+    actualFinancialPerformance: {
+      Q1: afp1.toString(),
+      Q2: afp2.toString(),
+      Q3: afp3.toString(),
+      Q4: afp4.toString(),
+      total: afpTotal.toString(),
+    },
     variance: variance.toString(),
   };
 }
 
 function _computeLbacQuarterlyGroupTotals(items: LbacQuarterlyObject[]): LbacQuarterlyGroupTotals {
-  let appCsa = new Decimal(0), appCurrent = new Decimal(0), appTotal = new Decimal(0);
-  let cutObligation = new Decimal(0), cutBalance = new Decimal(0);
+  let appCsa = new Decimal(0),
+    appCurrent = new Decimal(0),
+    appTotal = new Decimal(0);
+  let cutObligation = new Decimal(0),
+    cutBalance = new Decimal(0);
 
   for (const item of items) {
     appCsa = appCsa.plus(casts.castFromDecimal(item.appropriation.contOrSupplementalAugmentation));
@@ -3736,14 +4117,20 @@ function _computeLbacQuarterlyGroupTotals(items: LbacQuarterlyObject[]): LbacQua
   }
 
   return {
-    appropriation: { contOrSupplementalAugmentation: appCsa.toString(), current: appCurrent.toString(), total: appTotal.toString() },
-    asCutOffMonth: { obligation: cutObligation.toString(), balance: cutBalance.toString() },
+    appropriation: {
+      contOrSupplementalAugmentation: appCsa.toString(),
+      current: appCurrent.toString(),
+      total: appTotal.toString(),
+    },
+    asCutOffMonth: {obligation: cutObligation.toString(), balance: cutBalance.toString()},
   };
 }
 
 function _computeLbacViewerGroupTotals(items: LbacViewerObject[]): LbacViewerGroupTotals {
   let propTotal = new Decimal(0);
-  let cutObligation = new Decimal(0), cutBalance = new Decimal(0), cutPct = new Decimal(0);
+  let cutObligation = new Decimal(0),
+    cutBalance = new Decimal(0),
+    cutPct = new Decimal(0);
 
   for (const item of items) {
     propTotal = propTotal.plus(casts.castFromDecimal(item.proposedBudgetTotal));
@@ -3764,7 +4151,9 @@ function _computeLbacViewerGroupTotals(items: LbacViewerObject[]): LbacViewerGro
 
 function _attachGroupTotals(groups: LbacGroupObject[]): void {
   for (const group of groups) {
-    const childGroups = group.children.filter((c) => c.type === LbacObjectType.Group) as LbacGroupObject[];
+    const childGroups = group.children.filter(
+      (c) => c.type === LbacObjectType.Group,
+    ) as LbacGroupObject[];
     _attachGroupTotals(childGroups);
     group.totals = _computeLbacGroupTotals(_collectAllItems(group));
   }
@@ -3772,7 +4161,9 @@ function _attachGroupTotals(groups: LbacGroupObject[]): void {
 
 function _attachQuarterlyGroupTotals(groups: LbacQuarterlyGroupObject[]): void {
   for (const group of groups) {
-    const childGroups = group.children.filter((c) => c.type === LbacObjectType.Group) as LbacQuarterlyGroupObject[];
+    const childGroups = group.children.filter(
+      (c) => c.type === LbacObjectType.Group,
+    ) as LbacQuarterlyGroupObject[];
     _attachQuarterlyGroupTotals(childGroups);
     group.totals = _computeLbacQuarterlyGroupTotals(_collectAllQuarterlyItems(group));
   }
@@ -3780,7 +4171,9 @@ function _attachQuarterlyGroupTotals(groups: LbacQuarterlyGroupObject[]): void {
 
 function _attachViewerGroupTotals(groups: LbacViewerGroupObject[]): void {
   for (const group of groups) {
-    const childGroups = group.children.filter((c) => c.type === LbacObjectType.Group) as LbacViewerGroupObject[];
+    const childGroups = group.children.filter(
+      (c) => c.type === LbacObjectType.Group,
+    ) as LbacViewerGroupObject[];
     _attachViewerGroupTotals(childGroups);
     group.totals = _computeLbacViewerGroupTotals(_collectAllViewerItems(group));
   }
@@ -3950,7 +4343,7 @@ async function _getLbacTemplateSlot(
   identifier: string,
   type: LbacTemplateType,
 ): Promise<Result<LbacTemplateInfo | null>> {
-  const result = await templateBucket.get({ identifier, type });
+  const result = await templateBucket.get({identifier, type});
   if (result instanceof Success) {
     return new Success(_mapLbacTemplate(result.value));
   }
@@ -3961,10 +4354,10 @@ async function _getLbacTemplateSlot(
 }
 
 async function _fetchLbacTemplatesBundle(identifier: string): Promise<Result<LbacTemplatesBundle>> {
-  const headerResult = await _getLbacTemplateSlot(identifier, "header");
+  const headerResult = await _getLbacTemplateSlot(identifier, 'header');
   if (headerResult instanceof Failure) return headerResult;
 
-  const footerResult = await _getLbacTemplateSlot(identifier, "footer");
+  const footerResult = await _getLbacTemplateSlot(identifier, 'footer');
   if (footerResult instanceof Failure) return footerResult;
 
   return new Success({
@@ -3973,16 +4366,21 @@ async function _fetchLbacTemplatesBundle(identifier: string): Promise<Result<Lba
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 function _resolveTemplateValue(cellValue: any): unknown {
   if (cellValue === null || cellValue === undefined) return cellValue;
 
-  if (typeof cellValue === "object") {
-    if ("error" in cellValue) return null;
-    if ("formula" in cellValue || "sharedFormula" in cellValue) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (typeof cellValue === 'object') {
+    if ('error' in cellValue) return null;
+    if ('formula' in cellValue || 'sharedFormula' in cellValue) {
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (cellValue as any).result;
-      if (result !== null && result !== undefined && typeof result === "object" && "error" in result) {
+      if (
+        result !== null &&
+        result !== undefined &&
+        typeof result === 'object' &&
+        'error' in result
+      ) {
         return null;
       }
       return result ?? null;
@@ -3999,9 +4397,9 @@ function _offsetMergeRange(range: string, rowOffset: number): string | null {
 }
 
 async function _copyTemplateRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   srcWorkbook: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   destWorksheet: any,
   startRow: number,
 ): Promise<number> {
@@ -4011,11 +4409,11 @@ async function _copyTemplateRows(
   const rowOffset = startRow - 1;
   let currentRow = startRow;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  srcWs.eachRow({ includeEmpty: true }, (row: any) => {
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+  srcWs.eachRow({includeEmpty: true}, (row: any) => {
     const destRow = destWorksheet.getRow(currentRow);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    row.eachCell({ includeEmpty: true }, (cell: any, colNum: number) => {
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell({includeEmpty: true}, (cell: any, colNum: number) => {
       if (cell.type === _MERGE_CELL_TYPE) return;
 
       const destCell = destRow.getCell(colNum);
@@ -4031,7 +4429,7 @@ async function _copyTemplateRows(
     currentRow++;
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const merges: string[] = (srcWs.model as any)?.mergeCells ?? [];
   for (const range of merges) {
     const adjusted = _offsetMergeRange(range, rowOffset);
@@ -4043,14 +4441,14 @@ async function _copyTemplateRows(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const destWorkbook = destWorksheet.workbook as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const srcImages: any[] = srcWs.getImages();
   for (const img of srcImages) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     const imgModel = img.model as any;
-    if (imgModel.type !== "image") continue;
+    if (imgModel.type !== 'image') continue;
 
     const srcImageData = srcWorkbook.getImage(imgModel.imageId);
     if (!srcImageData) continue;
@@ -4058,7 +4456,7 @@ async function _copyTemplateRows(
     const newImageId = destWorkbook.addImage(srcImageData);
 
     const srcRange = imgModel.range;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     const adjustedRange: any = {
       tl: {
         nativeCol: srcRange.tl.nativeCol,
@@ -4085,21 +4483,20 @@ async function _copyTemplateRows(
   return currentRow;
 }
 
-
 function _argbHex(color: string): string {
-  const hex = color.replace("#", "");
+  const hex = color.replace('#', '');
   return `FF${hex.toUpperCase()}`;
 }
 
 function _fillArgb(hexColor: string) {
-  return { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: _argbHex(hexColor) } };
+  return {type: 'pattern' as const, pattern: 'solid' as const, fgColor: {argb: _argbHex(hexColor)}};
 }
 
 function _applyHeaderMerges(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   headerStartRow: number,
-  merges: import("@/common/lbac/export-layout").HeaderMergeRange[],
+  merges: import('@/common/lbac/export-layout').HeaderMergeRange[],
 ) {
   for (const m of merges) {
     const row = headerStartRow + (m.row - 1);
@@ -4113,19 +4510,23 @@ function _applyHeaderMerges(
 }
 
 function _writeLbacHeaderRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
-  layout: { row1: string[]; row2: string[]; merges: import("@/common/lbac/export-layout").HeaderMergeRange[] },
+  layout: {
+    row1: string[];
+    row2: string[];
+    merges: import('@/common/lbac/export-layout').HeaderMergeRange[];
+  },
 ) {
   const r1 = ws.getRow(row);
   layout.row1.forEach((label, idx) => {
     const cell = r1.getCell(idx + 1);
     cell.value = label;
-    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
     cell.fill = _HEADER_FILL;
     cell.border = _THIN_BORDER;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   });
   r1.height = 22;
   r1.commit();
@@ -4134,10 +4535,10 @@ function _writeLbacHeaderRows(
   layout.row2.forEach((label, idx) => {
     const cell = r2.getCell(idx + 1);
     cell.value = label;
-    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
     cell.fill = _HEADER_FILL;
     cell.border = _THIN_BORDER;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   });
   r2.height = 22;
   r2.commit();
@@ -4146,40 +4547,40 @@ function _writeLbacHeaderRows(
 }
 
 function _writeLbacDataRow(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
   columns: readonly LbacMainExportColDef[] | readonly LbacQuarterlyExportColDef[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   values: any[],
   style: {
-    fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
+    fill?: {type: 'pattern'; pattern: 'solid'; fgColor: {argb: string}};
     font?: object;
     bold?: boolean;
   },
 ) {
   const wsRow = ws.getRow(row);
-  const mfoIdx = columns.findIndex(c => c.key === "mfoPpa");
+  const mfoIdx = columns.findIndex((c) => c.key === 'mfoPpa');
 
   values.forEach((value, idx) => {
     const colDef = columns[idx];
     const cell = wsRow.getCell(idx + 1);
-    cell.value = value === "" ? null : value;
+    cell.value = value === '' ? null : value;
     cell.border = _THIN_BORDER;
     cell.font = {
       size: 10,
-      name: "Arial Narrow",
+      name: 'Arial Narrow',
       bold: style.bold ?? false,
-      color: style.font && "color" in style.font ? style.font.color : undefined,
+      color: style.font && 'color' in style.font ? style.font.color : undefined,
     };
     if (style.fill) cell.fill = style.fill;
     cell.alignment = {
-      vertical: "middle",
-      horizontal: colDef?.numeric ? "right" : "left",
-      wrapText: colDef?.key === "mfoPpa" || !colDef?.numeric,
+      vertical: 'middle',
+      horizontal: colDef?.numeric ? 'right' : 'left',
+      wrapText: colDef?.key === 'mfoPpa' || !colDef?.numeric,
     };
     if (colDef?.numeric) {
-      cell.numFmt = colDef.key === "cutOffPercentage" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+      cell.numFmt = colDef.key === 'cutOffPercentage' ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
     }
   });
 
@@ -4198,14 +4599,14 @@ function _mainRowValues(
   flatRow: LbacMainExportFlatRow,
   columns: readonly LbacMainExportColDef[],
 ): (string | number)[] {
-  return columns.map(col => getMainDataCellValue(flatRow, col.key));
+  return columns.map((col) => getMainDataCellValue(flatRow, col.key));
 }
 
 function _quarterlyRowValues(
   flatRow: LbacQuarterlyExportFlatRow,
   columns: readonly LbacQuarterlyExportColDef[],
 ): (string | number)[] {
-  return columns.map(col => getQuarterlyCellValue(flatRow, col.key));
+  return columns.map((col) => getQuarterlyCellValue(flatRow, col.key));
 }
 
 async function _buildLbacExcelBuffer(
@@ -4216,19 +4617,25 @@ async function _buildLbacExcelBuffer(
   headerTemplatePath: string | null,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const columns = resolveMainExportColumns(columnKeys);
   const headerLayout = buildMainDataHeaderLayout(year, columns);
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBAC");
+  const ws = wb.addWorksheet('LBAC');
 
   columns.forEach((col, idx) => {
-    const width = col.key === "mfoPpa" || col.key.includes("majorFinal") || col.key.includes("performance")
-      || col.key === "remarks" || col.key === "otherRemarks" || col.key === "priorYearAccomplishments"
-      || col.key === "physicalTargets" || col.key.startsWith("qr")
-      ? 28
-      : 14;
+    const width =
+      col.key === 'mfoPpa' ||
+      col.key.includes('majorFinal') ||
+      col.key.includes('performance') ||
+      col.key === 'remarks' ||
+      col.key === 'otherRemarks' ||
+      col.key === 'priorYearAccomplishments' ||
+      col.key === 'physicalTargets' ||
+      col.key.startsWith('qr')
+        ? 28
+        : 14;
     ws.getColumn(idx + 1).width = width;
   });
 
@@ -4244,20 +4651,24 @@ async function _buildLbacExcelBuffer(
   _writeLbacHeaderRows(ws, row, headerLayout);
   row += 2;
 
-  const flatRows = flattenLbacMainForExport(tree as unknown as import("@/lib/http/client/responses").LbacGroupResponse[]);
+  const flatRows = flattenLbacMainForExport(
+    tree as unknown as import('@/lib/http/client/responses').LbacGroupResponse[],
+  );
   for (const flatRow of flatRows) {
-    if (flatRow.kind === "group") {
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+    if (flatRow.kind === 'group') {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       const values = _mainRowValues(flatRow, columns);
       _writeLbacDataRow(ws, row, columns, values, {
         fill,
         bold: true,
-        font: { color: { argb: "FFFFFFFF" } },
+        font: {color: {argb: 'FFFFFFFF'}},
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
       const values = _mainRowValues(flatRow, columns);
-      _writeLbacDataRow(ws, row, columns, values, { fill, bold: true });
+      _writeLbacDataRow(ws, row, columns, values, {fill, bold: true});
     } else {
       const values = _mainRowValues(flatRow, columns);
       _writeLbacDataRow(ws, row, columns, values, {});
@@ -4271,7 +4682,7 @@ async function _buildLbacExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: headerRow + 1, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: headerRow + 1, xSplit: 0}];
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
@@ -4286,18 +4697,23 @@ async function _buildLbacQuarterlyExcelBuffer(
   headerTemplatePath: string | null,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const columns = resolveQuarterlyExportColumns(columnKeys);
   const headerLayout = buildQuarterlyHeaderLayout(year, columns);
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBAC Quarterly");
+  const ws = wb.addWorksheet('LBAC Quarterly');
 
   columns.forEach((col, idx) => {
-    const width = col.key === "mfoPpa" || col.key === "priorYearAccomplishments" || col.key === "remarks"
-      || col.key === "targetForBudgetYear" || col.key.startsWith("phys") || col.key.startsWith("actual")
-      ? 28
-      : 14;
+    const width =
+      col.key === 'mfoPpa' ||
+      col.key === 'priorYearAccomplishments' ||
+      col.key === 'remarks' ||
+      col.key === 'targetForBudgetYear' ||
+      col.key.startsWith('phys') ||
+      col.key.startsWith('actual')
+        ? 28
+        : 14;
     ws.getColumn(idx + 1).width = width;
   });
 
@@ -4314,21 +4730,23 @@ async function _buildLbacQuarterlyExcelBuffer(
   row += 2;
 
   const flatRows = flattenLbacQuarterlyForExport(
-    tree as unknown as import("@/lib/http/client/responses").LbacQuarterlyGroupResponse[],
+    tree as unknown as import('@/lib/http/client/responses').LbacQuarterlyGroupResponse[],
   );
   for (const flatRow of flatRows) {
-    if (flatRow.kind === "group") {
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+    if (flatRow.kind === 'group') {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       const values = _quarterlyRowValues(flatRow, columns);
       _writeLbacDataRow(ws, row, columns, values, {
         fill,
         bold: true,
-        font: { color: { argb: "FFFFFFFF" } },
+        font: {color: {argb: 'FFFFFFFF'}},
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
       const values = _quarterlyRowValues(flatRow, columns);
-      _writeLbacDataRow(ws, row, columns, values, { fill, bold: true });
+      _writeLbacDataRow(ws, row, columns, values, {fill, bold: true});
     } else {
       const values = _quarterlyRowValues(flatRow, columns);
       _writeLbacDataRow(ws, row, columns, values, {});
@@ -4342,7 +4760,7 @@ async function _buildLbacQuarterlyExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: headerRow + 1, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: headerRow + 1, xSplit: 0}];
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
@@ -4355,10 +4773,7 @@ function _decimalToNumber(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function _filterTreeByAroLink(
-  tree: LbacGroupObject[],
-  aroLink: string,
-): LbacGroupObject[] {
+function _filterTreeByAroLink(tree: LbacGroupObject[], aroLink: string): LbacGroupObject[] {
   const walkGroup = (group: LbacGroupObject): LbacGroupObject | null => {
     const filteredChildren: Array<LbacGroupObject | LbacObject> = [];
 
@@ -4384,9 +4799,7 @@ function _filterTreeByAroLink(
     };
   };
 
-  return tree
-    .map(walkGroup)
-    .filter((group): group is LbacGroupObject => group !== null);
+  return tree.map(walkGroup).filter((group): group is LbacGroupObject => group !== null);
 }
 
 function _flattenItemsForLbeFOne(tree: LbacGroupObject[]): LbacObject[] {
@@ -4407,13 +4820,13 @@ function _flattenItemsForLbeFOne(tree: LbacGroupObject[]): LbacObject[] {
 }
 
 type _LbacSimpleFlatRow =
-  | { kind: "group"; depth: number; data: LbacGroupObject }
-  | { kind: "item"; depth: number; data: LbacObject }
-  | { kind: "group-total"; depth: number; data: LbacGroupTotals; isRoot: boolean };
+  | {kind: 'group'; depth: number; data: LbacGroupObject}
+  | {kind: 'item'; depth: number; data: LbacObject}
+  | {kind: 'group-total'; depth: number; data: LbacGroupTotals; isRoot: boolean};
 
 type _LbacMonitoringFlatRow =
-  | { kind: "group"; depth: number; data: LbacMonitoringGroupObject }
-  | { kind: "item"; depth: number; data: LbacMonitoringItem };
+  | {kind: 'group'; depth: number; data: LbacMonitoringGroupObject}
+  | {kind: 'item'; depth: number; data: LbacMonitoringItem};
 
 function _flattenLbacTree(tree: LbacGroupObject[]): _LbacSimpleFlatRow[] {
   const rows: _LbacSimpleFlatRow[] = [];
@@ -4422,11 +4835,11 @@ function _flattenLbacTree(tree: LbacGroupObject[]): _LbacSimpleFlatRow[] {
     for (const node of nodes) {
       if (node.type === LbacObjectType.Group) {
         const group = node as LbacGroupObject;
-        rows.push({ kind: "group", depth, data: group });
+        rows.push({kind: 'group', depth, data: group});
         walk(group.children, depth + 1);
-        rows.push({ kind: "group-total", depth, data: group.totals, isRoot: depth === 0 });
+        rows.push({kind: 'group-total', depth, data: group.totals, isRoot: depth === 0});
       } else {
-        rows.push({ kind: "item", depth, data: node as LbacObject });
+        rows.push({kind: 'item', depth, data: node as LbacObject});
       }
     }
   };
@@ -4442,10 +4855,10 @@ function _flattenMonitoringTree(tree: LbacMonitoringTree): _LbacMonitoringFlatRo
     for (const node of nodes) {
       if (node.type === LbacObjectType.Group) {
         const group = node as LbacMonitoringGroupObject;
-        rows.push({ kind: "group", depth, data: group });
+        rows.push({kind: 'group', depth, data: group});
         walk(group.children, depth + 1);
       } else {
-        rows.push({ kind: "item", depth, data: node as LbacMonitoringItem });
+        rows.push({kind: 'item', depth, data: node as LbacMonitoringItem});
       }
     }
   };
@@ -4455,32 +4868,32 @@ function _flattenMonitoringTree(tree: LbacMonitoringTree): _LbacMonitoringFlatRo
 }
 
 function _writeSimpleHeaderRow(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
-  columns: ReadonlyArray<{ label: string }>,
+  columns: ReadonlyArray<{label: string}>,
 ) {
   const wsRow = ws.getRow(row);
   columns.forEach((col, idx) => {
     const cell = wsRow.getCell(idx + 1);
     cell.value = col.label;
-    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
     cell.fill = _HEADER_FILL;
     cell.border = _THIN_BORDER;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   });
   wsRow.height = 20;
   wsRow.commit();
 }
 
 function _writeSimpleDataRow(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
-  values: Array<string | number | { formula: string }>,
+  values: Array<string | number | {formula: string}>,
   numericIndices: Set<number>,
   style?: {
-    fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
+    fill?: {type: 'pattern'; pattern: 'solid'; fgColor: {argb: string}};
     fontColor?: string;
     bold?: boolean;
     indentIndex?: number;
@@ -4494,13 +4907,13 @@ function _writeSimpleDataRow(
     cell.border = _THIN_BORDER;
     cell.font = {
       size: 10,
-      name: "Arial Narrow",
+      name: 'Arial Narrow',
       bold: style?.bold ?? false,
-      color: style?.fontColor ? { argb: style.fontColor } : undefined,
+      color: style?.fontColor ? {argb: style.fontColor} : undefined,
     };
     cell.alignment = {
-      vertical: "middle",
-      horizontal: numericIndices.has(idx + 1) ? "right" : "left",
+      vertical: 'middle',
+      horizontal: numericIndices.has(idx + 1) ? 'right' : 'left',
       wrapText: !numericIndices.has(idx + 1),
       indent: style?.indentIndex === idx + 1 ? style.indentDepth : undefined,
     };
@@ -4519,38 +4932,38 @@ async function _buildLbeFOneExcelBuffer(
   aroType: LbeF1AroType,
   lgu: string,
   purpose: string,
-  overrides: Map<string, { forLaterRelease: string; previouslyReleased: string }>,
+  overrides: Map<string, {forLaterRelease: string; previouslyReleased: string}>,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBE F1");
+  const ws = wb.addWorksheet('LBE F1');
 
   const firstItem = items[0];
   const metadataAroType = firstItem?.other.aro?.type ?? aroType;
   const metadataBudgetType = firstItem?.other.budgetType ?? null;
-  const metadataFundType = firstItem?.other.tagging ?? "";
-  const metadataDepartment = firstItem?.other.aro?.office.name ?? "";
-  const metadataOfficeCode = firstItem?.other.aro?.office.code ?? "";
+  const metadataFundType = firstItem?.other.tagging ?? '';
+  const metadataDepartment = firstItem?.other.aro?.office.name ?? '';
+  const metadataOfficeCode = firstItem?.other.aro?.office.code ?? '';
   const createdAtUtc8 = firstItem?.createdAt
-    ? DateTime.fromISO(firstItem.createdAt, { zone: "utc" }).setZone("UTC+8")
-    : DateTime.now().setZone("UTC+8");
-  const issueDate = createdAtUtc8.toFormat("MM/dd/yyyy");
+    ? DateTime.fromISO(firstItem.createdAt, {zone: 'utc'}).setZone('UTC+8')
+    : DateTime.now().setZone('UTC+8');
+  const issueDate = createdAtUtc8.toFormat('MM/dd/yyyy');
   const aroYear = createdAtUtc8.year;
-  const fiscalYear = DateTime.now().setZone("UTC+8").year;
+  const fiscalYear = DateTime.now().setZone('UTC+8').year;
   const aroNo = `${getLbeF1AroCode(metadataAroType)}-${aroYear}-${metadataOfficeCode}`;
   const formNo = getLbeF1FormNo(metadataAroType);
   const formTitle = getLbeF1Title(metadataAroType);
   const appropriationLabel = `AUTHORIZED APPROPRIATION for ${getLbeF1AroCode(metadataAroType)}`;
 
   const columns = [
-    { label: "PPA CODE", width: 18 },
-    { label: "PPA DESCRIPTION", width: 40 },
-    { label: "OBJECT CLASS/ACCOUNT CODE", width: 24 },
-    { label: appropriationLabel, width: 20 },
-    { label: "FOR LATER RELEASE", width: 18 },
-    { label: "PREVIOUSLY RELEASED AMOUNT", width: 22 },
-    { label: "THIS RELEASE", width: 18 },
+    {label: 'PPA CODE', width: 18},
+    {label: 'PPA DESCRIPTION', width: 40},
+    {label: 'OBJECT CLASS/ACCOUNT CODE', width: 24},
+    {label: appropriationLabel, width: 20},
+    {label: 'FOR LATER RELEASE', width: 18},
+    {label: 'PREVIOUSLY RELEASED AMOUNT', width: 22},
+    {label: 'THIS RELEASE', width: 18},
   ] as const;
 
   columns.forEach((col, idx) => {
@@ -4559,57 +4972,69 @@ async function _buildLbeFOneExcelBuffer(
 
   ws.mergeCells(1, 1, 1, 3);
   ws.getCell(1, 1).value = formNo;
-  ws.getCell(1, 1).font = { bold: true, size: 11, name: "Arial Narrow" };
-  ws.getCell(1, 1).alignment = { horizontal: "left", vertical: "middle" };
+  ws.getCell(1, 1).font = {bold: true, size: 11, name: 'Arial Narrow'};
+  ws.getCell(1, 1).alignment = {horizontal: 'left', vertical: 'middle'};
 
   const budgetTypeLabel = getLbeF1BudgetTypeLabel(metadataBudgetType);
-  const budgetRows: Array<{ key: "ab" | "sb" | "rb"; label: string }> = [
-    { key: "ab", label: "ANNUAL BUDGET" },
-    { key: "sb", label: "SUPPLEMENTAL BUDGET" },
-    { key: "rb", label: "REENACTED BUDGET" },
+  const budgetRows: Array<{key: 'ab' | 'sb' | 'rb'; label: string}> = [
+    {key: 'ab', label: 'ANNUAL BUDGET'},
+    {key: 'sb', label: 'SUPPLEMENTAL BUDGET'},
+    {key: 'rb', label: 'REENACTED BUDGET'},
   ];
 
   budgetRows.forEach((entry, index) => {
     const row = 1 + index;
     ws.mergeCells(row, 6, row, 7);
-    ws.getCell(row, 6).value = `${budgetTypeLabel === entry.label ? "[x]" : "[ ]"} ${entry.label}`;
-    ws.getCell(row, 6).font = { size: 10, name: "Arial Narrow" };
-    ws.getCell(row, 6).alignment = { horizontal: "left", vertical: "middle" };
+    ws.getCell(row, 6).value = `${budgetTypeLabel === entry.label ? '[x]' : '[ ]'} ${entry.label}`;
+    ws.getCell(row, 6).font = {size: 10, name: 'Arial Narrow'};
+    ws.getCell(row, 6).alignment = {horizontal: 'left', vertical: 'middle'};
   });
 
   ws.mergeCells(5, 1, 5, 7);
   ws.getCell(5, 1).value = formTitle;
-  ws.getCell(5, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
-  ws.getCell(5, 1).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getCell(5, 1).font = {bold: true, size: 14, name: 'Arial Narrow'};
+  ws.getCell(5, 1).alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
 
   ws.mergeCells(6, 1, 6, 7);
   ws.getCell(6, 1).value = `Fiscal Year ${fiscalYear}`;
-  ws.getCell(6, 1).font = { size: 12, name: "Arial Narrow" };
-  ws.getCell(6, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(6, 1).font = {size: 12, name: 'Arial Narrow'};
+  ws.getCell(6, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
-  const writeMeta = (row: number, leftLabel: string, leftValue: string, rightLabel?: string, rightValue?: string) => {
+  const writeMeta = (
+    row: number,
+    leftLabel: string,
+    leftValue: string,
+    rightLabel?: string,
+    rightValue?: string,
+  ) => {
     ws.getCell(row, 1).value = leftLabel;
-    ws.getCell(row, 1).font = { bold: true, size: 10, name: "Arial Narrow" };
+    ws.getCell(row, 1).font = {bold: true, size: 10, name: 'Arial Narrow'};
     ws.mergeCells(row, 2, row, 5);
     ws.getCell(row, 2).value = leftValue;
-    ws.getCell(row, 2).font = { size: 10, name: "Arial Narrow" };
+    ws.getCell(row, 2).font = {size: 10, name: 'Arial Narrow'};
     if (rightLabel) {
       ws.getCell(row, 6).value = rightLabel;
-      ws.getCell(row, 6).font = { bold: true, size: 10, name: "Arial Narrow" };
-      ws.getCell(row, 7).value = rightValue ?? "";
-      ws.getCell(row, 7).font = { size: 10, name: "Arial Narrow", bold: true };
+      ws.getCell(row, 6).font = {bold: true, size: 10, name: 'Arial Narrow'};
+      ws.getCell(row, 7).value = rightValue ?? '';
+      ws.getCell(row, 7).font = {size: 10, name: 'Arial Narrow', bold: true};
     }
   };
 
-  writeMeta(8, "LGU:", lgu, "ARO No.:", aroNo);
-  writeMeta(9, "Department/Office:", metadataDepartment, "Date of Issue:", issueDate);
-  writeMeta(10, "Purpose:", purpose);
-  writeMeta(11, "Fund Type:", metadataFundType);
+  writeMeta(8, 'LGU:', lgu, 'ARO No.:', aroNo);
+  writeMeta(9, 'Department/Office:', metadataDepartment, 'Date of Issue:', issueDate);
+  writeMeta(10, 'Purpose:', purpose);
+  writeMeta(11, 'Fund Type:', metadataFundType);
 
   _writeSimpleHeaderRow(ws, 13, columns);
-  _writeSimpleDataRow(ws, 14, ["(1)", "(2)", "(3)", "(4)", "(5)", "(6)", "(7)"], new Set<number>(), {
-    bold: true,
-  });
+  _writeSimpleDataRow(
+    ws,
+    14,
+    ['(1)', '(2)', '(3)', '(4)', '(5)', '(6)', '(7)'],
+    new Set<number>(),
+    {
+      bold: true,
+    },
+  );
 
   const numericIndices = new Set([4, 5, 6, 7]);
   let row = 15;
@@ -4620,17 +5045,18 @@ async function _buildLbeFOneExcelBuffer(
 
   for (const item of items) {
     const override = overrides.get(item.id);
-    const authorizedAppropriation = metadataAroType === "ps"
-      ? item.proposedBudgetPS
-      : metadataAroType === "mooe"
-        ? item.proposedBudgetMOOE
-        : metadataAroType === "finex"
-          ? item.proposedBudgetFE
-          : item.proposedBudgetCO;
+    const authorizedAppropriation =
+      metadataAroType === 'ps'
+        ? item.proposedBudgetPS
+        : metadataAroType === 'mooe'
+          ? item.proposedBudgetMOOE
+          : metadataAroType === 'finex'
+            ? item.proposedBudgetFE
+            : item.proposedBudgetCO;
 
     const authorizedDecimal = casts.castFromDecimal(authorizedAppropriation);
-    const forLaterDecimal = casts.castFromDecimal(override?.forLaterRelease ?? "0");
-    const previouslyDecimal = casts.castFromDecimal(override?.previouslyReleased ?? "0");
+    const forLaterDecimal = casts.castFromDecimal(override?.forLaterRelease ?? '0');
+    const previouslyDecimal = casts.castFromDecimal(override?.previouslyReleased ?? '0');
     const thisReleaseDecimal = authorizedDecimal.minus(forLaterDecimal).minus(previouslyDecimal);
 
     totalAuthorized = totalAuthorized.plus(authorizedDecimal);
@@ -4638,10 +5064,10 @@ async function _buildLbeFOneExcelBuffer(
     totalPreviouslyReleased = totalPreviouslyReleased.plus(previouslyDecimal);
     totalThisRelease = totalThisRelease.plus(thisReleaseDecimal);
 
-    const values: Array<string | number | { formula: string }> = [
-      item.aipRefCode?.aipReferenceCode ?? "",
+    const values: Array<string | number | {formula: string}> = [
+      item.aipRefCode?.aipReferenceCode ?? '',
       item.mfoPpa,
-      item.other.expenseCode?.accountCode ?? "",
+      item.other.expenseCode?.accountCode ?? '',
       _decimalToNumber(authorizedDecimal.toString()),
       _decimalToNumber(forLaterDecimal.toString()),
       _decimalToNumber(previouslyDecimal.toString()),
@@ -4652,9 +5078,9 @@ async function _buildLbeFOneExcelBuffer(
   }
 
   ws.mergeCells(row, 1, row, 3);
-  ws.getCell(row, 1).value = "TOTAL";
-  ws.getCell(row, 1).font = { bold: true, size: 11, name: "Arial Narrow" };
-  ws.getCell(row, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(row, 1).value = 'TOTAL';
+  ws.getCell(row, 1).font = {bold: true, size: 11, name: 'Arial Narrow'};
+  ws.getCell(row, 1).alignment = {horizontal: 'center', vertical: 'middle'};
   ws.getCell(row, 1).border = _THIN_BORDER;
 
   const totalValues = [
@@ -4667,20 +5093,20 @@ async function _buildLbeFOneExcelBuffer(
     const col = 4 + index;
     const cell = ws.getCell(row, col);
     cell.value = _decimalToNumber(val);
-    cell.font = { bold: true, size: 11, name: "Arial Narrow" };
-    cell.alignment = { horizontal: "right", vertical: "middle" };
+    cell.font = {bold: true, size: 11, name: 'Arial Narrow'};
+    cell.alignment = {horizontal: 'right', vertical: 'middle'};
     cell.numFmt = _NUM_FMT_AMOUNT;
     cell.border = _THIN_BORDER;
   });
   row++;
 
-  ws.getCell(row, 1).value = "AMOUNT IN WORDS:";
-  ws.getCell(row, 1).font = { bold: true, size: 10, name: "Arial Narrow" };
-  ws.getCell(row, 1).alignment = { horizontal: "left", vertical: "middle" };
+  ws.getCell(row, 1).value = 'AMOUNT IN WORDS:';
+  ws.getCell(row, 1).font = {bold: true, size: 10, name: 'Arial Narrow'};
+  ws.getCell(row, 1).alignment = {horizontal: 'left', vertical: 'middle'};
   ws.mergeCells(row, 2, row, 7);
   ws.getCell(row, 2).value = amountToEnglishWords(totalThisRelease.toString());
-  ws.getCell(row, 2).font = { bold: true, size: 11, name: "Arial Narrow" };
-  ws.getCell(row, 2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+  ws.getCell(row, 2).font = {bold: true, size: 11, name: 'Arial Narrow'};
+  ws.getCell(row, 2).alignment = {horizontal: 'left', vertical: 'middle', wrapText: true};
 
   for (let col = 1; col <= 7; col++) {
     ws.getCell(row, col).border = _THIN_BORDER;
@@ -4688,9 +5114,10 @@ async function _buildLbeFOneExcelBuffer(
   row++;
 
   ws.mergeCells(row, 1, row + 1, 7);
-  ws.getCell(row, 1).value = "NOTES: The allotments herein released shall be used solely for the purposes indicated and disbursements thereto shall be made in accordance with existing budgeting, accounting and auditing rules and regulations. It is the primary responsibility of the head of the Department/Office/ or Unit concerned to keep expenditures within the limits of the amount allotted.";
-  ws.getCell(row, 1).font = { size: 10, name: "Arial Narrow" };
-  ws.getCell(row, 1).alignment = { horizontal: "left", vertical: "top", wrapText: true };
+  ws.getCell(row, 1).value =
+    'NOTES: The allotments herein released shall be used solely for the purposes indicated and disbursements thereto shall be made in accordance with existing budgeting, accounting and auditing rules and regulations. It is the primary responsibility of the head of the Department/Office/ or Unit concerned to keep expenditures within the limits of the amount allotted.';
+  ws.getCell(row, 1).font = {size: 10, name: 'Arial Narrow'};
+  ws.getCell(row, 1).alignment = {horizontal: 'left', vertical: 'top', wrapText: true};
   ws.getCell(row, 1).border = _THIN_BORDER;
   for (let col = 2; col <= 7; col++) {
     ws.getCell(row, col).border = _THIN_BORDER;
@@ -4703,7 +5130,7 @@ async function _buildLbeFOneExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 1, xSplit: 0}];
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
@@ -4716,33 +5143,33 @@ async function _buildForm3ExcelBuffer(
   officeName: string,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBAC Form 3");
+  const ws = wb.addWorksheet('LBAC Form 3');
 
   LBAC_FORM3_EXPORT_COLUMNS.forEach((col, idx) => {
-    ws.getColumn(idx + 1).width = col.key === "majorFinalOutput" || col.key === "remarks" ? 30 : 18;
+    ws.getColumn(idx + 1).width = col.key === 'majorFinalOutput' || col.key === 'remarks' ? 30 : 18;
   });
 
   const lastColumn = LBAC_FORM3_EXPORT_COLUMNS.length;
-  ws.getCell(1, 1).value = "LBAc Form No.3";
-  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(1, 1).value = 'LBAc Form No.3';
+  ws.getCell(1, 1).font = {italic: true, bold: true, size: 11, name: 'Arial Narrow'};
 
   ws.mergeCells(2, 1, 2, lastColumn);
-  ws.getCell(2, 1).value = "Quarterly Physical Report of Operations";
-  ws.getCell(2, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
-  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(2, 1).value = 'Quarterly Physical Report of Operations';
+  ws.getCell(2, 1).font = {bold: true, size: 14, name: 'Arial Narrow'};
+  ws.getCell(2, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(3, 1, 3, lastColumn);
   ws.getCell(3, 1).value = getForm3QuarterEndingLabel(year, quarter);
-  ws.getCell(3, 1).font = { bold: true, size: 12, name: "Arial Narrow" };
-  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(3, 1).font = {bold: true, size: 12, name: 'Arial Narrow'};
+  ws.getCell(3, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
-  ws.getCell(5, 1).value = "Department/Office:";
-  ws.getCell(5, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(5, 1).value = 'Department/Office:';
+  ws.getCell(5, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(5, 2, 5, 6);
   ws.getCell(5, 2).value = officeName;
-  ws.getCell(5, 2).font = { size: 10, name: "Arial Narrow", bold: true };
+  ws.getCell(5, 2).font = {size: 10, name: 'Arial Narrow', bold: true};
 
   _writeSimpleHeaderRow(ws, 7, LBAC_FORM3_EXPORT_COLUMNS);
 
@@ -4751,48 +5178,90 @@ async function _buildForm3ExcelBuffer(
   let row = 8;
 
   for (const flatRow of rows) {
-    const values: Array<string | number | { formula: string }> = [];
+    const values: Array<string | number | {formula: string}> = [];
     for (const col of LBAC_FORM3_EXPORT_COLUMNS) {
-      if (flatRow.kind === "group") {
-        values.push(col.key === "majorFinalOutput" ? flatRow.data.name : "");
-      } else if (flatRow.kind === "group-total") {
-        values.push(col.key === "majorFinalOutput" ? (flatRow.isRoot ? "Grand Total" : "Total") : "");
+      if (flatRow.kind === 'group') {
+        values.push(col.key === 'majorFinalOutput' ? flatRow.data.name : '');
+      } else if (flatRow.kind === 'group-total') {
+        values.push(
+          col.key === 'majorFinalOutput' ? (flatRow.isRoot ? 'Grand Total' : 'Total') : '',
+        );
       } else {
         const item = flatRow.data;
         switch (col.key) {
-        case "aipRefCode": values.push(item.aipRefCode?.aipReferenceCode ?? ""); break;
-        case "majorFinalOutput": values.push(item.majorFinalOutput ?? ""); break;
-        case "performanceOutputIndicator": values.push(item.performanceOutputIndicator ?? ""); break;
-        case "targetQ1": values.push(item.quarterlyReport.physicalTargets.Q1 ?? ""); break;
-        case "targetQ2": values.push(item.quarterlyReport.physicalTargets.Q2 ?? ""); break;
-        case "targetQ3": values.push(item.quarterlyReport.physicalTargets.Q3 ?? ""); break;
-        case "targetQ4": values.push(item.quarterlyReport.physicalTargets.Q4 ?? ""); break;
-        case "targetTotal": values.push(item.quarterlyReport.physicalTargets.total ?? ""); break;
-        case "actualQ1": values.push(item.quarterlyReport.actualPhysicalPerformance.Q1 ?? ""); break;
-        case "actualQ2": values.push(item.quarterlyReport.actualPhysicalPerformance.Q2 ?? ""); break;
-        case "actualQ3": values.push(item.quarterlyReport.actualPhysicalPerformance.Q3 ?? ""); break;
-        case "actualQ4": values.push(item.quarterlyReport.actualPhysicalPerformance.Q4 ?? ""); break;
-        case "actualTotal": values.push(item.quarterlyReport.actualPhysicalPerformance.total ?? ""); break;
-        case "variance": values.push(item.quarterlyReport.variance ?? ""); break;
-        case "remarks": values.push(item.quarterlyReport.remarks ?? ""); break;
+          case 'aipRefCode':
+            values.push(item.aipRefCode?.aipReferenceCode ?? '');
+            break;
+          case 'majorFinalOutput':
+            values.push(item.majorFinalOutput ?? '');
+            break;
+          case 'performanceOutputIndicator':
+            values.push(item.performanceOutputIndicator ?? '');
+            break;
+          case 'targetQ1':
+            values.push(item.quarterlyReport.physicalTargets.Q1 ?? '');
+            break;
+          case 'targetQ2':
+            values.push(item.quarterlyReport.physicalTargets.Q2 ?? '');
+            break;
+          case 'targetQ3':
+            values.push(item.quarterlyReport.physicalTargets.Q3 ?? '');
+            break;
+          case 'targetQ4':
+            values.push(item.quarterlyReport.physicalTargets.Q4 ?? '');
+            break;
+          case 'targetTotal':
+            values.push(item.quarterlyReport.physicalTargets.total ?? '');
+            break;
+          case 'actualQ1':
+            values.push(item.quarterlyReport.actualPhysicalPerformance.Q1 ?? '');
+            break;
+          case 'actualQ2':
+            values.push(item.quarterlyReport.actualPhysicalPerformance.Q2 ?? '');
+            break;
+          case 'actualQ3':
+            values.push(item.quarterlyReport.actualPhysicalPerformance.Q3 ?? '');
+            break;
+          case 'actualQ4':
+            values.push(item.quarterlyReport.actualPhysicalPerformance.Q4 ?? '');
+            break;
+          case 'actualTotal':
+            values.push(item.quarterlyReport.actualPhysicalPerformance.total ?? '');
+            break;
+          case 'variance':
+            values.push(item.quarterlyReport.variance ?? '');
+            break;
+          case 'remarks':
+            values.push(item.quarterlyReport.remarks ?? '');
+            break;
         }
       }
     }
 
-    if (flatRow.kind === "group") {
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+    if (flatRow.kind === 'group') {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       _writeSimpleDataRow(ws, row, values, numericIndices, {
         fill,
-        fontColor: "FFFFFFFF",
+        fontColor: 'FFFFFFFF',
         bold: true,
         indentIndex: 2,
         indentDepth: flatRow.depth,
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
-      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 2, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        bold: true,
+        indentIndex: 2,
+        indentDepth: flatRow.depth,
+      });
     } else {
-      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 2, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        indentIndex: 2,
+        indentDepth: flatRow.depth,
+      });
     }
 
     row++;
@@ -4804,7 +5273,7 @@ async function _buildForm3ExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: 7, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 7, xSplit: 0}];
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
@@ -4817,37 +5286,42 @@ async function _buildForm5ExcelBuffer(
   officeName: string,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBAC Form 5");
+  const ws = wb.addWorksheet('LBAC Form 5');
 
   const columns = [28, 38, 14, 14, 14, 14, 14, 14, 14, 14];
   columns.forEach((width, index) => {
     ws.getColumn(index + 1).width = width;
   });
 
-  const quarterKey = quarter === 1 ? "Q1" : quarter === 2 ? "Q2" : quarter === 3 ? "Q3" : "Q4";
+  const quarterKey = quarter === 1 ? 'Q1' : quarter === 2 ? 'Q2' : quarter === 3 ? 'Q3' : 'Q4';
   const lastColumn = columns.length;
-  ws.getCell(1, 1).value = "LBAc Form No.5";
-  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(1, 1).value = 'LBAc Form No.5';
+  ws.getCell(1, 1).font = {italic: true, bold: true, size: 11, name: 'Arial Narrow'};
 
   ws.mergeCells(2, 1, 2, lastColumn);
-  ws.getCell(2, 1).value = "PHYSICAL AND FINANCIAL PERFORMANCE EVALUATION FORM";
-  ws.getCell(2, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
-  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(2, 1).value = 'PHYSICAL AND FINANCIAL PERFORMANCE EVALUATION FORM';
+  ws.getCell(2, 1).font = {bold: true, size: 14, name: 'Arial Narrow'};
+  ws.getCell(2, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(3, 1, 3, lastColumn);
   ws.getCell(3, 1).value = getForm5SemesterEndingLabel(year, quarter);
-  ws.getCell(3, 1).font = { size: 12, name: "Arial Narrow", bold: true };
-  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(3, 1).font = {size: 12, name: 'Arial Narrow', bold: true};
+  ws.getCell(3, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
-  ws.getCell(5, 1).value = "DEPARTMENT/OFFICE:";
-  ws.getCell(5, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(5, 1).value = 'DEPARTMENT/OFFICE:';
+  ws.getCell(5, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(5, 2, 5, 6);
   ws.getCell(5, 2).value = officeName;
-  ws.getCell(5, 2).font = { size: 10, name: "Arial Narrow", bold: true, color: { argb: "FF0000FF" } };
+  ws.getCell(5, 2).font = {size: 10, name: 'Arial Narrow', bold: true, color: {argb: 'FF0000FF'}};
 
-  const applyHeaderStyle = (row: number, col: number, value: string, options?: { bold?: boolean; color?: string }) => {
+  const applyHeaderStyle = (
+    row: number,
+    col: number,
+    value: string,
+    options?: {bold?: boolean; color?: string},
+  ) => {
     const cell = ws.getCell(row, col);
     cell.value = value;
     cell.fill = _HEADER_FILL;
@@ -4855,41 +5329,41 @@ async function _buildForm5ExcelBuffer(
     cell.font = {
       bold: options?.bold ?? true,
       size: 10,
-      name: "Arial Narrow",
-      color: options?.color ? { argb: options.color } : undefined,
+      name: 'Arial Narrow',
+      color: options?.color ? {argb: options.color} : undefined,
     };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   };
 
   ws.mergeCells(7, 1, 8, 1);
   ws.mergeCells(7, 2, 8, 2);
   ws.mergeCells(7, 3, 7, 6);
   ws.mergeCells(7, 7, 7, 10);
-  applyHeaderStyle(7, 1, "PPA Code");
-  applyHeaderStyle(7, 2, "PPA Description/ Major Final Output");
-  applyHeaderStyle(7, 3, "Physical Performance", { color: "FF0000FF" });
-  applyHeaderStyle(7, 7, "Financial Performance", { color: "FF0000FF" });
+  applyHeaderStyle(7, 1, 'PPA Code');
+  applyHeaderStyle(7, 2, 'PPA Description/ Major Final Output');
+  applyHeaderStyle(7, 3, 'Physical Performance', {color: 'FF0000FF'});
+  applyHeaderStyle(7, 7, 'Financial Performance', {color: 'FF0000FF'});
 
-  applyHeaderStyle(8, 3, "Target Output");
-  applyHeaderStyle(8, 4, "Actual Output");
-  applyHeaderStyle(8, 5, "Variance");
-  applyHeaderStyle(8, 6, "% of Accomplishment");
-  applyHeaderStyle(8, 7, "Allotment Released");
-  applyHeaderStyle(8, 8, "Actual Obligations Incurred");
-  applyHeaderStyle(8, 9, "Variance");
-  applyHeaderStyle(8, 10, "Absorptive Capacity");
+  applyHeaderStyle(8, 3, 'Target Output');
+  applyHeaderStyle(8, 4, 'Actual Output');
+  applyHeaderStyle(8, 5, 'Variance');
+  applyHeaderStyle(8, 6, '% of Accomplishment');
+  applyHeaderStyle(8, 7, 'Allotment Released');
+  applyHeaderStyle(8, 8, 'Actual Obligations Incurred');
+  applyHeaderStyle(8, 9, 'Variance');
+  applyHeaderStyle(8, 10, 'Absorptive Capacity');
 
   const formulaRow = [
-    "(1)",
-    "(2)",
-    "(3)",
-    "(4)",
-    "(5)",
-    "(6)",
-    "(7)",
-    "(8)",
-    "(9)=(7)-(8)",
-    "(10)=(8)/(7)",
+    '(1)',
+    '(2)',
+    '(3)',
+    '(4)',
+    '(5)',
+    '(6)',
+    '(7)',
+    '(8)',
+    '(9)=(7)-(8)',
+    '(10)=(8)/(7)',
   ];
   formulaRow.forEach((label, index) => applyHeaderStyle(9, index + 1, label));
 
@@ -4898,19 +5372,21 @@ async function _buildForm5ExcelBuffer(
   let row = 10;
 
   for (const flatRow of rows) {
-    const values: Array<string | number | { formula: string }> = [];
-    if (flatRow.kind === "group") {
-      values.push("", flatRow.data.name, "", "", "", "", "", "", "", "");
-    } else if (flatRow.kind === "group-total") {
+    const values: Array<string | number | {formula: string}> = [];
+    if (flatRow.kind === 'group') {
+      values.push('', flatRow.data.name, '', '', '', '', '', '', '', '');
+    } else if (flatRow.kind === 'group-total') {
       const allotmentReleased = _decimalToNumber(flatRow.data.financialAllocation[quarterKey]);
-      const actualObligationsIncurred = _decimalToNumber(flatRow.data.actualFinancialPerformance[quarterKey]);
+      const actualObligationsIncurred = _decimalToNumber(
+        flatRow.data.actualFinancialPerformance[quarterKey],
+      );
       values.push(
-        "",
-        flatRow.isRoot ? "Grand Total" : "Total",
-        "",
-        "",
-        "",
-        "",
+        '',
+        flatRow.isRoot ? 'Grand Total' : 'Total',
+        '',
+        '',
+        '',
+        '',
         allotmentReleased,
         actualObligationsIncurred,
         allotmentReleased - actualObligationsIncurred,
@@ -4919,14 +5395,16 @@ async function _buildForm5ExcelBuffer(
     } else {
       const item = flatRow.data;
       const allotmentReleased = _decimalToNumber(item.financialAllocation[quarterKey]);
-      const actualObligationsIncurred = _decimalToNumber(item.actualFinancialPerformance[quarterKey]);
+      const actualObligationsIncurred = _decimalToNumber(
+        item.actualFinancialPerformance[quarterKey],
+      );
       values.push(
-        item.aipRefCode?.aipReferenceCode ?? "",
+        item.aipRefCode?.aipReferenceCode ?? '',
         item.mfoPpa,
-        item.quarterlyReport.physicalTargets[quarterKey] ?? "",
-        item.quarterlyReport.actualPhysicalPerformance[quarterKey] ?? "",
-        item.quarterlyReport.variance ?? "",
-        item.quarterlyReport.accomplishment ?? "",
+        item.quarterlyReport.physicalTargets[quarterKey] ?? '',
+        item.quarterlyReport.actualPhysicalPerformance[quarterKey] ?? '',
+        item.quarterlyReport.variance ?? '',
+        item.quarterlyReport.accomplishment ?? '',
         allotmentReleased,
         actualObligationsIncurred,
         allotmentReleased - actualObligationsIncurred,
@@ -4934,23 +5412,33 @@ async function _buildForm5ExcelBuffer(
       );
     }
 
-    if (flatRow.kind === "group") {
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+    if (flatRow.kind === 'group') {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       _writeSimpleDataRow(ws, row, values, numericIndices, {
         fill,
-        fontColor: "FFFFFFFF",
+        fontColor: 'FFFFFFFF',
         bold: true,
         indentIndex: 2,
         indentDepth: flatRow.depth,
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
-      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 2, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        bold: true,
+        indentIndex: 2,
+        indentDepth: flatRow.depth,
+      });
     } else {
-      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 2, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        indentIndex: 2,
+        indentDepth: flatRow.depth,
+      });
     }
 
-    ws.getCell(row, 10).numFmt = "0.00%";
+    ws.getCell(row, 10).numFmt = '0.00%';
 
     row++;
   }
@@ -4961,7 +5449,7 @@ async function _buildForm5ExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: 9, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 9, xSplit: 0}];
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
@@ -4976,17 +5464,17 @@ async function _buildLbeForm5ExcelBuffer(
   officeName: string,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBE Form 5");
+  const ws = wb.addWorksheet('LBE Form 5');
 
   const columns = [
-    { key: "programProjectActivity", label: "Program/Project/Activity" },
-    { key: "totalCost", label: "Total Cost" },
-    { key: "performanceIndicator", label: "Performance Indicator" },
-    { key: "priorYearAccomplishments", label: "Prior Year Accomplishments (Actual)" },
-    { key: "physicalTargets", label: "Physical Targets" },
-    { key: "remarks", label: "Remarks" },
+    {key: 'programProjectActivity', label: 'Program/Project/Activity'},
+    {key: 'totalCost', label: 'Total Cost'},
+    {key: 'performanceIndicator', label: 'Performance Indicator'},
+    {key: 'priorYearAccomplishments', label: 'Prior Year Accomplishments (Actual)'},
+    {key: 'physicalTargets', label: 'Physical Targets'},
+    {key: 'remarks', label: 'Remarks'},
   ] as const;
 
   const widths = [36, 20, 28, 30, 24, 24];
@@ -4995,39 +5483,43 @@ async function _buildLbeForm5ExcelBuffer(
   });
 
   const lastColumn = columns.length;
-  ws.getCell(1, 1).value = "LBE FORM NO.5";
-  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(1, 1).value = 'LBE FORM NO.5';
+  ws.getCell(1, 1).font = {italic: true, bold: true, size: 11, name: 'Arial Narrow'};
 
   ws.mergeCells(2, 1, 2, lastColumn);
-  ws.getCell(2, 1).value = "SUMMARY OF FINANCIAL AND PHYSICAL PERFORMANCE TARGETS";
-  ws.getCell(2, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
-  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(2, 1).value = 'SUMMARY OF FINANCIAL AND PHYSICAL PERFORMANCE TARGETS';
+  ws.getCell(2, 1).font = {bold: true, size: 14, name: 'Arial Narrow'};
+  ws.getCell(2, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(3, 1, 3, lastColumn);
   ws.getCell(3, 1).value = `FY ${year}`;
-  ws.getCell(3, 1).font = { size: 12, name: "Arial Narrow" };
-  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(3, 1).font = {size: 12, name: 'Arial Narrow'};
+  ws.getCell(3, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
-  ws.getCell(5, 1).value = "LGU:";
-  ws.getCell(5, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(5, 1).value = 'LGU:';
+  ws.getCell(5, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(5, 2, 5, lastColumn);
   ws.getCell(5, 2).value = lgu;
-  ws.getCell(5, 2).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(5, 2).font = {size: 10, name: 'Arial Narrow'};
 
-  ws.getCell(6, 1).value = "Department/Office:";
-  ws.getCell(6, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(6, 1).value = 'Department/Office:';
+  ws.getCell(6, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(6, 2, 6, lastColumn);
   ws.getCell(6, 2).value = officeName;
-  ws.getCell(6, 2).font = { size: 10, name: "Arial Narrow", bold: true };
+  ws.getCell(6, 2).font = {size: 10, name: 'Arial Narrow', bold: true};
 
-  ws.getCell(7, 1).value = "Major Final Output (MFO):";
-  ws.getCell(7, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(7, 1).value = 'Major Final Output (MFO):';
+  ws.getCell(7, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(7, 2, 7, lastColumn);
   ws.getCell(7, 2).value = mfo;
-  ws.getCell(7, 2).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(7, 2).font = {size: 10, name: 'Arial Narrow'};
 
-  _writeSimpleHeaderRow(ws, 9, columns.map(col => ({ label: col.label })));
-  _writeSimpleDataRow(ws, 10, ["(1)", "(2)", "(3)", "(4)", "(5)", "(6)"], new Set<number>(), {
+  _writeSimpleHeaderRow(
+    ws,
+    9,
+    columns.map((col) => ({label: col.label})),
+  );
+  _writeSimpleDataRow(ws, 10, ['(1)', '(2)', '(3)', '(4)', '(5)', '(6)'], new Set<number>(), {
     bold: true,
   });
 
@@ -5036,45 +5528,67 @@ async function _buildLbeForm5ExcelBuffer(
   let row = 11;
 
   for (const flatRow of rows) {
-    const values: Array<string | number | { formula: string }> = [];
+    const values: Array<string | number | {formula: string}> = [];
     for (const col of columns) {
-      if (flatRow.kind === "group") {
-        values.push(col.key === "programProjectActivity" ? flatRow.data.name : "");
-      } else if (flatRow.kind === "group-total") {
-        if (col.key === "programProjectActivity") {
-          values.push(flatRow.isRoot ? "Grand Total" : "Total");
-        } else if (col.key === "totalCost") {
+      if (flatRow.kind === 'group') {
+        values.push(col.key === 'programProjectActivity' ? flatRow.data.name : '');
+      } else if (flatRow.kind === 'group-total') {
+        if (col.key === 'programProjectActivity') {
+          values.push(flatRow.isRoot ? 'Grand Total' : 'Total');
+        } else if (col.key === 'totalCost') {
           values.push(_decimalToNumber(flatRow.data.appropriation.current));
         } else {
-          values.push("");
+          values.push('');
         }
       } else {
         const item = flatRow.data;
         switch (col.key) {
-        case "programProjectActivity": values.push(item.mfoPpa); break;
-        case "totalCost": values.push(_decimalToNumber(item.appropriation.current)); break;
-        case "performanceIndicator": values.push(item.performanceOutputIndicator ?? ""); break;
-        case "priorYearAccomplishments": values.push(item.other.priorYearAccomplishments ?? ""); break;
-        case "physicalTargets": values.push(item.other.physicalTargets ?? ""); break;
-        case "remarks": values.push(item.other.remarks ?? ""); break;
+          case 'programProjectActivity':
+            values.push(item.mfoPpa);
+            break;
+          case 'totalCost':
+            values.push(_decimalToNumber(item.appropriation.current));
+            break;
+          case 'performanceIndicator':
+            values.push(item.performanceOutputIndicator ?? '');
+            break;
+          case 'priorYearAccomplishments':
+            values.push(item.other.priorYearAccomplishments ?? '');
+            break;
+          case 'physicalTargets':
+            values.push(item.other.physicalTargets ?? '');
+            break;
+          case 'remarks':
+            values.push(item.other.remarks ?? '');
+            break;
         }
       }
     }
 
-    if (flatRow.kind === "group") {
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+    if (flatRow.kind === 'group') {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       _writeSimpleDataRow(ws, row, values, numericIndices, {
         fill,
-        fontColor: "FFFFFFFF",
+        fontColor: 'FFFFFFFF',
         bold: true,
         indentIndex: 1,
         indentDepth: flatRow.depth,
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
-      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 1, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        bold: true,
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
     } else {
-      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 1, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
     }
 
     row++;
@@ -5086,7 +5600,7 @@ async function _buildLbeForm5ExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: 10, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 10, xSplit: 0}];
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
@@ -5101,90 +5615,102 @@ async function _buildForm5AExcelBuffer(
   officeName: string,
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBE Form 5A");
+  const ws = wb.addWorksheet('LBE Form 5A');
 
   LBAC_FORM5A_EXPORT_COLUMNS.forEach((col, idx) => {
-    ws.getColumn(idx + 1).width = col.key === "programProjectActivity" ? 36 : 16;
+    ws.getColumn(idx + 1).width = col.key === 'programProjectActivity' ? 36 : 16;
   });
 
   const lastColumn = LBAC_FORM5A_EXPORT_COLUMNS.length;
-  ws.getCell(1, 1).value = "LBE FORM NO.5A";
-  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(1, 1).value = 'LBE FORM NO.5A';
+  ws.getCell(1, 1).font = {italic: true, bold: true, size: 11, name: 'Arial Narrow'};
 
   ws.mergeCells(2, 1, 2, lastColumn);
-  ws.getCell(2, 1).value = "DETAILED FINANCIAL AND PHYSICAL PERFORMANCE TARGETS";
-  ws.getCell(2, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
-  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(2, 1).value = 'DETAILED FINANCIAL AND PHYSICAL PERFORMANCE TARGETS';
+  ws.getCell(2, 1).font = {bold: true, size: 14, name: 'Arial Narrow'};
+  ws.getCell(2, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(3, 1, 3, lastColumn);
   ws.getCell(3, 1).value = `FY ${year}`;
-  ws.getCell(3, 1).font = { size: 12, name: "Arial Narrow" };
-  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(3, 1).font = {size: 12, name: 'Arial Narrow'};
+  ws.getCell(3, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
-  ws.getCell(5, 1).value = "LGU:";
-  ws.getCell(5, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(5, 1).value = 'LGU:';
+  ws.getCell(5, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(5, 2, 5, lastColumn);
   ws.getCell(5, 2).value = lgu;
-  ws.getCell(5, 2).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(5, 2).font = {size: 10, name: 'Arial Narrow'};
 
-  ws.getCell(6, 1).value = "Department/Office:";
-  ws.getCell(6, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(6, 1).value = 'Department/Office:';
+  ws.getCell(6, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(6, 2, 6, lastColumn);
   ws.getCell(6, 2).value = officeName;
-  ws.getCell(6, 2).font = { size: 10, name: "Arial Narrow", bold: true };
+  ws.getCell(6, 2).font = {size: 10, name: 'Arial Narrow', bold: true};
 
-  ws.getCell(7, 1).value = "Major Final Output (MFO):";
-  ws.getCell(7, 1).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(7, 1).value = 'Major Final Output (MFO):';
+  ws.getCell(7, 1).font = {size: 10, name: 'Arial Narrow'};
   ws.mergeCells(7, 2, 7, lastColumn);
   ws.getCell(7, 2).value = mfo;
-  ws.getCell(7, 2).font = { size: 10, name: "Arial Narrow" };
+  ws.getCell(7, 2).font = {size: 10, name: 'Arial Narrow'};
 
-  _writeSimpleDataRow(ws, 9, [
-    "Program/Project/Activity",
-    "FINANCIAL ALLOCATION",
-    "",
-    "",
-    "",
-    "",
-    "PHYSICAL TARGETS",
-    "",
-    "",
-    "",
-  ], new Set<number>(), { bold: true });
+  _writeSimpleDataRow(
+    ws,
+    9,
+    [
+      'Program/Project/Activity',
+      'FINANCIAL ALLOCATION',
+      '',
+      '',
+      '',
+      '',
+      'PHYSICAL TARGETS',
+      '',
+      '',
+      '',
+    ],
+    new Set<number>(),
+    {bold: true},
+  );
   ws.mergeCells(9, 2, 9, 6);
   ws.mergeCells(9, 7, 9, 10);
   for (let col = 1; col <= lastColumn; col++) {
     const cell = ws.getCell(9, col);
     cell.fill = _HEADER_FILL;
     cell.border = _THIN_BORDER;
-    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
+    cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
   }
 
   _writeSimpleHeaderRow(ws, 10, [
-    { label: "" },
-    { label: "1ST QUARTER" },
-    { label: "2ND QUARTER" },
-    { label: "3RD QUARTER" },
-    { label: "4TH QUARTER" },
-    { label: "TOTAL" },
-    { label: "1ST QUARTER" },
-    { label: "2ND QUARTER" },
-    { label: "3RD QUARTER" },
-    { label: "4TH QUARTER" },
+    {label: ''},
+    {label: '1ST QUARTER'},
+    {label: '2ND QUARTER'},
+    {label: '3RD QUARTER'},
+    {label: '4TH QUARTER'},
+    {label: 'TOTAL'},
+    {label: '1ST QUARTER'},
+    {label: '2ND QUARTER'},
+    {label: '3RD QUARTER'},
+    {label: '4TH QUARTER'},
   ]);
-  _writeSimpleDataRow(ws, 11, ["(1)", "(2)", "", "", "", "", "(3)", "", "", ""], new Set<number>(), {
-    bold: true,
-  });
+  _writeSimpleDataRow(
+    ws,
+    11,
+    ['(1)', '(2)', '', '', '', '', '(3)', '', '', ''],
+    new Set<number>(),
+    {
+      bold: true,
+    },
+  );
   ws.mergeCells(11, 2, 11, 6);
   ws.mergeCells(11, 7, 11, 10);
   for (let col = 1; col <= lastColumn; col++) {
     const cell = ws.getCell(11, col);
     cell.border = _THIN_BORDER;
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+    cell.alignment = {horizontal: 'center', vertical: 'middle'};
+    cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
   }
 
   const rows = _flattenLbacTree(tree);
@@ -5192,57 +5718,87 @@ async function _buildForm5AExcelBuffer(
   let row = 12;
 
   for (const flatRow of rows) {
-    const values: Array<string | number | { formula: string }> = [];
+    const values: Array<string | number | {formula: string}> = [];
     for (const col of LBAC_FORM5A_EXPORT_COLUMNS) {
-      if (flatRow.kind === "group") {
-        values.push(col.key === "programProjectActivity" ? flatRow.data.name : "");
-      } else if (flatRow.kind === "group-total") {
-        if (col.key === "programProjectActivity") {
-          values.push(flatRow.isRoot ? "Grand Total" : "Total");
-        } else if (col.key === "allocationQ1") {
+      if (flatRow.kind === 'group') {
+        values.push(col.key === 'programProjectActivity' ? flatRow.data.name : '');
+      } else if (flatRow.kind === 'group-total') {
+        if (col.key === 'programProjectActivity') {
+          values.push(flatRow.isRoot ? 'Grand Total' : 'Total');
+        } else if (col.key === 'allocationQ1') {
           values.push(_decimalToNumber(flatRow.data.financialAllocation.Q1));
-        } else if (col.key === "allocationQ2") {
+        } else if (col.key === 'allocationQ2') {
           values.push(_decimalToNumber(flatRow.data.financialAllocation.Q2));
-        } else if (col.key === "allocationQ3") {
+        } else if (col.key === 'allocationQ3') {
           values.push(_decimalToNumber(flatRow.data.financialAllocation.Q3));
-        } else if (col.key === "allocationQ4") {
+        } else if (col.key === 'allocationQ4') {
           values.push(_decimalToNumber(flatRow.data.financialAllocation.Q4));
-        } else if (col.key === "allocationTotal") {
+        } else if (col.key === 'allocationTotal') {
           values.push(_decimalToNumber(flatRow.data.financialAllocation.total));
         } else {
-          values.push("");
+          values.push('');
         }
       } else {
         const item = flatRow.data;
         switch (col.key) {
-        case "programProjectActivity": values.push(item.mfoPpa); break;
-        case "allocationQ1": values.push(_decimalToNumber(item.financialAllocation.Q1)); break;
-        case "allocationQ2": values.push(_decimalToNumber(item.financialAllocation.Q2)); break;
-        case "allocationQ3": values.push(_decimalToNumber(item.financialAllocation.Q3)); break;
-        case "allocationQ4": values.push(_decimalToNumber(item.financialAllocation.Q4)); break;
-        case "allocationTotal": values.push(_decimalToNumber(item.financialAllocation.total)); break;
-        case "targetQ1": values.push(item.quarterlyReport.physicalTargets.Q1 ?? ""); break;
-        case "targetQ2": values.push(item.quarterlyReport.physicalTargets.Q2 ?? ""); break;
-        case "targetQ3": values.push(item.quarterlyReport.physicalTargets.Q3 ?? ""); break;
-        case "targetQ4": values.push(item.quarterlyReport.physicalTargets.Q4 ?? ""); break;
+          case 'programProjectActivity':
+            values.push(item.mfoPpa);
+            break;
+          case 'allocationQ1':
+            values.push(_decimalToNumber(item.financialAllocation.Q1));
+            break;
+          case 'allocationQ2':
+            values.push(_decimalToNumber(item.financialAllocation.Q2));
+            break;
+          case 'allocationQ3':
+            values.push(_decimalToNumber(item.financialAllocation.Q3));
+            break;
+          case 'allocationQ4':
+            values.push(_decimalToNumber(item.financialAllocation.Q4));
+            break;
+          case 'allocationTotal':
+            values.push(_decimalToNumber(item.financialAllocation.total));
+            break;
+          case 'targetQ1':
+            values.push(item.quarterlyReport.physicalTargets.Q1 ?? '');
+            break;
+          case 'targetQ2':
+            values.push(item.quarterlyReport.physicalTargets.Q2 ?? '');
+            break;
+          case 'targetQ3':
+            values.push(item.quarterlyReport.physicalTargets.Q3 ?? '');
+            break;
+          case 'targetQ4':
+            values.push(item.quarterlyReport.physicalTargets.Q4 ?? '');
+            break;
         }
       }
     }
 
-    if (flatRow.kind === "group") {
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+    if (flatRow.kind === 'group') {
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       _writeSimpleDataRow(ws, row, values, numericIndices, {
         fill,
-        fontColor: "FFFFFFFF",
+        fontColor: 'FFFFFFFF',
         bold: true,
         indentIndex: 1,
         indentDepth: flatRow.depth,
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(flatRow.isRoot ? LBAC_TOTAL_ROOT_COLOR : LBAC_TOTAL_CHILD_COLOR);
-      _writeSimpleDataRow(ws, row, values, numericIndices, { fill, bold: true, indentIndex: 1, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        fill,
+        bold: true,
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
     } else {
-      _writeSimpleDataRow(ws, row, values, numericIndices, { indentIndex: 1, indentDepth: flatRow.depth });
+      _writeSimpleDataRow(ws, row, values, numericIndices, {
+        indentIndex: 1,
+        indentDepth: flatRow.depth,
+      });
     }
 
     row++;
@@ -5254,14 +5810,14 @@ async function _buildForm5AExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: 11, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 11, xSplit: 0}];
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
   return Buffer.from(rawBuffer as unknown as Uint8Array);
 }
 
 function _writeCollPerfTitleRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   startRow: number,
   year: number,
@@ -5270,15 +5826,15 @@ function _writeCollPerfTitleRows(
 ): number {
   const formRow = ws.getRow(startRow);
   const formCell = formRow.getCell(1);
-  formCell.value = "LBac Form No. 1";
-  formCell.font = { italic: true, size: 10, name: "Arial Narrow" };
+  formCell.value = 'LBac Form No. 1';
+  formCell.font = {italic: true, size: 10, name: 'Arial Narrow'};
   formRow.commit();
 
   const titleRow = ws.getRow(startRow + 1);
   const titleCell = titleRow.getCell(1);
-  titleCell.value = "QUARTERLY REPORT OF RECEIPTS";
-  titleCell.font = { bold: true, size: 14, name: "Arial Narrow" };
-  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  titleCell.value = 'QUARTERLY REPORT OF RECEIPTS';
+  titleCell.font = {bold: true, size: 14, name: 'Arial Narrow'};
+  titleCell.alignment = {horizontal: 'center', vertical: 'middle'};
   if (colCount > 1) {
     try {
       ws.mergeCells(startRow + 1, 1, startRow + 1, colCount);
@@ -5292,8 +5848,8 @@ function _writeCollPerfTitleRows(
   const subtitleRow = ws.getRow(startRow + 2);
   const subtitleCell = subtitleRow.getCell(1);
   subtitleCell.value = `FOR THE QUARTER ENDING ${quarterEndingLabel(year, quarter).toUpperCase()}`;
-  subtitleCell.font = { bold: true, size: 11, name: "Arial Narrow" };
-  subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+  subtitleCell.font = {bold: true, size: 11, name: 'Arial Narrow'};
+  subtitleCell.alignment = {horizontal: 'center', vertical: 'middle'};
   if (colCount > 1) {
     try {
       ws.mergeCells(startRow + 2, 1, startRow + 2, colCount);
@@ -5308,14 +5864,14 @@ function _writeCollPerfTitleRows(
 }
 
 function _writeCollPerfHeaderRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
   layout: {
     row1: string[];
     row2: string[];
     row3: string[];
-    merges: import("@/common/lbac/export-layout").HeaderMergeRange[];
+    merges: import('@/common/lbac/export-layout').HeaderMergeRange[];
   },
 ) {
   const writeRow = (rowIndex: number, labels: string[], height: number) => {
@@ -5323,10 +5879,10 @@ function _writeCollPerfHeaderRows(
     labels.forEach((label, idx) => {
       const cell = wsRow.getCell(idx + 1);
       cell.value = label;
-      cell.font = { bold: true, size: 10, name: "Arial Narrow" };
+      cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
       cell.fill = _HEADER_FILL;
       cell.border = _THIN_BORDER;
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
     });
     wsRow.height = height;
     wsRow.commit();
@@ -5339,44 +5895,44 @@ function _writeCollPerfHeaderRows(
 }
 
 function _writeCollPerfDataRow(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
   row: number,
   columns: readonly CollPerfExportColDef[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   values: any[],
   quarter: number,
   style: {
-    fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
+    fill?: {type: 'pattern'; pattern: 'solid'; fgColor: {argb: string}};
     font?: object;
     bold?: boolean;
     depth?: number;
   },
 ) {
   const wsRow = ws.getRow(row);
-  const particularsIdx = columns.findIndex(c => c.key === "particulars");
+  const particularsIdx = columns.findIndex((c) => c.key === 'particulars');
 
   values.forEach((value, idx) => {
     const colDef = columns[idx];
     const cell = wsRow.getCell(idx + 1);
-    cell.value = value === "" ? null : value;
+    cell.value = value === '' ? null : value;
     cell.border = _THIN_BORDER;
     cell.font = {
       size: 10,
-      name: "Arial Narrow",
+      name: 'Arial Narrow',
       bold: style.bold ?? false,
-      color: style.font && "color" in style.font ? style.font.color : undefined,
+      color: style.font && 'color' in style.font ? style.font.color : undefined,
     };
     if (style.fill) cell.fill = style.fill;
-    const isParticulars = colDef?.key === "particulars";
+    const isParticulars = colDef?.key === 'particulars';
     cell.alignment = {
-      vertical: "middle",
-      horizontal: colDef?.numeric ? "right" : "left",
+      vertical: 'middle',
+      horizontal: colDef?.numeric ? 'right' : 'left',
       wrapText: isParticulars || !colDef?.numeric,
       indent: isParticulars && style.depth !== undefined ? style.depth : undefined,
     };
     if (colDef?.numeric) {
-      cell.numFmt = colDef.key === "variancePercent" ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
+      cell.numFmt = colDef.key === 'variancePercent' ? _NUM_FMT_PCT : _NUM_FMT_AMOUNT;
     }
   });
 
@@ -5397,7 +5953,7 @@ function _collPerfRowValues(
   columns: readonly CollPerfExportColDef[],
   quarter: number,
 ): (string | number)[] {
-  return columns.map(col => getCollPerfCellValue(flatRow, col.key, quarter));
+  return columns.map((col) => getCollPerfCellValue(flatRow, col.key, quarter));
 }
 
 async function _buildCollPerfExcelBuffer(
@@ -5407,15 +5963,15 @@ async function _buildCollPerfExcelBuffer(
   columnKeys: CollPerfExportColumnKey[],
   footerTemplatePath: string | null,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
   const columns = resolveCollPerfExportColumns(columnKeys);
   const headerLayout = buildCollPerfHeaderLayout(quarter, columns);
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("Collection Performance");
+  const ws = wb.addWorksheet('Collection Performance');
 
   columns.forEach((col, idx) => {
-    const width = col.key === "particulars" || col.key === "remarks" ? 36 : 16;
+    const width = col.key === 'particulars' || col.key === 'remarks' ? 36 : 16;
     ws.getColumn(idx + 1).width = width;
   });
 
@@ -5427,11 +5983,11 @@ async function _buildCollPerfExcelBuffer(
   row += 3;
 
   const flatRows = flattenCollPerfForExport(
-    tree as unknown as import("@/lib/http/client/responses").CollPerfGroupResponse[],
+    tree as unknown as import('@/lib/http/client/responses').CollPerfGroupResponse[],
   );
 
   for (const flatRow of flatRows) {
-    if (flatRow.kind === "group") {
+    if (flatRow.kind === 'group') {
       const fill = _fillArgb(
         flatRow.depth === 0 ? COLL_PERF_GROUP_DEPTH_ROOT_COLOR : COLL_PERF_GROUP_DEPTH_CHILD_COLOR,
       );
@@ -5439,10 +5995,10 @@ async function _buildCollPerfExcelBuffer(
       _writeCollPerfDataRow(ws, row, columns, values, quarter, {
         fill,
         bold: true,
-        font: { color: { argb: "FFFFFFFF" } },
+        font: {color: {argb: 'FFFFFFFF'}},
         depth: flatRow.depth,
       });
-    } else if (flatRow.kind === "group-total") {
+    } else if (flatRow.kind === 'group-total') {
       const fill = _fillArgb(collPerfTotalRowColor(flatRow.depth, flatRow.isRoot));
       const values = _collPerfRowValues(flatRow, columns, quarter);
       _writeCollPerfDataRow(ws, row, columns, values, quarter, {
@@ -5465,7 +6021,7 @@ async function _buildCollPerfExcelBuffer(
     await _copyTemplateRows(footerWb, ws, row);
   }
 
-  ws.views = [{ state: "frozen", ySplit: headerRow + 2, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: headerRow + 2, xSplit: 0}];
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
@@ -5476,10 +6032,10 @@ async function _buildForm6ExcelBuffer(
   tree: LbacMonitoringTree,
   fiscalYear: number,
 ): Promise<Buffer> {
-  const { Workbook } = await import("@cj-tech-master/excelts");
+  const {Workbook} = await import('@cj-tech-master/excelts');
 
   const wb = new Workbook();
-  const ws = wb.addWorksheet("LBAC Form 6");
+  const ws = wb.addWorksheet('LBAC Form 6');
 
   const columnWidths = [38, 20, 24, 40, 28, 40, 16, 16, 18, 30];
   columnWidths.forEach((width, idx) => {
@@ -5488,58 +6044,58 @@ async function _buildForm6ExcelBuffer(
 
   const lastColumn = 10;
 
-  ws.getCell(1, 1).value = "LBAc Form No.6";
-  ws.getCell(1, 1).font = { italic: true, bold: true, size: 11, name: "Arial Narrow" };
+  ws.getCell(1, 1).value = 'LBAc Form No.6';
+  ws.getCell(1, 1).font = {italic: true, bold: true, size: 11, name: 'Arial Narrow'};
 
   ws.mergeCells(2, 1, 2, lastColumn);
-  ws.getCell(2, 1).value = "Local Government Unit of Tigbauan, Iloilo";
-  ws.getCell(2, 1).font = { size: 12, name: "Arial Narrow" };
-  ws.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(2, 1).value = 'Local Government Unit of Tigbauan, Iloilo';
+  ws.getCell(2, 1).font = {size: 12, name: 'Arial Narrow'};
+  ws.getCell(2, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(3, 1, 3, lastColumn);
-  ws.getCell(3, 1).value = "Monitoring of Physical and Financial Accomplishment";
-  ws.getCell(3, 1).font = { bold: true, size: 14, name: "Arial Narrow" };
-  ws.getCell(3, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(3, 1).value = 'Monitoring of Physical and Financial Accomplishment';
+  ws.getCell(3, 1).font = {bold: true, size: 14, name: 'Arial Narrow'};
+  ws.getCell(3, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(4, 1, 4, lastColumn);
   ws.getCell(4, 1).value = `FY ${fiscalYear}`;
-  ws.getCell(4, 1).font = { size: 12, name: "Arial Narrow" };
-  ws.getCell(4, 1).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(4, 1).font = {size: 12, name: 'Arial Narrow'};
+  ws.getCell(4, 1).alignment = {horizontal: 'center', vertical: 'middle'};
 
   ws.mergeCells(6, 1, 7, 1);
-  ws.getCell(6, 1).value = "Plan/ PPAs";
+  ws.getCell(6, 1).value = 'Plan/ PPAs';
 
   ws.mergeCells(6, 2, 7, 2);
-  ws.getCell(6, 2).value = "AIP Reference\nCode";
+  ws.getCell(6, 2).value = 'AIP Reference\nCode';
 
   ws.mergeCells(6, 3, 7, 3);
-  ws.getCell(6, 3).value = "Implementing\nOffice/\nDepartment";
+  ws.getCell(6, 3).value = 'Implementing\nOffice/\nDepartment';
 
   ws.mergeCells(6, 4, 6, 5);
-  ws.getCell(6, 4).value = "Target Output";
-  ws.getCell(7, 4).value = "AIP";
-  ws.getCell(7, 5).value = "AB";
+  ws.getCell(6, 4).value = 'Target Output';
+  ws.getCell(7, 4).value = 'AIP';
+  ws.getCell(7, 5).value = 'AB';
 
   ws.mergeCells(6, 6, 7, 6);
-  ws.getCell(6, 6).value = "Actual Accomplishment/s";
+  ws.getCell(6, 6).value = 'Actual Accomplishment/s';
 
   ws.mergeCells(6, 7, 6, 8);
-  ws.getCell(6, 7).value = "Estimated Cost";
-  ws.getCell(7, 7).value = "AIP";
-  ws.getCell(7, 8).value = "AB";
+  ws.getCell(6, 7).value = 'Estimated Cost';
+  ws.getCell(7, 7).value = 'AIP';
+  ws.getCell(7, 8).value = 'AB';
 
   ws.mergeCells(6, 9, 7, 9);
-  ws.getCell(6, 9).value = "Actual\nExpenditure";
+  ws.getCell(6, 9).value = 'Actual\nExpenditure';
 
   ws.mergeCells(6, 10, 7, 10);
-  ws.getCell(6, 10).value = "Remarks";
+  ws.getCell(6, 10).value = 'Remarks';
 
   _writeSimpleDataRow(
     ws,
     8,
-    ["(1)", "(2)", "(3)", "(4)", "(5)", "(6)", "(7)", "(8)", "(9)", "(10)"],
+    ['(1)', '(2)', '(3)', '(4)', '(5)', '(6)', '(7)', '(8)', '(9)', '(10)'],
     new Set<number>(),
-    { bold: true },
+    {bold: true},
   );
 
   for (let r = 6; r <= 8; r++) {
@@ -5547,8 +6103,8 @@ async function _buildForm6ExcelBuffer(
       const cell = ws.getCell(r, c);
       cell.fill = _HEADER_FILL;
       cell.border = _THIN_BORDER;
-      cell.font = { bold: true, size: 10, name: "Arial Narrow" };
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.font = {bold: true, size: 10, name: 'Arial Narrow'};
+      cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: true};
     }
   }
 
@@ -5561,40 +6117,42 @@ async function _buildForm6ExcelBuffer(
   let row = 9;
 
   for (const flatRow of rows) {
-    if (flatRow.kind === "group") {
-      const values: Array<string | number | { formula: string }> = [
+    if (flatRow.kind === 'group') {
+      const values: Array<string | number | {formula: string}> = [
         flatRow.data.name,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
       ];
-      const fill = _fillArgb(flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR);
+      const fill = _fillArgb(
+        flatRow.depth === 0 ? LBAC_GROUP_DEPTH_ROOT_COLOR : LBAC_GROUP_DEPTH_CHILD_COLOR,
+      );
       _writeSimpleDataRow(ws, row, values, numericIndices, {
         fill,
-        fontColor: "FFFFFFFF",
+        fontColor: 'FFFFFFFF',
         bold: true,
         indentIndex: 1,
         indentDepth: flatRow.depth,
       });
     } else {
       const item = flatRow.data;
-      const values: Array<string | number | { formula: string }> = [
+      const values: Array<string | number | {formula: string}> = [
         item.item.mfoPpa,
-        item.item.aipRefCode?.code ?? "",
-        item.item.implementingUnit?.name ?? "",
-        item.item.aipRefCode?.description ?? "",
-        item.ab ?? "",
-        item.actualAccomplishment ?? "",
+        item.item.aipRefCode?.code ?? '',
+        item.item.implementingUnit?.name ?? '',
+        item.item.aipRefCode?.description ?? '',
+        item.ab ?? '',
+        item.actualAccomplishment ?? '',
         _decimalToNumber(item.item.aipRefCode?.amount),
         _decimalToNumber(item.abEstimatedCost),
         _decimalToNumber(item.actualExpenditure),
-        item.remarks ?? "",
+        item.remarks ?? '',
       ];
       _writeSimpleDataRow(ws, row, values, numericIndices, {
         indentIndex: 1,
@@ -5604,7 +6162,7 @@ async function _buildForm6ExcelBuffer(
     row++;
   }
 
-  ws.views = [{ state: "frozen", ySplit: 8, xSplit: 0 }];
+  ws.views = [{state: 'frozen', ySplit: 8, xSplit: 0}];
 
   const rawBuffer = await wb.xlsx.writeBuffer();
   if (Buffer.isBuffer(rawBuffer)) return rawBuffer;
@@ -5618,7 +6176,7 @@ async function _buildForm6ExcelBuffer(
  * @returns {number} The current year in UTC+8.
  */
 function getCollPerfCurrentYear(): number {
-  return DateTime.now().setZone("UTC+8").year;
+  return DateTime.now().setZone('UTC+8').year;
 }
 
 /**
@@ -5644,7 +6202,10 @@ function monthToQuarter(month: number): number {
 function buildCollPerfDerived(
   incomeTarget: string,
   monthlyRows: CollPerfMonthlyDataItem[],
-): Pick<CollPerfData, "quarterlyData" | "totalCollection" | "collectionPerformance" | "excessOrDeficit"> {
+): Pick<
+  CollPerfData,
+  'quarterlyData' | 'totalCollection' | 'collectionPerformance' | 'excessOrDeficit'
+> {
   const sumQuarter = (quarter: number) =>
     monthlyRows
       .filter((m) => m.quarter === quarter)
@@ -5658,7 +6219,7 @@ function buildCollPerfDerived(
   const targetDec = casts.castFromDecimal(incomeTarget);
   const totalDec = casts.castFromDecimal(totalCollection);
   const collectionPerformance = targetDec.isZero()
-    ? "0"
+    ? '0'
     : totalDec.div(targetDec).mul(100).toString();
   const excessOrDeficit = totalDec.minus(targetDec).toString();
 
@@ -5742,11 +6303,11 @@ function buildCollPerfItemObject(
  * @returns {CollPerfGroupObject[]} Root-level group nodes.
  */
 function _zeroCollPerfGroupTotals(currentYear: number): CollPerfGroupTotals {
-  const z = "0";
+  const z = '0';
   const monthlyData: CollPerfMonthlyDataItem[] = [];
   for (let month = 1; month <= 12; month++) {
     monthlyData.push({
-      id: "",
+      id: '',
       month,
       year: currentYear,
       quarter: monthToQuarter(month),
@@ -5756,7 +6317,7 @@ function _zeroCollPerfGroupTotals(currentYear: number): CollPerfGroupTotals {
   return {
     incomeTarget: z,
     monthlyData,
-    quarterlyData: { q1: z, q2: z, q3: z, q4: z },
+    quarterlyData: {q1: z, q2: z, q3: z, q4: z},
     totalCollection: z,
     collectionPerformance: z,
     excessOrDeficit: z,
@@ -5785,7 +6346,10 @@ function _collectAllCollPerfItems(group: CollPerfGroupObject): CollPerfItemObjec
  * @param {number} currentYear - Calendar year for monthly aggregation (UTC+8).
  * @returns {CollPerfGroupTotals} Rolled-up numeric totals for the group.
  */
-function _computeCollPerfGroupTotals(items: CollPerfItemObject[], currentYear: number): CollPerfGroupTotals {
+function _computeCollPerfGroupTotals(
+  items: CollPerfItemObject[],
+  currentYear: number,
+): CollPerfGroupTotals {
   let incomeTarget = new Decimal(0);
   const monthlyByMonth = new Map<number, Decimal>();
   for (let month = 1; month <= 12; month++) {
@@ -5805,7 +6369,7 @@ function _computeCollPerfGroupTotals(items: CollPerfItemObject[], currentYear: n
   const monthlyData: CollPerfMonthlyDataItem[] = [];
   for (let month = 1; month <= 12; month++) {
     monthlyData.push({
-      id: "",
+      id: '',
       month,
       year: currentYear,
       quarter: monthToQuarter(month),
@@ -5824,7 +6388,9 @@ function _computeCollPerfGroupTotals(items: CollPerfItemObject[], currentYear: n
 
 function _attachCollPerfGroupTotals(groups: CollPerfGroupObject[], currentYear: number): void {
   for (const group of groups) {
-    const childGroups = group.children.filter((c) => c.type === CollPerfObjectType.Group) as CollPerfGroupObject[];
+    const childGroups = group.children.filter(
+      (c) => c.type === CollPerfObjectType.Group,
+    ) as CollPerfGroupObject[];
     _attachCollPerfGroupTotals(childGroups, currentYear);
     group.totals = _computeCollPerfGroupTotals(_collectAllCollPerfItems(group), currentYear);
   }
@@ -5895,7 +6461,10 @@ async function fetchCollPerfGroups(): Promise<CollPerfGroupRow[]> {
  * @param {CollPerfGroupRow[]} allGroups - All group rows.
  * @returns {string[]} Descendant group ids (does not include groupId).
  */
-function collectCollPerfDescendantGroupIds(groupId: string, allGroups: CollPerfGroupRow[]): string[] {
+function collectCollPerfDescendantGroupIds(
+  groupId: string,
+  allGroups: CollPerfGroupRow[],
+): string[] {
   const result: string[] = [];
   const queue = [groupId];
   while (queue.length > 0) {
@@ -5921,12 +6490,12 @@ function collectCollPerfDescendantGroupIds(groupId: string, allGroups: CollPerfG
  */
 async function upsertCollPerfMonthlyData(
   dataId: string,
-  monthlyData: NonNullable<CreateCollPerfDataPayload["monthlyData"]>,
+  monthlyData: NonNullable<CreateCollPerfDataPayload['monthlyData']>,
 ): Promise<void> {
   for (const entry of monthlyData) {
     const quarter = monthToQuarter(entry.month);
     const [existing] = await db
-      .select({ id: lbacCollectionPerformanceMonthlyData.id })
+      .select({id: lbacCollectionPerformanceMonthlyData.id})
       .from(lbacCollectionPerformanceMonthlyData)
       .where(
         and(
@@ -6005,10 +6574,9 @@ async function fetchCollPerfItemById(id: string): Promise<CollPerfItemObject | n
       ...row,
       incomeTarget: String(row.incomeTarget),
     },
-    monthlyRows.map((m) => ({ ...m, value: String(m.value) })),
+    monthlyRows.map((m) => ({...m, value: String(m.value)})),
   );
 }
-
 
 /**
  * Computes variance amount and percentage from estimate and actual decimal strings.
@@ -6024,9 +6592,9 @@ async function fetchCollPerfItemById(id: string): Promise<CollPerfItemObject | n
 function _computeF4Variance(
   estimate: string | null,
   actual: string | null,
-): { varianceAmounts: string; variancePercentage: string } {
+): {varianceAmounts: string; variancePercentage: string} {
   if (estimate === null || actual === null) {
-    return { varianceAmounts: "0.00", variancePercentage: "0.00" };
+    return {varianceAmounts: '0.00', variancePercentage: '0.00'};
   }
 
   const estimateDec = new Decimal(estimate);
@@ -6034,15 +6602,12 @@ function _computeF4Variance(
   const varianceAmounts = estimateDec.minus(actualDec).toFixed(2);
 
   if (estimateDec.isZero()) {
-    return { varianceAmounts, variancePercentage: "0.00" };
+    return {varianceAmounts, variancePercentage: '0.00'};
   }
 
-  const variancePercentage = new Decimal(varianceAmounts)
-    .div(estimateDec)
-    .times(100)
-    .toFixed(2);
+  const variancePercentage = new Decimal(varianceAmounts).div(estimateDec).times(100).toFixed(2);
 
-  return { varianceAmounts, variancePercentage };
+  return {varianceAmounts, variancePercentage};
 }
 
 /**
@@ -6052,7 +6617,7 @@ function _computeF4Variance(
  * @returns {LbacF4Item} Mapped item with computed variance fields and an empty children array.
  */
 function _mapF4RowToItem(row: F4DbRow): LbacF4Item {
-  const { varianceAmounts, variancePercentage } = _computeF4Variance(row.estimate, row.actual);
+  const {varianceAmounts, variancePercentage} = _computeF4Variance(row.estimate, row.actual);
 
   return {
     id: row.id,
@@ -6109,7 +6674,7 @@ function _buildF4Tree(rows: F4DbRow[]): LbacF4Item[] {
  * @returns {Promise<string>} The id of the inserted row.
  */
 async function _insertF4ItemRecursive(
-  tx: Pick<typeof db, "insert">,
+  tx: Pick<typeof db, 'insert'>,
   item: CreateF4ItemPayload,
   forFiscalYear: number,
   parentId: string | null,
@@ -6125,7 +6690,7 @@ async function _insertF4ItemRecursive(
       forFiscalYear,
       parentId,
     })
-    .returning({ id: lbacStatementOfExpenditures.id });
+    .returning({id: lbacStatementOfExpenditures.id});
 
   for (const child of item.children ?? []) {
     await _insertF4ItemRecursive(tx, child, forFiscalYear, inserted.id);
@@ -6396,8 +6961,8 @@ export type CreateLbacItemPayload = {
   implementingUnitId?: string | null;
   expenseCodeId?: string | null;
   saaobId?: string | null;
-  aroType?: "ps" | "mooe" | "finex" | "capex" | null;
-  budgetType?: "ab" | "sb" | "rb" | null;
+  aroType?: 'ps' | 'mooe' | 'finex' | 'capex' | null;
+  budgetType?: 'ab' | 'sb' | 'rb' | null;
   aroLink?: string | null;
 };
 
@@ -6535,7 +7100,7 @@ type QuarterlyReportRow = {
 type SupplementalEntry = {
   aipRefId: string;
   amount: string;
-  supplementalType: "less" | "add";
+  supplementalType: 'less' | 'add';
   quarter: number;
   year: number;
 };

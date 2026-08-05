@@ -1,30 +1,34 @@
-import { headers } from "next/headers";
-import { NextRequest } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
+import {headers} from 'next/headers';
+import {NextRequest} from 'next/server';
 
-import { auth } from "@/lib/auth";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import { validator } from "@/lib/validators";
+import {auth} from '@/lib/auth';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import {validator} from '@/lib/validators';
 
 export async function POST(req: NextRequest) {
   const body = await tryParseJson<TwoFactorVerifyRequest>(req);
   if (!body) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid Payload.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid Payload.',
+    ).build();
   }
 
   const validation = await validator.validate<TwoFactorVerifyRequest>(body, {
     properties: {
-      code: { type: "string", formatter: "non-empty-string" },
-      trustDevice: { type: "boolean" },
+      code: {type: 'string', formatter: 'non-empty-string'},
+      trustDevice: {type: 'boolean'},
     },
-    requiredProperties: ["code"],
+    requiredProperties: ['code'],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validation.errors!)
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      validation.errors!,
+    ).build();
   }
 
   try {
@@ -40,8 +44,10 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     Sentry.captureException(e);
 
-    return ApiResponseBuilder.createError(StatusCodes.Status401Unauthorized, "Invalid verification code.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status401Unauthorized,
+      'Invalid verification code.',
+    ).build();
   }
 }
 

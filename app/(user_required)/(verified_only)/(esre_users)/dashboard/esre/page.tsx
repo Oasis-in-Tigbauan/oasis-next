@@ -1,45 +1,36 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { Pencil, Plus, Printer, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import useSWR from "swr";
+import {Pencil, Plus, Printer, Trash2} from 'lucide-react';
+import {useMemo, useState} from 'react';
+import {toast} from 'sonner';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import {
-  ApiResponseException,
-  BetterFetchResponse,
-  EsreItemResponse,
-  EsreListResponse,
-} from "@/lib/http/client/responses";
-
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import { useColumnVisibility } from "@/common/column-visibility";
+import {EsreFormDialog} from '@/app/(user_required)/(verified_only)/(esre_users)/dashboard/esre/esre-form-dialog';
+import {useColumnVisibility} from '@/common/column-visibility';
 import {
   ESRE_PAGE_COLUMN_GROUPS,
   ESRE_PAGE_COLUMNS,
   ESRE_PAGE_STORAGE_KEY,
   type EsrePageColumnDef,
-} from "@/common/esre/page-columns";
+} from '@/common/esre/page-columns';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { EsreFormDialog } from "@/app/(user_required)/(verified_only)/(esre_users)/dashboard/esre/esre-form-dialog";
+  ApiResponseException,
+  BetterFetchResponse,
+  EsreItemResponse,
+  EsreListResponse,
+} from '@/lib/http/client/responses';
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<EsreListResponse, ApiResponseException>>(
-    "/api/esre",
-    $fetch,
-  );
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<EsreListResponse, ApiResponseException>
+  >('/api/esre', $fetch);
 
   const [selectedItem, setSelectedItem] = useState<EsreItemResponse | null>(null);
   const [selectedChequeItemIds, setSelectedChequeItemIds] = useState<Set<string>>(new Set());
@@ -55,8 +46,8 @@ export default function Page() {
 
   const orderedColumns = useMemo(
     () =>
-      columnVisibility.orderedVisible.map(
-        col => ESRE_PAGE_COLUMNS.find(c => c.key === col.key)!,
+      columnVisibility.orderedVisible.map((col) =>
+        ESRE_PAGE_COLUMNS.find((c) => c.key === col.key)!,
       ),
     [columnVisibility.orderedVisible],
   );
@@ -65,18 +56,19 @@ export default function Page() {
   if (error || data?.error) return <DeadHamster />;
 
   const items = data?.data?.data ?? [];
-  const selectedChequeItems = items.filter(item => selectedChequeItemIds.has(item.id));
+  const selectedChequeItems = items.filter((item) => selectedChequeItemIds.has(item.id));
   const selectedChequeTotal = selectedChequeItems.reduce((sum, item) => {
-    const parsed = Number.parseFloat(item.amount.replaceAll(",", ""));
+    const parsed = Number.parseFloat(item.amount.replaceAll(',', ''));
     return Number.isFinite(parsed) ? sum + parsed : sum;
   }, 0);
-  const areAllSelected = items.length > 0 && items.every(item => selectedChequeItemIds.has(item.id));
+  const areAllSelected =
+    items.length > 0 && items.every((item) => selectedChequeItemIds.has(item.id));
 
   const printCheque = () => {
     if (selectedChequeItems.length === 0) return;
 
-    const ids = selectedChequeItems.map(item => item.id).join(",");
-    window.open(`/api/esre/cheque?ids=${encodeURIComponent(ids)}`, "_blank", "noopener,noreferrer");
+    const ids = selectedChequeItems.map((item) => item.id).join(',');
+    window.open(`/api/esre/cheque?ids=${encodeURIComponent(ids)}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -86,7 +78,10 @@ export default function Page() {
           variant="outline"
           size="icon-sm"
           aria-label="Add"
-          onClick={() => { setAddKey(k => k + 1); setAddOpen(true); }}
+          onClick={() => {
+            setAddKey((k) => k + 1);
+            setAddOpen(true);
+          }}
         >
           <Plus />
         </Button>
@@ -95,7 +90,9 @@ export default function Page() {
           size="icon-sm"
           aria-label="Edit"
           disabled={!selectedItem}
-          onClick={() => { if (selectedItem) setEditOpen(true); }}
+          onClick={() => {
+            if (selectedItem) setEditOpen(true);
+          }}
         >
           <Pencil />
         </Button>
@@ -106,18 +103,25 @@ export default function Page() {
           disabled={!selectedItem}
           onClick={async () => {
             if (!selectedItem) return;
-            const confirmed = confirm(`Delete this ESRE entry for "${selectedItem.payee}"? This cannot be undone.`);
+            const confirmed = confirm(
+              `Delete this ESRE entry for "${selectedItem.payee}"? This cannot be undone.`,
+            );
             if (!confirmed) return;
-            const res = await $fetch<unknown, ApiResponseException>(`/api/esre/${selectedItem.id}`, { method: "DELETE" });
+            const res = await $fetch<unknown, ApiResponseException>(
+              `/api/esre/${selectedItem.id}`,
+              {method: 'DELETE'},
+            );
             if (res.error) {
-              toast.error("ESRE entry was not deleted", {
-                description: (res.error as ApiResponseException).message ?? "Please refresh the list and try again.",
+              toast.error('ESRE entry was not deleted', {
+                description:
+                  (res.error as ApiResponseException).message ??
+                  'Please refresh the list and try again.',
               });
               return;
             }
             setSelectedItem(null);
             mutate();
-            toast.success("ESRE entry deleted");
+            toast.success('ESRE entry deleted');
           }}
         >
           <Trash2 />
@@ -131,11 +135,11 @@ export default function Page() {
           <Printer className="size-4 mr-2" />
           Print Cheque
           {selectedChequeItems.length > 0
-            ? ` (${selectedChequeItems.length} / ${selectedChequeTotal.toLocaleString("en-PH", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })})`
-            : ""}
+            ? ` (${selectedChequeItems.length} / ${selectedChequeTotal.toLocaleString('en-PH', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })})`
+            : ''}
         </Button>
         <div className="ml-auto">
           <ColumnVisibilityPicker
@@ -164,15 +168,15 @@ export default function Page() {
                     <Checkbox
                       aria-label="Select all ESRE rows for cheque printing"
                       checked={areAllSelected}
-                      onCheckedChange={checked => {
+                      onCheckedChange={(checked) => {
                         const shouldSelect = checked === true;
-                        setSelectedChequeItemIds(shouldSelect
-                          ? new Set(items.map(item => item.id))
-                          : new Set());
+                        setSelectedChequeItemIds(
+                          shouldSelect ? new Set(items.map((item) => item.id)) : new Set(),
+                        );
                       }}
                     />
                   </TableHead>
-                  {orderedColumns.map(col => (
+                  {orderedColumns.map((col) => (
                     <TableHead key={col.key} className={col.headerClassName}>
                       {col.label}
                     </TableHead>
@@ -187,9 +191,9 @@ export default function Page() {
                     index={index}
                     selected={selectedItem?.id === item.id}
                     selectedForCheque={selectedChequeItemIds.has(item.id)}
-                    onSelect={() => setSelectedItem(prev => prev?.id === item.id ? null : item)}
+                    onSelect={() => setSelectedItem((prev) => (prev?.id === item.id ? null : item))}
                     onToggleChequeSelection={(checked) => {
-                      setSelectedChequeItemIds(prev => {
+                      setSelectedChequeItemIds((prev) => {
                         const next = new Set(prev);
                         if (checked) {
                           next.add(item.id);
@@ -216,7 +220,7 @@ export default function Page() {
         onSuccess={() => mutate()}
       />
       <EsreFormDialog
-        key={selectedItem?.id ?? "edit-no-selection"}
+        key={selectedItem?.id ?? 'edit-no-selection'}
         mode="edit"
         editItem={selectedItem ?? undefined}
         open={editOpen}
@@ -250,25 +254,18 @@ function EsreTableRow({
   return (
     <TableRow
       className={`cursor-pointer select-none ${
-        selected
-          ? "bg-accent"
-          : index % 2 === 1
-            ? "bg-muted hover:bg-muted/50"
-            : ""
+        selected ? 'bg-accent' : index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''
       }`}
       onClick={onSelect}
     >
-      <TableCell
-        className="w-10 text-center"
-        onClick={e => e.stopPropagation()}
-      >
+      <TableCell className="w-10 text-center" onClick={(e) => e.stopPropagation()}>
         <Checkbox
           aria-label={`Select ESRE row for ${item.payee}`}
           checked={selectedForCheque}
-          onCheckedChange={checked => onToggleChequeSelection(checked === true)}
+          onCheckedChange={(checked) => onToggleChequeSelection(checked === true)}
         />
       </TableCell>
-      {visibleColumns.map(col => (
+      {visibleColumns.map((col) => (
         <TableCell key={col.key} className={col.cellClassName}>
           {col.renderCell(item)}
         </TableCell>

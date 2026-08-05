@@ -1,49 +1,44 @@
-"use client";
+'use client';
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {Search} from 'lucide-react';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  SaaobSummaryDataResponse,
-} from "@/lib/http/client/responses";
 import {
   filterSaaobSummaryTreeByQuery,
   flattenSaaobSummaryVisible,
   type SaaobSummaryFlatRow,
-} from "@/common/saaob/client";
+} from '@/common/saaob/client';
 import {
   SaaobPageAggregateRow,
   SaaobPageGroupRow,
   SaaobPageSpacerRow,
   SaaobPageTableHeader,
   useSaaobColumnVisibility,
-} from "@/common/saaob/page-table";
-
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
+} from '@/common/saaob/page-table';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Input} from '@/components/ui/input';
+import {Table, TableBody, TableHeader} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  SaaobSummaryDataResponse,
+} from '@/lib/http/client/responses';
 
 export default function SaaobReadOnlySummary() {
-  const { data, error, isLoading } = useSWR<
+  const {data, error, isLoading} = useSWR<
     BetterFetchResponse<SaaobSummaryDataResponse, ApiResponseException>
-  >("/api/saaob/accounts-summary", $fetch);
+  >('/api/saaob/accounts-summary', $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  const columnVisibility = useSaaobColumnVisibility("accounts-summary");
+  const columnVisibility = useSaaobColumnVisibility('accounts-summary');
 
   const tree = useMemo(() => data?.data?.data ?? [], [data]);
 
@@ -53,13 +48,7 @@ export default function SaaobReadOnlySummary() {
   );
 
   const flatRows = useMemo(
-    () =>
-      flattenSaaobSummaryVisible(
-        filteredTree,
-        collapsed,
-        0,
-        searchQuery.trim().length > 0,
-      ),
+    () => flattenSaaobSummaryVisible(filteredTree, collapsed, 0, searchQuery.trim().length > 0),
     [filteredTree, collapsed, searchQuery],
   );
 
@@ -75,12 +64,10 @@ export default function SaaobReadOnlySummary() {
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
   const paddingBottom =
-    virtualRows.length > 0
-      ? totalSize - virtualRows[virtualRows.length - 1].end
-      : 0;
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -100,7 +87,7 @@ export default function SaaobReadOnlySummary() {
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search summary data..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <div className="ml-auto">
@@ -120,8 +107,8 @@ export default function SaaobReadOnlySummary() {
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
             {searchQuery
-              ? "No results match your search."
-              : "No Summary of Accounts records found."}
+              ? 'No results match your search.'
+              : 'No Summary of Accounts records found.'}
           </div>
         ) : (
           <div
@@ -135,13 +122,16 @@ export default function SaaobReadOnlySummary() {
 
               <TableBody>
                 {paddingTop > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingTop} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingTop}
+                  />
                 )}
 
-                {virtualRows.map(virtualRow => {
+                {virtualRows.map((virtualRow) => {
                   const row = flatRows[virtualRow.index] as SaaobSummaryFlatRow;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <SaaobPageGroupRow
@@ -168,7 +158,7 @@ export default function SaaobReadOnlySummary() {
                       name={item.name}
                       depth={row.depth}
                       blankAccountAndRemarks
-                      rowClassName={virtualRow.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : ""}
+                      rowClassName={virtualRow.index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : ''}
                       measureRef={rowVirtualizer.measureElement}
                       dataIndex={virtualRow.index}
                     />
@@ -176,7 +166,10 @@ export default function SaaobReadOnlySummary() {
                 })}
 
                 {paddingBottom > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingBottom} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingBottom}
+                  />
                 )}
               </TableBody>
             </Table>

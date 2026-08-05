@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js";
+import {Decimal} from 'decimal.js';
 
 export function castToDecimal<T extends string>(data: T): string {
   return new Decimal(data).toString();

@@ -1,10 +1,8 @@
-import { eq, inArray } from "drizzle-orm";
-import { Decimal } from "decimal.js";
+import {Decimal} from 'decimal.js';
+import {eq, inArray} from 'drizzle-orm';
 
-import * as casts from "@/lib/types/casts";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { amountToWords, formatAmountWithoutCurrency } from "@/common/obr/form-export-layout";
+import {amountToWords, formatAmountWithoutCurrency} from '@/common/obr/form-export-layout';
+import {db} from '@/lib/db';
 import {
   esre,
   expenseClasses,
@@ -14,8 +12,10 @@ import {
   office,
   officeCodes,
   saaobEntries,
-} from "@/lib/db/schema";
-import { validatorUtilities } from "@/lib/validators";
+} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
+import {validatorUtilities} from '@/lib/validators';
 
 /**
  * Retrieves all ESRE items with their related funding source, OBR, and expense type details resolved.
@@ -63,106 +63,113 @@ export async function all(): Promise<Result<EsreItem[]>> {
 
     if (rows.length === 0) return new Success([]);
 
-    const obrItemIds = [...new Set(rows.filter(r => r.obrItemId).map(r => r.obrItemId!))];
-    const expenseTypeIds = [...new Set(rows.filter(r => r.expenseTypeId).map(r => r.expenseTypeId!))];
-    const saaobIds = [...new Set(rows.filter(r => r.saaobId).map(r => r.saaobId!))];
+    const obrItemIds = [...new Set(rows.filter((r) => r.obrItemId).map((r) => r.obrItemId!))];
+    const expenseTypeIds = [
+      ...new Set(rows.filter((r) => r.expenseTypeId).map((r) => r.expenseTypeId!)),
+    ];
+    const saaobIds = [...new Set(rows.filter((r) => r.saaobId).map((r) => r.saaobId!))];
 
     const [obrMainDataItems, expenseTypes, saaobItems] = await Promise.all([
       obrItemIds.length > 0
         ? db
-          .select({
-            id: obrMainData.id,
-            obligated: obrMainData.obligated,
-            obrNumber: obrMainData.obrNumber,
-            expenseClassId: expenseClasses.id,
-            accountName: expenseClasses.accountName,
-            accountCode: expenseClasses.accountCode,
-            subClassification: expenseClasses.subClassification,
-            officeId: office.id,
-            officeName: office.name,
-          })
-          .from(obrMainData)
-          .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
-          .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
-          .innerJoin(office, eq(office.id, officeCodes.officeId))
-          .where(inArray(obrMainData.id, obrItemIds))
-        : Promise.resolve([] as Array<{
-          id: string;
-          obligated: string;
-          obrNumber: string;
-          expenseClassId: string;
-          accountName: string;
-          accountCode: string | null;
-          subClassification: string | null;
-          officeId: string;
-          officeName: string;
-        }>),
+            .select({
+              id: obrMainData.id,
+              obligated: obrMainData.obligated,
+              obrNumber: obrMainData.obrNumber,
+              expenseClassId: expenseClasses.id,
+              accountName: expenseClasses.accountName,
+              accountCode: expenseClasses.accountCode,
+              subClassification: expenseClasses.subClassification,
+              officeId: office.id,
+              officeName: office.name,
+            })
+            .from(obrMainData)
+            .innerJoin(expenseClasses, eq(expenseClasses.id, obrMainData.expenseCodeId))
+            .innerJoin(officeCodes, eq(officeCodes.id, obrMainData.responsibilityCenterId))
+            .innerJoin(office, eq(office.id, officeCodes.officeId))
+            .where(inArray(obrMainData.id, obrItemIds))
+        : Promise.resolve(
+            [] as Array<{
+              id: string;
+              obligated: string;
+              obrNumber: string;
+              expenseClassId: string;
+              accountName: string;
+              accountCode: string | null;
+              subClassification: string | null;
+              officeId: string;
+              officeName: string;
+            }>,
+          ),
       expenseTypeIds.length > 0
         ? db
-          .select({ id: expenseTypeTable.id, name: expenseTypeTable.name })
-          .from(expenseTypeTable)
-          .where(inArray(expenseTypeTable.id, expenseTypeIds))
-        : Promise.resolve([] as Array<{ id: string; name: string }>),
+            .select({id: expenseTypeTable.id, name: expenseTypeTable.name})
+            .from(expenseTypeTable)
+            .where(inArray(expenseTypeTable.id, expenseTypeIds))
+        : Promise.resolve([] as Array<{id: string; name: string}>),
       saaobIds.length > 0
         ? db
-          .select({ id: saaobEntries.id, name: saaobEntries.name })
-          .from(saaobEntries)
-          .where(inArray(saaobEntries.id, saaobIds))
-        : Promise.resolve([] as Array<{ id: string; name: string }>),
+            .select({id: saaobEntries.id, name: saaobEntries.name})
+            .from(saaobEntries)
+            .where(inArray(saaobEntries.id, saaobIds))
+        : Promise.resolve([] as Array<{id: string; name: string}>),
     ]);
 
     // Take the FIRST obrOfficeItem per obrItemId (skip subsequent entries)
-    const obrMainDataById = new Map<string, typeof obrMainDataItems[number]>();
+    const obrMainDataById = new Map<string, (typeof obrMainDataItems)[number]>();
     for (const item of obrMainDataItems) {
       if (!obrMainDataById.has(item.id)) {
         obrMainDataById.set(item.id, item);
       }
     }
 
-    const expenseTypeMap = new Map(expenseTypes.map(et => [et.id, et]));
-    const saaobMap = new Map(saaobItems.map(s => [s.id, s]));
+    const expenseTypeMap = new Map(expenseTypes.map((et) => [et.id, et]));
+    const saaobMap = new Map(saaobItems.map((s) => [s.id, s]));
 
-    return new Success(rows.map(row => {
-      const obrEntry = row.obrItemId ? obrMainDataById.get(row.obrItemId) : undefined;
-      const et = row.expenseTypeId ? expenseTypeMap.get(row.expenseTypeId) : undefined;
-      const saaob = row.saaobId ? saaobMap.get(row.saaobId) : undefined;
+    return new Success(
+      rows.map((row) => {
+        const obrEntry = row.obrItemId ? obrMainDataById.get(row.obrItemId) : undefined;
+        const et = row.expenseTypeId ? expenseTypeMap.get(row.expenseTypeId) : undefined;
+        const saaob = row.saaobId ? saaobMap.get(row.saaobId) : undefined;
 
-      return {
-        id: row.id,
-        date: row.date,
-        payee: row.payee,
-        natureOfPayment: row.natureOfPayment,
-        amount: row.amount,
-        checkStatus: row.checkStatus,
-        checkNumber: row.checkNumber,
-        dvOrPayrollNumber: row.dvOrPayrollNumber,
-        remarks: row.remarks,
-        fundingSource: { id: row.fundingSourceId, name: row.fundingSourceName },
-        expenseType: et ? { id: et.id, name: et.name } : null,
-        saaob: saaob ? { id: saaob.id, name: saaob.name } : null,
-        obr: obrEntry && row.obrItemId
-          ? {
-            id: row.obrItemId,
-            requestNumber: obrEntry.obrNumber,
-            expenseClass: {
-              id: obrEntry.expenseClassId,
-              accountName: obrEntry.accountName,
-              accountCode: obrEntry.accountCode,
-              subClassification: obrEntry.subClassification,
-            },
-            office: {
-              id: obrEntry.officeId,
-              name: obrEntry.officeName,
-            },
-          }
-          : null,
-        disbursed: obrEntry
-          ? new Decimal(obrEntry.obligated).minus(new Decimal(row.amount)).toFixed(2)
-          : "0.00",
-      } satisfies EsreItem;
-    }));
+        return {
+          id: row.id,
+          date: row.date,
+          payee: row.payee,
+          natureOfPayment: row.natureOfPayment,
+          amount: row.amount,
+          checkStatus: row.checkStatus,
+          checkNumber: row.checkNumber,
+          dvOrPayrollNumber: row.dvOrPayrollNumber,
+          remarks: row.remarks,
+          fundingSource: {id: row.fundingSourceId, name: row.fundingSourceName},
+          expenseType: et ? {id: et.id, name: et.name} : null,
+          saaob: saaob ? {id: saaob.id, name: saaob.name} : null,
+          obr:
+            obrEntry && row.obrItemId
+              ? {
+                  id: row.obrItemId,
+                  requestNumber: obrEntry.obrNumber,
+                  expenseClass: {
+                    id: obrEntry.expenseClassId,
+                    accountName: obrEntry.accountName,
+                    accountCode: obrEntry.accountCode,
+                    subClassification: obrEntry.subClassification,
+                  },
+                  office: {
+                    id: obrEntry.officeId,
+                    name: obrEntry.officeName,
+                  },
+                }
+              : null,
+          disbursed: obrEntry
+            ? new Decimal(obrEntry.obligated).minus(new Decimal(row.amount)).toFixed(2)
+            : '0.00',
+        } satisfies EsreItem;
+      }),
+    );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch ESRE items.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch ESRE items.', {}, e);
   }
 }
 
@@ -194,47 +201,47 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
   try {
     // Validate funding source
     const [fundingSource] = await db
-      .select({ id: fundTypes.id })
+      .select({id: fundTypes.id})
       .from(fundTypes)
       .where(eq(fundTypes.id, payload.fundingSourceId))
       .limit(1);
     if (!fundingSource) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid funding source.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid funding source.', {payload});
     }
 
     // Validate OBR item if provided
     if (validatorUtilities.isUuid(payload.obrId)) {
       const [obrMainDataRow] = await db
-        .select({ id: obrMainData.id })
+        .select({id: obrMainData.id})
         .from(obrMainData)
         .where(eq(obrMainData.id, payload.obrId!))
         .limit(1);
       if (!obrMainDataRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid OBR item.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid OBR item.', {payload});
       }
     }
 
     // Validate expense type if provided
     if (validatorUtilities.isUuid(payload.expenseTypeId)) {
       const [et] = await db
-        .select({ id: expenseTypeTable.id })
+        .select({id: expenseTypeTable.id})
         .from(expenseTypeTable)
         .where(eq(expenseTypeTable.id, payload.expenseTypeId!))
         .limit(1);
       if (!et) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid expense type.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid expense type.', {payload});
       }
     }
 
     // Validate saaobId if provided
     if (validatorUtilities.isUuid(payload.saaobId)) {
       const [saaobRow] = await db
-        .select({ id: saaobEntries.id })
+        .select({id: saaobEntries.id})
         .from(saaobEntries)
         .where(eq(saaobEntries.id, payload.saaobId!))
         .limit(1);
       if (!saaobRow) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid SAAOB entry.', {payload});
       }
     }
 
@@ -245,26 +252,34 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
         natureOfPayment: payload.natureOfPayment,
         amount: casts.castToDecimal(payload.amount),
         fundingSourceId: payload.fundingSourceId,
-        ...(validatorUtilities.isUuid(payload.obrId) ? { obrItemId: payload.obrId } : {}),
-        ...(validatorUtilities.isUuid(payload.expenseTypeId) ? { expenseTypeId: payload.expenseTypeId } : {}),
-        ...(validatorUtilities.isUuid(payload.saaobId) ? { saaobId: payload.saaobId } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.remarks) ? { remarks: payload.remarks } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? { dvOrPayrollNumber: payload.dvOrPayrollNumber } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.checkNumber) ? { checkNumber: payload.checkNumber } : {}),
+        ...(validatorUtilities.isUuid(payload.obrId) ? {obrItemId: payload.obrId} : {}),
+        ...(validatorUtilities.isUuid(payload.expenseTypeId)
+          ? {expenseTypeId: payload.expenseTypeId}
+          : {}),
+        ...(validatorUtilities.isUuid(payload.saaobId) ? {saaobId: payload.saaobId} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.remarks) ? {remarks: payload.remarks} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber)
+          ? {dvOrPayrollNumber: payload.dvOrPayrollNumber}
+          : {}),
+        ...(validatorUtilities.isNotEmpty(payload.checkNumber)
+          ? {checkNumber: payload.checkNumber}
+          : {}),
       })
-      .returning({ id: esre.id });
+      .returning({id: esre.id});
     if (!inserted) {
-      return new Failure(ErrorCodes.Fatal, "Failed to create ESRE item.", { payload });
+      return new Failure(ErrorCodes.Fatal, 'Failed to create ESRE item.', {payload});
     }
 
     const item = await _getEsreById(inserted.id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve created ESRE item.", { id: inserted.id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve created ESRE item.', {
+        id: inserted.id,
+      });
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create ESRE item.", { payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create ESRE item.', {payload}, e);
   }
 }
 
@@ -296,40 +311,36 @@ export async function create(payload: CreateEsrePayload): Promise<Result<EsreIte
 export async function update(id: string, payload: UpdateEsrePayload): Promise<Result<EsreItem>> {
   try {
     // Verify ESRE item exists
-    const [existing] = await db
-      .select({ id: esre.id })
-      .from(esre)
-      .where(eq(esre.id, id))
-      .limit(1);
+    const [existing] = await db.select({id: esre.id}).from(esre).where(eq(esre.id, id)).limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such ESRE item found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such ESRE item found.', {id});
     }
 
     // Validate funding source if provided
     if (validatorUtilities.isUuid(payload.fundingSourceId)) {
       const [fs] = await db
-        .select({ id: fundTypes.id })
+        .select({id: fundTypes.id})
         .from(fundTypes)
         .where(eq(fundTypes.id, payload.fundingSourceId!))
         .limit(1);
       if (!fs) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid funding source.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid funding source.', {payload});
       }
     }
 
     // Handle obrId — undefined = no change; null = clear link; UUID = set new link and re-derive charges
-    let obrItemUpdate: { obrItemId: string | null } | undefined = undefined;
-    if (typeof payload.obrId !== "undefined") {
+    let obrItemUpdate: {obrItemId: string | null} | undefined = undefined;
+    if (typeof payload.obrId !== 'undefined') {
       if (payload.obrId === null) {
-        obrItemUpdate = { obrItemId: null };
+        obrItemUpdate = {obrItemId: null};
       } else if (validatorUtilities.isUuid(payload.obrId)) {
         const [obrMainDataRow] = await db
-          .select({ id: obrMainData.id })
+          .select({id: obrMainData.id})
           .from(obrMainData)
           .where(eq(obrMainData.id, payload.obrId))
           .limit(1);
         if (!obrMainDataRow) {
-          return new Failure(ErrorCodes.ValidationFailure, "Invalid OBR item.", { payload });
+          return new Failure(ErrorCodes.ValidationFailure, 'Invalid OBR item.', {payload});
         }
 
         obrItemUpdate = {
@@ -339,55 +350,71 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
     }
 
     // Validate saaobId if provided (null = clear, UUID = set)
-    let saaobUpdate: { saaobId: string | null } | undefined = undefined;
-    if (typeof payload.saaobId !== "undefined") {
+    let saaobUpdate: {saaobId: string | null} | undefined = undefined;
+    if (typeof payload.saaobId !== 'undefined') {
       if (payload.saaobId === null) {
-        saaobUpdate = { saaobId: null };
+        saaobUpdate = {saaobId: null};
       } else if (validatorUtilities.isUuid(payload.saaobId)) {
         const [saaobRow] = await db
-          .select({ id: saaobEntries.id })
+          .select({id: saaobEntries.id})
           .from(saaobEntries)
           .where(eq(saaobEntries.id, payload.saaobId))
           .limit(1);
         if (!saaobRow) {
-          return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", { payload });
+          return new Failure(ErrorCodes.ValidationFailure, 'Invalid SAAOB entry.', {payload});
         }
-        saaobUpdate = { saaobId: payload.saaobId };
+        saaobUpdate = {saaobId: payload.saaobId};
       }
     }
 
     // Validate expense type if provided
     if (validatorUtilities.isUuid(payload.expenseTypeId)) {
       const [et] = await db
-        .select({ id: expenseTypeTable.id })
+        .select({id: expenseTypeTable.id})
         .from(expenseTypeTable)
         .where(eq(expenseTypeTable.id, payload.expenseTypeId!))
         .limit(1);
       if (!et) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid expense type.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid expense type.', {payload});
       }
     }
 
     await db
       .update(esre)
       .set({
-        ...(validatorUtilities.isNotEmpty(payload.payee) ? { payee: payload.payee } : {}),
-        ...(validatorUtilities.isNotEmpty(payload.natureOfPayment) ? { natureOfPayment: payload.natureOfPayment } : {}),
-        ...(payload.amount !== undefined ? { amount: casts.castToDecimal(payload.amount) } : {}),
-        ...(validatorUtilities.isUuid(payload.fundingSourceId) ? { fundingSourceId: payload.fundingSourceId } : {}),
-        ...(typeof payload.expenseTypeId !== "undefined"
-          ? { expenseTypeId: validatorUtilities.isUuid(payload.expenseTypeId) ? payload.expenseTypeId : null }
+        ...(validatorUtilities.isNotEmpty(payload.payee) ? {payee: payload.payee} : {}),
+        ...(validatorUtilities.isNotEmpty(payload.natureOfPayment)
+          ? {natureOfPayment: payload.natureOfPayment}
           : {}),
-        ...(typeof payload.remarks !== "undefined"
-          ? { remarks: validatorUtilities.isNotEmpty(payload.remarks) ? payload.remarks : null }
+        ...(payload.amount !== undefined ? {amount: casts.castToDecimal(payload.amount)} : {}),
+        ...(validatorUtilities.isUuid(payload.fundingSourceId)
+          ? {fundingSourceId: payload.fundingSourceId}
           : {}),
-        ...(typeof payload.dvOrPayrollNumber !== "undefined"
-          ? { dvOrPayrollNumber: validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber) ? payload.dvOrPayrollNumber : null }
+        ...(typeof payload.expenseTypeId !== 'undefined'
+          ? {
+              expenseTypeId: validatorUtilities.isUuid(payload.expenseTypeId)
+                ? payload.expenseTypeId
+                : null,
+            }
           : {}),
-        ...(typeof payload.checkNumber !== "undefined"
-          ? { checkNumber: validatorUtilities.isNotEmpty(payload.checkNumber) ? payload.checkNumber : null }
+        ...(typeof payload.remarks !== 'undefined'
+          ? {remarks: validatorUtilities.isNotEmpty(payload.remarks) ? payload.remarks : null}
           : {}),
-        ...(typeof payload.checkStatus !== "undefined" ? { checkStatus: payload.checkStatus } : {}),
+        ...(typeof payload.dvOrPayrollNumber !== 'undefined'
+          ? {
+              dvOrPayrollNumber: validatorUtilities.isNotEmpty(payload.dvOrPayrollNumber)
+                ? payload.dvOrPayrollNumber
+                : null,
+            }
+          : {}),
+        ...(typeof payload.checkNumber !== 'undefined'
+          ? {
+              checkNumber: validatorUtilities.isNotEmpty(payload.checkNumber)
+                ? payload.checkNumber
+                : null,
+            }
+          : {}),
+        ...(typeof payload.checkStatus !== 'undefined' ? {checkStatus: payload.checkStatus} : {}),
         ...(obrItemUpdate !== undefined ? obrItemUpdate : {}),
         ...(saaobUpdate !== undefined ? saaobUpdate : {}),
       })
@@ -395,12 +422,12 @@ export async function update(id: string, payload: UpdateEsrePayload): Promise<Re
 
     const item = await _getEsreById(id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve updated ESRE item.", { id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve updated ESRE item.', {id});
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update ESRE item.", { id, payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update ESRE item.', {id, payload}, e);
   }
 }
 
@@ -424,7 +451,7 @@ export async function remove(id: string): Promise<Result<void>> {
     await db.delete(esre).where(eq(esre.id, id));
     return new Success(undefined);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to remove ESRE item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to remove ESRE item.', {id}, e);
   }
 }
 
@@ -448,7 +475,10 @@ export async function getChequePrintData(ids: string[]): Promise<Result<EsreCheq
   try {
     const uniqueIds = [...new Set(ids)];
     if (uniqueIds.length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Select at least one ESRE item to print a cheque.");
+      return new Failure(
+        ErrorCodes.ValidationFailure,
+        'Select at least one ESRE item to print a cheque.',
+      );
     }
 
     const rows = await db
@@ -462,15 +492,19 @@ export async function getChequePrintData(ids: string[]): Promise<Result<EsreCheq
       .where(inArray(esre.id, uniqueIds));
 
     if (rows.length !== uniqueIds.length) {
-      return new Failure(ErrorCodes.ResourceNotFound, "One or more selected ESRE items were not found.", { ids });
+      return new Failure(
+        ErrorCodes.ResourceNotFound,
+        'One or more selected ESRE items were not found.',
+        {ids},
+      );
     }
 
-    const payees = [...new Set(rows.map(row => row.payee?.trim() ?? "").filter(Boolean))];
+    const payees = [...new Set(rows.map((row) => row.payee?.trim() ?? '').filter(Boolean))];
     if (payees.length !== 1) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Selected ESRE items must have the same payee to print one cheque.",
-        { payees },
+        'Selected ESRE items must have the same payee to print one cheque.',
+        {payees},
       );
     }
 
@@ -482,13 +516,13 @@ export async function getChequePrintData(ids: string[]): Promise<Result<EsreCheq
       amount: totalText,
       amountFormatted: formatAmountWithoutCurrency(totalText),
       amountWords: amountToWords(totalText).toUpperCase(),
-      checkNumber: rows.find(row => row.checkNumber?.trim())?.checkNumber?.trim() ?? null,
+      checkNumber: rows.find((row) => row.checkNumber?.trim())?.checkNumber?.trim() ?? null,
       selectedCount: rows.length,
       itemIds: uniqueIds,
       printedAt: new Date(),
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to build ESRE cheque print data.", { ids }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to build ESRE cheque print data.', {ids}, e);
   }
 }
 
@@ -529,8 +563,8 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
   if (!row) return null;
 
   // Fetch first OBR office item details if an OBR item is linked
-  let obrData: EsreItem["obr"] = null;
-  let disbursed = "0.00";
+  let obrData: EsreItem['obr'] = null;
+  let disbursed = '0.00';
   if (row.obrItemId) {
     const [obrEntry] = await db
       .select({
@@ -570,25 +604,25 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
   }
 
   // Fetch expense type details if linked
-  let expenseTypeData: EsreItem["expenseType"] = null;
+  let expenseTypeData: EsreItem['expenseType'] = null;
   if (row.expenseTypeId) {
     const [etRow] = await db
-      .select({ id: expenseTypeTable.id, name: expenseTypeTable.name })
+      .select({id: expenseTypeTable.id, name: expenseTypeTable.name})
       .from(expenseTypeTable)
       .where(eq(expenseTypeTable.id, row.expenseTypeId))
       .limit(1);
-    if (etRow) expenseTypeData = { id: etRow.id, name: etRow.name };
+    if (etRow) expenseTypeData = {id: etRow.id, name: etRow.name};
   }
 
   // Fetch SAAOB entry details if linked
-  let saaobData: EsreItem["saaob"] = null;
+  let saaobData: EsreItem['saaob'] = null;
   if (row.saaobId) {
     const [saaobRow] = await db
-      .select({ id: saaobEntries.id, name: saaobEntries.name })
+      .select({id: saaobEntries.id, name: saaobEntries.name})
       .from(saaobEntries)
       .where(eq(saaobEntries.id, row.saaobId))
       .limit(1);
-    if (saaobRow) saaobData = { id: saaobRow.id, name: saaobRow.name };
+    if (saaobRow) saaobData = {id: saaobRow.id, name: saaobRow.name};
   }
 
   return {
@@ -601,7 +635,7 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
     checkNumber: row.checkNumber,
     dvOrPayrollNumber: row.dvOrPayrollNumber,
     remarks: row.remarks,
-    fundingSource: { id: row.fundingSourceId, name: row.fundingSourceName },
+    fundingSource: {id: row.fundingSourceId, name: row.fundingSourceName},
     expenseType: expenseTypeData,
     saaob: saaobData,
     obr: obrData,
@@ -609,7 +643,7 @@ async function _getEsreById(id: string): Promise<EsreItem | null> {
   };
 }
 
-type CheckStatusType = "ON HOLD" | "FOR RELEASE" | "PAID" | "CANCELLED";
+type CheckStatusType = 'ON HOLD' | 'FOR RELEASE' | 'PAID' | 'CANCELLED';
 
 type CreateEsrePayload = {
   payee: string;

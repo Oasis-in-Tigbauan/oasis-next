@@ -1,7 +1,7 @@
-import { eq, inArray } from "drizzle-orm";
-import { DateTime } from "luxon";
+import {eq, inArray} from 'drizzle-orm';
+import {DateTime} from 'luxon';
 
-import { db } from "@/lib/db";
+import {db} from '@/lib/db';
 import {
   aipReferences,
   lbacItems,
@@ -10,9 +10,9 @@ import {
   ppmpMinorGroup,
   ppmpProjectGroup,
   saaobEntries,
-} from "@/lib/db/schema";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import * as casts from "@/lib/types/casts";
+} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
 
 /**
  * Returns the full PPMP tree as a list of major groups with nested children.
@@ -93,24 +93,24 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
     if (majorRows.length === 0) return new Success([]);
 
     // Build lookup maps
-    const majorMap = new Map(majorRows.map(m => [m.id, m]));
-    const minorMap = new Map(minorRows.map(m => [m.id, m]));
-    const projectMap = new Map(projectRows.map(p => [p.id, p]));
+    const majorMap = new Map(majorRows.map((m) => [m.id, m]));
+    const minorMap = new Map(minorRows.map((m) => [m.id, m]));
+    const projectMap = new Map(projectRows.map((p) => [p.id, p]));
 
     // Resolve saaob for each item (own saaobId or inherit from major group)
-    const itemsWithOwnSaaob = itemRows.filter(i => i.saaobId !== null);
-    let saaobOverrideMap: Map<string, { id: string; name: string }>;
+    const itemsWithOwnSaaob = itemRows.filter((i) => i.saaobId !== null);
+    let saaobOverrideMap: Map<string, {id: string; name: string}>;
     if (itemsWithOwnSaaob.length > 0) {
       // The IDs are already in saaobEntries — majorRows join covers the major-group ones.
       // We need names for item-level overrides too; fetch those now.
-      const overrideIds = [...new Set(itemsWithOwnSaaob.map(i => i.saaobId!))];
+      const overrideIds = [...new Set(itemsWithOwnSaaob.map((i) => i.saaobId!))];
       const overrideRows = await db
-        .select({ id: saaobEntries.id, name: saaobEntries.name })
+        .select({id: saaobEntries.id, name: saaobEntries.name})
         .from(saaobEntries)
         .where(inArray(saaobEntries.id, overrideIds));
-      saaobOverrideMap = new Map(overrideRows.map(r => [r.id, r]));
+      saaobOverrideMap = new Map(overrideRows.map((r) => [r.id, r]));
     } else {
-      saaobOverrideMap = new Map<string, { id: string; name: string }>();
+      saaobOverrideMap = new Map<string, {id: string; name: string}>();
     }
 
     /**
@@ -120,7 +120,7 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
      * @param {RawPpmpRow} item - The plan item whose SAAOB should be resolved.
      * @returns {{ id: string; name: string } | null} The SAAOB entry, or null if not resolvable.
      */
-    function _resolveSaaob(item: RawPpmpRow): { id: string; name: string } | null {
+    function _resolveSaaob(item: RawPpmpRow): {id: string; name: string} | null {
       // Own saaobId takes priority
       if (item.saaobId) {
         const own = saaobOverrideMap.get(item.saaobId);
@@ -141,7 +141,7 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
       const major = majorMap.get(minor.parentId);
       if (!major) return null;
 
-      return { id: major.saaobId, name: major.saaobName };
+      return {id: major.saaobId, name: major.saaobName};
     }
 
     // Group items by their direct parent key
@@ -202,15 +202,15 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
     }
 
     // Build major group nodes
-    const tree: MajorGroupItem[] = majorRows.map(major => ({
+    const tree: MajorGroupItem[] = majorRows.map((major) => ({
       id: major.id,
-      saaob: { id: major.saaobId, name: major.saaobName },
+      saaob: {id: major.saaobId, name: major.saaobName},
       children: minorNodesByMajor.get(major.id) ?? [],
     }));
 
     return new Success(tree);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to retrieve PPMP data.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to retrieve PPMP data.', {}, e);
   }
 }
 
@@ -233,23 +233,23 @@ export async function getAll(): Promise<Result<MajorGroupItem[]>> {
 export async function createMajorGroup(saaobId: string): Promise<Result<BaseMajorGroupItem>> {
   try {
     const [saaob] = await db
-      .select({ id: saaobEntries.id, name: saaobEntries.name })
+      .select({id: saaobEntries.id, name: saaobEntries.name})
       .from(saaobEntries)
       .where(eq(saaobEntries.id, saaobId))
       .limit(1);
 
     if (!saaob) {
-      return new Failure(ErrorCodes.ResourceNotFound, "SAAOB entry not found.", { saaobId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'SAAOB entry not found.', {saaobId});
     }
 
     const [created] = await db
       .insert(ppmpMajorGroup)
-      .values({ saaobId: saaob.id })
-      .returning({ id: ppmpMajorGroup.id });
+      .values({saaobId: saaob.id})
+      .returning({id: ppmpMajorGroup.id});
 
-    return new Success({ id: created.id, saaob: { id: saaob.id, name: saaob.name } });
+    return new Success({id: created.id, saaob: {id: saaob.id, name: saaob.name}});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create major group.", { saaobId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create major group.', {saaobId}, e);
   }
 }
 
@@ -271,11 +271,14 @@ export async function createMajorGroup(saaobId: string): Promise<Result<BaseMajo
  * @param {string} lbacId - Identifier of the {@link lbacItems} entry to associate.
  * @returns {Promise<Result<BaseMinorGroupItem>>} The created minor group on success, or a failure result on error.
  */
-export async function createMinorGroup(parentId: string, lbacId: string): Promise<Result<BaseMinorGroupItem>> {
+export async function createMinorGroup(
+  parentId: string,
+  lbacId: string,
+): Promise<Result<BaseMinorGroupItem>> {
   try {
     const [[parent], [lbac]] = await Promise.all([
       db
-        .select({ id: ppmpMajorGroup.id })
+        .select({id: ppmpMajorGroup.id})
         .from(ppmpMajorGroup)
         .where(eq(ppmpMajorGroup.id, parentId))
         .limit(1),
@@ -292,16 +295,16 @@ export async function createMinorGroup(parentId: string, lbacId: string): Promis
     ]);
 
     if (!parent) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Major group not found.", { parentId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Major group not found.', {parentId});
     }
     if (!lbac) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC item not found.', {lbacId});
     }
 
     const [created] = await db
       .insert(ppmpMinorGroup)
-      .values({ parentId: parent.id, lbacId: lbac.id })
-      .returning({ id: ppmpMinorGroup.id });
+      .values({parentId: parent.id, lbacId: lbac.id})
+      .returning({id: ppmpMinorGroup.id});
 
     return new Success({
       id: created.id,
@@ -312,7 +315,7 @@ export async function createMinorGroup(parentId: string, lbacId: string): Promis
       },
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create minor group.", { parentId, lbacId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create minor group.', {parentId, lbacId}, e);
   }
 }
 
@@ -333,26 +336,29 @@ export async function createMinorGroup(parentId: string, lbacId: string): Promis
  * @param {string} title - Display title for the new project group.
  * @returns {Promise<Result<BaseProjectGroupItem>>} The created project group on success, or a failure result on error.
  */
-export async function createProjectGroup(parentId: string, title: string): Promise<Result<BaseProjectGroupItem>> {
+export async function createProjectGroup(
+  parentId: string,
+  title: string,
+): Promise<Result<BaseProjectGroupItem>> {
   try {
     const [parent] = await db
-      .select({ id: ppmpMinorGroup.id })
+      .select({id: ppmpMinorGroup.id})
       .from(ppmpMinorGroup)
       .where(eq(ppmpMinorGroup.id, parentId))
       .limit(1);
 
     if (!parent) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Minor group not found.", { parentId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Minor group not found.', {parentId});
     }
 
     const [created] = await db
       .insert(ppmpProjectGroup)
-      .values({ parentId: parent.id, title })
-      .returning({ id: ppmpProjectGroup.id, title: ppmpProjectGroup.title });
+      .values({parentId: parent.id, title})
+      .returning({id: ppmpProjectGroup.id, title: ppmpProjectGroup.title});
 
-    return new Success({ id: created.id, title: created.title });
+    return new Success({id: created.id, title: created.title});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create project group.", { parentId, title }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create project group.', {parentId, title}, e);
   }
 }
 
@@ -393,7 +399,7 @@ export async function createItem(
     // Validate and resolve parent + saaob
     const resolved = await _resolveParentAndSaaob(parentId, parentType, payload.saaobId);
     if (!resolved.ok) {
-      return new Failure(resolved.error.code, resolved.error.message, { parentId, parentType });
+      return new Failure(resolved.error.code, resolved.error.message, {parentId, parentType});
     }
 
     // Parse dates
@@ -402,18 +408,16 @@ export async function createItem(
     const delivery = _parseManilaDateToUtc(payload.expectedDeliveryPeriod);
 
     if (!start || !end || !delivery) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "One or more date fields are invalid.",
-        { payload },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'One or more date fields are invalid.', {
+        payload,
+      });
     }
 
     const [created] = await db
       .insert(ppmp)
       .values({
         generalDescription: payload.generalDescription ?? null,
-        typeOfProject: payload.typeOfProject as "goods" | "infra" | "cons-serv",
+        typeOfProject: payload.typeOfProject as 'goods' | 'infra' | 'cons-serv',
         quantityOrSize: payload.quantityOrSize,
         recommendedModeOfProcurement: payload.recommendedModeOfProcurement ?? null,
         eligibleForPreProcurementConference: payload.eligibleForPreProcurementConference ?? false,
@@ -447,7 +451,12 @@ export async function createItem(
 
     return new Success(_mapToPlanItem(created, resolved.saaob));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create item.", { parentId, parentType, payload }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create item.',
+      {parentId, parentType, payload},
+      e,
+    );
   }
 }
 
@@ -468,36 +477,36 @@ export async function createItem(
  * @param {string} saaobId - Identifier of the new SAAOB entry.
  * @returns {Promise<Result<BaseMajorGroupItem>>} The updated major group on success, or a failure result on error.
  */
-export async function updateMajorGroup(id: string, saaobId: string): Promise<Result<BaseMajorGroupItem>> {
+export async function updateMajorGroup(
+  id: string,
+  saaobId: string,
+): Promise<Result<BaseMajorGroupItem>> {
   try {
     const [[existing], [saaob]] = await Promise.all([
       db
-        .select({ id: ppmpMajorGroup.id })
+        .select({id: ppmpMajorGroup.id})
         .from(ppmpMajorGroup)
         .where(eq(ppmpMajorGroup.id, id))
         .limit(1),
       db
-        .select({ id: saaobEntries.id, name: saaobEntries.name })
+        .select({id: saaobEntries.id, name: saaobEntries.name})
         .from(saaobEntries)
         .where(eq(saaobEntries.id, saaobId))
         .limit(1),
     ]);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Major group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Major group not found.', {id});
     }
     if (!saaob) {
-      return new Failure(ErrorCodes.ResourceNotFound, "SAAOB entry not found.", { saaobId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'SAAOB entry not found.', {saaobId});
     }
 
-    await db
-      .update(ppmpMajorGroup)
-      .set({ saaobId: saaob.id })
-      .where(eq(ppmpMajorGroup.id, id));
+    await db.update(ppmpMajorGroup).set({saaobId: saaob.id}).where(eq(ppmpMajorGroup.id, id));
 
-    return new Success({ id, saaob: { id: saaob.id, name: saaob.name } });
+    return new Success({id, saaob: {id: saaob.id, name: saaob.name}});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update major group.", { id, saaobId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update major group.', {id, saaobId}, e);
   }
 }
 
@@ -518,11 +527,14 @@ export async function updateMajorGroup(id: string, saaobId: string): Promise<Res
  * @param {string} lbacId - Identifier of the new LBAC item.
  * @returns {Promise<Result<BaseMinorGroupItem>>} The updated minor group on success, or a failure result on error.
  */
-export async function updateMinorGroup(id: string, lbacId: string): Promise<Result<BaseMinorGroupItem>> {
+export async function updateMinorGroup(
+  id: string,
+  lbacId: string,
+): Promise<Result<BaseMinorGroupItem>> {
   try {
     const [[existing], [lbac]] = await Promise.all([
       db
-        .select({ id: ppmpMinorGroup.id })
+        .select({id: ppmpMinorGroup.id})
         .from(ppmpMinorGroup)
         .where(eq(ppmpMinorGroup.id, id))
         .limit(1),
@@ -539,16 +551,13 @@ export async function updateMinorGroup(id: string, lbacId: string): Promise<Resu
     ]);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Minor group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Minor group not found.', {id});
     }
     if (!lbac) {
-      return new Failure(ErrorCodes.ResourceNotFound, "LBAC item not found.", { lbacId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'LBAC item not found.', {lbacId});
     }
 
-    await db
-      .update(ppmpMinorGroup)
-      .set({ lbacId: lbac.id })
-      .where(eq(ppmpMinorGroup.id, id));
+    await db.update(ppmpMinorGroup).set({lbacId: lbac.id}).where(eq(ppmpMinorGroup.id, id));
 
     return new Success({
       id,
@@ -559,7 +568,7 @@ export async function updateMinorGroup(id: string, lbacId: string): Promise<Resu
       },
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update minor group.", { id, lbacId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update minor group.', {id, lbacId}, e);
   }
 }
 
@@ -580,26 +589,26 @@ export async function updateMinorGroup(id: string, lbacId: string): Promise<Resu
  * @param {string} title - New title for the project group.
  * @returns {Promise<Result<BaseProjectGroupItem>>} The updated project group on success, or a failure result on error.
  */
-export async function updateProjectGroup(id: string, title: string): Promise<Result<BaseProjectGroupItem>> {
+export async function updateProjectGroup(
+  id: string,
+  title: string,
+): Promise<Result<BaseProjectGroupItem>> {
   try {
     const [existing] = await db
-      .select({ id: ppmpProjectGroup.id })
+      .select({id: ppmpProjectGroup.id})
       .from(ppmpProjectGroup)
       .where(eq(ppmpProjectGroup.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Project group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Project group not found.', {id});
     }
 
-    await db
-      .update(ppmpProjectGroup)
-      .set({ title })
-      .where(eq(ppmpProjectGroup.id, id));
+    await db.update(ppmpProjectGroup).set({title}).where(eq(ppmpProjectGroup.id, id));
 
-    return new Success({ id, title });
+    return new Success({id, title});
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update project group.", { id, title }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update project group.', {id, title}, e);
   }
 }
 
@@ -630,7 +639,10 @@ export async function updateProjectGroup(id: string, title: string): Promise<Res
  * - At least one field in `payload` must be present.
  * - Date fields must be valid UTC+8 ISO strings when provided.
  */
-export async function updateItem(id: string, payload: Partial<ItemPayload>): Promise<Result<PlanItem>> {
+export async function updateItem(
+  id: string,
+  payload: Partial<ItemPayload>,
+): Promise<Result<PlanItem>> {
   try {
     const [existing] = await db
       .select({
@@ -644,13 +656,13 @@ export async function updateItem(id: string, payload: Partial<ItemPayload>): Pro
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Plan item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Plan item not found.', {id});
     }
 
     // Build the update fields incrementally
     type UpdateFields = Partial<{
       generalDescription: string | null;
-      typeOfProject: "goods" | "infra" | "cons-serv";
+      typeOfProject: 'goods' | 'infra' | 'cons-serv';
       quantityOrSize: string;
       recommendedModeOfProcurement: string | null;
       eligibleForPreProcurementConference: boolean;
@@ -665,34 +677,40 @@ export async function updateItem(id: string, payload: Partial<ItemPayload>): Pro
 
     const updateFields: UpdateFields = {};
 
-    if ("generalDescription" in payload) {
+    if ('generalDescription' in payload) {
       updateFields.generalDescription = payload.generalDescription ?? null;
     }
     if (payload.typeOfProject !== undefined) {
-      updateFields.typeOfProject = payload.typeOfProject as "goods" | "infra" | "cons-serv";
+      updateFields.typeOfProject = payload.typeOfProject as 'goods' | 'infra' | 'cons-serv';
     }
     if (payload.quantityOrSize !== undefined) {
       updateFields.quantityOrSize = payload.quantityOrSize;
     }
-    if ("recommendedModeOfProcurement" in payload) {
+    if ('recommendedModeOfProcurement' in payload) {
       updateFields.recommendedModeOfProcurement = payload.recommendedModeOfProcurement ?? null;
     }
     if (payload.eligibleForPreProcurementConference !== undefined) {
-      updateFields.eligibleForPreProcurementConference = payload.eligibleForPreProcurementConference;
+      updateFields.eligibleForPreProcurementConference =
+        payload.eligibleForPreProcurementConference;
     }
     if (payload.startOfProcurementActivity !== undefined) {
       const d = _parseManilaDateToUtc(payload.startOfProcurementActivity);
-      if (!d) return new Failure(ErrorCodes.ValidationFailure, "Invalid startOfProcurementActivity.", { id });
+      if (!d)
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid startOfProcurementActivity.', {
+          id,
+        });
       updateFields.startOfProcurementActivity = d;
     }
     if (payload.endOfProcurementActivity !== undefined) {
       const d = _parseManilaDateToUtc(payload.endOfProcurementActivity);
-      if (!d) return new Failure(ErrorCodes.ValidationFailure, "Invalid endOfProcurementActivity.", { id });
+      if (!d)
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid endOfProcurementActivity.', {id});
       updateFields.endOfProcurementActivity = d;
     }
     if (payload.expectedDeliveryPeriod !== undefined) {
       const d = _parseManilaDateToUtc(payload.expectedDeliveryPeriod);
-      if (!d) return new Failure(ErrorCodes.ValidationFailure, "Invalid expectedDeliveryPeriod.", { id });
+      if (!d)
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid expectedDeliveryPeriod.', {id});
       updateFields.expectedDeliveryPeriod = d;
     }
     if (payload.saaobId !== undefined) {
@@ -701,55 +719,54 @@ export async function updateItem(id: string, payload: Partial<ItemPayload>): Pro
     if (payload.estimatedBudget !== undefined) {
       updateFields.estimatedBudget = casts.castToDecimal(payload.estimatedBudget);
     }
-    if ("attachedSupportingDocuments" in payload) {
+    if ('attachedSupportingDocuments' in payload) {
       updateFields.attachedSupportingDocuments = payload.attachedSupportingDocuments ?? null;
     }
-    if ("remarks" in payload) {
+    if ('remarks' in payload) {
       updateFields.remarks = payload.remarks ?? null;
     }
 
     if (Object.keys(updateFields).length === 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "No updatable fields provided.", { id });
+      return new Failure(ErrorCodes.ValidationFailure, 'No updatable fields provided.', {id});
     }
 
     // Validate saaobId override if provided, else use the existing one for display
-    let saaobForItem: { id: string; name: string } | null = null;
+    let saaobForItem: {id: string; name: string} | null = null;
     const effectiveSaaobId = updateFields.saaobId ?? existing.saaobId;
     const [saaobRow] = await db
-      .select({ id: saaobEntries.id, name: saaobEntries.name })
+      .select({id: saaobEntries.id, name: saaobEntries.name})
       .from(saaobEntries)
       .where(eq(saaobEntries.id, effectiveSaaobId))
       .limit(1);
     if (!saaobRow) {
-      return new Failure(ErrorCodes.ResourceNotFound, "SAAOB entry not found.", { id, saaobId: effectiveSaaobId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'SAAOB entry not found.', {
+        id,
+        saaobId: effectiveSaaobId,
+      });
     }
     saaobForItem = saaobRow;
 
-    const [updated] = await db
-      .update(ppmp)
-      .set(updateFields)
-      .where(eq(ppmp.id, id))
-      .returning({
-        id: ppmp.id,
-        generalDescription: ppmp.generalDescription,
-        typeOfProject: ppmp.typeOfProject,
-        quantityOrSize: ppmp.quantityOrSize,
-        recommendedModeOfProcurement: ppmp.recommendedModeOfProcurement,
-        eligibleForPreProcurementConference: ppmp.eligibleForPreProcurementConference,
-        startOfProcurementActivity: ppmp.startOfProcurementActivity,
-        endOfProcurementActivity: ppmp.endOfProcurementActivity,
-        expectedDeliveryPeriod: ppmp.expectedDeliveryPeriod,
-        saaobId: ppmp.saaobId,
-        estimatedBudget: ppmp.estimatedBudget,
-        attachedSupportingDocuments: ppmp.attachedSupportingDocuments,
-        remarks: ppmp.remarks,
-        minorGroupId: ppmp.minorGroupId,
-        projectGroupId: ppmp.projectGroupId,
-      });
+    const [updated] = await db.update(ppmp).set(updateFields).where(eq(ppmp.id, id)).returning({
+      id: ppmp.id,
+      generalDescription: ppmp.generalDescription,
+      typeOfProject: ppmp.typeOfProject,
+      quantityOrSize: ppmp.quantityOrSize,
+      recommendedModeOfProcurement: ppmp.recommendedModeOfProcurement,
+      eligibleForPreProcurementConference: ppmp.eligibleForPreProcurementConference,
+      startOfProcurementActivity: ppmp.startOfProcurementActivity,
+      endOfProcurementActivity: ppmp.endOfProcurementActivity,
+      expectedDeliveryPeriod: ppmp.expectedDeliveryPeriod,
+      saaobId: ppmp.saaobId,
+      estimatedBudget: ppmp.estimatedBudget,
+      attachedSupportingDocuments: ppmp.attachedSupportingDocuments,
+      remarks: ppmp.remarks,
+      minorGroupId: ppmp.minorGroupId,
+      projectGroupId: ppmp.projectGroupId,
+    });
 
     return new Success(_mapToPlanItem(updated, saaobForItem));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update plan item.", { id, payload }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update plan item.', {id, payload}, e);
   }
 }
 
@@ -773,17 +790,26 @@ export async function updateItem(id: string, payload: Partial<ItemPayload>): Pro
 export async function moveMinorGroup(id: string, majorGroupId: string): Promise<Result<null>> {
   try {
     const [[minor], [major]] = await Promise.all([
-      db.select({ id: ppmpMinorGroup.id }).from(ppmpMinorGroup).where(eq(ppmpMinorGroup.id, id)).limit(1),
-      db.select({ id: ppmpMajorGroup.id }).from(ppmpMajorGroup).where(eq(ppmpMajorGroup.id, majorGroupId)).limit(1),
+      db
+        .select({id: ppmpMinorGroup.id})
+        .from(ppmpMinorGroup)
+        .where(eq(ppmpMinorGroup.id, id))
+        .limit(1),
+      db
+        .select({id: ppmpMajorGroup.id})
+        .from(ppmpMajorGroup)
+        .where(eq(ppmpMajorGroup.id, majorGroupId))
+        .limit(1),
     ]);
 
-    if (!minor) return new Failure(ErrorCodes.ResourceNotFound, "Minor group not found.", { id });
-    if (!major) return new Failure(ErrorCodes.ResourceNotFound, "Major group not found.", { majorGroupId });
+    if (!minor) return new Failure(ErrorCodes.ResourceNotFound, 'Minor group not found.', {id});
+    if (!major)
+      return new Failure(ErrorCodes.ResourceNotFound, 'Major group not found.', {majorGroupId});
 
-    await db.update(ppmpMinorGroup).set({ parentId: major.id }).where(eq(ppmpMinorGroup.id, id));
+    await db.update(ppmpMinorGroup).set({parentId: major.id}).where(eq(ppmpMinorGroup.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move minor group.", { id, majorGroupId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to move minor group.', {id, majorGroupId}, e);
   }
 }
 
@@ -807,17 +833,26 @@ export async function moveMinorGroup(id: string, majorGroupId: string): Promise<
 export async function moveProjectGroup(id: string, minorGroupId: string): Promise<Result<null>> {
   try {
     const [[project], [minor]] = await Promise.all([
-      db.select({ id: ppmpProjectGroup.id }).from(ppmpProjectGroup).where(eq(ppmpProjectGroup.id, id)).limit(1),
-      db.select({ id: ppmpMinorGroup.id }).from(ppmpMinorGroup).where(eq(ppmpMinorGroup.id, minorGroupId)).limit(1),
+      db
+        .select({id: ppmpProjectGroup.id})
+        .from(ppmpProjectGroup)
+        .where(eq(ppmpProjectGroup.id, id))
+        .limit(1),
+      db
+        .select({id: ppmpMinorGroup.id})
+        .from(ppmpMinorGroup)
+        .where(eq(ppmpMinorGroup.id, minorGroupId))
+        .limit(1),
     ]);
 
-    if (!project) return new Failure(ErrorCodes.ResourceNotFound, "Project group not found.", { id });
-    if (!minor) return new Failure(ErrorCodes.ResourceNotFound, "Minor group not found.", { minorGroupId });
+    if (!project) return new Failure(ErrorCodes.ResourceNotFound, 'Project group not found.', {id});
+    if (!minor)
+      return new Failure(ErrorCodes.ResourceNotFound, 'Minor group not found.', {minorGroupId});
 
-    await db.update(ppmpProjectGroup).set({ parentId: minor.id }).where(eq(ppmpProjectGroup.id, id));
+    await db.update(ppmpProjectGroup).set({parentId: minor.id}).where(eq(ppmpProjectGroup.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move project group.", { id, minorGroupId }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to move project group.', {id, minorGroupId}, e);
   }
 }
 
@@ -839,45 +874,52 @@ export async function moveProjectGroup(id: string, minorGroupId: string): Promis
  * @param {string} targetId - Identifier of the target minor or project group.
  * @returns {Promise<Result<null>>} Null on success, or a failure result on error.
  */
-export async function moveItem(id: string, parentType: ParentType, targetId: string): Promise<Result<null>> {
+export async function moveItem(
+  id: string,
+  parentType: ParentType,
+  targetId: string,
+): Promise<Result<null>> {
   try {
-    const [item] = await db
-      .select({ id: ppmp.id })
-      .from(ppmp)
-      .where(eq(ppmp.id, id))
-      .limit(1);
+    const [item] = await db.select({id: ppmp.id}).from(ppmp).where(eq(ppmp.id, id)).limit(1);
 
-    if (!item) return new Failure(ErrorCodes.ResourceNotFound, "Plan item not found.", { id });
+    if (!item) return new Failure(ErrorCodes.ResourceNotFound, 'Plan item not found.', {id});
 
     if (parentType === ParentType.Minor) {
       const [target] = await db
-        .select({ id: ppmpMinorGroup.id })
+        .select({id: ppmpMinorGroup.id})
         .from(ppmpMinorGroup)
         .where(eq(ppmpMinorGroup.id, targetId))
         .limit(1);
-      if (!target) return new Failure(ErrorCodes.ResourceNotFound, "Minor group not found.", { targetId });
+      if (!target)
+        return new Failure(ErrorCodes.ResourceNotFound, 'Minor group not found.', {targetId});
 
       await db
         .update(ppmp)
-        .set({ minorGroupId: target.id, projectGroupId: null })
+        .set({minorGroupId: target.id, projectGroupId: null})
         .where(eq(ppmp.id, id));
     } else {
       const [target] = await db
-        .select({ id: ppmpProjectGroup.id })
+        .select({id: ppmpProjectGroup.id})
         .from(ppmpProjectGroup)
         .where(eq(ppmpProjectGroup.id, targetId))
         .limit(1);
-      if (!target) return new Failure(ErrorCodes.ResourceNotFound, "Project group not found.", { targetId });
+      if (!target)
+        return new Failure(ErrorCodes.ResourceNotFound, 'Project group not found.', {targetId});
 
       await db
         .update(ppmp)
-        .set({ projectGroupId: target.id, minorGroupId: null })
+        .set({projectGroupId: target.id, minorGroupId: null})
         .where(eq(ppmp.id, id));
     }
 
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to move plan item.", { id, parentType, targetId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to move plan item.',
+      {id, parentType, targetId},
+      e,
+    );
   }
 }
 
@@ -902,17 +944,17 @@ export async function moveItem(id: string, parentType: ParentType, targetId: str
 export async function deleteMajorGroup(id: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: ppmpMajorGroup.id })
+      .select({id: ppmpMajorGroup.id})
       .from(ppmpMajorGroup)
       .where(eq(ppmpMajorGroup.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Major group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Major group not found.', {id});
     }
 
     const [child] = await db
-      .select({ id: ppmpMinorGroup.id })
+      .select({id: ppmpMinorGroup.id})
       .from(ppmpMinorGroup)
       .where(eq(ppmpMinorGroup.parentId, id))
       .limit(1);
@@ -920,15 +962,15 @@ export async function deleteMajorGroup(id: string): Promise<Result<null>> {
     if (child) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete: major group still has minor groups.",
-        { id },
+        'Cannot delete: major group still has minor groups.',
+        {id},
       );
     }
 
     await db.delete(ppmpMajorGroup).where(eq(ppmpMajorGroup.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete major group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete major group.', {id}, e);
   }
 }
 
@@ -953,40 +995,36 @@ export async function deleteMajorGroup(id: string): Promise<Result<null>> {
 export async function deleteMinorGroup(id: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: ppmpMinorGroup.id })
+      .select({id: ppmpMinorGroup.id})
       .from(ppmpMinorGroup)
       .where(eq(ppmpMinorGroup.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Minor group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Minor group not found.', {id});
     }
 
     const [[childProject], [childItem]] = await Promise.all([
       db
-        .select({ id: ppmpProjectGroup.id })
+        .select({id: ppmpProjectGroup.id})
         .from(ppmpProjectGroup)
         .where(eq(ppmpProjectGroup.parentId, id))
         .limit(1),
-      db
-        .select({ id: ppmp.id })
-        .from(ppmp)
-        .where(eq(ppmp.minorGroupId, id))
-        .limit(1),
+      db.select({id: ppmp.id}).from(ppmp).where(eq(ppmp.minorGroupId, id)).limit(1),
     ]);
 
     if (childProject || childItem) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete: minor group still has project groups or plan items.",
-        { id },
+        'Cannot delete: minor group still has project groups or plan items.',
+        {id},
       );
     }
 
     await db.delete(ppmpMinorGroup).where(eq(ppmpMinorGroup.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete minor group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete minor group.', {id}, e);
   }
 }
 
@@ -1011,17 +1049,17 @@ export async function deleteMinorGroup(id: string): Promise<Result<null>> {
 export async function deleteProjectGroup(id: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: ppmpProjectGroup.id })
+      .select({id: ppmpProjectGroup.id})
       .from(ppmpProjectGroup)
       .where(eq(ppmpProjectGroup.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Project group not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Project group not found.', {id});
     }
 
     const [child] = await db
-      .select({ id: ppmp.id })
+      .select({id: ppmp.id})
       .from(ppmp)
       .where(eq(ppmp.projectGroupId, id))
       .limit(1);
@@ -1029,15 +1067,15 @@ export async function deleteProjectGroup(id: string): Promise<Result<null>> {
     if (child) {
       return new Failure(
         ErrorCodes.ValidationFailure,
-        "Cannot delete: project group still has plan items.",
-        { id },
+        'Cannot delete: project group still has plan items.',
+        {id},
       );
     }
 
     await db.delete(ppmpProjectGroup).where(eq(ppmpProjectGroup.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete project group.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete project group.', {id}, e);
   }
 }
 
@@ -1058,20 +1096,16 @@ export async function deleteProjectGroup(id: string): Promise<Result<null>> {
  */
 export async function deleteItem(id: string): Promise<Result<null>> {
   try {
-    const [existing] = await db
-      .select({ id: ppmp.id })
-      .from(ppmp)
-      .where(eq(ppmp.id, id))
-      .limit(1);
+    const [existing] = await db.select({id: ppmp.id}).from(ppmp).where(eq(ppmp.id, id)).limit(1);
 
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Plan item not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Plan item not found.', {id});
     }
 
     await db.delete(ppmp).where(eq(ppmp.id, id));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete plan item.", { id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to delete plan item.', {id}, e);
   }
 }
 
@@ -1082,12 +1116,12 @@ export async function deleteItem(id: string): Promise<Result<null>> {
 /** Result shape from {@link _resolveParentAndSaaob}. */
 type ResolveParentResult =
   | {
-    ok: true;
-    minorGroupId: string | null;
-    projectGroupId: string | null;
-    saaob: { id: string; name: string };
-  }
-  | { ok: false; error: { code: ErrorCodes; message: string } };
+      ok: true;
+      minorGroupId: string | null;
+      projectGroupId: string | null;
+      saaob: {id: string; name: string};
+    }
+  | {ok: false; error: {code: ErrorCodes; message: string}};
 
 /**
  * Resolves the parent FK columns and effective SAAOB for a new plan item.
@@ -1115,23 +1149,29 @@ async function _resolveParentAndSaaob(
 
   if (parentType === ParentType.Minor) {
     const [minor] = await db
-      .select({ id: ppmpMinorGroup.id, parentId: ppmpMinorGroup.parentId })
+      .select({id: ppmpMinorGroup.id, parentId: ppmpMinorGroup.parentId})
       .from(ppmpMinorGroup)
       .where(eq(ppmpMinorGroup.id, parentId))
       .limit(1);
     if (!minor) {
-      return { ok: false, error: { code: ErrorCodes.ResourceNotFound, message: "Minor group not found." } };
+      return {
+        ok: false,
+        error: {code: ErrorCodes.ResourceNotFound, message: 'Minor group not found.'},
+      };
     }
     minorGroupId = minor.id;
     resolvedMinorId = minor.id;
   } else {
     const [project] = await db
-      .select({ id: ppmpProjectGroup.id, parentId: ppmpProjectGroup.parentId })
+      .select({id: ppmpProjectGroup.id, parentId: ppmpProjectGroup.parentId})
       .from(ppmpProjectGroup)
       .where(eq(ppmpProjectGroup.id, parentId))
       .limit(1);
     if (!project) {
-      return { ok: false, error: { code: ErrorCodes.ResourceNotFound, message: "Project group not found." } };
+      return {
+        ok: false,
+        error: {code: ErrorCodes.ResourceNotFound, message: 'Project group not found.'},
+      };
     }
     projectGroupId = project.id;
     resolvedMinorId = project.parentId;
@@ -1140,29 +1180,32 @@ async function _resolveParentAndSaaob(
   // Resolve saaob
   if (saaobId) {
     const [saaob] = await db
-      .select({ id: saaobEntries.id, name: saaobEntries.name })
+      .select({id: saaobEntries.id, name: saaobEntries.name})
       .from(saaobEntries)
       .where(eq(saaobEntries.id, saaobId))
       .limit(1);
     if (!saaob) {
-      return { ok: false, error: { code: ErrorCodes.ResourceNotFound, message: "SAAOB entry not found." } };
+      return {
+        ok: false,
+        error: {code: ErrorCodes.ResourceNotFound, message: 'SAAOB entry not found.'},
+      };
     }
-    return { ok: true, minorGroupId, projectGroupId, saaob };
+    return {ok: true, minorGroupId, projectGroupId, saaob};
   }
 
   // Inherit from major group
-  const saaob = await _inheritSaaobFromMajor(
-    minorGroupId ?? resolvedMinorId,
-    projectGroupId,
-  );
+  const saaob = await _inheritSaaobFromMajor(minorGroupId ?? resolvedMinorId, projectGroupId);
   if (!saaob) {
     return {
       ok: false,
-      error: { code: ErrorCodes.ResourceNotFound, message: "Cannot resolve inherited SAAOB from major group." },
+      error: {
+        code: ErrorCodes.ResourceNotFound,
+        message: 'Cannot resolve inherited SAAOB from major group.',
+      },
     };
   }
 
-  return { ok: true, minorGroupId, projectGroupId, saaob };
+  return {ok: true, minorGroupId, projectGroupId, saaob};
 }
 
 /**
@@ -1182,12 +1225,12 @@ async function _resolveParentAndSaaob(
 async function _inheritSaaobFromMajor(
   minorGroupId: string | null,
   projectGroupId: string | null,
-): Promise<{ id: string; name: string } | null> {
+): Promise<{id: string; name: string} | null> {
   let resolvedMinorId = minorGroupId;
 
   if (!resolvedMinorId && projectGroupId) {
     const [pg] = await db
-      .select({ parentId: ppmpProjectGroup.parentId })
+      .select({parentId: ppmpProjectGroup.parentId})
       .from(ppmpProjectGroup)
       .where(eq(ppmpProjectGroup.id, projectGroupId))
       .limit(1);
@@ -1198,21 +1241,21 @@ async function _inheritSaaobFromMajor(
   if (!resolvedMinorId) return null;
 
   const [minor] = await db
-    .select({ parentId: ppmpMinorGroup.parentId })
+    .select({parentId: ppmpMinorGroup.parentId})
     .from(ppmpMinorGroup)
     .where(eq(ppmpMinorGroup.id, resolvedMinorId))
     .limit(1);
   if (!minor) return null;
 
   const [major] = await db
-    .select({ saaobId: ppmpMajorGroup.saaobId })
+    .select({saaobId: ppmpMajorGroup.saaobId})
     .from(ppmpMajorGroup)
     .where(eq(ppmpMajorGroup.id, minor.parentId))
     .limit(1);
   if (!major) return null;
 
   const [saaob] = await db
-    .select({ id: saaobEntries.id, name: saaobEntries.name })
+    .select({id: saaobEntries.id, name: saaobEntries.name})
     .from(saaobEntries)
     .where(eq(saaobEntries.id, major.saaobId))
     .limit(1);
@@ -1233,7 +1276,7 @@ async function _inheritSaaobFromMajor(
  * @returns {Date | null} The UTC `Date` object, or `null` when parsing fails.
  */
 function _parseManilaDateToUtc(date: string): Date | null {
-  const dt = DateTime.fromISO(date, { zone: "Asia/Manila" });
+  const dt = DateTime.fromISO(date, {zone: 'Asia/Manila'});
   if (!dt.isValid) return null;
   return dt.toUTC().toJSDate();
 }
@@ -1250,7 +1293,7 @@ function _parseManilaDateToUtc(date: string): Date | null {
  * @returns {string} Month and year in UTC+8.
  */
 function _formatDateToMonthName(date: Date): string {
-  return DateTime.fromJSDate(date).setZone("Asia/Manila").toFormat("LLLL yyyy");
+  return DateTime.fromJSDate(date).setZone('Asia/Manila').toFormat('LLLL yyyy');
 }
 
 /**
@@ -1265,10 +1308,7 @@ function _formatDateToMonthName(date: Date): string {
  * @param {{ id: string; name: string }} saaob - Resolved SAAOB reference for this item.
  * @returns {PlanItem} The mapped plan item.
  */
-function _mapToPlanItem(
-  row: RawPpmpRow,
-  saaob: { id: string; name: string },
-): PlanItem {
+function _mapToPlanItem(row: RawPpmpRow, saaob: {id: string; name: string}): PlanItem {
   return {
     id: row.id,
     generalDescription: row.generalDescription ?? null,
@@ -1375,7 +1415,7 @@ export type PlanItem = {
 type RawPpmpRow = {
   id: string;
   generalDescription: string | null;
-  typeOfProject: "goods" | "infra" | "cons-serv";
+  typeOfProject: 'goods' | 'infra' | 'cons-serv';
   quantityOrSize: string;
   recommendedModeOfProcurement: string | null;
   eligibleForPreProcurementConference: boolean;

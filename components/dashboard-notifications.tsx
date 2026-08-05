@@ -1,33 +1,31 @@
-"use client";
+'use client';
 
-import useSWR from "swr";
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import NotificationList from '@/components/notification-list';
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
   NotificationListResponse,
-} from "@/lib/http/client/responses";
-
-import NotificationList from "@/components/notification-list";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from '@/lib/http/client/responses';
 
 export default function DashboardNotifications() {
-  const { data, error, mutate } = useSWR<BetterFetchResponse<NotificationListResponse, ApiResponseException>>(
-    "/api/notifications?limit=10",
-    $fetch,
-  );
+  const {data, error, mutate} = useSWR<
+    BetterFetchResponse<NotificationListResponse, ApiResponseException>
+  >('/api/notifications?limit=10', $fetch);
 
   const notifications = data?.data?.data;
   const items = notifications?.items ?? [];
 
   const markRead = async (id: string) => {
-    await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+    await fetch(`/api/notifications/${id}/read`, {method: 'PATCH'});
     await mutate();
   };
 
   const markAllRead = async () => {
-    const response = await fetch("/api/notifications/read-all", { method: "PATCH" });
+    const response = await fetch('/api/notifications/read-all', {method: 'PATCH'});
     if (response.ok) {
       await mutate();
     }

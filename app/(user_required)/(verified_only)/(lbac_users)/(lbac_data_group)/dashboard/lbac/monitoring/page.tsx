@@ -1,21 +1,15 @@
-"use client";
+'use client';
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronRight, Download, Pencil, Search } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {ChevronDown, ChevronRight, Download, Pencil, Search} from 'lucide-react';
+import {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  LbacMonitoringGroupResponse,
-  LbacMonitoringItemResponse,
-  LbacMonitoringResponse,
-} from "@/lib/http/client/responses";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -23,39 +17,37 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  LbacMonitoringGroupResponse,
+  LbacMonitoringItemResponse,
+  LbacMonitoringResponse,
+} from '@/lib/http/client/responses';
 
-const GROUP_ROOT_BG = "#0B5394";
-const GROUP_CHILD_BG = "#26a69a";
+const GROUP_ROOT_BG = '#0B5394';
+const GROUP_CHILD_BG = '#26a69a';
 const TOTAL_COLS = 12;
 const ITEM_COL_SPAN = TOTAL_COLS - 1;
 
 type SelectableRow =
-  | { kind: "group"; id: string; depth: number; data: LbacMonitoringGroupResponse }
-  | { kind: "item"; id: string; depth: number; groupId: string; data: LbacMonitoringItemResponse };
+  | {kind: 'group'; id: string; depth: number; data: LbacMonitoringGroupResponse}
+  | {kind: 'item'; id: string; depth: number; groupId: string; data: LbacMonitoringItemResponse};
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<LbacMonitoringResponse, ApiResponseException>
-  >("/api/lbac/monitoring", $fetch);
+  >('/api/lbac/monitoring', $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<SelectableRow | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -89,10 +81,10 @@ export default function Page() {
   const paddingBottom =
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
-  const selectedItem = selectedRow?.kind === "item" ? selectedRow.data : null;
+  const selectedItem = selectedRow?.kind === 'item' ? selectedRow.data : null;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -101,18 +93,18 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: SelectableRow) => {
-    setSelectedRow(prev => (prev?.id === row.id ? null : row));
+    setSelectedRow((prev) => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: SelectableRow) => {
     setSelectedRow(row);
-    if (row.kind === "item") {
+    if (row.kind === 'item') {
       setEditorOpen(true);
     }
   }, []);
 
   const handleEditSelected = useCallback(() => {
-    if (selectedRow?.kind !== "item") return;
+    if (selectedRow?.kind !== 'item') return;
     setEditorOpen(true);
   }, [selectedRow]);
 
@@ -128,24 +120,24 @@ export default function Page() {
     setExportError(null);
 
     try {
-      const response = await fetch("/api/lbac/export/forms/form-6");
+      const response = await fetch('/api/lbac/export/forms/form-6');
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setExportError(
-          (payload as Record<string, string> | null)?.details
-            ?? (payload as Record<string, string> | null)?.message
-            ?? "Export failed. Please try again.",
+          (payload as Record<string, string> | null)?.details ??
+            (payload as Record<string, string> | null)?.message ??
+            'Export failed. Please try again.',
         );
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename=\"([^\"]+)\"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? "lbac-form-6.xlsx";
+      const filename = filenameMatch?.[1] ?? 'lbac-form-6.xlsx';
 
-      const anchor = document.createElement("a");
+      const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = filename;
       document.body.appendChild(anchor);
@@ -153,7 +145,7 @@ export default function Page() {
       anchor.remove();
       URL.revokeObjectURL(url);
     } catch {
-      setExportError("Unexpected error while exporting. Please try again.");
+      setExportError('Unexpected error while exporting. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -171,7 +163,7 @@ export default function Page() {
             className="pl-7 h-8 w-64 text-xs"
             placeholder="Search MFO/PPA, AIP code, office…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -182,7 +174,7 @@ export default function Page() {
           size="icon-sm"
           aria-label="Edit"
           title="Edit selected"
-          disabled={selectedRow?.kind !== "item"}
+          disabled={selectedRow?.kind !== 'item'}
           onClick={handleEditSelected}
         >
           <Pencil />
@@ -190,10 +182,9 @@ export default function Page() {
 
         {selectedRow && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            {selectedRow.kind === "group"
+            {selectedRow.kind === 'group'
               ? `Group: ${selectedRow.data.name}`
-              : `Item: ${selectedRow.data.item.mfoPpa.slice(0, 50)}${selectedRow.data.item.mfoPpa.length > 50 ? "…" : ""}`
-            }
+              : `Item: ${selectedRow.data.item.mfoPpa.slice(0, 50)}${selectedRow.data.item.mfoPpa.length > 50 ? '…' : ''}`}
           </Badge>
         )}
 
@@ -206,19 +197,21 @@ export default function Page() {
             disabled={exporting}
           >
             <Download className="size-3" />
-            {exporting ? "Exporting..." : "Export to LBAC F6"}
+            {exporting ? 'Exporting...' : 'Export to LBAC F6'}
           </Button>
         </div>
       </div>
 
       {exportError && (
-        <Typography variant="small" className="text-destructive px-1">{exportError}</Typography>
+        <Typography variant="small" className="text-destructive px-1">
+          {exportError}
+        </Typography>
       )}
 
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No monitoring records found."}
+            {searchQuery ? 'No results match your search.' : 'No monitoring records found.'}
           </div>
         ) : (
           <div
@@ -228,18 +221,42 @@ export default function Page() {
             <Table className="border-separate border-spacing-0 text-sm [&_th]:border-r [&_td]:border-r [&_td:first-child]:border-l">
               <TableHeader className="sticky top-0 z-20 [&_tr]:border-b-0 [&_th]:border-b [&_th]:bg-[#FFF2CC]">
                 <TableRow>
-                  <TableHead rowSpan={2} className="w-[260px] min-w-[260px] max-w-[260px] align-middle border-l whitespace-normal break-words">
+                  <TableHead
+                    rowSpan={2}
+                    className="w-[260px] min-w-[260px] max-w-[260px] align-middle border-l whitespace-normal break-words"
+                  >
                     Plan/PPAs
                   </TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle">AIP Reference Code</TableHead>
-                  <TableHead rowSpan={2} className="min-w-44 align-middle">Implementing Office/Department</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b">Target Output</TableHead>
-                  <TableHead rowSpan={2} className="min-w-44 align-middle">Actual Accomplishments</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b">Estimated Cost</TableHead>
-                  <TableHead rowSpan={2} className="min-w-36 align-middle text-right">Actual Expenditure</TableHead>
-                  <TableHead rowSpan={2} className="w-[260px] min-w-[260px] max-w-[260px] align-middle whitespace-normal break-words">Remarks</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">AIP vs AB</TableHead>
-                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">AB vs Exp</TableHead>
+                  <TableHead rowSpan={2} className="min-w-36 align-middle">
+                    AIP Reference Code
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-44 align-middle">
+                    Implementing Office/Department
+                  </TableHead>
+                  <TableHead colSpan={2} className="text-center border-b">
+                    Target Output
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-44 align-middle">
+                    Actual Accomplishments
+                  </TableHead>
+                  <TableHead colSpan={2} className="text-center border-b">
+                    Estimated Cost
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-36 align-middle text-right">
+                    Actual Expenditure
+                  </TableHead>
+                  <TableHead
+                    rowSpan={2}
+                    className="w-[260px] min-w-[260px] max-w-[260px] align-middle whitespace-normal break-words"
+                  >
+                    Remarks
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">
+                    AIP vs AB
+                  </TableHead>
+                  <TableHead rowSpan={2} className="min-w-32 align-middle text-right">
+                    AB vs Exp
+                  </TableHead>
                 </TableRow>
                 <TableRow>
                   <TableHead className="min-w-40">AIP</TableHead>
@@ -251,13 +268,13 @@ export default function Page() {
               <TableBody>
                 {paddingTop > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingTop}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingTop}px`}} />
                   </TableRow>
                 )}
-                {virtualRows.map(vr => {
+                {virtualRows.map((vr) => {
                   const row = flatRows[vr.index]!;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     const isSelected = selectedRow?.id === row.id;
                     return (
@@ -265,8 +282,8 @@ export default function Page() {
                         ref={rowVirtualizer.measureElement}
                         key={row.id}
                         data-index={vr.index}
-                        className={`cursor-pointer select-none text-white ${isSelected ? "outline outline-2 outline-primary" : ""}`}
-                        style={{ backgroundColor: row.depth === 0 ? GROUP_ROOT_BG : GROUP_CHILD_BG }}
+                        className={`cursor-pointer select-none text-white ${isSelected ? 'outline outline-2 outline-primary' : ''}`}
+                        style={{backgroundColor: row.depth === 0 ? GROUP_ROOT_BG : GROUP_CHILD_BG}}
                         onClick={() => handleRowClick(row)}
                         onDoubleClick={() => handleRowDoubleClick(row)}
                       >
@@ -277,11 +294,16 @@ export default function Page() {
                           <button
                             type="button"
                             className="flex items-center gap-1 font-semibold text-white text-left hover:opacity-80 w-full"
-                            onClick={e => { e.stopPropagation(); toggleCollapse(row.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCollapse(row.id);
+                            }}
                           >
-                            {isCollapsed
-                              ? <ChevronRight className="size-3 shrink-0" />
-                              : <ChevronDown className="size-3 shrink-0" />}
+                            {isCollapsed ? (
+                              <ChevronRight className="size-3 shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3 shrink-0" />
+                            )}
                             <span>{row.data.name}</span>
                           </button>
                         </TableCell>
@@ -297,7 +319,7 @@ export default function Page() {
                       ref={rowVirtualizer.measureElement}
                       key={row.id}
                       data-index={vr.index}
-                      className={`cursor-pointer select-none ${isSelected ? "bg-accent" : ""}`}
+                      className={`cursor-pointer select-none ${isSelected ? 'bg-accent' : ''}`}
                       title="Double-click to edit monitoring fields"
                       onClick={() => handleRowClick(row)}
                       onDoubleClick={() => handleRowDoubleClick(row)}
@@ -310,13 +332,27 @@ export default function Page() {
                       </TableCell>
                       <TableCell className="font-mono">{txt(item.item.aipRefCode?.code)}</TableCell>
                       <TableCell>{txt(item.item.implementingUnit?.name)}</TableCell>
-                      <TableCell className="min-w-40 whitespace-normal break-words">{txt(item.item.aipRefCode?.description)}</TableCell>
-                      <TableCell className="whitespace-normal break-words">{txt(item.ab)}</TableCell>
-                      <TableCell className="whitespace-normal break-words">{txt(item.actualAccomplishment)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.item.aipRefCode?.amount)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.abEstimatedCost)}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(item.actualExpenditure)}</TableCell>
-                      <TableCell className="w-[260px] min-w-[260px] max-w-[260px] whitespace-normal break-words">{txt(item.remarks)}</TableCell>
+                      <TableCell className="min-w-40 whitespace-normal break-words">
+                        {txt(item.item.aipRefCode?.description)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words">
+                        {txt(item.ab)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal break-words">
+                        {txt(item.actualAccomplishment)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.item.aipRefCode?.amount)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.abEstimatedCost)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmt(item.actualExpenditure)}
+                      </TableCell>
+                      <TableCell className="w-[260px] min-w-[260px] max-w-[260px] whitespace-normal break-words">
+                        {txt(item.remarks)}
+                      </TableCell>
                       <TableCell className="text-right font-mono">{fmt(item.aipVsAb)}</TableCell>
                       <TableCell className="text-right font-mono">{fmt(item.aipVsExp)}</TableCell>
                     </TableRow>
@@ -324,7 +360,7 @@ export default function Page() {
                 })}
                 {paddingBottom > 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTAL_COLS} style={{ height: `${paddingBottom}px` }} />
+                    <TableCell colSpan={TOTAL_COLS} style={{height: `${paddingBottom}px`}} />
                   </TableRow>
                 )}
               </TableBody>
@@ -354,11 +390,11 @@ function MonitoringEditorDialog({
   onSuccess: () => void;
 }) {
   const baseId = useId();
-  const [ab, setAb] = useState(item.ab ?? "");
-  const [actualAccomplishment, setActualAccomplishment] = useState(item.actualAccomplishment ?? "");
-  const [abEstimatedCost, setAbEstimatedCost] = useState(item.abEstimatedCost ?? "");
-  const [actualExpenditure, setActualExpenditure] = useState(item.actualExpenditure ?? "");
-  const [remarks, setRemarks] = useState(item.remarks ?? "");
+  const [ab, setAb] = useState(item.ab ?? '');
+  const [actualAccomplishment, setActualAccomplishment] = useState(item.actualAccomplishment ?? '');
+  const [abEstimatedCost, setAbEstimatedCost] = useState(item.abEstimatedCost ?? '');
+  const [actualExpenditure, setActualExpenditure] = useState(item.actualExpenditure ?? '');
+  const [remarks, setRemarks] = useState(item.remarks ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -389,33 +425,38 @@ function MonitoringEditorDialog({
     setActionError(null);
     try {
       const res = await fetch(`/api/lbac/monitoring/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const responsePayload = await res.json().catch(() => null);
-        setActionError(responsePayload?.message ?? "Failed to update monitoring values. Please try again.");
+        setActionError(
+          responsePayload?.message ?? 'Failed to update monitoring values. Please try again.',
+        );
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Edit Monitoring Item</DialogTitle>
-          <DialogDescription>
-            Update monitoring fields for: {item.item.mfoPpa}
-          </DialogDescription>
+          <DialogDescription>Update monitoring fields for: {item.item.mfoPpa}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
@@ -425,7 +466,7 @@ function MonitoringEditorDialog({
               <Input
                 id={`${baseId}-ab`}
                 value={ab}
-                onChange={e => setAb(e.target.value)}
+                onChange={(e) => setAb(e.target.value)}
                 disabled={submitting}
                 placeholder="Enter AB"
               />
@@ -436,7 +477,7 @@ function MonitoringEditorDialog({
               <Input
                 id={`${baseId}-ab-estimated`}
                 value={abEstimatedCost}
-                onChange={e => setAbEstimatedCost(e.target.value)}
+                onChange={(e) => setAbEstimatedCost(e.target.value)}
                 disabled={submitting}
                 placeholder="0.00"
                 className="font-mono"
@@ -449,7 +490,7 @@ function MonitoringEditorDialog({
             <Textarea
               id={`${baseId}-accomplishment`}
               value={actualAccomplishment}
-              onChange={e => setActualAccomplishment(e.target.value)}
+              onChange={(e) => setActualAccomplishment(e.target.value)}
               disabled={submitting}
               rows={4}
               placeholder="Describe actual accomplishments"
@@ -461,7 +502,7 @@ function MonitoringEditorDialog({
             <Input
               id={`${baseId}-expenditure`}
               value={actualExpenditure}
-              onChange={e => setActualExpenditure(e.target.value)}
+              onChange={(e) => setActualExpenditure(e.target.value)}
               disabled={submitting}
               placeholder="0.00"
               className="font-mono"
@@ -473,7 +514,7 @@ function MonitoringEditorDialog({
             <Textarea
               id={`${baseId}-remarks`}
               value={remarks}
-              onChange={e => setRemarks(e.target.value)}
+              onChange={(e) => setRemarks(e.target.value)}
               disabled={submitting}
               rows={4}
               placeholder="Add remarks"
@@ -482,13 +523,17 @@ function MonitoringEditorDialog({
         </div>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : "Save Changes"}
+            {submitting ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -496,21 +541,19 @@ function MonitoringEditorDialog({
   );
 }
 
-function collectMatchingGroupIds(
-  nodes: LbacMonitoringGroupResponse[],
-  query: string,
-): Set<string> {
+function collectMatchingGroupIds(nodes: LbacMonitoringGroupResponse[], query: string): Set<string> {
   const matched = new Set<string>();
   function walk(nodes2: LbacMonitoringGroupResponse[], ancestors: string[]): boolean {
     let anyMatch = false;
     for (const group of nodes2) {
       const childGroups = group.children.filter(
-        child => child.type === 6767,
+        (child) => child.type === 6767,
       ) as LbacMonitoringGroupResponse[];
       const childMatch = walk(childGroups, [...ancestors, group.id]);
 
       const itemMatch = group.children.some(
-        child => child.type === 6768 && itemMatchesQuery(child as LbacMonitoringItemResponse, query),
+        (child) =>
+          child.type === 6768 && itemMatchesQuery(child as LbacMonitoringItemResponse, query),
       );
 
       if (childMatch || itemMatch || group.name.toLowerCase().includes(query.toLowerCase())) {
@@ -530,13 +573,13 @@ function collectMatchingGroupIds(
 function itemMatchesQuery(item: LbacMonitoringItemResponse, query: string): boolean {
   const q = query.toLowerCase();
   return (
-    item.item.mfoPpa.toLowerCase().includes(q)
-    || (item.item.aipRefCode?.code.toLowerCase().includes(q) ?? false)
-    || (item.item.aipRefCode?.description.toLowerCase().includes(q) ?? false)
-    || (item.item.implementingUnit?.name.toLowerCase().includes(q) ?? false)
-    || (item.ab?.toLowerCase().includes(q) ?? false)
-    || (item.actualAccomplishment?.toLowerCase().includes(q) ?? false)
-    || (item.remarks?.toLowerCase().includes(q) ?? false)
+    item.item.mfoPpa.toLowerCase().includes(q) ||
+    (item.item.aipRefCode?.code.toLowerCase().includes(q) ?? false) ||
+    (item.item.aipRefCode?.description.toLowerCase().includes(q) ?? false) ||
+    (item.item.implementingUnit?.name.toLowerCase().includes(q) ?? false) ||
+    (item.ab?.toLowerCase().includes(q) ?? false) ||
+    (item.actualAccomplishment?.toLowerCase().includes(q) ?? false) ||
+    (item.remarks?.toLowerCase().includes(q) ?? false)
   );
 }
 
@@ -553,7 +596,7 @@ function flattenVisible(
   for (const group of nodes) {
     if (filtering && !matchingGroupIds.has(group.id)) continue;
 
-    rows.push({ kind: "group", id: group.id, depth, data: group });
+    rows.push({kind: 'group', id: group.id, depth, data: group});
     const shouldExpand = filtering || !collapsed.has(group.id);
 
     if (!shouldExpand) continue;
@@ -562,9 +605,17 @@ function flattenVisible(
       if (child.type === 6768) {
         const item = child as LbacMonitoringItemResponse;
         if (filtering && !itemMatchesQuery(item, query)) continue;
-        rows.push({ kind: "item", id: item.id, depth: depth + 1, groupId: group.id, data: item });
+        rows.push({kind: 'item', id: item.id, depth: depth + 1, groupId: group.id, data: item});
       } else {
-        rows.push(...flattenVisible([child as LbacMonitoringGroupResponse], collapsed, depth + 1, query, matchingGroupIds));
+        rows.push(
+          ...flattenVisible(
+            [child as LbacMonitoringGroupResponse],
+            collapsed,
+            depth + 1,
+            query,
+            matchingGroupIds,
+          ),
+        );
       }
     }
   }
@@ -572,17 +623,17 @@ function flattenVisible(
   return rows;
 }
 
-function planIndentStyle(depth: number): { paddingLeft: string } {
-  return { paddingLeft: `${12 + depth * 20}px` };
+function planIndentStyle(depth: number): {paddingLeft: string} {
+  return {paddingLeft: `${12 + depth * 20}px`};
 }
 
 function fmt(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return '—';
   const n = Number(value);
   if (Number.isNaN(n)) return value;
-  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 function txt(value: string | null | undefined): string {
-  return value ?? "—";
+  return value ?? '—';
 }

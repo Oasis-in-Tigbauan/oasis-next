@@ -1,38 +1,39 @@
-import { count } from "drizzle-orm";
-import fsp from "fs/promises";
-import path from "path";
+import fsp from 'fs/promises';
+import path from 'path';
 
-import type { MigratorFn } from "@/lib/db/types";
-import * as schema from "@/lib/db/schema";
+import {count} from 'drizzle-orm';
+
+import * as schema from '@/lib/db/schema';
+import type {MigratorFn} from '@/lib/db/types';
 
 export const aipMigration: MigratorFn = async (client): Promise<void> => {
-  console.log("Migrating AIP Codes...");
+  console.log('Migrating AIP Codes...');
 
   // Check if there are items in the AIP. Skip if there are items.
   const [aips] = await client
-    .select({ count: count(schema.aipReferences.id )})
+    .select({count: count(schema.aipReferences.id)})
     .from(schema.aipReferences);
   if (Number(aips.count) > 0) {
-    console.log("-> Skipped due to AIP codes exists");
+    console.log('-> Skipped due to AIP codes exists');
     return;
   }
 
   // Read the TSV file.
-  const file = path.join(__dirname, "data/aip.tsv");
-  const data = await fsp.readFile(file, { encoding: "utf-8" });
+  const file = path.join(__dirname, 'data/aip.tsv');
+  const data = await fsp.readFile(file, {encoding: 'utf-8'});
 
   const rows = data
     .split(/\r?\n/)
     .slice(3)
-    .map(line => line.split("\t"))
-    .filter(columns => columns.some(column => normalizeText(column) !== null));
+    .map((line) => line.split('\t'))
+    .filter((columns) => columns.some((column) => normalizeText(column) !== null));
 
   const records = rows
     .map(mapRowToAipItem)
     .filter((record): record is NonNullable<typeof record> => record !== null);
 
   if (records.length === 0) {
-    console.log("No AIP rows found to migrate.");
+    console.log('No AIP rows found to migrate.');
     return;
   }
 
@@ -64,7 +65,7 @@ function mapRowToAipItem(columns: string[]): typeof schema.aipReferences.$inferI
   }
 
   return {
-    type: "item",
+    type: 'item',
     sector: normalizeText(columns[0]),
     code: normalizeText(columns[1]),
     office: normalizeText(columns[2]),
@@ -95,7 +96,7 @@ function normalizeDecimal(value?: string): string | null {
   const normalized = normalizeText(value);
   if (!normalized) return null;
 
-  const withoutCommas = normalized.replace(/,/g, "");
+  const withoutCommas = normalized.replace(/,/g, '');
   return withoutCommas.length > 0 ? withoutCommas : null;
 }
 
@@ -108,5 +109,5 @@ function parseMonth(value?: string): number | null {
 
 function parseYesNo(value?: string): boolean {
   const normalized = normalizeText(value)?.toLowerCase();
-  return normalized === "yes";
+  return normalized === 'yes';
 }

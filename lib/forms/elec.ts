@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import {eq} from 'drizzle-orm';
 
-import { db } from "@/lib/db";
-import { obrDisbursementElectronic, obrDisbursementVouchers } from "@/lib/db/schema";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import * as casts from "@/lib/types/casts";
-import { validatorUtilities } from "@/lib/validators";
+import {db} from '@/lib/db';
+import {obrDisbursementElectronic, obrDisbursementVouchers} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
+import {validatorUtilities} from '@/lib/validators';
 
 /**
  * Computes the derived tax breakdown fields from stored gross and vatableSales values.
@@ -17,10 +17,13 @@ import { validatorUtilities } from "@/lib/validators";
  * @param {string} vatableSales - The vatable sales amount as a decimal string.
  * @returns {{ vat5: string; evat2: string; net: string }} The computed derived fields as decimal strings.
  */
-function _computeDerivedValues(gross: string, vatableSales: string): { vat5: string; evat2: string; net: string } {
+function _computeDerivedValues(
+  gross: string,
+  vatableSales: string,
+): {vat5: string; evat2: string; net: string} {
   const vatableSalesDecimal = casts.castFromDecimal(vatableSales);
-  const vat5 = vatableSalesDecimal.mul("0.05");
-  const evat2 = vatableSalesDecimal.mul("0.02");
+  const vat5 = vatableSalesDecimal.mul('0.05');
+  const evat2 = vatableSalesDecimal.mul('0.02');
   const net = casts.castFromDecimal(gross).minus(vat5).minus(evat2);
   return {
     vat5: vat5.toString(),
@@ -68,7 +71,7 @@ export async function getAll(): Promise<Result<ElecFormItem[]>> {
       );
 
     return new Success(
-      rows.map(row => {
+      rows.map((row) => {
         const derived = _computeDerivedValues(row.gross, row.vatableSales);
         return {
           id: row.id,
@@ -88,9 +91,8 @@ export async function getAll(): Promise<Result<ElecFormItem[]>> {
         };
       }),
     );
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to retrieve electricity bill records.", {}, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to retrieve electricity bill records.', {}, e);
   }
 }
 
@@ -118,7 +120,9 @@ export async function getAll(): Promise<Result<ElecFormItem[]>> {
  *   are not stored as separate columns in the database.
  * - The `taxType` value must match the `tax_types` enum: `vat-g`, `vat-s`, `nvat-g`, `nvat-s`.
  */
-export async function createElectricityBill(payload: ElecFormPayload): Promise<Result<ElecFormItem>> {
+export async function createElectricityBill(
+  payload: ElecFormPayload,
+): Promise<Result<ElecFormItem>> {
   try {
     const [dv] = await db
       .select({
@@ -130,11 +134,9 @@ export async function createElectricityBill(payload: ElecFormPayload): Promise<R
       .limit(1);
 
     if (!dv) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such disbursement voucher found.",
-        { dvId: payload.dvId },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such disbursement voucher found.', {
+        dvId: payload.dvId,
+      });
     }
 
     const [inserted] = await db
@@ -146,9 +148,9 @@ export async function createElectricityBill(payload: ElecFormPayload): Promise<R
         account: payload.account,
         gross: casts.castToDecimal(payload.gross),
         vatableSales: casts.castToDecimal(payload.vatableSales),
-        taxType: payload.taxType as "vat-g" | "vat-s" | "nvat-g" | "nvat-s",
+        taxType: payload.taxType as 'vat-g' | 'vat-s' | 'nvat-g' | 'nvat-s',
       })
-      .returning({ id: obrDisbursementElectronic.id });
+      .returning({id: obrDisbursementElectronic.id});
 
     const derived = _computeDerivedValues(payload.gross, payload.vatableSales);
 
@@ -168,9 +170,8 @@ export async function createElectricityBill(payload: ElecFormPayload): Promise<R
       evat2: derived.evat2,
       net: derived.net,
     });
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to create electricity bill record.", { payload }, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to create electricity bill record.', {payload}, e);
   }
 }
 
@@ -227,28 +228,35 @@ export async function updateElectricityBill(
       .limit(1);
 
     if (!existing) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such electricity bill record found.",
-        { id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such electricity bill record found.', {
+        id,
+      });
     }
 
     const updatePayload = {
-      ...(validatorUtilities.isNotEmpty(payload.billingName) ? { billingName: payload.billingName! } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.meterSerial) ? { meterSerial: payload.meterSerial! } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.account) ? { account: payload.account! } : {}),
-      ...(validatorUtilities.isNumber(payload.gross) ? { gross: casts.castToDecimal(payload.gross!) } : {}),
-      ...(validatorUtilities.isNumber(payload.vatableSales) ? { vatableSales: casts.castToDecimal(payload.vatableSales!) } : {}),
-      ...(validatorUtilities.isNotEmpty(payload.taxType) ? { taxType: payload.taxType as "vat-g" | "vat-s" | "nvat-g" | "nvat-s" } : {}),
+      ...(validatorUtilities.isNotEmpty(payload.billingName)
+        ? {billingName: payload.billingName!}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.meterSerial)
+        ? {meterSerial: payload.meterSerial!}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.account) ? {account: payload.account!} : {}),
+      ...(validatorUtilities.isNumber(payload.gross)
+        ? {gross: casts.castToDecimal(payload.gross!)}
+        : {}),
+      ...(validatorUtilities.isNumber(payload.vatableSales)
+        ? {vatableSales: casts.castToDecimal(payload.vatableSales!)}
+        : {}),
+      ...(validatorUtilities.isNotEmpty(payload.taxType)
+        ? {taxType: payload.taxType as 'vat-g' | 'vat-s' | 'nvat-g' | 'nvat-s'}
+        : {}),
     };
 
     if (Object.keys(updatePayload).length === 0) {
-      return new Failure(
-        ErrorCodes.ValidationFailure,
-        "No updatable payload found.",
-        { id, payload },
-      );
+      return new Failure(ErrorCodes.ValidationFailure, 'No updatable payload found.', {
+        id,
+        payload,
+      });
     }
 
     await db
@@ -276,9 +284,13 @@ export async function updateElectricityBill(
       evat2: derived.evat2,
       net: derived.net,
     });
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to update electricity bill record.", { id, payload }, e);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Failed to update electricity bill record.',
+      {id, payload},
+      e,
+    );
   }
 }
 
@@ -304,27 +316,22 @@ export async function updateElectricityBill(
 export async function deleteElectricityBill(id: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: obrDisbursementElectronic.id })
+      .select({id: obrDisbursementElectronic.id})
       .from(obrDisbursementElectronic)
       .where(eq(obrDisbursementElectronic.id, id))
       .limit(1);
 
     if (!existing) {
-      return new Failure(
-        ErrorCodes.ResourceNotFound,
-        "No such electricity bill record found.",
-        { id },
-      );
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such electricity bill record found.', {
+        id,
+      });
     }
 
-    await db
-      .delete(obrDisbursementElectronic)
-      .where(eq(obrDisbursementElectronic.id, id));
+    await db.delete(obrDisbursementElectronic).where(eq(obrDisbursementElectronic.id, id));
 
     return new Success(null);
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to delete electricity bill record.", { id }, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to delete electricity bill record.', {id}, e);
   }
 }
 

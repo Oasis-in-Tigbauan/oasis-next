@@ -1,11 +1,52 @@
-"use client";
+'use client';
 
-import React, { useCallback, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2} from 'lucide-react';
+import React, {useCallback, useId, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import {
+  collectSaaobSummaryGroups,
+  filterSaaobSummaryTreeByQuery,
+  flattenSaaobSummaryVisible,
+  type SaaobSummaryFlatRow,
+  type SaaobTreeNode,
+} from '@/common/saaob/client';
+import {
+  SaaobPageAggregateRow,
+  SaaobPageGroupRow,
+  SaaobPageSpacerRow,
+  SaaobPageTableHeader,
+  useSaaobColumnVisibility,
+} from '@/common/saaob/page-table';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableHeader} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import {
   isSaaobDataGroup,
   type ApiResponseException,
@@ -14,89 +55,46 @@ import {
   type SaaobSummaryDataResponse,
   type SaaobSummaryGroupResponse,
   type SaaobSummaryItemResponse,
-} from "@/lib/http/client/responses";
-import {
-  collectSaaobSummaryGroups,
-  filterSaaobSummaryTreeByQuery,
-  flattenSaaobSummaryVisible,
-  type SaaobSummaryFlatRow,
-  type SaaobTreeNode,
-} from "@/common/saaob/client";
-import {
-  SaaobPageAggregateRow,
-  SaaobPageGroupRow,
-  SaaobPageSpacerRow,
-  SaaobPageTableHeader,
-  useSaaobColumnVisibility,
-} from "@/common/saaob/page-table";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
+} from '@/lib/http/client/responses';
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April",
-  "May", "June", "July", "August",
-  "September", "October", "November", "December",
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
-type DialogMode = "add-group" | "edit-group" | "add-item" | "edit-item" | null;
+type DialogMode = 'add-group' | 'edit-group' | 'add-item' | 'edit-item' | null;
 
 export default function Page() {
   const [currentYear] = useState(() => _getUtc8Year());
   const [selectedMonth, setSelectedMonth] = useState(() => _getUtc8Month());
 
-  const {
-    data,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR<BetterFetchResponse<SaaobSummaryDataResponse, ApiResponseException>>(
-    `/api/saaob/accounts-summary?year=${currentYear}&month=${selectedMonth}`,
-    $fetch,
-  );
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<SaaobSummaryDataResponse, ApiResponseException>
+  >(`/api/saaob/accounts-summary?year=${currentYear}&month=${selectedMonth}`, $fetch);
 
-  const { data: saaobData } = useSWR<BetterFetchResponse<SaaobDataResponse, ApiResponseException>>(
+  const {data: saaobData} = useSWR<BetterFetchResponse<SaaobDataResponse, ApiResponseException>>(
     `/api/saaob?year=${currentYear}&month=${selectedMonth}`,
     $fetch,
   );
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<SaaobSummaryFlatRow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const columnVisibility = useSaaobColumnVisibility("accounts-summary");
+  const columnVisibility = useSaaobColumnVisibility('accounts-summary');
 
   const tree = useMemo(() => data?.data?.data ?? [], [data]);
   const saaobRawTree = useMemo<SaaobTreeNode[]>(
@@ -130,11 +128,11 @@ export default function Page() {
   const paddingBottom =
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
-  const selectedItemRow = selectedRow?.kind === "item" ? selectedRow : null;
-  const selectedGroup = selectedRow?.kind === "group" ? selectedRow.data : null;
+  const selectedItemRow = selectedRow?.kind === 'item' ? selectedRow : null;
+  const selectedGroup = selectedRow?.kind === 'group' ? selectedRow.data : null;
 
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -143,31 +141,33 @@ export default function Page() {
   }, []);
 
   const handleRowClick = useCallback((row: SaaobSummaryFlatRow) => {
-    setSelectedRow(prev => (prev?.id === row.id ? null : row));
+    setSelectedRow((prev) => (prev?.id === row.id ? null : row));
   }, []);
 
   const handleRowDoubleClick = useCallback((row: SaaobSummaryFlatRow) => {
     setSelectedRow(row);
-    setDialogMode(row.kind === "group" ? "edit-group" : "edit-item");
+    setDialogMode(row.kind === 'group' ? 'edit-group' : 'edit-item');
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!selectedRow) return;
 
-    const label = selectedRow.kind === "group"
-      ? `group "${selectedRow.data.name}"`
-      : `item "${selectedRow.data.name}"`;
+    const label =
+      selectedRow.kind === 'group'
+        ? `group "${selectedRow.data.name}"`
+        : `item "${selectedRow.data.name}"`;
 
     if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
 
-    const url = selectedRow.kind === "group"
-      ? `/api/saaob/accounts-summary/groups/${selectedRow.id}`
-      : `/api/saaob/accounts-summary/items/${selectedRow.id}`;
+    const url =
+      selectedRow.kind === 'group'
+        ? `/api/saaob/accounts-summary/groups/${selectedRow.id}`
+        : `/api/saaob/accounts-summary/items/${selectedRow.id}`;
 
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await fetch(url, {method: 'DELETE'});
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
-      alert(payload?.message ?? "Failed to delete. Please try again.");
+      alert(payload?.message ?? 'Failed to delete. Please try again.');
       return;
     }
 
@@ -194,7 +194,7 @@ export default function Page() {
             className="pl-7 h-8 w-56 text-xs"
             placeholder="Search summary data..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -204,7 +204,7 @@ export default function Page() {
           variant="outline"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => setDialogMode("add-group")}
+          onClick={() => setDialogMode('add-group')}
         >
           <Plus className="size-3" />
           Group
@@ -215,7 +215,7 @@ export default function Page() {
           size="sm"
           className="h-7 text-xs"
           disabled={allSummaryGroups.length === 0}
-          onClick={() => setDialogMode("add-item")}
+          onClick={() => setDialogMode('add-item')}
         >
           <Plus className="size-3" />
           Item
@@ -229,7 +229,7 @@ export default function Page() {
           disabled={!selectedRow}
           onClick={() => {
             if (!selectedRow) return;
-            setDialogMode(selectedRow.kind === "group" ? "edit-group" : "edit-item");
+            setDialogMode(selectedRow.kind === 'group' ? 'edit-group' : 'edit-item');
           }}
         >
           <Pencil />
@@ -249,7 +249,7 @@ export default function Page() {
 
         {selectedRow && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            {selectedRow.kind === "group"
+            {selectedRow.kind === 'group'
               ? `Group: ${selectedRow.data.name}`
               : `Item: ${selectedRow.data.name}`}
           </Badge>
@@ -270,21 +270,20 @@ export default function Page() {
             size="icon-sm"
             aria-label="Previous month"
             disabled={selectedMonth === 1}
-            onClick={() => setSelectedMonth(m => m - 1)}
+            onClick={() => setSelectedMonth((m) => m - 1)}
           >
             <ChevronLeft />
           </Button>
 
-          <Select
-            value={String(selectedMonth)}
-            onValueChange={v => setSelectedMonth(Number(v))}
-          >
+          <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
             <SelectTrigger className="h-7 w-32 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {MONTH_NAMES.map((name, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>{name}</SelectItem>
+                <SelectItem key={i + 1} value={String(i + 1)}>
+                  {name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -294,7 +293,7 @@ export default function Page() {
             size="icon-sm"
             aria-label="Next month"
             disabled={selectedMonth === 12}
-            onClick={() => setSelectedMonth(m => m + 1)}
+            onClick={() => setSelectedMonth((m) => m + 1)}
           >
             <ChevronRight />
           </Button>
@@ -304,7 +303,9 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No Summary of Accounts records found."}
+            {searchQuery
+              ? 'No results match your search.'
+              : 'No Summary of Accounts records found.'}
           </div>
         ) : (
           <div
@@ -318,13 +319,16 @@ export default function Page() {
 
               <TableBody>
                 {paddingTop > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingTop} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingTop}
+                  />
                 )}
 
-                {virtualRows.map(virtualRow => {
+                {virtualRows.map((virtualRow) => {
                   const row = flatRows[virtualRow.index]!;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     const isSelected = selectedRow?.id === row.id;
 
@@ -359,10 +363,10 @@ export default function Page() {
                       blankAccountAndRemarks
                       rowClassName={
                         isSelected
-                          ? "bg-accent cursor-pointer"
+                          ? 'bg-accent cursor-pointer'
                           : virtualRow.index % 2 === 1
-                            ? "bg-muted hover:bg-muted/50 cursor-pointer"
-                            : "cursor-pointer"
+                            ? 'bg-muted hover:bg-muted/50 cursor-pointer'
+                            : 'cursor-pointer'
                       }
                       measureRef={rowVirtualizer.measureElement}
                       dataIndex={virtualRow.index}
@@ -373,7 +377,10 @@ export default function Page() {
                 })}
 
                 {paddingBottom > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingBottom} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingBottom}
+                  />
                 )}
               </TableBody>
             </Table>
@@ -381,7 +388,7 @@ export default function Page() {
         )}
       </div>
 
-      {dialogMode === "add-group" && (
+      {dialogMode === 'add-group' && (
         <SummaryGroupFormDialog
           mode="add"
           allGroups={allSummaryGroups}
@@ -391,7 +398,7 @@ export default function Page() {
         />
       )}
 
-      {dialogMode === "edit-group" && selectedGroup && (
+      {dialogMode === 'edit-group' && selectedGroup && (
         <SummaryGroupFormDialog
           mode="edit"
           editGroup={selectedGroup}
@@ -401,18 +408,18 @@ export default function Page() {
         />
       )}
 
-      {dialogMode === "add-item" && (
+      {dialogMode === 'add-item' && (
         <SummaryItemFormDialog
           mode="add"
           allSummaryGroups={allSummaryGroups}
           saaobRawTree={saaobRawTree}
-          defaultParentGroupId={selectedGroup?.id ?? allSummaryGroups[0]?.id ?? ""}
+          defaultParentGroupId={selectedGroup?.id ?? allSummaryGroups[0]?.id ?? ''}
           onSuccess={onSuccess}
           onClose={closeDialog}
         />
       )}
 
-      {dialogMode === "edit-item" && selectedItemRow && (
+      {dialogMode === 'edit-item' && selectedItemRow && (
         <SummaryItemFormDialog
           mode="edit"
           editItem={selectedItemRow.data}
@@ -434,7 +441,7 @@ function SummaryGroupFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editGroup?: SaaobSummaryGroupResponse;
   allGroups: SaaobSummaryGroupResponse[];
   defaultParentId?: string;
@@ -442,15 +449,15 @@ function SummaryGroupFormDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [name, setName] = useState(editGroup?.name ?? "");
-  const [parentId, setParentId] = useState(defaultParentId ?? "");
+  const [name, setName] = useState(editGroup?.name ?? '');
+  const [parentId, setParentId] = useState(defaultParentId ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (submitting) return;
     if (!name.trim()) {
-      setActionError("Group name is required.");
+      setActionError('Group name is required.');
       return;
     }
 
@@ -458,44 +465,49 @@ function SummaryGroupFormDialog({
     setActionError(null);
 
     try {
-      const body: Record<string, unknown> = { name: name.trim() };
-      if (mode === "add" && parentId) {
+      const body: Record<string, unknown> = {name: name.trim()};
+      if (mode === 'add' && parentId) {
         body.parentId = parentId;
       }
 
       const response = await fetch(
-        mode === "add"
-          ? "/api/saaob/accounts-summary/groups"
+        mode === 'add'
+          ? '/api/saaob/accounts-summary/groups'
           : `/api/saaob/accounts-summary/groups/${editGroup!.id}`,
         {
-          method: mode === "add" ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: mode === 'add' ? 'POST' : 'PATCH',
+          headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body),
         },
       );
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save group. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save group. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Group" : "Edit Group"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Group' : 'Edit Group'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Create a new Summary of Accounts group."
+            {mode === 'add'
+              ? 'Create a new Summary of Accounts group.'
               : `Editing group: ${editGroup?.name}`}
           </DialogDescription>
         </DialogHeader>
@@ -506,18 +518,18 @@ function SummaryGroupFormDialog({
             <Input
               id={`${baseId}-name`}
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               disabled={submitting}
               placeholder="Group name"
             />
           </div>
 
-          {mode === "add" && (
+          {mode === 'add' && (
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-parent`}>Parent Group</Label>
               <Select
-                value={parentId || "__root__"}
-                onValueChange={v => setParentId(v === "__root__" ? "" : v)}
+                value={parentId || '__root__'}
+                onValueChange={(v) => setParentId(v === '__root__' ? '' : v)}
                 disabled={submitting}
               >
                 <SelectTrigger id={`${baseId}-parent`}>
@@ -525,8 +537,10 @@ function SummaryGroupFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__root__">Root (no parent)</SelectItem>
-                  {allGroups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                  {allGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -535,13 +549,17 @@ function SummaryGroupFormDialog({
         </div>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create Group" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Group' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -556,13 +574,13 @@ function renderSaaobGroupTree(
   toggleGroup: (id: string) => void,
   submitting: boolean,
 ): React.ReactNode {
-  return nodes.map(node => {
+  return nodes.map((node) => {
     if (!isSaaobDataGroup(node)) return null;
     return (
       <div key={node.id}>
         <label
           className="flex items-center gap-2 rounded px-1 py-1.5 hover:bg-accent cursor-pointer select-none"
-          style={{ paddingLeft: `${0.25 + depth * 1.25}rem` }}
+          style={{paddingLeft: `${0.25 + depth * 1.25}rem`}}
         >
           <Checkbox
             checked={selectedGroupIds.has(node.id)}
@@ -571,13 +589,8 @@ function renderSaaobGroupTree(
           />
           <span className="text-sm">{node.name}</span>
         </label>
-        {node.children.length > 0 && renderSaaobGroupTree(
-          node.children,
-          depth + 1,
-          selectedGroupIds,
-          toggleGroup,
-          submitting,
-        )}
+        {node.children.length > 0 &&
+          renderSaaobGroupTree(node.children, depth + 1, selectedGroupIds, toggleGroup, submitting)}
       </div>
     );
   });
@@ -592,7 +605,7 @@ function SummaryItemFormDialog({
   onSuccess,
   onClose,
 }: {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: SaaobSummaryItemResponse;
   allSummaryGroups: SaaobSummaryGroupResponse[];
   saaobRawTree: SaaobTreeNode[];
@@ -601,8 +614,8 @@ function SummaryItemFormDialog({
   onClose: () => void;
 }) {
   const baseId = useId();
-  const [name, setName] = useState(editItem?.name ?? "");
-  const [parentGroupId, setParentGroupId] = useState(defaultParentGroupId ?? "");
+  const [name, setName] = useState(editItem?.name ?? '');
+  const [parentGroupId, setParentGroupId] = useState(defaultParentGroupId ?? '');
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(
     new Set(editItem?.linkedGroupIds ?? []),
   );
@@ -610,7 +623,7 @@ function SummaryItemFormDialog({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const toggleGroup = useCallback((id: string) => {
-    setSelectedGroupIds(prev => {
+    setSelectedGroupIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -622,12 +635,12 @@ function SummaryItemFormDialog({
     if (submitting) return;
 
     if (!name.trim()) {
-      setActionError("Name is required.");
+      setActionError('Name is required.');
       return;
     }
 
-    if (mode === "add" && !parentGroupId) {
-      setActionError("Please select a parent group.");
+    if (mode === 'add' && !parentGroupId) {
+      setActionError('Please select a parent group.');
       return;
     }
 
@@ -638,49 +651,54 @@ function SummaryItemFormDialog({
       const linkedGroupIds = [...selectedGroupIds];
 
       let response: Response;
-      if (mode === "add") {
-        response = await fetch("/api/saaob/accounts-summary/items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), parentGroupId, linkedGroupIds }),
+      if (mode === 'add') {
+        response = await fetch('/api/saaob/accounts-summary/items', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: name.trim(), parentGroupId, linkedGroupIds}),
         });
       } else {
         response = await fetch(`/api/saaob/accounts-summary/items/${editItem!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), linkedGroupIds }),
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: name.trim(), linkedGroupIds}),
         });
       }
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setActionError(payload?.message ?? "Failed to save item. Please try again.");
+        setActionError(payload?.message ?? 'Failed to save item. Please try again.');
         return;
       }
 
       onSuccess();
     } catch {
-      setActionError("An unexpected error occurred. Please try again.");
+      setActionError('An unexpected error occurred. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] min-w-[52rem]">
         <DialogHeader>
-          <DialogTitle>{mode === "add" ? "Add Item" : "Edit Item"}</DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add Item' : 'Edit Item'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Create a new Summary of Accounts item."
+            {mode === 'add'
+              ? 'Create a new Summary of Accounts item.'
               : `Editing item: ${editItem?.name}`}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[68vh] pr-1">
           <div className="flex flex-col gap-4 pb-2">
-            {mode === "add" && (
+            {mode === 'add' && (
               <div className="flex flex-col gap-1">
                 <Label htmlFor={`${baseId}-parent`}>Parent Group *</Label>
                 <Select
@@ -692,8 +710,10 @@ function SummaryItemFormDialog({
                     <SelectValue placeholder="Select a group..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {allSummaryGroups.map(group => (
-                      <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                    {allSummaryGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -705,7 +725,7 @@ function SummaryItemFormDialog({
               <Input
                 id={`${baseId}-name`}
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 disabled={submitting}
                 placeholder="Summary item name"
               />
@@ -724,14 +744,20 @@ function SummaryItemFormDialog({
               ) : (
                 <ScrollArea className="h-52 rounded-md border p-2">
                   <div className="flex flex-col gap-0.5">
-                    {renderSaaobGroupTree(saaobRawTree, 0, selectedGroupIds, toggleGroup, submitting)}
+                    {renderSaaobGroupTree(
+                      saaobRawTree,
+                      0,
+                      selectedGroupIds,
+                      toggleGroup,
+                      submitting,
+                    )}
                   </div>
                 </ScrollArea>
               )}
 
               {selectedGroupIds.size > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {selectedGroupIds.size} group{selectedGroupIds.size !== 1 ? "s" : ""} selected
+                  {selectedGroupIds.size} group{selectedGroupIds.size !== 1 ? 's' : ''} selected
                 </p>
               )}
             </div>
@@ -739,13 +765,17 @@ function SummaryItemFormDialog({
         </ScrollArea>
 
         {actionError && (
-          <Typography variant="small" className="text-destructive">{actionError}</Typography>
+          <Typography variant="small" className="text-destructive">
+            {actionError}
+          </Typography>
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={submitting} onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave} disabled={submitting}>
-            {submitting ? "Saving..." : mode === "add" ? "Create Item" : "Save Changes"}
+            {submitting ? 'Saving...' : mode === 'add' ? 'Create Item' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

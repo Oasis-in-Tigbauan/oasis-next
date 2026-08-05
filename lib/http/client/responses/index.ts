@@ -1,137 +1,192 @@
-import type { AccountsListResponse } from "@/lib/http/client/responses/AccountsListResponse";
-import type { AroOfficeListResponse, AroOfficeItem } from "@/lib/http/client/responses/AroOfficeListResponse";
-import type { ApiResponseException } from "@/lib/http/client/responses/ApiResponseException";
-import type { AssignableRolesListResponse } from "@/lib/http/client/responses/AssignableRolesListResponse";
-import type { CreateAccountTypeResponse } from "@/lib/http/client/responses/CreateAccountTypeResponse";
-import type { EsreListResponse, EsreItem as EsreItemResponse } from "@/lib/http/client/responses/EsreListResponse";
-import type { ExpenseClassByOfficeCodeListResponse } from "@/lib/http/client/responses/ExpenseClassByOfficeCodeListResponse";
-import type { ExpenseClassResponse } from "@/lib/http/client/responses/ExpenseClassResponse";
-import type { ExpenseClassListResponse } from "@/lib/http/client/responses/ExpenseClassListResponse";
-import type { ExpenseTypeListResponse } from "@/lib/http/client/responses/ExpenseTypeListResponse";
-import type { ExpenseTypeResponse } from "@/lib/http/client/responses/ExpenseTypeResponse";
-import type { UserResponse } from "@/lib/http/client/responses/UserResponse";
-import type { EnrollmentEligibilityResponse } from "@/lib/http/client/responses/EnrollmentEligibilityResponse";
-import type { FundTypesListResponse } from "@/lib/http/client/responses/FundTypeListResponse";
-import type { FundTypeResponse } from "@/lib/http/client/responses/FundTypeResponse";
-import type { InvitationResponse } from "@/lib/http/client/responses/InvitationResponse";
-import type { InvitationListResponse } from "@/lib/http/client/responses/InvitationListResponse";
-import type {
-  LeaveApplicationItem as LeaveApplicationItemResponse,
-  LeaveApplicationListResponse,
-  LeaveApplicationResponse,
-} from "@/lib/http/client/responses/LeaveApplicationListResponse";
-import type { OfficeCodeListResponse } from "@/lib/http/client/responses/OfficeCodeListResponse";
-import type { OfficeCodeResponse } from "@/lib/http/client/responses/OfficeCodeResponse";
-import type { OfficeCodeWithHeadsResponse } from "@/lib/http/client/responses/OfficeCodeWithHeadsResponse";
-import type { OfficeResponse } from "@/lib/http/client/responses/OfficeResponse";
-import type { OfficeSingleResponse} from "@/lib/http/client/responses/OfficeSingleResponse";
-import type {
-  OfficeSingleResponseWithRoleExtendedInfo,
-} from "@/lib/http/client/responses/OfficeSingleResponseWithRoleExtendedInfo";
-import type { OfficesExtendedListResponse } from "@/lib/http/client/responses/OfficesExtendedListResponse";
-import type { OfficesListResponse } from "@/lib/http/client/responses/OfficesListResponse";
-import type { PermissionDefinitionResponse } from "@/lib/http/client/responses/PermissionDefinitionResponse";
-import type {
-  PayrollEntryItem as PayrollEntryItemResponse,
-  PayrollItem as PayrollItemResponse,
-  PayrollListResponse,
-  PayrollResponse,
-} from "@/lib/http/client/responses/PayrollListResponse";
-import type { RoleDefinitionResponse } from "@/lib/http/client/responses/RoleDefinitionResponse";
-import type { UnactivatedListResponse } from "@/lib/http/client/responses/UnactivatedListResponse";
-import type { ObrRequestSummaryListResponse, ObrRequestSummaryItem } from "@/lib/http/client/responses/ObrRequestSummaryListResponse";
-import type { ObrRequestDetailResponse, ObrRequestDetail, ObrRequestDetailItem, ObrRequestDetailApprover } from "@/lib/http/client/responses/ObrRequestDetailResponse";
-import type {
-  ObrTemplateInfo,
-  ObrTemplatesPayload,
-  ObrTemplatesResponse,
-} from "@/lib/http/client/responses/ObrTemplatesResponse";
-import type { ObrDisbursementVoucherListResponse, ObrDisbursementVoucherItem, ObrDisbursementTaxBreakdown } from "@/lib/http/client/responses/ObrDisbursementVoucherListResponse";
-import type { ObrItemListResponse, ObrItem, ObrItemOfficeData } from "@/lib/http/client/responses/ObrItemListResponse";
-import type { ObrSearchResponse, ObrSearchItem } from "@/lib/http/client/responses/ObrSearchResponse";
-import type {
-  SupplementalListResponse,
-  SupplementalItem as SupplementalItemResponse,
-} from "@/lib/http/client/responses/SupplementalListResponse";
+import type {AccountsListResponse} from '@/lib/http/client/responses/AccountsListResponse';
 import type {
   AipListResponse,
   AipNodeResponse,
   AipReferenceResponse,
   AipReferenceSingleResponse,
-} from "@/lib/http/client/responses/AipListResponse";
-import type { AipSearchResponse, AipSearchResultItem } from "@/lib/http/client/responses/AipSearchResponse";
-import type { ObrMainDataListResponse, ObrMainDataItem as ObrMainDataItemResponse, ObrMainDataAipReference } from "@/lib/http/client/responses/ObrMainDataListResponse";
-import type { LbacDataResponse, LbacGroupResponse, LbacGroupTotals, LbacItemResponse, LbacAipRef, LbacImplementingUnit, LbacOffice, LbacOfficesListResponse } from "@/lib/http/client/responses/LbacDataResponse";
+} from '@/lib/http/client/responses/AipListResponse';
 import type {
-  PpmpDataResponse,
-  PpmpMajorGroupResponse,
-  PpmpMinorGroupResponse,
-  PpmpProjectGroupResponse,
-  PpmpPlanItemResponse,
-} from "@/lib/http/client/responses/PpmpDataResponse";
-import type { LbacOfficeQuarterlyResponse, LbacQuarterlyGroupResponse, LbacQuarterlyGroupTotals, LbacQuarterlyItemResponse } from "@/lib/http/client/responses/LbacOfficeQuarterlyResponse";
-import type { LbacViewerResponse, LbacViewerGroupResponse, LbacViewerGroupTotals, LbacViewerItemResponse } from "@/lib/http/client/responses/LbacViewerResponse";
-import type { LbacSearchResponse, LbacSearchGroupItem, LbacSearchResultItem } from "@/lib/http/client/responses/LbacSearchResponse";
+  AipSearchResponse,
+  AipSearchResultItem,
+} from '@/lib/http/client/responses/AipSearchResponse';
+import type {ApiResponseException} from '@/lib/http/client/responses/ApiResponseException';
 import type {
-  LbacTemplateInfo,
-  LbacTemplatesPayload,
-  LbacTemplatesResponse,
-} from "@/lib/http/client/responses/LbacTemplatesResponse";
+  AroOfficeListResponse,
+  AroOfficeItem,
+} from '@/lib/http/client/responses/AroOfficeListResponse';
+import type {AssignableRolesListResponse} from '@/lib/http/client/responses/AssignableRolesListResponse';
+import type {CreateAccountTypeResponse} from '@/lib/http/client/responses/CreateAccountTypeResponse';
+import type {
+  ElecListResponse,
+  ElecItem as ElecItemResponse,
+} from '@/lib/http/client/responses/ElecListResponse';
+import type {EnrollmentEligibilityResponse} from '@/lib/http/client/responses/EnrollmentEligibilityResponse';
+import type {
+  EsreListResponse,
+  EsreItem as EsreItemResponse,
+} from '@/lib/http/client/responses/EsreListResponse';
+import type {ExpenseClassByOfficeCodeListResponse} from '@/lib/http/client/responses/ExpenseClassByOfficeCodeListResponse';
+import type {ExpenseClassListResponse} from '@/lib/http/client/responses/ExpenseClassListResponse';
+import type {ExpenseClassResponse} from '@/lib/http/client/responses/ExpenseClassResponse';
+import type {ExpenseTypeListResponse} from '@/lib/http/client/responses/ExpenseTypeListResponse';
+import type {ExpenseTypeResponse} from '@/lib/http/client/responses/ExpenseTypeResponse';
+import type {FundTypesListResponse} from '@/lib/http/client/responses/FundTypeListResponse';
+import type {FundTypeResponse} from '@/lib/http/client/responses/FundTypeResponse';
+import type {InvitationListResponse} from '@/lib/http/client/responses/InvitationListResponse';
+import type {InvitationResponse} from '@/lib/http/client/responses/InvitationResponse';
 import type {
   CollPerfGroupResponse,
   CollPerfGroupTotals,
   CollPerfItemResponse,
   CollPerfMonthlyData,
   CollPerfResponse,
-} from "@/lib/http/client/responses/LbacCollectionPerformanceResponse";
+} from '@/lib/http/client/responses/LbacCollectionPerformanceResponse';
+import type {
+  LbacDataResponse,
+  LbacGroupResponse,
+  LbacGroupTotals,
+  LbacItemResponse,
+  LbacAipRef,
+  LbacImplementingUnit,
+  LbacOffice,
+  LbacOfficesListResponse,
+} from '@/lib/http/client/responses/LbacDataResponse';
+import type {LbacF4ItemResponse, LbacF4Response} from '@/lib/http/client/responses/LbacF4Response';
 import type {
   LbacMonitoringGroupResponse,
   LbacMonitoringItemResponse,
   LbacMonitoringResponse,
-} from "@/lib/http/client/responses/LbacMonitoringResponse";
+} from '@/lib/http/client/responses/LbacMonitoringResponse';
 import type {
-  LbacF4ItemResponse,
-  LbacF4Response,
-} from "@/lib/http/client/responses/LbacF4Response";
-import type { SaaobSearchResponse, SaaobSearchGroup, SaaobSearchEntry } from "@/lib/http/client/responses/SaaobSearchResponse";
+  LbacOfficeQuarterlyResponse,
+  LbacQuarterlyGroupResponse,
+  LbacQuarterlyGroupTotals,
+  LbacQuarterlyItemResponse,
+} from '@/lib/http/client/responses/LbacOfficeQuarterlyResponse';
+import type {
+  LbacSearchResponse,
+  LbacSearchGroupItem,
+  LbacSearchResultItem,
+} from '@/lib/http/client/responses/LbacSearchResponse';
+import type {
+  LbacTemplateInfo,
+  LbacTemplatesPayload,
+  LbacTemplatesResponse,
+} from '@/lib/http/client/responses/LbacTemplatesResponse';
+import type {
+  LbacViewerResponse,
+  LbacViewerGroupResponse,
+  LbacViewerGroupTotals,
+  LbacViewerItemResponse,
+} from '@/lib/http/client/responses/LbacViewerResponse';
+import type {
+  LeaveApplicationItem as LeaveApplicationItemResponse,
+  LeaveApplicationListResponse,
+  LeaveApplicationResponse,
+} from '@/lib/http/client/responses/LeaveApplicationListResponse';
+import type {
+  NotificationItemResponse,
+  NotificationListResponse,
+} from '@/lib/http/client/responses/NotificationListResponse';
+import type {
+  ObrDisbursementVoucherListResponse,
+  ObrDisbursementVoucherItem,
+  ObrDisbursementTaxBreakdown,
+} from '@/lib/http/client/responses/ObrDisbursementVoucherListResponse';
+import type {
+  ObrItemListResponse,
+  ObrItem,
+  ObrItemOfficeData,
+} from '@/lib/http/client/responses/ObrItemListResponse';
+import type {
+  ObrMainDataListResponse,
+  ObrMainDataItem as ObrMainDataItemResponse,
+  ObrMainDataAipReference,
+} from '@/lib/http/client/responses/ObrMainDataListResponse';
+import type {
+  ObrRequestDetailResponse,
+  ObrRequestDetail,
+  ObrRequestDetailItem,
+  ObrRequestDetailApprover,
+} from '@/lib/http/client/responses/ObrRequestDetailResponse';
+import type {
+  ObrRequestSummaryListResponse,
+  ObrRequestSummaryItem,
+} from '@/lib/http/client/responses/ObrRequestSummaryListResponse';
+import type {ObrSearchResponse, ObrSearchItem} from '@/lib/http/client/responses/ObrSearchResponse';
+import type {
+  ObrTemplateInfo,
+  ObrTemplatesPayload,
+  ObrTemplatesResponse,
+} from '@/lib/http/client/responses/ObrTemplatesResponse';
+import type {OfficeCodeListResponse} from '@/lib/http/client/responses/OfficeCodeListResponse';
+import type {OfficeCodeResponse} from '@/lib/http/client/responses/OfficeCodeResponse';
+import type {OfficeCodeWithHeadsResponse} from '@/lib/http/client/responses/OfficeCodeWithHeadsResponse';
+import type {OfficeResponse} from '@/lib/http/client/responses/OfficeResponse';
+import type {OfficesExtendedListResponse} from '@/lib/http/client/responses/OfficesExtendedListResponse';
+import type {OfficeSingleResponse} from '@/lib/http/client/responses/OfficeSingleResponse';
+import type {OfficeSingleResponseWithRoleExtendedInfo} from '@/lib/http/client/responses/OfficeSingleResponseWithRoleExtendedInfo';
+import type {OfficesListResponse} from '@/lib/http/client/responses/OfficesListResponse';
+import type {
+  PayrollEntryItem as PayrollEntryItemResponse,
+  PayrollItem as PayrollItemResponse,
+  PayrollListResponse,
+  PayrollResponse,
+} from '@/lib/http/client/responses/PayrollListResponse';
+import type {PermissionDefinitionResponse} from '@/lib/http/client/responses/PermissionDefinitionResponse';
+import type {
+  PpmpDataResponse,
+  PpmpMajorGroupResponse,
+  PpmpMinorGroupResponse,
+  PpmpProjectGroupResponse,
+  PpmpPlanItemResponse,
+} from '@/lib/http/client/responses/PpmpDataResponse';
+import type {ProcurementTypeResponse} from '@/lib/http/client/responses/ProcurementTypeResponse';
+import type {ProcurementTypesListResponse} from '@/lib/http/client/responses/ProcurementTypesListResponse';
+import type {
+  PurchasingItemAip,
+  PurchasingItemResponse,
+  PurchasingItemSignatory,
+  PurchasingListResponse,
+} from '@/lib/http/client/responses/PurchasingListResponse';
+import type {
+  PurchasingValidSignatoriesResponse,
+  PurchasingValidSignatory,
+} from '@/lib/http/client/responses/PurchasingValidSignatoriesResponse';
+import type {RoleDefinitionResponse} from '@/lib/http/client/responses/RoleDefinitionResponse';
 import type {
   SaaobDataResponse,
   SaaobEntryResponse,
   SaaobGroupResponse,
   SaaobGroupTotalResponse,
   SaaobOfficeResponse,
-} from "@/lib/http/client/responses/SaaobDataResponse";
+} from '@/lib/http/client/responses/SaaobDataResponse';
 import type {
-  SaaobSummaryDataResponse,
-  SaaobSummaryGroupResponse,
-  SaaobSummaryItemResponse,
-} from "@/lib/http/client/responses/SaaobSummaryDataResponse";
+  SaaobSearchResponse,
+  SaaobSearchGroup,
+  SaaobSearchEntry,
+} from '@/lib/http/client/responses/SaaobSearchResponse';
 import type {
   SaaobStatisticAggregateResponse,
   SaaobStatisticGroupResponse,
   SaaobStatisticItemResponse,
   SaaobStatisticsDataResponse,
   SaaobStatisticType,
-} from "@/lib/http/client/responses/SaaobStatisticsDataResponse";
+} from '@/lib/http/client/responses/SaaobStatisticsDataResponse';
+import type {
+  SaaobSummaryDataResponse,
+  SaaobSummaryGroupResponse,
+  SaaobSummaryItemResponse,
+} from '@/lib/http/client/responses/SaaobSummaryDataResponse';
 import type {
   SaaobTemplateInfo,
   SaaobTemplatesPayload,
   SaaobTemplatesResponse,
-} from "@/lib/http/client/responses/SaaobTemplatesResponse";
-import type { ProcurementTypesListResponse  } from "@/lib/http/client/responses/ProcurementTypesListResponse";
-import type { ProcurementTypeResponse } from "@/lib/http/client/responses/ProcurementTypeResponse";
+} from '@/lib/http/client/responses/SaaobTemplatesResponse';
 import type {
-  PurchasingItemAip,
-  PurchasingItemResponse,
-  PurchasingItemSignatory,
-  PurchasingListResponse,
-} from "@/lib/http/client/responses/PurchasingListResponse";
-import type {
-  PurchasingValidSignatoriesResponse,
-  PurchasingValidSignatory,
-} from "@/lib/http/client/responses/PurchasingValidSignatoriesResponse";
-import type { ElecListResponse, ElecItem as ElecItemResponse } from "@/lib/http/client/responses/ElecListResponse";
-import type { NotificationItemResponse, NotificationListResponse } from "@/lib/http/client/responses/NotificationListResponse";
+  SupplementalListResponse,
+  SupplementalItem as SupplementalItemResponse,
+} from '@/lib/http/client/responses/SupplementalListResponse';
 import type {
   TravelOrderListResponse,
   TravelOrderItem as TravelOrderItemResponse,
@@ -139,13 +194,15 @@ import type {
   TravelOrderApprovedBy as TravelOrderApprovedByResponse,
   TravelOrderUserListResponse,
   TravelOrderUserItem as TravelOrderUserItemResponse,
-} from "@/lib/http/client/responses/TravelOrderListResponse";
+} from '@/lib/http/client/responses/TravelOrderListResponse';
+import type {UnactivatedListResponse} from '@/lib/http/client/responses/UnactivatedListResponse';
+import type {UserResponse} from '@/lib/http/client/responses/UserResponse';
 
-export { isSaaobGroup } from "@/lib/http/client/responses/SaaobSearchResponse";
-export { isSaaobDataGroup } from "@/lib/http/client/responses/SaaobDataResponse";
-export { isSaaobSummaryDataGroup } from "@/lib/http/client/responses/SaaobSummaryDataResponse";
-export { isSaaobStatisticDataGroup } from "@/lib/http/client/responses/SaaobStatisticsDataResponse";
-export { isLbacSearchGroup } from "@/lib/http/client/responses/LbacSearchResponse";
+export {isSaaobGroup} from '@/lib/http/client/responses/SaaobSearchResponse';
+export {isSaaobDataGroup} from '@/lib/http/client/responses/SaaobDataResponse';
+export {isSaaobSummaryDataGroup} from '@/lib/http/client/responses/SaaobSummaryDataResponse';
+export {isSaaobStatisticDataGroup} from '@/lib/http/client/responses/SaaobStatisticsDataResponse';
+export {isLbacSearchGroup} from '@/lib/http/client/responses/LbacSearchResponse';
 
 export type {
   AccountsListResponse,
@@ -290,6 +347,6 @@ export type {
 };
 
 export interface BetterFetchResponse<TSuccess, TError> {
-  data: TSuccess,
-  error?: TError
+  data: TSuccess;
+  error?: TError;
 }

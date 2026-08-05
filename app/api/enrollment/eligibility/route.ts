@@ -1,15 +1,17 @@
-import { NextRequest } from "next/server";
+import {NextRequest} from 'next/server';
 
-import { getEligibility } from "@/lib/accounts";
-import { oneOf } from "@/lib/one-of";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
+import {getEligibility} from '@/lib/accounts';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {oneOf} from '@/lib/one-of';
 
 export async function GET(req: NextRequest) {
-  const params = req.nextUrl.searchParams.get("token");
+  const params = req.nextUrl.searchParams.get('token');
   if (!params) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, [{
-      message: "Missing token parameter.",
-    }]).build();
+    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, [
+      {
+        message: 'Missing token parameter.',
+      },
+    ]).build();
   }
 
   // Validate token against the database

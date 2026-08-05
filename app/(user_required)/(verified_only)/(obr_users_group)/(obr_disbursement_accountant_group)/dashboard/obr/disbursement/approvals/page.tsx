@@ -1,18 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import useSWR from "swr";
+import {useCallback, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  FundTypesListResponse,
-} from "@/lib/http/client/responses";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import Typography from '@/components/typography';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -21,31 +16,28 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
-import Typography from "@/components/typography";
+} from '@/components/ui/select';
+import {Separator} from '@/components/ui/separator';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  FundTypesListResponse,
+} from '@/lib/http/client/responses';
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 type PendingDisbursementItem = {
   id: string;
@@ -56,8 +48,8 @@ type PendingDisbursementItem = {
   vatableAmount: string | null;
   taxType: string | null;
   status: string | null;
-  fundType: { id: string; name: string; description?: string | null } | null;
-  requestItem: { id: string; particulars: string; amount: string };
+  fundType: {id: string; name: string; description?: string | null} | null;
+  requestItem: {id: string; particulars: string; amount: string};
 };
 
 type PendingDisbursementBatch = {
@@ -88,39 +80,42 @@ function getBatchKey(batch: PendingDisbursementBatch): string {
   return batch.isHeadless ? `batch:${batch.batchId}` : `request:${batch.requestId}`;
 }
 
-function findBatchByKey(batches: PendingDisbursementBatch[], key: string): PendingDisbursementBatch | undefined {
-  if (key.startsWith("batch:")) {
-    const batchId = key.slice("batch:".length);
-    return batches.find(b => b.isHeadless && b.batchId === batchId);
+function findBatchByKey(
+  batches: PendingDisbursementBatch[],
+  key: string,
+): PendingDisbursementBatch | undefined {
+  if (key.startsWith('batch:')) {
+    const batchId = key.slice('batch:'.length);
+    return batches.find((b) => b.isHeadless && b.batchId === batchId);
   }
-  const requestId = key.slice("request:".length);
-  return batches.find(b => !b.isHeadless && b.requestId === requestId);
+  const requestId = key.slice('request:'.length);
+  return batches.find((b) => !b.isHeadless && b.requestId === requestId);
 }
 
-const NONE = "__none__";
-const TAX_TYPES = ["vat-g", "vat-s", "nvat-g", "nvat-s"] as const;
-type TaxType = typeof TAX_TYPES[number];
+const NONE = '__none__';
+const TAX_TYPES = ['vat-g', 'vat-s', 'nvat-g', 'nvat-s'] as const;
+type TaxType = (typeof TAX_TYPES)[number];
 
 const TAX_TYPE_LABELS: Record<TaxType, string> = {
-  "vat-g": "VAT - Goods",
-  "vat-s": "VAT - Services",
-  "nvat-g": "Non-VAT - Goods",
-  "nvat-s": "Non-VAT - Services",
+  'vat-g': 'VAT - Goods',
+  'vat-s': 'VAT - Services',
+  'nvat-g': 'Non-VAT - Goods',
+  'nvat-s': 'Non-VAT - Services',
 };
 
-const STATUS_OPTIONS = ["PREPARATION", "PROCESSING", "ON HOLD", "FOR RELEASE", "PAID"] as const;
+const STATUS_OPTIONS = ['PREPARATION', 'PROCESSING', 'ON HOLD', 'FOR RELEASE', 'PAID'] as const;
 
 function formatAmount(amount: string | null) {
-  if (!amount) return "—";
+  if (!amount) return '—';
   const num = parseFloat(amount);
   if (isNaN(num)) return amount;
-  return `₱${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${num.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 }
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<PendingBatchListResponse, ApiResponseException>
-  >("/api/obr/disbursements/pending", $fetch);
+  >('/api/obr/disbursements/pending', $fetch);
 
   const [selectedBatchKey, setSelectedBatchKey] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -155,16 +150,14 @@ export default function Page() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {batches.map(batch => (
+                {batches.map((batch) => (
                   <TableRow
                     key={getBatchKey(batch)}
                     className="cursor-pointer"
                     onClick={() => handleRowClick(getBatchKey(batch))}
                   >
-                    <TableCell>
-                      {batch.isHeadless ? "Standalone" : batch.requestNumber}
-                    </TableCell>
-                    <TableCell>{batch.payee ?? "—"}</TableCell>
+                    <TableCell>{batch.isHeadless ? 'Standalone' : batch.requestNumber}</TableCell>
+                    <TableCell>{batch.payee ?? '—'}</TableCell>
                     <TableCell className="text-right">{batch.itemCount}</TableCell>
                     <TableCell className="text-right font-mono">
                       {formatAmount(batch.totalGrossAmount)}
@@ -206,13 +199,13 @@ function DisbursementBatchApprovalDialog({
   onOpenChange: (open: boolean) => void;
   onActionSuccess: () => void;
 }) {
-  const { data, error, isLoading, mutate } = useSWR<
+  const {data, error, isLoading, mutate} = useSWR<
     BetterFetchResponse<PendingBatchListResponse, ApiResponseException>
-  >(open ? "/api/obr/disbursements/pending" : null, $fetch);
+  >(open ? '/api/obr/disbursements/pending' : null, $fetch);
 
-  const { data: fundTypeData } = useSWR<
+  const {data: fundTypeData} = useSWR<
     BetterFetchResponse<FundTypesListResponse, ApiResponseException>
-  >(open ? "/api/management/data/fund-types" : null, $fetch);
+  >(open ? '/api/management/data/fund-types' : null, $fetch);
 
   const batch = data?.data?.data ? findBatchByKey(data.data.data, batchKey) : undefined;
   const fundTypes = fundTypeData?.data?.data ?? [];
@@ -223,7 +216,8 @@ function DisbursementBatchApprovalDialog({
         <DialogHeader>
           <DialogTitle>Disbursement Review</DialogTitle>
           <DialogDescription>
-            Review and update all disbursement items for this request before submitting your decision.
+            Review and update all disbursement items for this request before submitting your
+            decision.
           </DialogDescription>
         </DialogHeader>
 
@@ -258,7 +252,7 @@ function DisbursementBatchApprovalForm({
   onActionSuccess,
 }: {
   batch: PendingDisbursementBatch;
-  fundTypes: Array<{ id: string; name: string }>;
+  fundTypes: Array<{id: string; name: string}>;
   onMutate: () => void;
   onActionSuccess: () => void;
 }) {
@@ -266,29 +260,31 @@ function DisbursementBatchApprovalForm({
     const state: Record<string, ItemFormState> = {};
     for (const item of batch.items) {
       state[item.id] = {
-        explanation: item.explanation ?? "",
-        vatableAmount: item.vatableAmount ?? "",
+        explanation: item.explanation ?? '',
+        vatableAmount: item.vatableAmount ?? '',
         taxType: item.taxType ?? NONE,
         fundTypeId: item.fundType?.id ?? NONE,
-        status: item.status ?? "PREPARATION",
+        status: item.status ?? 'PREPARATION',
       };
     }
     return state;
   };
 
   const [itemStates, setItemStates] = useState<Record<string, ItemFormState>>(buildInitialState);
-  const [sharedExplanation, setSharedExplanation] = useState(batch.items[0]?.explanation ?? "");
-  const [sharedVatableAmount, setSharedVatableAmount] = useState(batch.items[0]?.vatableAmount ?? "");
+  const [sharedExplanation, setSharedExplanation] = useState(batch.items[0]?.explanation ?? '');
+  const [sharedVatableAmount, setSharedVatableAmount] = useState(
+    batch.items[0]?.vatableAmount ?? '',
+  );
   const [sharedTaxType, setSharedTaxType] = useState(batch.items[0]?.taxType ?? NONE);
   const [sharedFundTypeId, setSharedFundTypeId] = useState(batch.items[0]?.fundType?.id ?? NONE);
-  const [sharedStatus, setSharedStatus] = useState(batch.items[0]?.status ?? "PREPARATION");
+  const [sharedStatus, setSharedStatus] = useState(batch.items[0]?.status ?? 'PREPARATION');
   const [saving, setSaving] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
 
   const updateItemState = (id: string, patch: Partial<ItemFormState>) => {
-    setItemStates(prev => ({
+    setItemStates((prev) => ({
       ...prev,
-      [id]: { ...prev[id]!, ...patch },
+      [id]: {...prev[id]!, ...patch},
     }));
   };
 
@@ -298,12 +294,12 @@ function DisbursementBatchApprovalForm({
     for (const item of batch.items) {
       const state = batch.isOneForAll
         ? {
-          explanation: sharedExplanation.trim(),
-          vatableAmount: sharedVatableAmount.trim(),
-          taxType: sharedTaxType,
-          fundTypeId: sharedFundTypeId,
-          status: sharedStatus,
-        }
+            explanation: sharedExplanation.trim(),
+            vatableAmount: sharedVatableAmount.trim(),
+            taxType: sharedTaxType,
+            fundTypeId: sharedFundTypeId,
+            status: sharedStatus,
+          }
         : itemStates[item.id]!;
 
       const body: Record<string, string> = {
@@ -316,12 +312,12 @@ function DisbursementBatchApprovalForm({
       if (state.status) body.status = state.status;
 
       const res = await $fetch<unknown, ApiResponseException>(`/api/obr/disbursements/${item.id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body,
       });
       if (res.error) {
         setSaving(false);
-        alert(res.error.message ?? "Failed to update disbursement.");
+        alert(res.error.message ?? 'Failed to update disbursement.');
         return false;
       }
     }
@@ -337,12 +333,20 @@ function DisbursementBatchApprovalForm({
         <div className="flex flex-col gap-6 pb-2">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Typography variant="small" className="text-muted-foreground">Request Number</Typography>
-              <Typography variant="p" className="not-first:mt-0">{batch.requestNumber}</Typography>
+              <Typography variant="small" className="text-muted-foreground">
+                Request Number
+              </Typography>
+              <Typography variant="p" className="not-first:mt-0">
+                {batch.requestNumber}
+              </Typography>
             </div>
             <div>
-              <Typography variant="small" className="text-muted-foreground">Payee</Typography>
-              <Typography variant="p" className="not-first:mt-0">{batch.payee ?? "—"}</Typography>
+              <Typography variant="small" className="text-muted-foreground">
+                Payee
+              </Typography>
+              <Typography variant="p" className="not-first:mt-0">
+                {batch.payee ?? '—'}
+              </Typography>
             </div>
           </div>
 
@@ -355,7 +359,7 @@ function DisbursementBatchApprovalForm({
                 <Textarea
                   id="sharedExplanation"
                   value={sharedExplanation}
-                  onChange={e => setSharedExplanation(e.target.value)}
+                  onChange={(e) => setSharedExplanation(e.target.value)}
                   rows={4}
                 />
               </Field>
@@ -366,17 +370,21 @@ function DisbursementBatchApprovalForm({
                   <Input
                     id="sharedVatableAmount"
                     value={sharedVatableAmount}
-                    onChange={e => setSharedVatableAmount(e.target.value)}
+                    onChange={(e) => setSharedVatableAmount(e.target.value)}
                   />
                 </Field>
                 <Field>
                   <Label>Tax Type</Label>
                   <Select value={sharedTaxType} onValueChange={setSharedTaxType}>
-                    <SelectTrigger><SelectValue placeholder="Select tax type" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select tax type" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NONE}>None</SelectItem>
-                      {TAX_TYPES.map(t => (
-                        <SelectItem key={t} value={t}>{TAX_TYPE_LABELS[t]}</SelectItem>
+                      {TAX_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {TAX_TYPE_LABELS[t]}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -384,11 +392,15 @@ function DisbursementBatchApprovalForm({
                 <Field>
                   <Label>Funding Source</Label>
                   <Select value={sharedFundTypeId} onValueChange={setSharedFundTypeId}>
-                    <SelectTrigger><SelectValue placeholder="Select funding source" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select funding source" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NONE}>None</SelectItem>
-                      {fundTypes.map(ft => (
-                        <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
+                      {fundTypes.map((ft) => (
+                        <SelectItem key={ft.id} value={ft.id}>
+                          {ft.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -396,16 +408,24 @@ function DisbursementBatchApprovalForm({
                 <Field>
                   <Label>Status</Label>
                   <Select value={sharedStatus} onValueChange={setSharedStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      {STATUS_OPTIONS.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
               </FieldGroup>
 
               <div>
-                <Typography variant="h4" className="mb-3">Items</Typography>
+                <Typography variant="h4" className="mb-3">
+                  Items
+                </Typography>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -416,13 +436,16 @@ function DisbursementBatchApprovalForm({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(batch.requestItems.length > 0 ? batch.requestItems : batch.items.map(item => ({
-                      id: item.requestItem.id,
-                      particulars: item.requestItem.particulars,
-                      amount: item.requestItem.amount,
-                      responsibilityCenter: "—",
-                      expenseName: "—",
-                    }))).map(item => (
+                    {(batch.requestItems.length > 0
+                      ? batch.requestItems
+                      : batch.items.map((item) => ({
+                          id: item.requestItem.id,
+                          particulars: item.requestItem.particulars,
+                          amount: item.requestItem.amount,
+                          responsibilityCenter: '—',
+                          expenseName: '—',
+                        }))
+                    ).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.responsibilityCenter}</TableCell>
                         <TableCell>{item.expenseName}</TableCell>
@@ -438,24 +461,34 @@ function DisbursementBatchApprovalForm({
             </>
           ) : (
             <div className="flex flex-col gap-4">
-              {batch.items.map(item => {
+              {batch.items.map((item) => {
                 const state = itemStates[item.id]!;
                 return (
                   <div key={item.id} className="rounded-md border p-4 flex flex-col gap-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Typography variant="small" className="text-muted-foreground">DV Number</Typography>
-                        <Typography variant="p" className="not-first:mt-0">{item.disbursementVoucherNumber}</Typography>
+                        <Typography variant="small" className="text-muted-foreground">
+                          DV Number
+                        </Typography>
+                        <Typography variant="p" className="not-first:mt-0">
+                          {item.disbursementVoucherNumber}
+                        </Typography>
                       </div>
                       <div>
-                        <Typography variant="small" className="text-muted-foreground">Amount</Typography>
+                        <Typography variant="small" className="text-muted-foreground">
+                          Amount
+                        </Typography>
                         <Typography variant="p" className="not-first:mt-0 font-mono">
                           {formatAmount(item.grossAmount ?? item.requestItem.amount)}
                         </Typography>
                       </div>
                       <div className="col-span-2">
-                        <Typography variant="small" className="text-muted-foreground">Particulars</Typography>
-                        <Typography variant="p" className="not-first:mt-0">{item.requestItem.particulars}</Typography>
+                        <Typography variant="small" className="text-muted-foreground">
+                          Particulars
+                        </Typography>
+                        <Typography variant="p" className="not-first:mt-0">
+                          {item.requestItem.particulars}
+                        </Typography>
                       </div>
                     </div>
 
@@ -463,7 +496,7 @@ function DisbursementBatchApprovalForm({
                       <Label>Explanation</Label>
                       <Textarea
                         value={state.explanation}
-                        onChange={e => updateItemState(item.id, { explanation: e.target.value })}
+                        onChange={(e) => updateItemState(item.id, {explanation: e.target.value})}
                         rows={3}
                       />
                     </Field>
@@ -473,20 +506,26 @@ function DisbursementBatchApprovalForm({
                         <Label>Vatable Amount</Label>
                         <Input
                           value={state.vatableAmount}
-                          onChange={e => updateItemState(item.id, { vatableAmount: e.target.value })}
+                          onChange={(e) =>
+                            updateItemState(item.id, {vatableAmount: e.target.value})
+                          }
                         />
                       </Field>
                       <Field>
                         <Label>Tax Type</Label>
                         <Select
                           value={state.taxType}
-                          onValueChange={v => updateItemState(item.id, { taxType: v })}
+                          onValueChange={(v) => updateItemState(item.id, {taxType: v})}
                         >
-                          <SelectTrigger><SelectValue placeholder="Select tax type" /></SelectTrigger>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select tax type" />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={NONE}>None</SelectItem>
-                            {TAX_TYPES.map(t => (
-                              <SelectItem key={t} value={t}>{TAX_TYPE_LABELS[t]}</SelectItem>
+                            {TAX_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {TAX_TYPE_LABELS[t]}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -495,13 +534,17 @@ function DisbursementBatchApprovalForm({
                         <Label>Funding Source</Label>
                         <Select
                           value={state.fundTypeId}
-                          onValueChange={v => updateItemState(item.id, { fundTypeId: v })}
+                          onValueChange={(v) => updateItemState(item.id, {fundTypeId: v})}
                         >
-                          <SelectTrigger><SelectValue placeholder="Select funding source" /></SelectTrigger>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select funding source" />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={NONE}>None</SelectItem>
-                            {fundTypes.map(ft => (
-                              <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
+                            {fundTypes.map((ft) => (
+                              <SelectItem key={ft.id} value={ft.id}>
+                                {ft.name}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -510,11 +553,17 @@ function DisbursementBatchApprovalForm({
                         <Label>Status</Label>
                         <Select
                           value={state.status}
-                          onValueChange={v => updateItemState(item.id, { status: v })}
+                          onValueChange={(v) => updateItemState(item.id, {status: v})}
                         >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
                           <SelectContent>
-                            {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            {STATUS_OPTIONS.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </Field>
@@ -532,18 +581,16 @@ function DisbursementBatchApprovalForm({
           <Button variant="outline">Close</Button>
         </DialogClose>
         <Button variant="outline" disabled={saving} onClick={saveChanges}>
-          {saving ? "Saving…" : "Save Changes"}
+          {saving ? 'Saving…' : 'Save Changes'}
         </Button>
-        <Button onClick={() => setActionOpen(true)}>
-          Submit Decision
-        </Button>
+        <Button onClick={() => setActionOpen(true)}>Submit Decision</Button>
       </DialogFooter>
 
       <DisbursementDecisionDialog
         batch={batch}
         canApprove={() => {
           if (batch.isOneForAll) return sharedFundTypeId !== NONE;
-          return batch.items.every(item => itemStates[item.id]?.fundTypeId !== NONE);
+          return batch.items.every((item) => itemStates[item.id]?.fundTypeId !== NONE);
         }}
         open={actionOpen}
         onOpenChange={setActionOpen}
@@ -572,23 +619,23 @@ function DisbursementDecisionDialog({
   saveChanges: () => Promise<boolean>;
   onSuccess: () => void;
 }) {
-  const [status, setStatus] = useState<"approved" | "binned">("approved");
-  const [reason, setReason] = useState("");
+  const [status, setStatus] = useState<'approved' | 'binned'>('approved');
+  const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setStatus("approved");
-      setReason("");
+      setStatus('approved');
+      setReason('');
       setError(null);
     }
     onOpenChange(nextOpen);
   };
 
   const handleSubmit = async () => {
-    if (status === "approved" && !canApprove()) {
-      setError("A funding source must be assigned to every disbursement voucher before approving.");
+    if (status === 'approved' && !canApprove()) {
+      setError('A funding source must be assigned to every disbursement voucher before approving.');
       return;
     }
 
@@ -605,20 +652,17 @@ function DisbursementDecisionDialog({
       ? `/api/obr/disbursements/batch/${batch.batchId}/approve`
       : `/api/obr/requests/${batch.requestId}/disbursements/approve`;
 
-    const res = await $fetch<unknown, ApiResponseException>(
-      approveUrl,
-      {
-        method: "POST",
-        body: {
-          status,
-          ...(reason.trim() ? { reason: reason.trim() } : {}),
-        },
+    const res = await $fetch<unknown, ApiResponseException>(approveUrl, {
+      method: 'POST',
+      body: {
+        status,
+        ...(reason.trim() ? {reason: reason.trim()} : {}),
       },
-    );
+    });
 
     setSubmitting(false);
     if (res.error) {
-      setError(res.error.message ?? "Failed to submit decision. Please try again.");
+      setError(res.error.message ?? 'Failed to submit decision. Please try again.');
       return;
     }
 
@@ -641,7 +685,7 @@ function DisbursementDecisionDialog({
               <Label>Decision</Label>
               <Select
                 value={status}
-                onValueChange={v => setStatus(v as typeof status)}
+                onValueChange={(v) => setStatus(v as typeof status)}
                 disabled={submitting}
               >
                 <SelectTrigger>
@@ -655,13 +699,12 @@ function DisbursementDecisionDialog({
             </Field>
             <Field>
               <Label>
-                Reason{" "}
-                <span className="text-muted-foreground font-normal">(optional)</span>
+                Reason <span className="text-muted-foreground font-normal">(optional)</span>
               </Label>
               <Input
                 placeholder="Enter reason…"
                 value={reason}
-                onChange={e => setReason(e.target.value)}
+                onChange={(e) => setReason(e.target.value)}
                 disabled={submitting}
               />
             </Field>
@@ -681,7 +724,7 @@ function DisbursementDecisionDialog({
             </Button>
           </DialogClose>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Submitting…" : "Confirm"}
+            {submitting ? 'Submitting…' : 'Confirm'}
           </Button>
         </DialogFooter>
       </DialogContent>

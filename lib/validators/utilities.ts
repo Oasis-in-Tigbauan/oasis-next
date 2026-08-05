@@ -1,5 +1,5 @@
-import * as Sentry from "@sentry/nextjs";
-import sharp from "sharp";
+import * as Sentry from '@sentry/nextjs';
+import sharp from 'sharp';
 
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
@@ -10,7 +10,7 @@ const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
  * @returns {boolean} Returns true if the value is not null or undefined, returns false otherwise.
  */
 export function isExisty(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   value: any,
 ): boolean {
   return value !== null && value !== undefined;
@@ -29,7 +29,7 @@ export function isNotEmpty(value: Optional<string>): boolean {
   }
 
   // noinspection SuspiciousTypeOfGuard
-  if (typeof value !== "string") {
+  if (typeof value !== 'string') {
     return false;
   }
 
@@ -71,10 +71,10 @@ export function every<T>(lookup: T[], input: T[]): boolean {
  * isArrayOfStrings(["a", 1] as any); // false
  */
 export function isArrayOfStrings(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   data: any[],
 ): boolean {
-  return data.every((item) => typeof item === "string" && isNotEmpty(item));
+  return data.every((item) => typeof item === 'string' && isNotEmpty(item));
 }
 
 /**
@@ -120,7 +120,9 @@ export function isUuid(uuid: Optional<string>): boolean {
   if (!isNotEmpty(uuid)) return false;
 
   // Check via regex
-  return /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/.test(uuid!);
+  return /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/.test(
+    uuid!,
+  );
 }
 
 /**
@@ -148,7 +150,7 @@ export function isNumber(
   limitSafeIntegersOnly: boolean = false,
 ): boolean {
   if (!isExisty(value)) return false;
-  if (typeof value === "string" && !isNotEmpty(value)) return false;
+  if (typeof value === 'string' && !isNotEmpty(value)) return false;
 
   const n = Number(value);
 
@@ -187,10 +189,11 @@ export function isNumber(
  * // result => { name: "Office A", count: 5 }
  */
 export function filterUpdatedFields(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: Record<string, Optional<any>>): Record<string, any>
-{
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+  data: Record<string, Optional<any>>,
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
+): Record<string, any> {
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {};
 
   for (const key of Object.keys(data)) {
@@ -198,10 +201,10 @@ export function filterUpdatedFields(
     if (!isExisty(data[key])) continue;
 
     // If the value type is of string, do check if it contains something
-    if (typeof data[key] === "string" && !isNotEmpty(data[key])) continue;
+    if (typeof data[key] === 'string' && !isNotEmpty(data[key])) continue;
 
     // If the value type is of an object, do check if it contains something
-    if (typeof data[key] === "object") {
+    if (typeof data[key] === 'object') {
       // If array.
       if (Array.isArray(data[key]) && data[key].length === 0) continue;
 
@@ -211,7 +214,7 @@ export function filterUpdatedFields(
 
     // Infinity and numbers that goes the limit of finite numbers are considered
     // empty by default
-    if (typeof data[key] === "number") {
+    if (typeof data[key] === 'number') {
       const n = Number(data[key]);
       if (Number.isNaN(n) || !Number.isFinite(n)) continue;
     }
@@ -220,7 +223,7 @@ export function filterUpdatedFields(
   }
 
   // Filter out unserializable values.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   return JSON.parse(JSON.stringify(result)) as Record<string, any>;
 }
 
@@ -249,8 +252,8 @@ export function filterUpdatedFields(
  */
 export async function tryReadImage(
   value: File,
-  options: TryReadImageOptions = { maxSize: MAX_IMAGE_BYTES },
-): Promise<{ data: Uint8Array; format: "png" | "jpeg" } | null> {
+  options: TryReadImageOptions = {maxSize: MAX_IMAGE_BYTES},
+): Promise<{data: Uint8Array; format: 'png' | 'jpeg'} | null> {
   if (!(value instanceof File)) return null;
 
   try {
@@ -266,13 +269,13 @@ export async function tryReadImage(
     const img = await sharp(bufUint8Array).metadata();
 
     // Only accept formats such as PNG and JPEG.
-    if (img.format !== "png" && img.format !== "jpeg") {
+    if (img.format !== 'png' && img.format !== 'jpeg') {
       return null;
     }
 
-    const format = img.format === "png" ? "png" : "jpeg";
+    const format = img.format === 'png' ? 'png' : 'jpeg';
 
-    return { data: bufUint8Array, format };
+    return {data: bufUint8Array, format};
   } catch (e) {
     Sentry.captureException(e);
     return null;
@@ -281,4 +284,4 @@ export async function tryReadImage(
 
 type TryReadImageOptions = {
   maxSize?: number;
-}
+};

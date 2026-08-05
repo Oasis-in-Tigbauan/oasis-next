@@ -1,22 +1,22 @@
-import { and, eq, ilike, or } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { DateTime } from "luxon";
+import {and, eq, ilike, or} from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
+import {DateTime} from 'luxon';
 
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { office, officePosition, travelOrders, user } from "@/lib/db/schema";
-import { validatorUtilities } from "@/lib/validators";
-import { type User } from "@/lib/accounts";
+import {type User} from '@/lib/accounts';
+import {db} from '@/lib/db';
+import {office, officePosition, travelOrders, user} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import {validatorUtilities} from '@/lib/validators';
 
 // ---------------------------------------------------------------------------
 // Aliases for multi-join queries
 // ---------------------------------------------------------------------------
 
-const requestorUser = alias(user, "requestor_user");
-const approverUser = alias(user, "approver_user");
-const requestorOffice = alias(office, "requestor_office");
-const requestorPosition = alias(officePosition, "requestor_position");
-const approverPosition = alias(officePosition, "approver_position");
+const requestorUser = alias(user, 'requestor_user');
+const approverUser = alias(user, 'approver_user');
+const requestorOffice = alias(office, 'requestor_office');
+const requestorPosition = alias(officePosition, 'requestor_position');
+const approverPosition = alias(officePosition, 'approver_position');
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,7 +87,7 @@ export type BaseUserInfo = {
  */
 function _toUtcDate(value: string | undefined): Date | null {
   if (!value) return null;
-  const dt = DateTime.fromISO(value, { zone: "Asia/Manila" });
+  const dt = DateTime.fromISO(value, {zone: 'Asia/Manila'});
   if (!dt.isValid) return null;
   return dt.toUTC().toJSDate();
 }
@@ -104,10 +104,10 @@ function _toUtcDate(value: string | undefined): Date | null {
  * @returns {number} The inclusive day count.
  */
 function _calcNoOfDays(startDate: Date, endDate: Date | null): number {
-  const start = DateTime.fromJSDate(startDate, { zone: "Asia/Manila" }).startOf("day");
+  const start = DateTime.fromJSDate(startDate, {zone: 'Asia/Manila'}).startOf('day');
   if (!endDate) return 1;
-  const end = DateTime.fromJSDate(endDate, { zone: "Asia/Manila" }).startOf("day");
-  return Math.round(end.diff(start, "days").days) + 1;
+  const end = DateTime.fromJSDate(endDate, {zone: 'Asia/Manila'}).startOf('day');
+  return Math.round(end.diff(start, 'days').days) + 1;
 }
 
 /**
@@ -120,7 +120,7 @@ function _calcNoOfDays(startDate: Date, endDate: Date | null): number {
  * @returns {string} The ISO string in UTC+8 (Asia/Manila) timezone.
  */
 function _toManilaIso(date: Date): string {
-  return DateTime.fromJSDate(date, { zone: "UTC" }).setZone("Asia/Manila").toISO()!;
+  return DateTime.fromJSDate(date, {zone: 'UTC'}).setZone('Asia/Manila').toISO()!;
 }
 
 /**
@@ -133,7 +133,7 @@ function _toManilaIso(date: Date): string {
  * @returns {string} The formatted time string in UTC+8.
  */
 function _toManilaTime(date: Date): string {
-  return DateTime.fromJSDate(date, { zone: "UTC" }).setZone("Asia/Manila").toFormat("h:mm a");
+  return DateTime.fromJSDate(date, {zone: 'UTC'}).setZone('Asia/Manila').toFormat('h:mm a');
 }
 
 /**
@@ -186,15 +186,15 @@ function _mapRow(row: {
     subjectToClaims: row.subjectToClaims,
     notes: row.notes ?? undefined,
     requestor: {
-      id: row.requestorId ?? "",
-      name: row.requestorName ?? "",
+      id: row.requestorId ?? '',
+      name: row.requestorName ?? '',
       office: {
-        id: row.requestorOfficeId ?? "",
-        name: row.requestorOfficeName ?? "",
+        id: row.requestorOfficeId ?? '',
+        name: row.requestorOfficeName ?? '',
       },
       officePosition: {
-        id: row.requestorPositionId ?? "",
-        name: row.requestorPositionName ?? "",
+        id: row.requestorPositionId ?? '',
+        name: row.requestorPositionName ?? '',
       },
     },
   };
@@ -270,9 +270,8 @@ export async function getAll(): Promise<Result<TravelOrderItem[]>> {
       .orderBy(travelOrders.refNumber);
 
     return new Success(rows.map(_mapRow));
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to retrieve travel orders.", {}, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to retrieve travel orders.', {}, e);
   }
 }
 
@@ -294,13 +293,12 @@ export async function getById(id: string): Promise<Result<TravelOrderItem>> {
   try {
     const row = await _fetchById(id);
     if (!row) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found.', {id});
     }
 
     return new Success(_mapRow(row));
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to retrieve travel order.", { id }, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to retrieve travel order.', {id}, e);
   }
 }
 
@@ -325,38 +323,47 @@ export async function getById(id: string): Promise<Result<TravelOrderItem>> {
  * - `startDate` and `endDate` are expected as UTC+8 ISO strings and converted to UTC for storage.
  * - The requestor's current office and position are snapshotted at creation time.
  */
-export async function createTravelOrder(payload: TravelOrderPayload, user: User): Promise<Result<TravelOrderItem>> {
+export async function createTravelOrder(
+  payload: TravelOrderPayload,
+  user: User,
+): Promise<Result<TravelOrderItem>> {
   try {
     const startUtc = _toUtcDate(payload.startDate);
     if (!startUtc) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid start date.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid start date.', {payload});
     }
 
     const endUtc = payload.endDate ? _toUtcDate(payload.endDate) : null;
     if (payload.endDate && !endUtc) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid end date.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid end date.', {payload});
     }
 
     if (endUtc && endUtc < startUtc) {
-      return new Failure(ErrorCodes.ValidationFailure, "End date must not be before start date.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'End date must not be before start date.', {
+        payload,
+      });
     }
 
     const officeId = user.office.id;
     const positionId = user.office.role.id;
 
     if (!validatorUtilities.isExisty(officeId)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Requestor must be assigned to an office.", { userId: user.id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Requestor must be assigned to an office.', {
+        userId: user.id,
+      });
     }
 
     if (!validatorUtilities.isExisty(positionId)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Requestor must have a position.", { userId: user.id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Requestor must have a position.', {
+        userId: user.id,
+      });
     }
 
     const [inserted] = await db
       .insert(travelOrders)
       .values({
-        travelOrderStatus: payload.status as "co-hr" | "filed" | "missing" | "cancelled",
-        category: payload.category as "official" | "personal",
+        travelOrderStatus: payload.status as 'co-hr' | 'filed' | 'missing' | 'cancelled',
+        category: payload.category as 'official' | 'personal',
         startDate: startUtc,
         endDate: endUtc ?? undefined,
         location: payload.location,
@@ -367,21 +374,27 @@ export async function createTravelOrder(payload: TravelOrderPayload, user: User)
         requestorOfficeId: officeId,
         requestorPositionId: positionId,
       })
-      .returning({ id: travelOrders.id });
+      .returning({id: travelOrders.id});
 
     if (!inserted) {
-      return new Failure(ErrorCodes.Fatal, "Failed to insert travel order.", { payload });
+      return new Failure(ErrorCodes.Fatal, 'Failed to insert travel order.', {payload});
     }
 
     const result = await _fetchById(inserted.id);
     if (!result) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found after creation.", { id: inserted.id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found after creation.', {
+        id: inserted.id,
+      });
     }
 
     return new Success(_mapRow(result));
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to create travel order.", { payload, userId: user.id }, e);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Failed to create travel order.',
+      {payload, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -408,20 +421,24 @@ export async function createTravelOrder(payload: TravelOrderPayload, user: User)
  * - When only one of startDate/endDate is provided, the other is fetched from the current record
  *   before running the date-order check.
  */
-export async function updateTravelOrder(id: string, payload: Partial<TravelOrderPayload>, user: User): Promise<Result<TravelOrderItem>> {
+export async function updateTravelOrder(
+  id: string,
+  payload: Partial<TravelOrderPayload>,
+  user: User,
+): Promise<Result<TravelOrderItem>> {
   try {
     if (!validatorUtilities.isExisty(id)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Travel order ID is required.", { id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Travel order ID is required.', {id});
     }
 
     const existing = await _fetchById(id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found.', {id});
     }
 
     const updateValues: Partial<{
-      travelOrderStatus: "co-hr" | "filed" | "missing" | "cancelled";
-      category: "official" | "personal";
+      travelOrderStatus: 'co-hr' | 'filed' | 'missing' | 'cancelled';
+      category: 'official' | 'personal';
       startDate: Date;
       endDate: Date | null;
       location: string;
@@ -431,10 +448,14 @@ export async function updateTravelOrder(id: string, payload: Partial<TravelOrder
     }> = {};
 
     if (payload.status !== undefined) {
-      updateValues.travelOrderStatus = payload.status as "co-hr" | "filed" | "missing" | "cancelled";
+      updateValues.travelOrderStatus = payload.status as
+        | 'co-hr'
+        | 'filed'
+        | 'missing'
+        | 'cancelled';
     }
     if (payload.category !== undefined) {
-      updateValues.category = payload.category as "official" | "personal";
+      updateValues.category = payload.category as 'official' | 'personal';
     }
     if (payload.location !== undefined) {
       updateValues.location = payload.location;
@@ -451,46 +472,48 @@ export async function updateTravelOrder(id: string, payload: Partial<TravelOrder
 
     // Resolve start/end dates for the update and cross-field validation.
     const resolvedStart = payload.startDate ? _toUtcDate(payload.startDate) : existing.startDate;
-    const resolvedEnd = payload.endDate !== undefined
-      ? _toUtcDate(payload.endDate)
-      : existing.endDate;
+    const resolvedEnd =
+      payload.endDate !== undefined ? _toUtcDate(payload.endDate) : existing.endDate;
 
     if (payload.startDate !== undefined) {
       if (!resolvedStart) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid start date.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid start date.', {payload});
       }
       updateValues.startDate = resolvedStart;
     }
 
     if (payload.endDate !== undefined) {
       if (payload.endDate && !resolvedEnd) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid end date.", { payload });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid end date.', {payload});
       }
       updateValues.endDate = resolvedEnd;
     }
 
     if (resolvedStart && resolvedEnd && resolvedEnd < resolvedStart) {
-      return new Failure(ErrorCodes.ValidationFailure, "End date must not be before start date.", { payload });
+      return new Failure(ErrorCodes.ValidationFailure, 'End date must not be before start date.', {
+        payload,
+      });
     }
 
     if (Object.keys(updateValues).length === 0) {
       return new Success(_mapRow(existing));
     }
 
-    await db
-      .update(travelOrders)
-      .set(updateValues)
-      .where(eq(travelOrders.id, id));
+    await db.update(travelOrders).set(updateValues).where(eq(travelOrders.id, id));
 
     const updated = await _fetchById(id);
     if (!updated) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found after update.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found after update.', {id});
     }
 
     return new Success(_mapRow(updated));
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to update travel order.", { id, payload, userId: user.id }, e);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Failed to update travel order.',
+      {id, payload, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -512,22 +535,21 @@ export async function updateTravelOrder(id: string, payload: Partial<TravelOrder
 export async function deleteTravelOrder(id: string): Promise<Result<null>> {
   try {
     if (!validatorUtilities.isExisty(id)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Travel order ID is required.", { id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Travel order ID is required.', {id});
     }
 
     const [deleted] = await db
       .delete(travelOrders)
       .where(eq(travelOrders.id, id))
-      .returning({ id: travelOrders.id });
+      .returning({id: travelOrders.id});
 
     if (!deleted) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found.', {id});
     }
 
     return new Success(null);
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to delete travel order.", { id }, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to delete travel order.', {id}, e);
   }
 }
 
@@ -553,12 +575,12 @@ export async function deleteTravelOrder(id: string): Promise<Result<null>> {
 export async function approveTravelOrder(id: string, user: User): Promise<Result<TravelOrderItem>> {
   try {
     if (!validatorUtilities.isExisty(id)) {
-      return new Failure(ErrorCodes.ValidationFailure, "Travel order ID is required.", { id });
+      return new Failure(ErrorCodes.ValidationFailure, 'Travel order ID is required.', {id});
     }
 
     const existing = await _fetchById(id);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found.', {id});
     }
 
     await db
@@ -571,13 +593,19 @@ export async function approveTravelOrder(id: string, user: User): Promise<Result
 
     const updated = await _fetchById(id);
     if (!updated) {
-      return new Failure(ErrorCodes.ResourceNotFound, "Travel order not found after approval.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'Travel order not found after approval.', {
+        id,
+      });
     }
 
     return new Success(_mapRow(updated));
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to approve travel order.", { id, userId: user.id }, e);
+  } catch (e) {
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Failed to approve travel order.',
+      {id, userId: user.id},
+      e,
+    );
   }
 }
 
@@ -623,10 +651,7 @@ export async function searchUsers(query: string): Promise<Result<BaseUserInfo[]>
           eq(user.emailVerified, true),
           eq(user.banned, false),
           eq(user.shadowBanned, false),
-          or(
-            ilike(user.name, wildcard),
-            ilike(user.email, wildcard),
-          ),
+          or(ilike(user.name, wildcard), ilike(user.email, wildcard)),
         ),
       )
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
@@ -634,22 +659,21 @@ export async function searchUsers(query: string): Promise<Result<BaseUserInfo[]>
       .limit(20);
 
     return new Success(
-      rows.map(r => ({
+      rows.map((r) => ({
         id: r.id,
         name: r.name,
         office: {
-          id: r.officeId ?? "",
-          name: r.officeName ?? "",
+          id: r.officeId ?? '',
+          name: r.officeName ?? '',
         },
         officePosition: {
-          id: r.positionId ?? "",
-          name: r.positionName ?? "",
+          id: r.positionId ?? '',
+          name: r.positionName ?? '',
         },
       })),
     );
-  }
-  catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Failed to search users.", { query }, e);
+  } catch (e) {
+    return new Failure(ErrorCodes.Fatal, 'Failed to search users.', {query}, e);
   }
 }
 

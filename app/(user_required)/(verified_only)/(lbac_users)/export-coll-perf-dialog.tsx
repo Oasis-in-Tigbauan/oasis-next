@@ -1,19 +1,18 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState } from "react";
-import { Download, Table2 } from "lucide-react";
+import {Download, Table2} from 'lucide-react';
+import {useCallback, useMemo, useState} from 'react';
 
+import {CollPerfExportPreviewTable} from '@/app/(user_required)/(verified_only)/(lbac_users)/coll-perf-export-preview-table';
 import {
   COLL_PERF_EXPORT_COLUMN_GROUPS,
   COLL_PERF_EXPORT_COLUMNS,
   type CollPerfExportColDef,
   type CollPerfExportColumnKey,
-} from "@/common/lbac/client";
-import type { CollPerfGroupResponse } from "@/lib/http/client/responses";
-
-import { CollPerfExportPreviewTable } from "@/app/(user_required)/(verified_only)/(lbac_users)/coll-perf-export-preview-table";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/common/lbac/client';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -21,23 +20,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from '@/components/ui/dialog';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import Typography from "@/components/typography";
+} from '@/components/ui/select';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import type {CollPerfGroupResponse} from '@/lib/http/client/responses';
 
 function ColumnSelector({
   selected,
@@ -71,7 +65,7 @@ function ColumnSelector({
 
       <ScrollArea className="h-0 min-h-0 flex-1">
         <div className="flex flex-col gap-4 pr-3 pb-4">
-          {COLL_PERF_EXPORT_COLUMN_GROUPS.map(group => (
+          {COLL_PERF_EXPORT_COLUMN_GROUPS.map((group) => (
             <div key={group.group} className="flex flex-col gap-2">
               <Typography
                 variant="small"
@@ -122,19 +116,19 @@ export function ExportCollPerfDialog({
   defaultQuarter = 1,
 }: ExportCollPerfDialogProps) {
   const [selected, setSelected] = useState<Set<CollPerfExportColumnKey>>(
-    () => new Set(COLL_PERF_EXPORT_COLUMNS.map(c => c.key)),
+    () => new Set(COLL_PERF_EXPORT_COLUMNS.map((c) => c.key)),
   );
   const [quarter, setQuarter] = useState(defaultQuarter);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const orderedColumns = useMemo(
-    () => COLL_PERF_EXPORT_COLUMNS.map(c => c.key).filter(k => selected.has(k)),
+    () => COLL_PERF_EXPORT_COLUMNS.map((c) => c.key).filter((k) => selected.has(k)),
     [selected],
   );
 
   const handleToggle = useCallback((key: CollPerfExportColumnKey) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -143,7 +137,7 @@ export function ExportCollPerfDialog({
   }, []);
 
   const handleSelectAll = useCallback(() => {
-    setSelected(new Set(COLL_PERF_EXPORT_COLUMNS.map(c => c.key)));
+    setSelected(new Set(COLL_PERF_EXPORT_COLUMNS.map((c) => c.key)));
   }, []);
 
   const handleDeselectAll = useCallback(() => {
@@ -152,7 +146,7 @@ export function ExportCollPerfDialog({
 
   const handleExport = useCallback(async () => {
     if (orderedColumns.length === 0) {
-      setExportError("Please select at least one column to export.");
+      setExportError('Please select at least one column to export.');
       return;
     }
 
@@ -163,27 +157,27 @@ export function ExportCollPerfDialog({
       const params = new URLSearchParams({
         year: String(year),
         quarter: String(quarter),
-        columns: orderedColumns.join(","),
+        columns: orderedColumns.join(','),
       });
 
       const response = await fetch(`${exportApiBase}?${params.toString()}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setExportError(
-          (payload as Record<string, string> | null)?.details
-            ?? (payload as Record<string, string> | null)?.message
-            ?? "Export failed. Please try again.",
+          (payload as Record<string, string> | null)?.details ??
+            (payload as Record<string, string> | null)?.message ??
+            'Export failed. Please try again.',
         );
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? "lbac-coll-perf-export.xlsx";
+      const filename = filenameMatch?.[1] ?? 'lbac-coll-perf-export.xlsx';
 
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
@@ -193,7 +187,7 @@ export function ExportCollPerfDialog({
 
       onOpenChange(false);
     } catch {
-      setExportError("An unexpected error occurred. Please try again.");
+      setExportError('An unexpected error occurred. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -215,10 +209,7 @@ export function ExportCollPerfDialog({
           <Typography variant="small" className="text-muted-foreground shrink-0">
             Quarter
           </Typography>
-          <Select
-            value={String(quarter)}
-            onValueChange={v => setQuarter(Number.parseInt(v, 10))}
-          >
+          <Select value={String(quarter)} onValueChange={(v) => setQuarter(Number.parseInt(v, 10))}>
             <SelectTrigger className="h-8 w-28 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -234,7 +225,10 @@ export function ExportCollPerfDialog({
           </Typography>
         </div>
 
-        <Tabs defaultValue="columns" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3">
+        <Tabs
+          defaultValue="columns"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-3"
+        >
           <TabsList className="flex-none mb-3 self-start">
             <TabsTrigger value="columns" className="text-xs gap-1.5">
               Columns
@@ -257,7 +251,10 @@ export function ExportCollPerfDialog({
             />
           </TabsContent>
 
-          <TabsContent value="preview" className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="preview"
+            className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
+          >
             <CollPerfExportPreviewTable
               tree={tree}
               year={year}
@@ -274,19 +271,12 @@ export function ExportCollPerfDialog({
             </Typography>
           )}
           <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={exporting}
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" disabled={exporting} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              disabled={exporting || selected.size === 0}
-              onClick={() => void handleExport()}
-            >
+            <Button disabled={exporting || selected.size === 0} onClick={() => void handleExport()}>
               <Download className="size-3.5" />
-              {exporting ? "Exporting..." : "Export"}
+              {exporting ? 'Exporting...' : 'Export'}
             </Button>
           </DialogFooter>
         </div>

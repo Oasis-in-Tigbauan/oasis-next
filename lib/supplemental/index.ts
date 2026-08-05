@@ -1,11 +1,11 @@
-import { DateTime } from "luxon";
-import { asc, eq } from "drizzle-orm";
+import {asc, eq} from 'drizzle-orm';
+import {DateTime} from 'luxon';
 
-import * as casts from "@/lib/types/casts";
-import { db } from "@/lib/db";
-import { aipReferences, saaobEntries, supplemental } from "@/lib/db/schema";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { validatorUtilities } from "@/lib/validators";
+import {db} from '@/lib/db';
+import {aipReferences, saaobEntries, supplemental} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import * as casts from '@/lib/types/casts';
+import {validatorUtilities} from '@/lib/validators';
 
 /**
  * Retrieves all supplemental items sorted by creation date in ascending order.
@@ -46,9 +46,9 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
       .leftJoin(saaobEntries, eq(supplemental.saaobId, saaobEntries.id))
       .orderBy(asc(supplemental.createdAt), asc(supplemental.id));
 
-    return new Success(rows.map(row => _mapRowToItem(row)));
+    return new Success(rows.map((row) => _mapRowToItem(row)));
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch supplemental items.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch supplemental items.', {}, e);
   }
 }
 
@@ -73,14 +73,17 @@ export async function all(): Promise<Result<Array<SupplementalItem>>> {
  * - Financial amount is stored as a decimal string via decimal cast helpers.
  * - Empty optional text fields are normalized to `null` before persistence.
  */
-export async function create(payload: CreateSupplementalItem, authorId: string): Promise<Result<SupplementalItem>> {
+export async function create(
+  payload: CreateSupplementalItem,
+  authorId: string,
+): Promise<Result<SupplementalItem>> {
   try {
-    const aipValidation = await _validateAipReference(payload.aipCode, { payload, authorId });
+    const aipValidation = await _validateAipReference(payload.aipCode, {payload, authorId});
     if (aipValidation instanceof Failure) {
       return aipValidation;
     }
 
-    const saaobValidation = await _validateSaaobReference(payload.saaobId, { payload, authorId });
+    const saaobValidation = await _validateSaaobReference(payload.saaobId, {payload, authorId});
     if (saaobValidation instanceof Failure) {
       return saaobValidation;
     }
@@ -95,20 +98,30 @@ export async function create(payload: CreateSupplementalItem, authorId: string):
         saaobId: saaobValidation,
         author: authorId,
       })
-      .returning({ id: supplemental.id });
+      .returning({id: supplemental.id});
 
     if (!inserted) {
-      return new Failure(ErrorCodes.Fatal, "Failed to create supplemental item.", { payload, authorId });
+      return new Failure(ErrorCodes.Fatal, 'Failed to create supplemental item.', {
+        payload,
+        authorId,
+      });
     }
 
     const item = await _getSupplementalById(inserted.id);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve created supplemental item.", { id: inserted.id });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve created supplemental item.', {
+        id: inserted.id,
+      });
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create supplemental item.", { payload, authorId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to create supplemental item.',
+      {payload, authorId},
+      e,
+    );
   }
 }
 
@@ -133,15 +146,20 @@ export async function create(payload: CreateSupplementalItem, authorId: string):
  * - Empty optional text fields are persisted as `null` when explicitly set.
  * - Omitting a field leaves the existing database value unchanged.
  */
-export async function update(supplementalId: string, payload: UpdateSupplementalItem): Promise<Result<SupplementalItem>> {
+export async function update(
+  supplementalId: string,
+  payload: UpdateSupplementalItem,
+): Promise<Result<SupplementalItem>> {
   try {
     const [existing] = await db
-      .select({ id: supplemental.id })
+      .select({id: supplemental.id})
       .from(supplemental)
       .where(eq(supplemental.id, supplementalId))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such supplemental item found.", { supplementalId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such supplemental item found.', {
+        supplementalId,
+      });
     }
 
     const updateSet: Partial<{
@@ -152,8 +170,8 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
       aipRefCode: string | null;
     }> = {};
 
-    if ("aipCode" in payload) {
-      const aipValidation = await _validateAipReference(payload.aipCode, { supplementalId, payload });
+    if ('aipCode' in payload) {
+      const aipValidation = await _validateAipReference(payload.aipCode, {supplementalId, payload});
       if (aipValidation instanceof Failure) {
         return aipValidation;
       }
@@ -161,8 +179,11 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
       updateSet.aipRefCode = aipValidation;
     }
 
-    if ("saaobId" in payload) {
-      const saaobValidation = await _validateSaaobReference(payload.saaobId, { supplementalId, payload });
+    if ('saaobId' in payload) {
+      const saaobValidation = await _validateSaaobReference(payload.saaobId, {
+        supplementalId,
+        payload,
+      });
       if (saaobValidation instanceof Failure) {
         return saaobValidation;
       }
@@ -170,30 +191,34 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
       updateSet.saaobId = saaobValidation;
     }
 
-    if ("supplementalOrAugmentation" in payload) {
+    if ('supplementalOrAugmentation' in payload) {
       updateSet.supplementalOrAugmentation = _toNullableText(payload.supplementalOrAugmentation);
     }
-    if ("amount" in payload && payload.amount !== undefined) {
+    if ('amount' in payload && payload.amount !== undefined) {
       updateSet.amount = casts.castToDecimal(payload.amount);
     }
-    if ("supplementalType" in payload && payload.supplementalType !== undefined) {
+    if ('supplementalType' in payload && payload.supplementalType !== undefined) {
       updateSet.supplementalType = payload.supplementalType;
     }
     if (Object.keys(updateSet).length > 0) {
-      await db
-        .update(supplemental)
-        .set(updateSet)
-        .where(eq(supplemental.id, supplementalId));
+      await db.update(supplemental).set(updateSet).where(eq(supplemental.id, supplementalId));
     }
 
     const item = await _getSupplementalById(supplementalId);
     if (!item) {
-      return new Failure(ErrorCodes.Fatal, "Failed to retrieve updated supplemental item.", { supplementalId });
+      return new Failure(ErrorCodes.Fatal, 'Failed to retrieve updated supplemental item.', {
+        supplementalId,
+      });
     }
 
     return new Success(item);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update supplemental item.", { supplementalId, payload }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to update supplemental item.',
+      {supplementalId, payload},
+      e,
+    );
   }
 }
 
@@ -215,18 +240,25 @@ export async function update(supplementalId: string, payload: UpdateSupplemental
 export async function remove(supplementalId: string): Promise<Result<null>> {
   try {
     const [existing] = await db
-      .select({ id: supplemental.id })
+      .select({id: supplemental.id})
       .from(supplemental)
       .where(eq(supplemental.id, supplementalId))
       .limit(1);
     if (!existing) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such supplemental item found.", { supplementalId });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such supplemental item found.', {
+        supplementalId,
+      });
     }
 
     await db.delete(supplemental).where(eq(supplemental.id, supplementalId));
     return new Success(null);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to delete supplemental item.", { supplementalId }, e);
+    return new Failure(
+      ErrorCodes.Fatal,
+      'Unable to delete supplemental item.',
+      {supplementalId},
+      e,
+    );
   }
 }
 
@@ -260,19 +292,21 @@ function _mapRowToItem(row: SupplementalRow): SupplementalItem {
     supplementalOrAugmentation: row.supplementalOrAugmentation,
     amount: row.amount,
     supplementalType: row.supplementalType,
-    saaob: row.saaobId && row.saaobName
-      ? {
-        id: row.saaobId,
-        name: row.saaobName,
-      }
-      : null,
-    aipCode: row.aipCodeId && row.aipCodeValue && row.aipCodeDescription
-      ? {
-        id: row.aipCodeId,
-        aipRefCode: row.aipCodeValue,
-        description: row.aipCodeDescription,
-      }
-      : null,
+    saaob:
+      row.saaobId && row.saaobName
+        ? {
+            id: row.saaobId,
+            name: row.saaobName,
+          }
+        : null,
+    aipCode:
+      row.aipCodeId && row.aipCodeValue && row.aipCodeDescription
+        ? {
+            id: row.aipCodeId,
+            aipRefCode: row.aipCodeValue,
+            description: row.aipCodeDescription,
+          }
+        : null,
     date: row.date,
     quarter: _getQuarterLabelUtcPlus8(row.date),
   };
@@ -287,19 +321,19 @@ async function _validateAipReference(
   }
 
   if (!validatorUtilities.isUuid(aipCode)) {
-    return new Failure(ErrorCodes.ValidationFailure, "Invalid AIP reference ID.", context);
+    return new Failure(ErrorCodes.ValidationFailure, 'Invalid AIP reference ID.', context);
   }
 
   const aipReferenceId: string = aipCode!;
 
   const [aipReference] = await db
-    .select({ id: aipReferences.id })
+    .select({id: aipReferences.id})
     .from(aipReferences)
     .where(eq(aipReferences.id, aipReferenceId))
     .limit(1);
 
   if (!aipReference) {
-    return new Failure(ErrorCodes.ValidationFailure, "Invalid AIP reference.", context);
+    return new Failure(ErrorCodes.ValidationFailure, 'Invalid AIP reference.', context);
   }
 
   return aipReference.id;
@@ -314,28 +348,26 @@ async function _validateSaaobReference(
   }
 
   if (!validatorUtilities.isUuid(saaobId)) {
-    return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry ID.", context);
+    return new Failure(ErrorCodes.ValidationFailure, 'Invalid SAAOB entry ID.', context);
   }
 
   const saaobEntryId: string = saaobId!;
 
   const [saaobEntry] = await db
-    .select({ id: saaobEntries.id })
+    .select({id: saaobEntries.id})
     .from(saaobEntries)
     .where(eq(saaobEntries.id, saaobEntryId))
     .limit(1);
 
   if (!saaobEntry) {
-    return new Failure(ErrorCodes.ValidationFailure, "Invalid SAAOB entry.", context);
+    return new Failure(ErrorCodes.ValidationFailure, 'Invalid SAAOB entry.', context);
   }
 
   return saaobEntry.id;
 }
 
 function _getQuarterLabelUtcPlus8(date: Date): string {
-  const quarter = DateTime.fromJSDate(date, { zone: "utc" })
-    .setZone("UTC+8")
-    .quarter;
+  const quarter = DateTime.fromJSDate(date, {zone: 'utc'}).setZone('UTC+8').quarter;
 
   return `Quarter ${quarter}`;
 }
@@ -344,7 +376,7 @@ function _toNullableText(value: Optional<string>): string | null {
   return validatorUtilities.isNotEmpty(value) ? value!.trim() : null;
 }
 
-type SupplementalType = "less" | "add";
+type SupplementalType = 'less' | 'add';
 
 type SupplementalRow = {
   id: string;

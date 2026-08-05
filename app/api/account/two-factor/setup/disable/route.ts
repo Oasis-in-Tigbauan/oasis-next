@@ -1,37 +1,39 @@
-import { headers } from "next/headers";
-import { NextRequest } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
+import {headers} from 'next/headers';
+import {NextRequest} from 'next/server';
 
-import { auth, session, SessionCode } from "@/lib/auth";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import { validator } from "@/lib/validators";
+import {auth, session, SessionCode} from '@/lib/auth';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import {validator} from '@/lib/validators';
 
 export async function POST(req: NextRequest) {
   const getSession = await session.verify();
 
   if (!getSession || getSession.code !== SessionCode.Ok) {
-    return ApiResponseBuilder
-      .createFromSessionValidation(getSession)
-      .build();
+    return ApiResponseBuilder.createFromSessionValidation(getSession).build();
   }
 
   const body = await tryParseJson<TwoFactorDisableRequest>(req);
   if (!body) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, "Invalid Payload.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid Payload.',
+    ).build();
   }
 
   const validation = await validator.validate<TwoFactorDisableRequest>(body, {
     properties: {
-      password: { type: "string", formatter: "non-empty-string" },
+      password: {type: 'string', formatter: 'non-empty-string'},
     },
-    requiredProperties: ["password"],
+    requiredProperties: ['password'],
     allowUnvalidatedProperties: false,
   });
   if (!validation.ok) {
-    return ApiResponseBuilder.createError(StatusCodes.Status400BadRequest, validation.errors!)
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      validation.errors!,
+    ).build();
   }
 
   try {
@@ -46,8 +48,10 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     Sentry.captureException(e);
 
-    return ApiResponseBuilder.createError(StatusCodes.Status401Unauthorized, "Invalid password.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status401Unauthorized,
+      'Invalid password.',
+    ).build();
   }
 }
 

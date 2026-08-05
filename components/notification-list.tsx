@@ -1,12 +1,11 @@
-"use client";
+'use client';
 
-import Link from "next/link";
+import Link from 'next/link';
 
-import type { NotificationItemResponse } from "@/lib/http/client/responses";
-import { cn } from "@/lib/utils";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import type {NotificationItemResponse} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 type NotificationListProps = {
   emptyMessage: string;
@@ -23,9 +22,15 @@ export default function NotificationList({
 }: NotificationListProps) {
   return (
     <div className="flex flex-col gap-3">
-      {(onMarkAllRead && items.length > 0) && (
+      {onMarkAllRead && items.length > 0 && (
         <div className="flex justify-end">
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onMarkAllRead}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={onMarkAllRead}
+          >
             Mark all as read
           </Button>
         </div>
@@ -39,17 +44,21 @@ export default function NotificationList({
 
       {items.map((item) => {
         const content = (
-          <div className={cn(
-            "rounded-xl border px-4 py-3 transition-colors",
-            item.read
-              ? "border-[#E3EAF2] bg-white"
-              : "border-[#C9D7E6] bg-[#F6FAFF]",
-          )}>
+          <div
+            className={cn(
+              'rounded-xl border px-4 py-3 transition-colors',
+              item.read ? 'border-[#E3EAF2] bg-white' : 'border-[#C9D7E6] bg-[#F6FAFF]',
+            )}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="truncate text-sm font-semibold text-[#122033]">{item.title}</p>
-                  {!item.read && <Badge variant="secondary" className="h-5 text-[10px]">New</Badge>}
+                  {!item.read && (
+                    <Badge variant="secondary" className="h-5 text-[10px]">
+                      New
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-[#52657A]">{item.message}</p>
                 <p className="text-xs text-[#7B8CA0]">{formatNotificationDate(item.createdAt)}</p>
@@ -94,12 +103,12 @@ export default function NotificationList({
 }
 
 function formatNotificationDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString("en-PH", {
-    timeZone: "Asia/Taipei",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Date(dateStr).toLocaleString('en-PH', {
+    timeZone: 'Asia/Taipei',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }

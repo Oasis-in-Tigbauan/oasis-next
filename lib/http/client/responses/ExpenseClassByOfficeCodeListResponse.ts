@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 type Response = {
   id: string;
@@ -9,6 +9,6 @@ type Response = {
   group: Optional<string>;
   accountCode: Optional<string>;
   class: Optional<string>;
-}
+};
 
 export type ExpenseClassByOfficeCodeListResponse = GenericOkResponse<Array<Response>>;

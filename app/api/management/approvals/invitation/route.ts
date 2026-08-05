@@ -1,12 +1,12 @@
-import type { NextRequest } from "next/server";
+import type {NextRequest} from 'next/server';
 
-import * as accounts from "@/lib/accounts";
-import { session as auth, SessionCode } from "@/lib/auth";
-import * as permission from "@/lib/db/permissions";
-import { ApiResponseBuilder, StatusCodes } from "@/lib/http/composers";
-import { oneOf } from "@/lib/one-of";
-import { tryParseJson } from "@/lib/http/RequestUtilities";
-import { validator } from "@/lib/validators";
+import * as accounts from '@/lib/accounts';
+import {session as auth, SessionCode} from '@/lib/auth';
+import * as permission from '@/lib/db/permissions';
+import {ApiResponseBuilder, StatusCodes} from '@/lib/http/composers';
+import {tryParseJson} from '@/lib/http/RequestUtilities';
+import {oneOf} from '@/lib/one-of';
+import {validator} from '@/lib/validators';
 
 export async function GET() {
   const session = await auth.verify([
@@ -20,8 +20,8 @@ export async function GET() {
   // Retrieve the list of users
   const users = await accounts.getActiveInvitations();
   return oneOf(users).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
@@ -37,24 +37,26 @@ export async function POST(req: NextRequest) {
   // Validate inputs
   const body = await tryParseJson<InvitationRequest>(req);
   if (!body) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, "Invalid payload.")
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      'Invalid payload.',
+    ).build();
   }
 
   const validate = await validator.validate<InvitationRequest>(body, {
     properties: {
-      email: { type: "string", formatter: "email" },
-      officeId: { type: "string", formatter: "uuid" },
-      officePositionId: { type: "string", formatter: "uuid" },
+      email: {type: 'string', formatter: 'email'},
+      officeId: {type: 'string', formatter: 'uuid'},
+      officePositionId: {type: 'string', formatter: 'uuid'},
     },
-    requiredProperties: ["email", "officeId", "officePositionId"],
+    requiredProperties: ['email', 'officeId', 'officePositionId'],
     allowUnvalidatedProperties: false,
   });
   if (!validate.ok) {
-    return ApiResponseBuilder
-      .createError(StatusCodes.Status400BadRequest, validate.errors!)
-      .build();
+    return ApiResponseBuilder.createError(
+      StatusCodes.Status400BadRequest,
+      validate.errors!,
+    ).build();
   }
 
   // Create invitation
@@ -64,8 +66,8 @@ export async function POST(req: NextRequest) {
     officePositionId: body.officePositionId,
   });
   return oneOf(invitation).match(
-    s => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
-    e => ApiResponseBuilder.createFromFailure(e).build(),
+    (s) => ApiResponseBuilder.create(StatusCodes.Status200Ok).withBody(s).build(),
+    (e) => ApiResponseBuilder.createFromFailure(e).build(),
   );
 }
 
@@ -73,4 +75,4 @@ type InvitationRequest = {
   email: string;
   officeId: string;
   officePositionId: string;
-}
+};

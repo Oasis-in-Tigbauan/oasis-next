@@ -1,18 +1,13 @@
-"use client";
+'use client';
 
-import { Columns3 } from "lucide-react";
+import {Columns3} from 'lucide-react';
 
-import type { PageColumnDef, PageColumnGroup } from "@/common/column-visibility";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import Typography from "@/components/typography";
+import type {PageColumnDef, PageColumnGroup} from '@/common/column-visibility';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Label} from '@/components/ui/label';
+import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover';
 
 type ColumnVisibilityPickerProps<K extends string> = {
   groups: ReadonlyArray<PageColumnGroup<K>>;
@@ -36,19 +31,11 @@ export function ColumnVisibilityPicker<K extends string>({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Choose columns"
-          title="Choose columns"
-        >
+        <Button variant="outline" size="icon-sm" aria-label="Choose columns" title="Choose columns">
           <Columns3 />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="flex w-80 flex-col gap-3 p-3"
-      >
+      <PopoverContent align="end" className="flex w-80 flex-col gap-3 p-3">
         <div className="flex shrink-0 items-center justify-between gap-2">
           <Typography variant="small" className="text-muted-foreground">
             {selectedToggleableCount} / {totalToggleableCount} columns selected
@@ -67,11 +54,11 @@ export function ColumnVisibilityPicker<K extends string>({
           className="overflow-y-auto overscroll-contain pr-1"
           style={{
             maxHeight:
-              "min(16rem, calc(var(--radix-popover-content-available-height, 20rem) - 4.5rem))",
+              'min(16rem, calc(var(--radix-popover-content-available-height, 20rem) - 4.5rem))',
           }}
         >
           <div className="flex flex-col gap-4 pb-0.5">
-            {groups.map(group => (
+            {groups.map((group) => (
               <div key={group.group} className="flex flex-col gap-2">
                 <Typography
                   variant="small"
@@ -91,11 +78,11 @@ export function ColumnVisibilityPicker<K extends string>({
                       <Label
                         htmlFor={`page-col-${col.key}`}
                         className={`text-xs font-normal leading-tight ${
-                          col.pinned ? "text-muted-foreground cursor-default" : "cursor-pointer"
+                          col.pinned ? 'text-muted-foreground cursor-default' : 'cursor-pointer'
                         }`}
                       >
                         {col.label}
-                        {col.pinned ? " (always visible)" : ""}
+                        {col.pinned ? ' (always visible)' : ''}
                       </Label>
                     </div>
                   ))}

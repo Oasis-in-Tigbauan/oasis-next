@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import {ChevronDown, ChevronRight} from 'lucide-react';
+import type {ReactNode} from 'react';
 
-import { useColumnVisibility } from "@/common/column-visibility";
-import { fmtAmount, fmtPercent, txt } from "@/common/saaob/client";
+import {useColumnVisibility} from '@/common/column-visibility';
+import {fmtAmount, fmtPercent, txt} from '@/common/saaob/client';
 import {
   getSaaobPageCellDisplay,
   SAAOB_PAGE_COLUMN_GROUPS,
@@ -14,13 +14,8 @@ import {
   type SaaobPageColumnDef,
   type SaaobPageColumnKey,
   type SaaobPageId,
-} from "@/common/saaob/page-columns";
-
-import {
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
+} from '@/common/saaob/page-columns';
+import {TableCell, TableHead, TableRow} from '@/components/ui/table';
 
 export function useSaaobColumnVisibility(pageId: SaaobPageId) {
   return useColumnVisibility(
@@ -30,14 +25,10 @@ export function useSaaobColumnVisibility(pageId: SaaobPageId) {
   );
 }
 
-export function SaaobPageTableHeader({
-  visibleColumns,
-}: {
-  visibleColumns: SaaobPageColumnDef[];
-}) {
+export function SaaobPageTableHeader({visibleColumns}: {visibleColumns: SaaobPageColumnDef[]}) {
   return (
     <TableRow>
-      {visibleColumns.map(col => (
+      {visibleColumns.map((col) => (
         <TableHead key={col.key} className={col.headerClassName}>
           {col.label}
         </TableHead>
@@ -47,10 +38,10 @@ export function SaaobPageTableHeader({
 }
 
 function formatCellValue(key: SaaobPageColumnKey, raw: string): ReactNode {
-  if (key === "name" || key === "accountCode" || key === "remarks") {
+  if (key === 'name' || key === 'accountCode' || key === 'remarks') {
     return raw;
   }
-  if (key === "percentage" || key.endsWith("Pct")) {
+  if (key === 'percentage' || key.endsWith('Pct')) {
     return fmtPercent(raw);
   }
   return fmtAmount(raw);
@@ -70,27 +61,27 @@ function renderDataCells(
   },
 ) {
   const depth = options.depth ?? 0;
-  const boldClass = options.bold ? " font-bold" : "";
+  const boldClass = options.bold ? ' font-bold' : '';
 
-  return visibleColumns.map(col => {
-    if (col.key === "name") {
+  return visibleColumns.map((col) => {
+    if (col.key === 'name') {
       return (
         <TableCell
           key={col.key}
-          className={`${col.cellClassName ?? ""}${boldClass}`}
-          style={{ paddingLeft: `${depth * 14 + 4}px` }}
+          className={`${col.cellClassName ?? ''}${boldClass}`}
+          style={{paddingLeft: `${depth * 14 + 4}px`}}
         >
-          {options.nameContent ?? options.name ?? ""}
+          {options.nameContent ?? options.name ?? ''}
         </TableCell>
       );
     }
 
     const raw = getSaaobPageCellDisplay(col.key, data, options);
-    const isEmptyText = col.key === "accountCode" || col.key === "remarks";
+    const isEmptyText = col.key === 'accountCode' || col.key === 'remarks';
 
     return (
-      <TableCell key={col.key} className={`${col.cellClassName ?? ""}${boldClass}`}>
-        {isEmptyText ? txt(raw === "—" ? null : raw) : formatCellValue(col.key, raw)}
+      <TableCell key={col.key} className={`${col.cellClassName ?? ''}${boldClass}`}>
+        {isEmptyText ? txt(raw === '—' ? null : raw) : formatCellValue(col.key, raw)}
       </TableCell>
     );
   });
@@ -132,7 +123,7 @@ export function SaaobPageGroupRow({
     <TableRow
       ref={measureRef}
       data-index={dataIndex}
-      className={`${rowClassName ?? "bg-muted/50 cursor-pointer select-none"} ${isSelected ? selectedClassName ?? "outline outline-2 outline-primary" : ""}`}
+      className={`${rowClassName ?? 'bg-muted/50 cursor-pointer select-none'} ${isSelected ? (selectedClassName ?? 'outline outline-2 outline-primary') : ''}`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
     >
@@ -140,15 +131,17 @@ export function SaaobPageGroupRow({
         <button
           type="button"
           className="flex items-center gap-1 font-semibold text-left hover:text-primary w-full"
-          style={{ paddingLeft: `${depth * 14}px` }}
-          onClick={e => {
+          style={{paddingLeft: `${depth * 14}px`}}
+          onClick={(e) => {
             e.stopPropagation();
             onToggleCollapse();
           }}
         >
-          {isCollapsed
-            ? <ChevronRight className="size-3 shrink-0" />
-            : <ChevronDown className="size-3 shrink-0" />}
+          {isCollapsed ? (
+            <ChevronRight className="size-3 shrink-0" />
+          ) : (
+            <ChevronDown className="size-3 shrink-0" />
+          )}
           <span>{name}</span>
         </button>
       </TableCell>
@@ -173,11 +166,7 @@ export function SaaobPageTotalRow({
   dataIndex?: number;
 }) {
   return (
-    <TableRow
-      ref={measureRef}
-      data-index={dataIndex}
-      style={{ backgroundColor: "#FFF2CC" }}
-    >
+    <TableRow ref={measureRef} data-index={dataIndex} style={{backgroundColor: '#FFF2CC'}}>
       {renderDataCells(visibleColumns, data, {
         name: `Total: ${groupName}`,
         depth,
@@ -223,7 +212,7 @@ export function SaaobPageEntryRow({
     <TableRow
       ref={measureRef}
       data-index={dataIndex}
-      className={`${interactive ? "cursor-pointer select-none" : ""} ${rowClassName ?? ""} ${isSelected ? "outline outline-2 outline-primary" : ""}`}
+      className={`${interactive ? 'cursor-pointer select-none' : ''} ${rowClassName ?? ''} ${isSelected ? 'outline outline-2 outline-primary' : ''}`}
       title={title}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -267,7 +256,7 @@ export function SaaobPageAggregateRow({
     <TableRow
       ref={measureRef}
       data-index={dataIndex}
-      className={`select-none ${rowClassName ?? ""} ${isSelected ? "ring-1 ring-primary" : ""}`}
+      className={`select-none ${rowClassName ?? ''} ${isSelected ? 'ring-1 ring-primary' : ''}`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
     >
@@ -280,16 +269,10 @@ export function SaaobPageAggregateRow({
   );
 }
 
-export function SaaobPageSpacerRow({
-  visibleCount,
-  height,
-}: {
-  visibleCount: number;
-  height: number;
-}) {
+export function SaaobPageSpacerRow({visibleCount, height}: {visibleCount: number; height: number}) {
   return (
     <TableRow>
-      <TableCell colSpan={visibleCount} style={{ height: `${height}px` }} />
+      <TableCell colSpan={visibleCount} style={{height: `${height}px`}} />
     </TableRow>
   );
 }

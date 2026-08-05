@@ -1,9 +1,9 @@
-import { desc, count, eq } from "drizzle-orm";
+import {desc, count, eq} from 'drizzle-orm';
 
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { expenseType } from "@/lib/db/schema";
-import { validatorUtilities } from "@/lib/validators";
+import {db} from '@/lib/db';
+import {expenseType} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import {validatorUtilities} from '@/lib/validators';
 
 export async function create(payload: ExpenseTypePayload): Promise<Result<ExpenseType>> {
   try {
@@ -14,7 +14,7 @@ export async function create(payload: ExpenseTypePayload): Promise<Result<Expens
       .from(expenseType)
       .where(eq(expenseType.name, payload.name));
     if (result?.any > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "Expense type already exists.", payload);
+      return new Failure(ErrorCodes.ValidationFailure, 'Expense type already exists.', payload);
     }
 
     // Create the office code.
@@ -22,11 +22,13 @@ export async function create(payload: ExpenseTypePayload): Promise<Result<Expens
       .insert(expenseType)
       .values({
         name: payload.name,
-        ...(validatorUtilities.isNotEmpty(payload.description) ? { description: payload.description } : {}),
+        ...(validatorUtilities.isNotEmpty(payload.description)
+          ? {description: payload.description}
+          : {}),
       })
       .returning();
     if (!fundType) {
-      return new Failure(ErrorCodes.Fatal, "Unable to create a expense type.");
+      return new Failure(ErrorCodes.Fatal, 'Unable to create a expense type.');
     }
 
     return new Success({
@@ -35,7 +37,7 @@ export async function create(payload: ExpenseTypePayload): Promise<Result<Expens
       description: fundType.description,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create expense type.", payload, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create expense type.', payload, e);
   }
 }
 
@@ -52,11 +54,14 @@ export async function all(): Promise<Result<Array<ExpenseType>>> {
 
     return new Success(allFundTypes);
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch expense types.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch expense types.', {}, e);
   }
 }
 
-export async function update(id: string, payload: Partial<UpdateExpenseTypePayload>): Promise<Result<ExpenseType>> {
+export async function update(
+  id: string,
+  payload: Partial<UpdateExpenseTypePayload>,
+): Promise<Result<ExpenseType>> {
   try {
     const [target] = await db
       .select({
@@ -68,7 +73,7 @@ export async function update(id: string, payload: Partial<UpdateExpenseTypePaylo
       .where(eq(expenseType.id, id))
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "No such expense type found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'No such expense type found.', {id});
     }
 
     // Filter out unserializable content and empty values
@@ -78,8 +83,10 @@ export async function update(id: string, payload: Partial<UpdateExpenseTypePaylo
     const [updated] = await db
       .update(expenseType)
       .set({
-        ...(validatorUtilities.isExisty(values.name) ? { name: values.name } : {}),
-        ...(validatorUtilities.isExisty(values.description) ? { description: values.description } : {}),
+        ...(validatorUtilities.isExisty(values.name) ? {name: values.name} : {}),
+        ...(validatorUtilities.isExisty(values.description)
+          ? {description: values.description}
+          : {}),
       })
       .where(eq(expenseType.id, target.id))
       .returning();
@@ -90,7 +97,7 @@ export async function update(id: string, payload: Partial<UpdateExpenseTypePaylo
       description: updated.description,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update expense type.", { ...payload, id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update expense type.', {...payload, id}, e);
   }
 }
 
@@ -105,4 +112,4 @@ export type ExpenseType = {
   id: string;
   name: string;
   description: Optional<string>;
-}
+};

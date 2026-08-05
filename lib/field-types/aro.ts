@@ -1,9 +1,9 @@
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import {and, count, desc, eq, ilike, or} from 'drizzle-orm';
 
-import { aroOfficeDefinitions, officePosition, user } from "@/lib/db/schema";
-import { db } from "@/lib/db";
-import { ErrorCodes, Failure, Result, Success } from "@/lib/one-of";
-import { validatorUtilities } from "@/lib/validators";
+import {db} from '@/lib/db';
+import {aroOfficeDefinitions, officePosition, user} from '@/lib/db/schema';
+import {ErrorCodes, Failure, Result, Success} from '@/lib/one-of';
+import {validatorUtilities} from '@/lib/validators';
 
 export async function create(payload: AROPayload): Promise<Result<ARO>> {
   try {
@@ -14,7 +14,7 @@ export async function create(payload: AROPayload): Promise<Result<ARO>> {
       .from(aroOfficeDefinitions)
       .where(eq(aroOfficeDefinitions.name, payload.name));
     if (result?.any > 0) {
-      return new Failure(ErrorCodes.ValidationFailure, "ARO Definition already exists.", payload);
+      return new Failure(ErrorCodes.ValidationFailure, 'ARO Definition already exists.', payload);
     }
 
     // Validate the user
@@ -37,7 +37,7 @@ export async function create(payload: AROPayload): Promise<Result<ARO>> {
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
       .limit(1);
     if (!aroLeadUser) {
-      return new Failure(ErrorCodes.ValidationFailure, "Invalid ARO Lead User", payload);
+      return new Failure(ErrorCodes.ValidationFailure, 'Invalid ARO Lead User', payload);
     }
 
     // Create the office code.
@@ -51,7 +51,7 @@ export async function create(payload: AROPayload): Promise<Result<ARO>> {
       })
       .returning();
     if (!aroDescription) {
-      return new Failure(ErrorCodes.Fatal, "Unable to create a ARO definition.");
+      return new Failure(ErrorCodes.Fatal, 'Unable to create a ARO definition.');
     }
 
     return new Success({
@@ -69,7 +69,7 @@ export async function create(payload: AROPayload): Promise<Result<ARO>> {
       },
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to create ARO definition.", payload, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to create ARO definition.', payload, e);
   }
 }
 
@@ -92,7 +92,7 @@ export async function all(): Promise<Result<Array<ARO>>> {
       .orderBy(desc(aroOfficeDefinitions.createdAt));
 
     return new Success(
-      rows.map(r => ({
+      rows.map((r) => ({
         id: r.id,
         name: r.name,
         code: r.code,
@@ -108,7 +108,7 @@ export async function all(): Promise<Result<Array<ARO>>> {
       })),
     );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to fetch all ARO definitions.", {}, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to fetch all ARO definitions.', {}, e);
   }
 }
 
@@ -131,7 +131,7 @@ export async function update(id: string, payload: Partial<UpdateAROPayload>): Pr
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
       .limit(1);
     if (!target) {
-      return new Failure(ErrorCodes.ResourceNotFound, "ARO definition not found.", { id });
+      return new Failure(ErrorCodes.ResourceNotFound, 'ARO definition not found.', {id});
     }
 
     const values: Partial<AROPayload> = validatorUtilities.filterUpdatedFields(payload);
@@ -165,7 +165,10 @@ export async function update(id: string, payload: Partial<UpdateAROPayload>): Pr
         .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
         .limit(1);
       if (!newLeadUser) {
-        return new Failure(ErrorCodes.ValidationFailure, "Invalid ARO Lead User.", { ...payload, id });
+        return new Failure(ErrorCodes.ValidationFailure, 'Invalid ARO Lead User.', {
+          ...payload,
+          id,
+        });
       }
 
       leadUser = {
@@ -181,15 +184,17 @@ export async function update(id: string, payload: Partial<UpdateAROPayload>): Pr
     const [updated] = await db
       .update(aroOfficeDefinitions)
       .set({
-        ...(validatorUtilities.isExisty(values.name) ? { name: values.name } : {}),
-        ...(validatorUtilities.isExisty(values.code) ? { code: values.code } : {}),
-        ...(validatorUtilities.isExisty(values.description) ? { description: values.description } : {}),
-        ...(validatorUtilities.isExisty(values.leadUserId) ? { leadUserId: leadUser.id } : {}),
+        ...(validatorUtilities.isExisty(values.name) ? {name: values.name} : {}),
+        ...(validatorUtilities.isExisty(values.code) ? {code: values.code} : {}),
+        ...(validatorUtilities.isExisty(values.description)
+          ? {description: values.description}
+          : {}),
+        ...(validatorUtilities.isExisty(values.leadUserId) ? {leadUserId: leadUser.id} : {}),
       })
       .where(eq(aroOfficeDefinitions.id, id))
       .returning();
     if (!updated) {
-      return new Failure(ErrorCodes.Fatal, "Unable to update ARO definition.", { ...payload, id });
+      return new Failure(ErrorCodes.Fatal, 'Unable to update ARO definition.', {...payload, id});
     }
 
     return new Success({
@@ -200,7 +205,7 @@ export async function update(id: string, payload: Partial<UpdateAROPayload>): Pr
       leadUser,
     });
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to update ARO definition.", { ...payload, id }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to update ARO definition.', {...payload, id}, e);
   }
 }
 
@@ -224,17 +229,14 @@ export async function searchForValidAROUser(query: string): Promise<Result<Array
           eq(user.emailVerified, true),
           eq(user.banned, false),
           eq(user.shadowBanned, false),
-          or(
-            ilike(user.name, wildcard),
-            ilike(user.email, wildcard),
-          ),
+          or(ilike(user.name, wildcard), ilike(user.email, wildcard)),
         ),
       )
       .leftJoin(officePosition, eq(officePosition.id, user.officePositionId))
       .limit(20);
 
     return new Success(
-      rows.map(r => ({
+      rows.map((r) => ({
         id: r.id,
         name: r.name,
         position: {
@@ -244,7 +246,7 @@ export async function searchForValidAROUser(query: string): Promise<Result<Array
       })),
     );
   } catch (e) {
-    return new Failure(ErrorCodes.Fatal, "Unable to search for valid ARO users.", { query }, e);
+    return new Failure(ErrorCodes.Fatal, 'Unable to search for valid ARO users.', {query}, e);
   }
 }
 
@@ -263,8 +265,8 @@ export type AROUser = {
   position: {
     id: string;
     name: string;
-  }
-}
+  };
+};
 
 export type ARO = {
   id: string;
@@ -272,4 +274,4 @@ export type ARO = {
   description: Optional<string>;
   code: string;
   leadUser: AROUser;
-}
+};

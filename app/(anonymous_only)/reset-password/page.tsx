@@ -1,16 +1,15 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { type SyntheticEvent, useState, useRef } from "react";
-import { Mail } from "lucide-react";
-import { Turnstile, TurnstileInstance } from "@marsidev/react-turnstile";
+import {Turnstile, TurnstileInstance} from '@marsidev/react-turnstile';
+import {Mail} from 'lucide-react';
+import Image from 'next/image';
+import {type SyntheticEvent, useState, useRef} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-
-import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
+import {Button} from '@/components/ui/button';
+import {Field, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Spinner} from '@/components/ui/spinner';
+import {$fetch} from '@/lib/http/client/fetch';
 
 export default function SigninPage() {
   const turnstileComponent = useRef<TurnstileInstance | null>(null);
@@ -19,11 +18,14 @@ export default function SigninPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<RecoveryRequestPageState>({
-    email: "",
+    email: '',
   });
 
-  const onFieldUpdate = (e: SyntheticEvent<HTMLInputElement>, key: keyof RecoveryRequestPageState) => {
-    setCredentials(l => ({ ...l, [key]: (e.target as HTMLInputElement).value }));
+  const onFieldUpdate = (
+    e: SyntheticEvent<HTMLInputElement>,
+    key: keyof RecoveryRequestPageState,
+  ) => {
+    setCredentials((l) => ({...l, [key]: (e.target as HTMLInputElement).value}));
   };
 
   const onSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
@@ -36,29 +38,32 @@ export default function SigninPage() {
       const widget = turnstileComponent.current;
       if (!widget) {
         setIsLoading(false);
-        setErrorMessage("Turnstile is not loaded. Please refresh the page and try again.");
+        setErrorMessage('Turnstile is not loaded. Please refresh the page and try again.');
 
         return;
       }
 
       if (widget.isExpired()) {
         setIsLoading(false);
-        setErrorMessage("Turnstile expired. Please refresh and try again.");
+        setErrorMessage('Turnstile expired. Please refresh and try again.');
 
         return;
       }
 
-      const { data, error } = await $fetch<{ data: { message: string }}>("/api/auth/request-reset-password", {
-        method: "POST",
-        body: {
-          ...credentials,
-          token: widget.getResponse(),
+      const {data, error} = await $fetch<{data: {message: string}}>(
+        '/api/auth/request-reset-password',
+        {
+          method: 'POST',
+          body: {
+            ...credentials,
+            token: widget.getResponse(),
+          },
         },
-      });
+      );
 
       if (error) {
         setSuccessMessage(null);
-        setErrorMessage("Invalid request. Check if the email is correct.");
+        setErrorMessage('Invalid request. Check if the email is correct.');
 
         widget.reset();
         return;
@@ -70,8 +75,7 @@ export default function SigninPage() {
 
         widget.reset();
       }
-    }
-    finally {
+    } finally {
       setIsLoading(false);
     }
   };
@@ -101,9 +105,7 @@ export default function SigninPage() {
               <form onSubmit={onSubmit}>
                 <FieldGroup className="gap-5">
                   <div className="space-y-2">
-                    <h1 className="text-2xl font-semibold tracking-tight">
-                      Recover your Account
-                    </h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">Recover your Account</h1>
                     <p className="text-sm leading-6 text-muted-foreground">
                       Enter the email of your account
                     </p>
@@ -134,7 +136,7 @@ export default function SigninPage() {
                         autoComplete="email"
                         autoCorrect="off"
                         value={credentials.email}
-                        onInput={e => onFieldUpdate(e, "email")}
+                        onInput={(e) => onFieldUpdate(e, 'email')}
                         disabled={isLoading}
                         required
                       />
@@ -150,7 +152,7 @@ export default function SigninPage() {
 
                   <Button className="h-10 w-full" disabled={isLoading}>
                     {isLoading && <Spinner />}
-                    {isLoading ? "Requesting..." : "Request a Password Reset"}
+                    {isLoading ? 'Requesting...' : 'Request a Password Reset'}
                   </Button>
                 </FieldGroup>
               </form>

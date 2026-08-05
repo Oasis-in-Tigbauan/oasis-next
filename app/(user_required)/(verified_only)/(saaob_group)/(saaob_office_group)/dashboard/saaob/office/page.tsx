@@ -1,20 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Download, FileSpreadsheet, Search } from "lucide-react";
-import useSWR from "swr";
+import {useVirtualizer} from '@tanstack/react-virtual';
+import {Download, FileSpreadsheet, Search} from 'lucide-react';
+import {useCallback, useMemo, useRef, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-  SaaobOfficeResponse,
-} from "@/lib/http/client/responses";
-import {
-  filterSaaobTreeByQuery,
-  flattenSaaobVisible,
-} from "@/common/saaob/client";
+import {ExportDialog} from '@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog';
+import {ManageTemplatesDialog} from '@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog';
+import {filterSaaobTreeByQuery, flattenSaaobVisible} from '@/common/saaob/client';
 import {
   SaaobPageEntryRow,
   SaaobPageGroupRow,
@@ -22,34 +15,33 @@ import {
   SaaobPageTableHeader,
   SaaobPageTotalRow,
   useSaaobColumnVisibility,
-} from "@/common/saaob/page-table";
-
-import { ManageTemplatesDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/manage-templates-dialog";
-import { ExportDialog } from "@/app/(user_required)/(verified_only)/(saaob_group)/export-dialog";
-import { ColumnVisibilityPicker } from "@/components/column-visibility-picker";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableHeader,
-} from "@/components/ui/table";
-import DeadHamster from "@/components/dead-hamster";
-import Loading from "@/components/loading";
+} from '@/common/saaob/page-table';
+import {ColumnVisibilityPicker} from '@/components/column-visibility-picker';
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {Table, TableBody, TableHeader} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  BetterFetchResponse,
+  SaaobOfficeResponse,
+} from '@/lib/http/client/responses';
 
 export default function Page() {
-  const { data, error, isLoading } = useSWR<
+  const {data, error, isLoading} = useSWR<
     BetterFetchResponse<SaaobOfficeResponse, ApiResponseException>
-  >("/api/saaob/office", $fetch);
+  >('/api/saaob/office', $fetch);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const columnVisibility = useSaaobColumnVisibility("office");
+  const columnVisibility = useSaaobColumnVisibility('office');
 
   const tree = useMemo(() => data?.data?.data ?? [], [data]);
   const filteredTree = useMemo(
@@ -77,7 +69,7 @@ export default function Page() {
     virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   const toggleCollapse = useCallback((groupId: string) => {
-    setCollapsed(prev => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) next.delete(groupId);
       else next.add(groupId);
@@ -97,7 +89,7 @@ export default function Page() {
             className="pl-7 h-8 w-64 text-xs"
             placeholder="Search SAAOB data..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
@@ -149,7 +141,9 @@ export default function Page() {
       <div className="border rounded-lg p-2">
         {flatRows.length === 0 ? (
           <div className="px-2 py-10 text-center text-sm text-muted-foreground">
-            {searchQuery ? "No results match your search." : "No SAAOB records found for your office."}
+            {searchQuery
+              ? 'No results match your search.'
+              : 'No SAAOB records found for your office.'}
           </div>
         ) : (
           <div
@@ -163,13 +157,16 @@ export default function Page() {
 
               <TableBody>
                 {paddingTop > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingTop} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingTop}
+                  />
                 )}
 
-                {virtualRows.map(virtualRow => {
+                {virtualRows.map((virtualRow) => {
                   const row = flatRows[virtualRow.index]!;
 
-                  if (row.kind === "group") {
+                  if (row.kind === 'group') {
                     const isCollapsed = collapsed.has(row.id) && !searchQuery.trim();
                     return (
                       <SaaobPageGroupRow
@@ -187,7 +184,7 @@ export default function Page() {
                     );
                   }
 
-                  if (row.kind === "total") {
+                  if (row.kind === 'total') {
                     return (
                       <SaaobPageTotalRow
                         key={row.id}
@@ -212,7 +209,7 @@ export default function Page() {
                       remarks={item.other.remarks}
                       depth={row.depth}
                       rowClassName={
-                        virtualRow.index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined
+                        virtualRow.index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined
                       }
                       measureRef={rowVirtualizer.measureElement}
                       dataIndex={virtualRow.index}
@@ -221,7 +218,10 @@ export default function Page() {
                 })}
 
                 {paddingBottom > 0 && (
-                  <SaaobPageSpacerRow visibleCount={columnVisibility.visibleCount} height={paddingBottom} />
+                  <SaaobPageSpacerRow
+                    visibleCount={columnVisibility.visibleCount}
+                    height={paddingBottom}
+                  />
                 )}
               </TableBody>
             </Table>

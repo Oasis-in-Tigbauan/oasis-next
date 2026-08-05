@@ -1,11 +1,11 @@
-import type { PageColumnDef } from "@/common/column-visibility/types";
+import type {PageColumnDef} from '@/common/column-visibility/types';
 
 export function resolveVisibleColumns<K extends string>(
   selected: ReadonlySet<string> | null | undefined,
   columns: ReadonlyArray<PageColumnDef<K>>,
 ): PageColumnDef<K>[] {
-  const pinnedKeys = columns.filter(c => c.pinned).map(c => c.key);
-  const toggleableKeys = columns.filter(c => !c.pinned).map(c => c.key);
+  const pinnedKeys = columns.filter((c) => c.pinned).map((c) => c.key);
+  const toggleableKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
 
   if (!selected || selected.size === 0) {
     return [...columns];
@@ -16,22 +16,22 @@ export function resolveVisibleColumns<K extends string>(
     effective.add(key);
   }
 
-  const visibleToggleable = toggleableKeys.filter(k => effective.has(k));
+  const visibleToggleable = toggleableKeys.filter((k) => effective.has(k));
   if (visibleToggleable.length === 0) {
-    return columns.filter(c => c.pinned);
+    return columns.filter((c) => c.pinned);
   }
 
-  return columns.filter(c => c.pinned || effective.has(c.key));
+  return columns.filter((c) => c.pinned || effective.has(c.key));
 }
 
 export function defaultVisibleKeys<K extends string>(
   columns: ReadonlyArray<PageColumnDef<K>>,
 ): Set<K> {
-  return new Set(columns.map(c => c.key));
+  return new Set(columns.map((c) => c.key));
 }
 
 export function toggleableColumnCount<K extends string>(
   columns: ReadonlyArray<PageColumnDef<K>>,
 ): number {
-  return columns.filter(c => !c.pinned).length;
+  return columns.filter((c) => !c.pinned).length;
 }

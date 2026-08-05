@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type ObrMainDataAipReference = {
   id: string;
@@ -16,7 +16,7 @@ export type ObrMainDataItem = {
   payee: string | null;
   address: string;
   requestSourceId: string | null;
-  saaob: { id: string; name: string } | null;
+  saaob: {id: string; name: string} | null;
   responsibilityCenter: {
     id: string;
     name: string;

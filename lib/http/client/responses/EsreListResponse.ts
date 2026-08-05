@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type EsreItem = {
   id: string;
@@ -14,28 +14,37 @@ export type EsreItem = {
     id: string;
     name: string;
   };
-  expenseType: {
-    id: string;
-    name: string;
-  } | null | undefined;
-  saaob: {
-    id: string;
-    name: string;
-  } | null | undefined;
-  obr: {
-    id: string;
-    requestNumber: string;
-    expenseClass: {
-      id: string;
-      accountName: string;
-      accountCode: string | null | undefined;
-      subClassification: string | null | undefined;
-    };
-    office: {
-      id: string;
-      name: string;
-    };
-  } | null | undefined;
+  expenseType:
+    | {
+        id: string;
+        name: string;
+      }
+    | null
+    | undefined;
+  saaob:
+    | {
+        id: string;
+        name: string;
+      }
+    | null
+    | undefined;
+  obr:
+    | {
+        id: string;
+        requestNumber: string;
+        expenseClass: {
+          id: string;
+          accountName: string;
+          accountCode: string | null | undefined;
+          subClassification: string | null | undefined;
+        };
+        office: {
+          id: string;
+          name: string;
+        };
+      }
+    | null
+    | undefined;
   disbursed: string;
 };
 

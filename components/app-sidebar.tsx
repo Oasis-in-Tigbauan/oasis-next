@@ -1,8 +1,5 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarDays,
@@ -19,18 +16,14 @@ import {
   ShieldUser,
   UserCheck,
   type LucideIcon,
-} from "lucide-react";
-import type { CSSProperties, ComponentProps } from "react";
+} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import {usePathname} from 'next/navigation';
+import type {CSSProperties, ComponentProps} from 'react';
 
-import type { User } from "@/lib/accounts";
-import * as permissions from "@/lib/db/permissions";
-import { cn } from "@/lib/utils";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { NavUser } from "@/components/nav-user";
+import {NavUser} from '@/components/nav-user';
+import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {
   Sidebar,
   SidebarContent,
@@ -46,7 +39,10 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
-} from "@/components/ui/sidebar";
+} from '@/components/ui/sidebar';
+import type {User} from '@/lib/accounts';
+import * as permissions from '@/lib/db/permissions';
+import {cn} from '@/lib/utils';
 
 type SidebarItem = {
   title: string;
@@ -70,11 +66,11 @@ type SidebarCollapsibleItem = {
 type SidebarSectionItem = SidebarItem | SidebarCollapsibleItem;
 
 const sidebarStyle = {
-  "--sidebar-width": "12.75rem",
-  "--sidebar-width-icon": "3.1rem",
+  '--sidebar-width': '12.75rem',
+  '--sidebar-width-icon': '3.1rem',
 } as CSSProperties;
 
-export default function AppSidebar({ user, ...props }: AppSidebarProps) {
+export default function AppSidebar({user, ...props}: AppSidebarProps) {
   const pathname = usePathname();
   const permissionMap = new Set(user.office.role.permissions);
   const hasPermission = (permission: permissions.Permissions) => permissionMap.has(permission);
@@ -84,117 +80,141 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
     requiredPermissions.every((permission) => permissionMap.has(permission));
 
   const primaryItems: SidebarItem[] = [
-    { title: "Home", href: "/dashboard", icon: Home, exact: true },
+    {title: 'Home', href: '/dashboard', icon: Home, exact: true},
   ];
 
   const obrItems: SidebarSubItem[] = [
-    { title: "Overview", href: "/dashboard/obr", exact: true },
+    {title: 'Overview', href: '/dashboard/obr', exact: true},
     hasAnyPermission(permissions.OBR_REQUEST_READ, permissions.OBR_REQUEST_CREATE)
-      ? { title: "Requests", href: "/dashboard/obr/requests" }
+      ? {title: 'Requests', href: '/dashboard/obr/requests'}
       : null,
     hasPermission(permissions.OBR_APPROVER_BASIC_HIGH_WRITE)
-      ? { title: "Approvals", href: "/dashboard/obr/approvals" }
+      ? {title: 'Approvals', href: '/dashboard/obr/approvals'}
       : null,
     hasAnyPermission(
       permissions.OBR_DISBURSEMENT_CREATE,
       permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE,
     )
       ? {
-        title: "Disbursements",
-        href: hasPermission(permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE)
-          ? "/dashboard/obr/disbursement/approvals"
-          : "/dashboard/obr/disbursement/manage",
-      }
+          title: 'Disbursements',
+          href: hasPermission(permissions.OBR_DISBURSEMENT_ACCOUNTANT_APPROVE)
+            ? '/dashboard/obr/disbursement/approvals'
+            : '/dashboard/obr/disbursement/manage',
+        }
       : null,
     hasPermission(permissions.OBR_APPROVER_BASIC_READ)
-      ? { title: "OBR Items", href: "/dashboard/obr/management/manage" }
+      ? {title: 'OBR Items', href: '/dashboard/obr/management/manage'}
       : null,
     hasAllPermissions(permissions.OBR_MANAGEMENT_READ, permissions.OBR_MANAGEMENT_WRITE)
-      ? { title: "OBR Data", href: "/dashboard/obr/main/manage" }
+      ? {title: 'OBR Data', href: '/dashboard/obr/main/manage'}
       : null,
   ].filter((item): item is SidebarSubItem => item !== null);
 
   const saaobItems: SidebarSubItem[] = [
-    { title: "Overview", href: "/dashboard/saaob", exact: true },
+    {title: 'Overview', href: '/dashboard/saaob', exact: true},
     hasPermission(permissions.SAAOB_OFFICE_READ)
-      ? { title: "Office View", href: "/dashboard/saaob/office" }
+      ? {title: 'Office View', href: '/dashboard/saaob/office'}
       : null,
     hasAllPermissions(permissions.SAAOB_DATA_READ, permissions.SAAOB_DATA_WRITE)
-      ? { title: "Main Data", href: "/dashboard/saaob/data" }
+      ? {title: 'Main Data', href: '/dashboard/saaob/data'}
       : null,
     hasAllPermissions(permissions.SAAOB_DATA_READ, permissions.SAAOB_DATA_WRITE)
-      ? { title: "Summary of Accounts", href: "/dashboard/saaob/accounts-summary" }
+      ? {title: 'Summary of Accounts', href: '/dashboard/saaob/accounts-summary'}
       : null,
   ].filter((item): item is SidebarSubItem => item !== null);
 
   const lbacItems: SidebarSubItem[] = [
-    { title: "Overview", href: "/dashboard/lbac", exact: true },
+    {title: 'Overview', href: '/dashboard/lbac', exact: true},
     hasPermission(permissions.LBAC_OFFICE_READ)
-      ? { title: "Viewer", href: "/dashboard/lbac/viewer" }
+      ? {title: 'Viewer', href: '/dashboard/lbac/viewer'}
       : null,
     hasAllPermissions(permissions.LBAC_QUARTERLY_READ, permissions.LBAC_QUARTERLY_WRITE)
-      ? { title: "Quarterly Reports", href: "/dashboard/lbac/quarterly" }
+      ? {title: 'Quarterly Reports', href: '/dashboard/lbac/quarterly'}
       : null,
     hasAllPermissions(permissions.LBAC_DATA_READ, permissions.LBAC_DATA_WRITE)
-      ? { title: "Data", href: "/dashboard/lbac/data" }
+      ? {title: 'Data', href: '/dashboard/lbac/data'}
       : null,
     hasAllPermissions(permissions.LBAC_DATA_READ, permissions.LBAC_DATA_WRITE)
-      ? { title: "Collection Performance", href: "/dashboard/lbac/coll-perf" }
+      ? {title: 'Collection Performance', href: '/dashboard/lbac/coll-perf'}
       : null,
     hasAllPermissions(permissions.LBAC_DATA_READ, permissions.LBAC_DATA_WRITE)
-      ? { title: "Monitoring", href: "/dashboard/lbac/monitoring" }
+      ? {title: 'Monitoring', href: '/dashboard/lbac/monitoring'}
       : null,
   ].filter((item): item is SidebarSubItem => item !== null);
 
   const worksheetItems: SidebarSectionItem[] = [
-    hasPermission(permissions.ESRE_READ) ? { title: "ESRE", href: "/dashboard/esre", icon: FileSpreadsheet } : null,
-    obrItems.length > 0 ? { title: "OBR", icon: BriefcaseBusiness, items: obrItems } : null,
-    saaobItems.length > 0 ? { title: "SAAOB", icon: FileSpreadsheet, items: saaobItems } : null,
-    lbacItems.length > 0 ? { title: "LBAC", icon: FileSpreadsheet, items: lbacItems } : null,
-    hasPermission(permissions.SUPPLEMENTAL_READ) ? { title: "Supplemental", href: "/dashboard/supplemental", icon: FileSpreadsheet } : null,
-    hasPermission(permissions.AIP_READ) ? { title: "AIP", href: "/dashboard/aip", icon: FileSpreadsheet } : null,
+    hasPermission(permissions.ESRE_READ)
+      ? {title: 'ESRE', href: '/dashboard/esre', icon: FileSpreadsheet}
+      : null,
+    obrItems.length > 0 ? {title: 'OBR', icon: BriefcaseBusiness, items: obrItems} : null,
+    saaobItems.length > 0 ? {title: 'SAAOB', icon: FileSpreadsheet, items: saaobItems} : null,
+    lbacItems.length > 0 ? {title: 'LBAC', icon: FileSpreadsheet, items: lbacItems} : null,
+    hasPermission(permissions.SUPPLEMENTAL_READ)
+      ? {title: 'Supplemental', href: '/dashboard/supplemental', icon: FileSpreadsheet}
+      : null,
+    hasPermission(permissions.AIP_READ)
+      ? {title: 'AIP', href: '/dashboard/aip', icon: FileSpreadsheet}
+      : null,
   ].filter((item): item is SidebarSectionItem => item !== null);
 
   const officeFormItems: SidebarItem[] = [
-    { title: "Leave Application", href: "/dashboard/forms/leave", icon: CalendarDays },
-    { title: "Payroll", href: "/dashboard/forms/payroll", icon: PhilippinePeso },
-    hasPermission(permissions.PURCHASING_REQUEST_MANAGE) ? { title: "PR/PO Form", href: "/dashboard/forms/purchasing", icon: ShoppingBasket } : null,
-    hasPermission(permissions.PPMP_READ) ? { title: "PPMP", href: "/dashboard/forms/ppmp", icon: ShoppingCart } : null,
-    hasPermission(permissions.OBR_DISBURSEMENT_CREATE) ? { title: "DV-Elec", href: "/dashboard/forms/elec", icon: PlugZap } : null,
-    hasAnyPermission(
-      permissions.TRAVEL_READ,
-      permissions.TRAVEL_WRITE,
-      permissions.TRAVEL_APPROVER,
-    ) ? { title: "Travel Orders", href: "/dashboard/forms/travel-order", icon: Car } : null,
+    {title: 'Leave Application', href: '/dashboard/forms/leave', icon: CalendarDays},
+    {title: 'Payroll', href: '/dashboard/forms/payroll', icon: PhilippinePeso},
+    hasPermission(permissions.PURCHASING_REQUEST_MANAGE)
+      ? {title: 'PR/PO Form', href: '/dashboard/forms/purchasing', icon: ShoppingBasket}
+      : null,
+    hasPermission(permissions.PPMP_READ)
+      ? {title: 'PPMP', href: '/dashboard/forms/ppmp', icon: ShoppingCart}
+      : null,
+    hasPermission(permissions.OBR_DISBURSEMENT_CREATE)
+      ? {title: 'DV-Elec', href: '/dashboard/forms/elec', icon: PlugZap}
+      : null,
+    hasAnyPermission(permissions.TRAVEL_READ, permissions.TRAVEL_WRITE, permissions.TRAVEL_APPROVER)
+      ? {title: 'Travel Orders', href: '/dashboard/forms/travel-order', icon: Car}
+      : null,
   ].filter((item): item is SidebarItem => item !== null);
 
   const dataManagementItems: SidebarItem[] = hasAllPermissions(
     permissions.DATA_TYPES_MANAGE_READ,
     permissions.DATA_TYPES_MANAGE_WRITE,
-  ) ? [
-      { title: "ARO Office Definitions", href: "/dashboard/settings/aro-office", icon: BriefcaseBusiness },
-      { title: "Expense Types", href: "/dashboard/settings/expense-types", icon: PhilippinePeso },
-      { title: "Expense Codes", href: "/dashboard/settings/expense-codes", icon: PhilippinePeso },
-      { title: "Office Codes", href: "/dashboard/settings/office-codes", icon: LampDesk },
-      { title: "Fund Types", href: "/dashboard/settings/fund-types", icon: PhilippinePeso },
-      { title: "Procurement Types", href: "/dashboard/settings/procurement-types", icon: BriefcaseBusiness },
-    ] : [];
+  )
+    ? [
+        {
+          title: 'ARO Office Definitions',
+          href: '/dashboard/settings/aro-office',
+          icon: BriefcaseBusiness,
+        },
+        {title: 'Expense Types', href: '/dashboard/settings/expense-types', icon: PhilippinePeso},
+        {title: 'Expense Codes', href: '/dashboard/settings/expense-codes', icon: PhilippinePeso},
+        {title: 'Office Codes', href: '/dashboard/settings/office-codes', icon: LampDesk},
+        {title: 'Fund Types', href: '/dashboard/settings/fund-types', icon: PhilippinePeso},
+        {
+          title: 'Procurement Types',
+          href: '/dashboard/settings/procurement-types',
+          icon: BriefcaseBusiness,
+        },
+      ]
+    : [];
 
   const administrationItems: SidebarItem[] = hasAllPermissions(
     permissions.APPROVALS_ACCOUNT_WRITE,
     permissions.APPROVALS_ACCOUNT_READ,
-  ) ? [
-      { title: "Invitations", href: "/dashboard/settings/invitations", icon: Mail },
-      { title: "Approvals", href: "/dashboard/settings/approvals", icon: UserCheck },
-    ] : [];
+  )
+    ? [
+        {title: 'Invitations', href: '/dashboard/settings/invitations', icon: Mail},
+        {title: 'Approvals', href: '/dashboard/settings/approvals', icon: UserCheck},
+      ]
+    : [];
 
   const accessControlItems: SidebarSubItem[] = hasAllPermissions(
     permissions.APPROVALS_ACCOUNT_WRITE,
     permissions.APPROVALS_ACCOUNT_READ,
-  ) ? [
-      { title: "Role Management", href: "/dashboard/settings/roles" },
-      { title: "User Management", href: "/dashboard/settings/users" },
-    ] : [];
+  )
+    ? [
+        {title: 'Role Management', href: '/dashboard/settings/roles'},
+        {title: 'User Management', href: '/dashboard/settings/users'},
+      ]
+    : [];
 
   const accessControlActive = accessControlItems.some((item) => isPathActive(pathname, item.href));
 
@@ -243,7 +263,11 @@ export default function AppSidebar({ user, ...props }: AppSidebarProps) {
                   <SidebarNavItem key={item.href} item={item} pathname={pathname} />
                 ))}
                 {accessControlItems.length > 0 && (
-                  <Collapsible asChild defaultOpen={accessControlActive} className="group/collapsible">
+                  <Collapsible
+                    asChild
+                    defaultOpen={accessControlActive}
+                    className="group/collapsible"
+                  >
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
@@ -314,24 +338,20 @@ function SidebarSection({
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
-          {items.map((item) => (
-            "items" in item
-              ? <SidebarCollapsibleNavItem key={item.title} item={item} pathname={pathname} />
-              : <SidebarNavItem key={item.href} item={item} pathname={pathname} />
-          ))}
+          {items.map((item) =>
+            'items' in item ? (
+              <SidebarCollapsibleNavItem key={item.title} item={item} pathname={pathname} />
+            ) : (
+              <SidebarNavItem key={item.href} item={item} pathname={pathname} />
+            ),
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
   );
 }
 
-function SidebarNavGroup({
-  items,
-  pathname,
-}: {
-  items: SidebarItem[];
-  pathname: string;
-}) {
+function SidebarNavGroup({items, pathname}: {items: SidebarItem[]; pathname: string}) {
   if (items.length === 0) return null;
 
   return (
@@ -366,17 +386,17 @@ function SidebarNavItem({
         isActive={active}
         tooltip={item.title}
         className={cn(
-          "h-8.5 rounded-md px-2.5 text-[11.5px] font-medium text-white/88 hover:bg-white/6 hover:text-white",
-          active && !highlight && "bg-white text-[#335892] shadow-sm",
-          highlight && active && "bg-white text-[#335892] shadow-sm",
-          highlight && !active && "bg-transparent",
+          'h-8.5 rounded-md px-2.5 text-[11.5px] font-medium text-white/88 hover:bg-white/6 hover:text-white',
+          active && !highlight && 'bg-white text-[#335892] shadow-sm',
+          highlight && active && 'bg-white text-[#335892] shadow-sm',
+          highlight && !active && 'bg-transparent',
         )}
       >
         <Link href={item.href}>
           <Icon
             className={cn(
-              "size-3.5 shrink-0 transition-colors group-hover/menu-button:text-white/92",
-              active ? "text-[#335892]" : "text-white/70",
+              'size-3.5 shrink-0 transition-colors group-hover/menu-button:text-white/92',
+              active ? 'text-[#335892]' : 'text-white/70',
             )}
           />
           <span className="truncate">{item.title}</span>

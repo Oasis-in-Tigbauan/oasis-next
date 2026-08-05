@@ -1,6 +1,8 @@
-import type { DateTime } from "luxon";
+import type {DateTime} from 'luxon';
 
-export type ValidationErrors<T> = Record<keyof T, {
+export type ValidationErrors<T> = Record<
+  keyof T,
+  {
     /**
      * A string variable that represents the error message from the Validator function
      */
@@ -9,19 +11,20 @@ export type ValidationErrors<T> = Record<keyof T, {
     /**
      * Specifies the origin of the error where the check fails.
      */
-    from: "type-check" | "formatter" | "is-required" | "unvalidated";
-}>;
+    from: 'type-check' | 'formatter' | 'is-required' | 'unvalidated';
+  }
+>;
 
 export interface ValidationResult<T> {
-    /**
-     * Validation Result if Passing or Not.
-     */
-    ok: boolean;
+  /**
+   * Validation Result if Passing or Not.
+   */
+  ok: boolean;
 
-    /**
-     * Validation Errors
-     */
-    errors: ValidationErrors<T>
+  /**
+   * Validation Errors
+   */
+  errors: ValidationErrors<T>;
 }
 
 /**
@@ -35,7 +38,7 @@ export interface ValidationResult<T> {
  * @param {T} value The value to validate.
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
-export type ValidationFunction<T> = (value: T) => Promise<{ ok: boolean, error?: string }>
+export type ValidationFunction<T> = (value: T) => Promise<{ok: boolean; error?: string}>;
 
 /**
  * Represents the possible validation types that can be used for input or data validation.
@@ -50,7 +53,7 @@ export type ValidationFunction<T> = (value: T) => Promise<{ ok: boolean, error?:
  * - "array": Represents a collection of elements organised in a sequential format.
  * - "object": Represents a structured collection of key-value pairs.
  */
-export type ValidationTypes = "string" | "number" | "boolean" | "date" | "array" | "object";
+export type ValidationTypes = 'string' | 'number' | 'boolean' | 'date' | 'array' | 'object';
 
 /**
  * A utility type that determines the validation type of a given input type `V`.
@@ -65,83 +68,88 @@ export type ValidationTypes = "string" | "number" | "boolean" | "date" | "array"
  *
  * @template V - The input type to evaluate.
  */
-type ExtractValidationType<V> =
-    V extends string ? "string" :
-        V extends number ? "number" :
-            V extends boolean ? "boolean" :
-                V extends Date ? "date" :
-                    V extends never[] ? "array" : "object";
+type ExtractValidationType<V> = V extends string
+  ? 'string'
+  : V extends number
+    ? 'number'
+    : V extends boolean
+      ? 'boolean'
+      : V extends Date
+        ? 'date'
+        : V extends never[]
+          ? 'array'
+          : 'object';
 
 export interface Schema<T> {
-    /**
-     * List of all properties to be validated
-     */
-    properties: {
-        [K in keyof T]: {
-            /**
-             * The Instance Type of the Property
-             */
-            type: ExtractValidationType<T[K]>;
+  /**
+   * List of all properties to be validated
+   */
+  properties: {
+    [K in keyof T]: {
+      /**
+       * The Instance Type of the Property
+       */
+      type: ExtractValidationType<T[K]>;
 
-            /**
-             * The Formatter to use for validation if the current property represents a format
-             * like an email or phone number.
-             *
-             * The value of the formatter is specific for each instance type.
-             * @remarks If formatterFn is defined, this will be ignored.
-             */
-            formatter?: string;
+      /**
+       * The Formatter to use for validation if the current property represents a format
+       * like an email or phone number.
+       *
+       * The value of the formatter is specific for each instance type.
+       * @remarks If formatterFn is defined, this will be ignored.
+       */
+      formatter?: string;
 
-            /**
-             * Custom formatter function.
-             */
-            formatterFn?: ValidationFunction<T[K]>;
+      /**
+       * Custom formatter function.
+       */
+      formatterFn?: ValidationFunction<T[K]>;
 
-            /**
-             * Represents the minimum allowable value.
-             * This is an optional property that defines the lower bound for a numeric range or value.
-             * If undefined, no minimum constraint is applied.
-             *
-             * @remarks This will only work if type is string, number and date.
-             * @remarks If type is string, this will check the minimum length of the string.
-             * @remarks If type is number, this will check the minimum value
-             * @remarks If type is date, this will check the minimum DateTime allowed.
-             */
-            min?: number | DateTime;
+      /**
+       * Represents the minimum allowable value.
+       * This is an optional property that defines the lower bound for a numeric range or value.
+       * If undefined, no minimum constraint is applied.
+       *
+       * @remarks This will only work if type is string, number and date.
+       * @remarks If type is string, this will check the minimum length of the string.
+       * @remarks If type is number, this will check the minimum value
+       * @remarks If type is date, this will check the minimum DateTime allowed.
+       */
+      min?: number | DateTime;
 
-            /**
-             * Represents the maximum value or upper limit that can be assigned or processed.
-             * The value is optional and may remain undefined if not explicitly specified.
-             * Commonly used for setting constraints or boundaries in calculations or validations.
-             *
-             * @remarks This will only work if type is string, number and date.
-             * @remarks If type is string, this will check the maximum length of the string.
-             * @remarks If type is number, this will check the maximum value
-             * @remarks If type is date, this will check the maximum DateTime allowed.
-             */
-            max?: number | DateTime;
-        }
-    }
+      /**
+       * Represents the maximum value or upper limit that can be assigned or processed.
+       * The value is optional and may remain undefined if not explicitly specified.
+       * Commonly used for setting constraints or boundaries in calculations or validations.
+       *
+       * @remarks This will only work if type is string, number and date.
+       * @remarks If type is string, this will check the maximum length of the string.
+       * @remarks If type is number, this will check the maximum value
+       * @remarks If type is date, this will check the maximum DateTime allowed.
+       */
+      max?: number | DateTime;
+    };
+  };
 
-    /**
-     * List of all property names that should be required.
-     */
-    requiredProperties: Array<keyof T>;
+  /**
+   * List of all property names that should be required.
+   */
+  requiredProperties: Array<keyof T>;
 
-    /**
-     * Allow this object to have properties that aren't validated.
-     */
-    allowUnvalidatedProperties?: boolean;
+  /**
+   * Allow this object to have properties that aren't validated.
+   */
+  allowUnvalidatedProperties?: boolean;
 }
 
 export interface ValidatorFormatterMetaData<T extends ValidationTypes> {
-    /**
-     * The target type of the formatter.
-     */
-    forType: T;
+  /**
+   * The target type of the formatter.
+   */
+  forType: T;
 
-    /**
-     * Main Formatter function
-     */
-    formatterFn: ValidationFunction<T>;
+  /**
+   * Main Formatter function
+   */
+  formatterFn: ValidationFunction<T>;
 }

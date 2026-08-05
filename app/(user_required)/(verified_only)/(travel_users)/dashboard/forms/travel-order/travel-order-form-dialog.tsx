@@ -1,18 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { DateTime } from "luxon";
+import {DateTime} from 'luxon';
+import {useEffect, useRef, useState} from 'react';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  TravelOrderItemResponse,
-  TravelOrderUserItemResponse,
-  TravelOrderUserListResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -21,29 +13,36 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/select';
+import {Textarea} from '@/components/ui/textarea';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {
+  ApiResponseException,
+  TravelOrderItemResponse,
+  TravelOrderUserItemResponse,
+  TravelOrderUserListResponse,
+} from '@/lib/http/client/responses';
 
 const STATUS_OPTIONS = [
-  { value: "co-hr", label: "CO-HR" },
-  { value: "filed", label: "Filed" },
-  { value: "missing", label: "Missing" },
-  { value: "cancelled", label: "Cancelled" },
+  {value: 'co-hr', label: 'CO-HR'},
+  {value: 'filed', label: 'Filed'},
+  {value: 'missing', label: 'Missing'},
+  {value: 'cancelled', label: 'Cancelled'},
 ] as const;
 
 const CATEGORY_OPTIONS = [
-  { value: "official", label: "Official" },
-  { value: "personal", label: "Personal" },
+  {value: 'official', label: 'Official'},
+  {value: 'personal', label: 'Personal'},
 ] as const;
 
 type FormState = {
@@ -61,23 +60,23 @@ type FormState = {
 
 function makeEmptyForm(): FormState {
   return {
-    status: "filed",
-    category: "official",
-    startDate: "",
-    endDate: "",
-    location: "",
-    purpose: "",
-    notes: "",
+    status: 'filed',
+    category: 'official',
+    startDate: '',
+    endDate: '',
+    location: '',
+    purpose: '',
+    notes: '',
     subjectToClaims: true,
-    requestorId: "",
-    requestorName: "",
+    requestorId: '',
+    requestorName: '',
   };
 }
 
 function toDatetimeLocal(isoString: string | undefined): string {
-  if (!isoString) return "";
+  if (!isoString) return '';
   const dt = DateTime.fromISO(isoString);
-  if (!dt.isValid) return "";
+  if (!dt.isValid) return '';
   return dt.toFormat("yyyy-MM-dd'T'HH:mm");
 }
 
@@ -89,7 +88,7 @@ function makeEditForm(item: TravelOrderItemResponse): FormState {
     endDate: toDatetimeLocal(item.endDate),
     location: item.location,
     purpose: item.purpose,
-    notes: item.notes ?? "",
+    notes: item.notes ?? '',
     subjectToClaims: item.subjectToClaims,
     requestorId: item.requestor.id,
     requestorName: item.requestor.name,
@@ -97,7 +96,7 @@ function makeEditForm(item: TravelOrderItemResponse): FormState {
 }
 
 type Props = {
-  mode: "add" | "edit";
+  mode: 'add' | 'edit';
   editItem?: TravelOrderItemResponse;
   open: boolean;
   canDelegate: boolean;
@@ -114,13 +113,13 @@ export function TravelOrderFormDialog({
   onSuccess,
 }: Props) {
   const [form, setForm] = useState<FormState>(
-    mode === "edit" && editItem ? makeEditForm(editItem) : makeEmptyForm(),
+    mode === 'edit' && editItem ? makeEditForm(editItem) : makeEmptyForm(),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // User search state
-  const [userQuery, setUserQuery] = useState("");
+  const [userQuery, setUserQuery] = useState('');
   const [userResults, setUserResults] = useState<TravelOrderUserItemResponse[]>([]);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
@@ -145,8 +144,7 @@ export function TravelOrderFormDialog({
           setUserResults(res.data.data);
           setUserDropdownOpen(res.data.data.length > 0);
         }
-      }
-      finally {
+      } finally {
         setIsSearchingUsers(false);
       }
     }, 300);
@@ -163,12 +161,12 @@ export function TravelOrderFormDialog({
         setUserDropdownOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
   function selectUser(u: TravelOrderUserItemResponse) {
-    setForm(f => ({ ...f, requestorId: u.id, requestorName: u.name }));
+    setForm((f) => ({...f, requestorId: u.id, requestorName: u.name}));
     setUserQuery(u.name);
     setUserDropdownOpen(false);
   }
@@ -189,32 +187,31 @@ export function TravelOrderFormDialog({
 
       if (form.endDate) body.endDate = form.endDate;
       if (form.notes) body.notes = form.notes;
-      if (canDelegate && form.requestorId && mode === "add") {
+      if (canDelegate && form.requestorId && mode === 'add') {
         body.requestorId = form.requestorId;
       }
 
-      const url = mode === "add"
-        ? "/api/forms/travel-order"
-        : `/api/forms/travel-order/${editItem!.id}`;
-      const method = mode === "add" ? "POST" : "PATCH";
+      const url =
+        mode === 'add' ? '/api/forms/travel-order' : `/api/forms/travel-order/${editItem!.id}`;
+      const method = mode === 'add' ? 'POST' : 'PATCH';
 
-      const res = await $fetch<{ ok: boolean; data: TravelOrderItemResponse }, ApiResponseException>(
+      const res = await $fetch<{ok: boolean; data: TravelOrderItemResponse}, ApiResponseException>(
         url,
-        { method, body },
+        {method, body},
       );
 
       if (res.error) {
-        const msg = typeof res.error === "object" && "details" in res.error
-          ? String((res.error as { details: unknown }).details)
-          : "An error occurred. Please try again.";
+        const msg =
+          typeof res.error === 'object' && 'details' in res.error
+            ? String((res.error as {details: unknown}).details)
+            : 'An error occurred. Please try again.';
         setError(msg);
         return;
       }
 
       onSuccess();
       onOpenChange(false);
-    }
-    finally {
+    } finally {
       setIsSubmitting(false);
     }
   }
@@ -223,31 +220,28 @@ export function TravelOrderFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "add" ? "New Travel Order" : "Edit Travel Order"}
-          </DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'New Travel Order' : 'Edit Travel Order'}</DialogTitle>
           <DialogDescription>
-            {mode === "add"
-              ? "Fill in the details to create a new travel order."
-              : "Update the travel order details."}
+            {mode === 'add'
+              ? 'Fill in the details to create a new travel order.'
+              : 'Update the travel order details.'}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[65vh] pr-4">
           <div className="flex flex-col gap-4 py-2">
-
             {/* Status */}
             <div className="grid gap-1.5">
               <Label htmlFor="to-status">Status</Label>
               <Select
                 value={form.status}
-                onValueChange={v => setForm(f => ({ ...f, status: v }))}
+                onValueChange={(v) => setForm((f) => ({...f, status: v}))}
               >
                 <SelectTrigger id="to-status" className="text-xs h-8">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map(o => (
+                  {STATUS_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
                       {o.label}
                     </SelectItem>
@@ -261,13 +255,13 @@ export function TravelOrderFormDialog({
               <Label htmlFor="to-category">Category</Label>
               <Select
                 value={form.category}
-                onValueChange={v => setForm(f => ({ ...f, category: v }))}
+                onValueChange={(v) => setForm((f) => ({...f, category: v}))}
               >
                 <SelectTrigger id="to-category" className="text-xs h-8">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORY_OPTIONS.map(o => (
+                  {CATEGORY_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-xs">
                       {o.label}
                     </SelectItem>
@@ -284,19 +278,21 @@ export function TravelOrderFormDialog({
                 type="datetime-local"
                 className="text-xs h-8"
                 value={form.startDate}
-                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                onChange={(e) => setForm((f) => ({...f, startDate: e.target.value}))}
               />
             </div>
 
             {/* End Date */}
             <div className="grid gap-1.5">
-              <Label htmlFor="to-end-date">End Date & Time (UTC+8) <span className="text-muted-foreground">(optional)</span></Label>
+              <Label htmlFor="to-end-date">
+                End Date & Time (UTC+8) <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <Input
                 id="to-end-date"
                 type="datetime-local"
                 className="text-xs h-8"
                 value={form.endDate}
-                onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
+                onChange={(e) => setForm((f) => ({...f, endDate: e.target.value}))}
               />
             </div>
 
@@ -308,7 +304,7 @@ export function TravelOrderFormDialog({
                 className="text-xs h-8"
                 placeholder="Enter destination"
                 value={form.location}
-                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                onChange={(e) => setForm((f) => ({...f, location: e.target.value}))}
               />
             </div>
 
@@ -321,20 +317,22 @@ export function TravelOrderFormDialog({
                 rows={3}
                 placeholder="Enter purpose or reason for travel"
                 value={form.purpose}
-                onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
+                onChange={(e) => setForm((f) => ({...f, purpose: e.target.value}))}
               />
             </div>
 
             {/* Notes */}
             <div className="grid gap-1.5">
-              <Label htmlFor="to-notes">Notes <span className="text-muted-foreground">(optional)</span></Label>
+              <Label htmlFor="to-notes">
+                Notes <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <Textarea
                 id="to-notes"
                 className="text-xs resize-none"
                 rows={2}
                 placeholder="Additional notes"
                 value={form.notes}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                onChange={(e) => setForm((f) => ({...f, notes: e.target.value}))}
               />
             </div>
 
@@ -343,26 +341,33 @@ export function TravelOrderFormDialog({
               <Checkbox
                 id="to-claims"
                 checked={form.subjectToClaims}
-                onCheckedChange={checked => setForm(f => ({ ...f, subjectToClaims: Boolean(checked) }))}
+                onCheckedChange={(checked) =>
+                  setForm((f) => ({...f, subjectToClaims: Boolean(checked)}))
+                }
               />
-              <Label htmlFor="to-claims" className="cursor-pointer">Subject to Claims</Label>
+              <Label htmlFor="to-claims" className="cursor-pointer">
+                Subject to Claims
+              </Label>
             </div>
 
             {/* Requestor (delegate, only for TRAVEL_WRITE users, only on create) */}
-            {canDelegate && mode === "add" && (
+            {canDelegate && mode === 'add' && (
               <div className="grid gap-1.5">
-                <Label htmlFor="to-requestor">Requestor <span className="text-muted-foreground">(optional — defaults to you)</span></Label>
+                <Label htmlFor="to-requestor">
+                  Requestor{' '}
+                  <span className="text-muted-foreground">(optional — defaults to you)</span>
+                </Label>
                 <div className="relative" ref={userDropdownRef}>
                   <Input
                     id="to-requestor"
                     className="text-xs h-8"
                     placeholder="Search by name or email..."
                     value={userQuery}
-                    onChange={e => {
+                    onChange={(e) => {
                       const val = e.target.value;
                       setUserQuery(val);
                       if (!val) {
-                        setForm(f => ({ ...f, requestorId: "", requestorName: "" }));
+                        setForm((f) => ({...f, requestorId: '', requestorName: ''}));
                         setUserResults([]);
                         setUserDropdownOpen(false);
                       }
@@ -376,12 +381,12 @@ export function TravelOrderFormDialog({
                   )}
                   {userDropdownOpen && userResults.length > 0 && (
                     <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-48 overflow-auto">
-                      {userResults.map(u => (
+                      {userResults.map((u) => (
                         <button
                           key={u.id}
                           type="button"
                           className="w-full text-left px-3 py-2 text-xs hover:bg-accent hover:text-accent-foreground"
-                          onMouseDown={e => {
+                          onMouseDown={(e) => {
                             e.preventDefault();
                             selectUser(u);
                           }}
@@ -398,9 +403,7 @@ export function TravelOrderFormDialog({
               </div>
             )}
 
-            {error && (
-              <p className="text-xs text-destructive">{error}</p>
-            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
         </ScrollArea>
 
@@ -411,7 +414,7 @@ export function TravelOrderFormDialog({
             </Button>
           </DialogClose>
           <Button size="sm" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : mode === "add" ? "Create" : "Save Changes"}
+            {isSubmitting ? 'Saving...' : mode === 'add' ? 'Create' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState } from "react";
-import { Download, Table2 } from "lucide-react";
+import {Download, Table2} from 'lucide-react';
+import {useCallback, useMemo, useState} from 'react';
 
 import {
   SAAOB_EXPORT_COLUMN_GROUPS,
@@ -11,15 +11,10 @@ import {
   flattenSaaobVisible,
   fmtAmount,
   fmtPercent,
-} from "@/common/saaob/client";
-import type {
-  SaaobGroupResponse,
-  SaaobEntryResponse,
-  SaaobGroupTotalResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/common/saaob/client';
+import Typography from '@/components/typography';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -27,45 +22,64 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import Typography from "@/components/typography";
+} from '@/components/ui/dialog';
+import {Label} from '@/components/ui/label';
+import {ScrollArea} from '@/components/ui/scroll-area';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import type {
+  SaaobGroupResponse,
+  SaaobEntryResponse,
+  SaaobGroupTotalResponse,
+} from '@/lib/http/client/responses';
 
-function getEntryPreviewValue(
-  entry: SaaobEntryResponse,
-  col: SaaobExportColumnKey,
-): string {
+function getEntryPreviewValue(entry: SaaobEntryResponse, col: SaaobExportColumnKey): string {
   switch (col) {
-  case "accountCode":                return entry.accountCode ?? "—";
-  case "annualBudget":               return fmtAmount(entry.annualBudget);
-  case "supplementalOrContinuing":   return fmtAmount(entry.supplementalOrContinuing);
-  case "appropriation":              return fmtAmount(entry.appropriation);
-  case "allotment":                  return fmtAmount(entry.allotment);
-  case "obligation":                 return fmtAmount(entry.obligation);
-  case "unobligatedBalance":         return fmtAmount(entry.unObligatedBalance);
-  case "percentage":                 return fmtPercent(entry.percentage);
-  case "remarks":                    return entry.other.remarks ?? "—";
-  case "quarterlyAllotmentBalance":      return fmtAmount(entry.other.quarterlyAllotmentBalance.value);
-  case "quarterlyAllotmentBalancePct":   return fmtPercent(entry.other.quarterlyAllotmentBalance.percentage);
-  case "disbursed":                  return fmtAmount(entry.other.disbursed.value);
-  case "disbursedPct":               return fmtPercent(entry.other.disbursed.percentage);
-  case "disbursedVariance":          return fmtAmount(entry.other.disbursed.variance);
-  case "lbacBudget":                 return fmtAmount(entry.other.lbacBudget.value);
-  case "lbacBudgetVariance":         return fmtAmount(entry.other.lbacBudget.variance);
-  case "lbacObligated":              return fmtAmount(entry.other.lbacBudget.obligated);
-  case "lbacObligatedVariance":      return fmtAmount(entry.other.lbacBudget.varianceObligated);
-  case "obligationWithPRs":          return fmtAmount(entry.other.obligationWithPRs.value);
-  case "obligationWithPRsBalance":   return fmtAmount(entry.other.obligationWithPRs.balance);
-  case "obligationWithPRsPct":       return fmtPercent(entry.other.obligationWithPRs.percentage);
-  case "pr":                         return fmtAmount(entry.other.pr);
-  default:                           return "—";
+    case 'accountCode':
+      return entry.accountCode ?? '—';
+    case 'annualBudget':
+      return fmtAmount(entry.annualBudget);
+    case 'supplementalOrContinuing':
+      return fmtAmount(entry.supplementalOrContinuing);
+    case 'appropriation':
+      return fmtAmount(entry.appropriation);
+    case 'allotment':
+      return fmtAmount(entry.allotment);
+    case 'obligation':
+      return fmtAmount(entry.obligation);
+    case 'unobligatedBalance':
+      return fmtAmount(entry.unObligatedBalance);
+    case 'percentage':
+      return fmtPercent(entry.percentage);
+    case 'remarks':
+      return entry.other.remarks ?? '—';
+    case 'quarterlyAllotmentBalance':
+      return fmtAmount(entry.other.quarterlyAllotmentBalance.value);
+    case 'quarterlyAllotmentBalancePct':
+      return fmtPercent(entry.other.quarterlyAllotmentBalance.percentage);
+    case 'disbursed':
+      return fmtAmount(entry.other.disbursed.value);
+    case 'disbursedPct':
+      return fmtPercent(entry.other.disbursed.percentage);
+    case 'disbursedVariance':
+      return fmtAmount(entry.other.disbursed.variance);
+    case 'lbacBudget':
+      return fmtAmount(entry.other.lbacBudget.value);
+    case 'lbacBudgetVariance':
+      return fmtAmount(entry.other.lbacBudget.variance);
+    case 'lbacObligated':
+      return fmtAmount(entry.other.lbacBudget.obligated);
+    case 'lbacObligatedVariance':
+      return fmtAmount(entry.other.lbacBudget.varianceObligated);
+    case 'obligationWithPRs':
+      return fmtAmount(entry.other.obligationWithPRs.value);
+    case 'obligationWithPRsBalance':
+      return fmtAmount(entry.other.obligationWithPRs.balance);
+    case 'obligationWithPRsPct':
+      return fmtPercent(entry.other.obligationWithPRs.percentage);
+    case 'pr':
+      return fmtAmount(entry.other.pr);
+    default:
+      return '—';
   }
 }
 
@@ -74,29 +88,52 @@ function getGroupTotalPreviewValue(
   col: SaaobExportColumnKey,
 ): string {
   switch (col) {
-  case "accountCode":                return "";
-  case "annualBudget":               return fmtAmount(total.annualBudget);
-  case "supplementalOrContinuing":   return fmtAmount(total.supplementalOrContinuing);
-  case "appropriation":              return fmtAmount(total.appropriation);
-  case "allotment":                  return fmtAmount(total.allotment);
-  case "obligation":                 return fmtAmount(total.obligation);
-  case "unobligatedBalance":         return fmtAmount(total.unObligatedBalance);
-  case "percentage":                 return fmtPercent(total.percentage);
-  case "remarks":                    return "";
-  case "quarterlyAllotmentBalance":      return fmtAmount(total.other.quarterlyAllotmentBalance.value);
-  case "quarterlyAllotmentBalancePct":   return fmtPercent(total.other.quarterlyAllotmentBalance.percentage);
-  case "disbursed":                  return fmtAmount(total.other.disbursed.value);
-  case "disbursedPct":               return fmtPercent(total.other.disbursed.percentage);
-  case "disbursedVariance":          return fmtAmount(total.other.disbursed.variance);
-  case "lbacBudget":                 return fmtAmount(total.other.lbacBudget.value);
-  case "lbacBudgetVariance":         return fmtAmount(total.other.lbacBudget.variance);
-  case "lbacObligated":              return fmtAmount(total.other.lbacBudget.obligated);
-  case "lbacObligatedVariance":      return fmtAmount(total.other.lbacBudget.varianceObligated);
-  case "obligationWithPRs":          return fmtAmount(total.other.obligationWithPRs.value);
-  case "obligationWithPRsBalance":   return fmtAmount(total.other.obligationWithPRs.balance);
-  case "obligationWithPRsPct":       return fmtPercent(total.other.obligationWithPRs.percentage);
-  case "pr":                         return fmtAmount(total.other.pr);
-  default:                           return "";
+    case 'accountCode':
+      return '';
+    case 'annualBudget':
+      return fmtAmount(total.annualBudget);
+    case 'supplementalOrContinuing':
+      return fmtAmount(total.supplementalOrContinuing);
+    case 'appropriation':
+      return fmtAmount(total.appropriation);
+    case 'allotment':
+      return fmtAmount(total.allotment);
+    case 'obligation':
+      return fmtAmount(total.obligation);
+    case 'unobligatedBalance':
+      return fmtAmount(total.unObligatedBalance);
+    case 'percentage':
+      return fmtPercent(total.percentage);
+    case 'remarks':
+      return '';
+    case 'quarterlyAllotmentBalance':
+      return fmtAmount(total.other.quarterlyAllotmentBalance.value);
+    case 'quarterlyAllotmentBalancePct':
+      return fmtPercent(total.other.quarterlyAllotmentBalance.percentage);
+    case 'disbursed':
+      return fmtAmount(total.other.disbursed.value);
+    case 'disbursedPct':
+      return fmtPercent(total.other.disbursed.percentage);
+    case 'disbursedVariance':
+      return fmtAmount(total.other.disbursed.variance);
+    case 'lbacBudget':
+      return fmtAmount(total.other.lbacBudget.value);
+    case 'lbacBudgetVariance':
+      return fmtAmount(total.other.lbacBudget.variance);
+    case 'lbacObligated':
+      return fmtAmount(total.other.lbacBudget.obligated);
+    case 'lbacObligatedVariance':
+      return fmtAmount(total.other.lbacBudget.varianceObligated);
+    case 'obligationWithPRs':
+      return fmtAmount(total.other.obligationWithPRs.value);
+    case 'obligationWithPRsBalance':
+      return fmtAmount(total.other.obligationWithPRs.balance);
+    case 'obligationWithPRsPct':
+      return fmtPercent(total.other.obligationWithPRs.percentage);
+    case 'pr':
+      return fmtAmount(total.other.pr);
+    default:
+      return '';
   }
 }
 
@@ -109,10 +146,7 @@ function PreviewTable({
   tree: SaaobGroupResponse[];
   selectedColumns: SaaobExportColumnKey[];
 }) {
-  const flat = useMemo(
-    () => flattenSaaobVisible(tree, new Set(), 0, true),
-    [tree],
-  );
+  const flat = useMemo(() => flattenSaaobVisible(tree, new Set(), 0, true), [tree]);
 
   const PREVIEW_LIMIT = 120;
   const rows = flat.slice(0, PREVIEW_LIMIT);
@@ -120,13 +154,13 @@ function PreviewTable({
 
   if (rows.length === 0) {
     return (
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        No data to preview.
-      </div>
+      <div className="text-center py-8 text-sm text-muted-foreground">No data to preview.</div>
     );
   }
 
-  const colDefs = SAAOB_EXPORT_COLUMNS.filter((c): c is SaaobExportColDef => selectedColumns.includes(c.key));
+  const colDefs = SAAOB_EXPORT_COLUMNS.filter((c): c is SaaobExportColDef =>
+    selectedColumns.includes(c.key),
+  );
 
   return (
     <div className="flex flex-col h-full text-[10px]">
@@ -138,16 +172,19 @@ function PreviewTable({
                 Functions/Program/Project/Activity
               </th>
               {colDefs.map((c: SaaobExportColDef) => (
-                <th key={c.key} className="border border-border px-2 py-1 text-center font-bold whitespace-nowrap min-w-[90px]">
+                <th
+                  key={c.key}
+                  className="border border-border px-2 py-1 text-center font-bold whitespace-nowrap min-w-[90px]"
+                >
                   {c.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => {
-              if (row.kind === "group") {
-                const { depth, data } = row;
+            {rows.map((row) => {
+              if (row.kind === 'group') {
+                const {depth, data} = row;
 
                 if (depth === 0) {
                   return (
@@ -187,7 +224,7 @@ function PreviewTable({
                 );
               }
 
-              if (row.kind === "total") {
+              if (row.kind === 'total') {
                 // row.depth is groupDepth + 1; root groups are at groupDepth === 0
                 const isRoot = row.depth - 1 === 0;
                 const label = isRoot
@@ -195,11 +232,12 @@ function PreviewTable({
                   : `Total ${row.groupName}`;
                 return (
                   <tr key={row.id} className="bg-muted/20">
-                    <td className="border border-border px-2 py-1 font-bold">
-                      {label}
-                    </td>
+                    <td className="border border-border px-2 py-1 font-bold">{label}</td>
                     {colDefs.map((c: SaaobExportColDef) => (
-                      <td key={c.key} className="border border-border px-2 py-1 text-right font-bold font-mono whitespace-nowrap">
+                      <td
+                        key={c.key}
+                        className="border border-border px-2 py-1 text-right font-bold font-mono whitespace-nowrap"
+                      >
                         {getGroupTotalPreviewValue(row.data, c.key)}
                       </td>
                     ))}
@@ -207,14 +245,17 @@ function PreviewTable({
                 );
               }
 
-              const { data } = row;
+              const {data} = row;
               return (
                 <tr key={row.id} className="hover:bg-muted/30">
                   <td className="border border-border px-2 py-1 pl-9 whitespace-normal break-words max-w-xs">
                     {data.name}
                   </td>
                   {colDefs.map((c: SaaobExportColDef) => (
-                    <td key={c.key} className="border border-border px-2 py-1 text-right font-mono whitespace-nowrap">
+                    <td
+                      key={c.key}
+                      className="border border-border px-2 py-1 text-right font-mono whitespace-nowrap"
+                    >
                       {getEntryPreviewValue(data, c.key)}
                     </td>
                   ))}
@@ -267,9 +308,12 @@ function ColumnSelector({
 
       <ScrollArea className="flex-1 min-h-0">
         <div className="flex flex-col gap-4 pr-2">
-          {SAAOB_EXPORT_COLUMN_GROUPS.map(group => (
+          {SAAOB_EXPORT_COLUMN_GROUPS.map((group) => (
             <div key={group.group} className="flex flex-col gap-2">
-              <Typography variant="small" className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
+              <Typography
+                variant="small"
+                className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]"
+              >
                 {group.group}
               </Typography>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -318,18 +362,18 @@ export function ExportDialog({
   tree,
 }: ExportDialogProps) {
   const [selected, setSelected] = useState<Set<SaaobExportColumnKey>>(
-    () => new Set(SAAOB_EXPORT_COLUMNS.map(c => c.key)),
+    () => new Set(SAAOB_EXPORT_COLUMNS.map((c) => c.key)),
   );
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const orderedColumns = useMemo(
-    () => SAAOB_EXPORT_COLUMNS.map(c => c.key).filter(k => selected.has(k)),
+    () => SAAOB_EXPORT_COLUMNS.map((c) => c.key).filter((k) => selected.has(k)),
     [selected],
   );
 
   const handleToggle = useCallback((key: SaaobExportColumnKey) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -338,7 +382,7 @@ export function ExportDialog({
   }, []);
 
   const handleSelectAll = useCallback(() => {
-    setSelected(new Set(SAAOB_EXPORT_COLUMNS.map(c => c.key)));
+    setSelected(new Set(SAAOB_EXPORT_COLUMNS.map((c) => c.key)));
   }, []);
 
   const handleDeselectAll = useCallback(() => {
@@ -347,7 +391,7 @@ export function ExportDialog({
 
   const handleExport = useCallback(async () => {
     if (orderedColumns.length === 0) {
-      setExportError("Please select at least one column to export.");
+      setExportError('Please select at least one column to export.');
       return;
     }
 
@@ -357,27 +401,27 @@ export function ExportDialog({
     try {
       const params = new URLSearchParams({
         ...(exportParams ?? {}),
-        columns: orderedColumns.join(","),
+        columns: orderedColumns.join(','),
       });
 
       const response = await fetch(`${exportApiBase}?${params.toString()}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setExportError(
-          (payload as Record<string, string> | null)?.details
-            ?? (payload as Record<string, string> | null)?.message
-            ?? "Export failed. Please try again.",
+          (payload as Record<string, string> | null)?.details ??
+            (payload as Record<string, string> | null)?.message ??
+            'Export failed. Please try again.',
         );
         return;
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+      const contentDisposition = response.headers.get('Content-Disposition') ?? '';
       const filenameMatch = /filename="([^"]+)"/.exec(contentDisposition);
-      const filename = filenameMatch?.[1] ?? "saaob-export.xlsx";
+      const filename = filenameMatch?.[1] ?? 'saaob-export.xlsx';
 
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
@@ -387,7 +431,7 @@ export function ExportDialog({
 
       onOpenChange(false);
     } catch {
-      setExportError("An unexpected error occurred. Please try again.");
+      setExportError('An unexpected error occurred. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -427,7 +471,10 @@ export function ExportDialog({
             />
           </TabsContent>
 
-          <TabsContent value="preview" className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent
+            value="preview"
+            className="flex-1 min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
+          >
             <PreviewTable tree={tree} selectedColumns={orderedColumns} />
           </TabsContent>
         </Tabs>
@@ -440,19 +487,12 @@ export function ExportDialog({
             </Typography>
           )}
           <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={exporting}
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="outline" disabled={exporting} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              disabled={exporting || selected.size === 0}
-              onClick={() => void handleExport()}
-            >
+            <Button disabled={exporting || selected.size === 0} onClick={() => void handleExport()}>
               <Download className="size-3.5" />
-              {exporting ? "Exporting..." : "Export"}
+              {exporting ? 'Exporting...' : 'Export'}
             </Button>
           </DialogFooter>
         </div>

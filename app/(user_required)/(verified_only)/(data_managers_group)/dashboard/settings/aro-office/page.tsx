@@ -1,17 +1,12 @@
-"use client";
+'use client';
 
-import { Plus } from "lucide-react";
-import { type SubmitEvent, useMemo, useState } from "react";
-import useSWR from "swr";
+import {Plus} from 'lucide-react';
+import {type SubmitEvent, useMemo, useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
-import type {
-  ApiResponseException,
-  BetterFetchResponse,
-} from "@/lib/http/client/responses";
-
-import { Button } from "@/components/ui/button";
-import DeadHamster from "@/components/dead-hamster";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -21,20 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Field, FieldGroup } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Loading from "@/components/loading";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog';
+import {Field, FieldGroup} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
+import type {ApiResponseException, BetterFetchResponse} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 type AROUser = {
   id: string;
@@ -69,15 +58,16 @@ type AROUsersResponse = {
 };
 
 export default function Page() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<AROListResponse, ApiResponseException>>(
-    "/api/management/data/aro-office", $fetch);
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<AROListResponse, ApiResponseException>
+  >('/api/management/data/aro-office', $fetch);
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const handleCreateMutate = (item: AROResponse) => {
@@ -97,7 +87,7 @@ export default function Page() {
       mutate({
         data: {
           ok: true,
-          data: (data?.data?.data || []).map(x => {
+          data: (data?.data?.data || []).map((x) => {
             if (x.id === item.data.id) return item.data;
             return x;
           }),
@@ -142,19 +132,19 @@ export default function Page() {
   );
 }
 
-function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
+function CreateARODialog({mutate}: {mutate: (item: AROResponse) => void}) {
   const [open, setOpen] = useState(false);
 
   const [payload, setPayload] = useState<AROPayload>({
-    name: "",
-    code: "",
-    description: "",
-    leadUserId: "",
+    name: '',
+    code: '',
+    description: '',
+    leadUserId: '',
   });
-  const [selectedLeadUserName, setSelectedLeadUserName] = useState("");
+  const [selectedLeadUserName, setSelectedLeadUserName] = useState('');
 
   const handleInput = (key: keyof AROPayload, value: string) => {
-    setPayload(prev => ({
+    setPayload((prev) => ({
       ...prev,
       [key]: value,
     }));
@@ -163,29 +153,27 @@ function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const res = await $fetch<AROResponse, ApiResponseException>(
-      "/api/management/data/aro-office",
-      {
-        method: "POST",
-        body: payload,
-      });
+    const res = await $fetch<AROResponse, ApiResponseException>('/api/management/data/aro-office', {
+      method: 'POST',
+      body: payload,
+    });
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to create ARO Office Definition. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to create ARO Office Definition. Try again later.');
       return;
     }
 
     mutate(res.data);
 
-    alert("ARO Office Definition created successfully.");
+    alert('ARO Office Definition created successfully.');
 
     setPayload({
-      name: "",
-      code: "",
-      description: "",
-      leadUserId: "",
+      name: '',
+      code: '',
+      description: '',
+      leadUserId: '',
     });
-    setSelectedLeadUserName("");
+    setSelectedLeadUserName('');
     setOpen(false);
   };
 
@@ -213,7 +201,7 @@ function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
                 type="text"
                 placeholder="Enter ARO office name"
                 value={payload.name}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -226,7 +214,7 @@ function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
                 type="text"
                 placeholder="Enter ARO office code"
                 value={payload.code}
-                onInput={e => handleInput("code", e.currentTarget.value)}
+                onInput={(e) => handleInput('code', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -239,7 +227,7 @@ function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
                 type="text"
                 placeholder="Enter description"
                 value={payload.description}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -248,8 +236,8 @@ function CreateARODialog({ mutate }: { mutate: (item: AROResponse) => void}) {
           <AROLeadUserSelector
             leadUserId={payload.leadUserId}
             selectedLabel={selectedLeadUserName}
-            onSelect={x => {
-              handleInput("leadUserId", x.id);
+            onSelect={(x) => {
+              handleInput('leadUserId', x.id);
               setSelectedLeadUserName(`${x.name} (${x.position.name})`);
             }}
           />
@@ -283,14 +271,19 @@ function ARORow({
     description: data.description ?? undefined,
     leadUserId: data.leadUser.id,
   });
-  const [selectedLeadUserName, setSelectedLeadUserName] = useState(`${data.leadUser.name} (${data.leadUser.position.name})`);
+  const [selectedLeadUserName, setSelectedLeadUserName] = useState(
+    `${data.leadUser.name} (${data.leadUser.position.name})`,
+  );
 
   const handleInput = (key: keyof AROUpdatePayload, value: string) => {
-    setPayload(prev => ({
+    setPayload((prev) => ({
       ...prev,
-      [key]: key === "name" || key === "code" || key === "description"
-        ? value
-        : (!((value?.trim() ?? "").length > 0) ? undefined : value),
+      [key]:
+        key === 'name' || key === 'code' || key === 'description'
+          ? value
+          : !((value?.trim() ?? '').length > 0)
+            ? undefined
+            : value,
     }));
   };
 
@@ -300,18 +293,19 @@ function ARORow({
     const res = await $fetch<AROResponse, ApiResponseException>(
       `/api/management/data/aro-office/${data.id}`,
       {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload,
-      });
+      },
+    );
 
-    if (res.error || !res.data.data)  {
-      alert("Failed to update ARO Office Definition. Try again later.");
+    if (res.error || !res.data.data) {
+      alert('Failed to update ARO Office Definition. Try again later.');
       return;
     }
 
     mutate(res.data);
 
-    alert("ARO Office Definition updated successfully.");
+    alert('ARO Office Definition updated successfully.');
     setOpen(false);
   };
 
@@ -320,8 +314,8 @@ function ARORow({
       <DialogTrigger asChild>
         <TableRow
           className={cn(
-            "cursor-pointer",
-            index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
+            'cursor-pointer',
+            index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined,
           )}
         >
           <TableCell className="font-medium whitespace-normal wrap-break-word">
@@ -329,11 +323,9 @@ function ARORow({
           </TableCell>
           <TableCell className="whitespace-normal wrap-break-word">{data.code}</TableCell>
           <TableCell className="whitespace-normal wrap-break-word">
-            {data.description ?? "-"}
+            {data.description ?? '-'}
           </TableCell>
-          <TableCell className="whitespace-normal wrap-break-word">
-            {data.leadUser.name}
-          </TableCell>
+          <TableCell className="whitespace-normal wrap-break-word">{data.leadUser.name}</TableCell>
           <TableCell className="whitespace-normal wrap-break-word">
             {data.leadUser.position.name}
           </TableCell>
@@ -342,9 +334,7 @@ function ARORow({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Update ARO Office Definition</DialogTitle>
-          <DialogDescription>
-            Update the ARO office definition details.
-          </DialogDescription>
+          <DialogDescription>Update the ARO office definition details.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="mb-4">
@@ -354,8 +344,8 @@ function ARORow({
                 id={`name-${data.id}`}
                 type="text"
                 placeholder="Enter ARO office name"
-                value={payload.name ?? ""}
-                onInput={e => handleInput("name", e.currentTarget.value)}
+                value={payload.name ?? ''}
+                onInput={(e) => handleInput('name', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -367,8 +357,8 @@ function ARORow({
                 id={`code-${data.id}`}
                 type="text"
                 placeholder="Enter ARO office code"
-                value={payload.code ?? ""}
-                onInput={e => handleInput("code", e.currentTarget.value)}
+                value={payload.code ?? ''}
+                onInput={(e) => handleInput('code', e.currentTarget.value)}
                 required
               />
             </Field>
@@ -380,18 +370,18 @@ function ARORow({
                 id={`description-${data.id}`}
                 type="text"
                 placeholder="Enter description"
-                value={payload.description ?? ""}
-                onInput={e => handleInput("description", e.currentTarget.value)}
+                value={payload.description ?? ''}
+                onInput={(e) => handleInput('description', e.currentTarget.value)}
                 required
               />
             </Field>
           </FieldGroup>
 
           <AROLeadUserSelector
-            leadUserId={payload.leadUserId ?? ""}
+            leadUserId={payload.leadUserId ?? ''}
             selectedLabel={selectedLeadUserName}
-            onSelect={x => {
-              handleInput("leadUserId", x.id);
+            onSelect={(x) => {
+              handleInput('leadUserId', x.id);
               setSelectedLeadUserName(`${x.name} (${x.position.name})`);
             }}
           />
@@ -417,7 +407,7 @@ function AROLeadUserSelector({
   selectedLabel: string;
   onSelect: (user: AROUser) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
 
   const key = useMemo(() => {
     const trimmed = query.trim();
@@ -426,10 +416,9 @@ function AROLeadUserSelector({
     return `/api/management/data/aro-office/users?q=${encodeURIComponent(trimmed)}`;
   }, [query]);
 
-  const { data, error, isLoading } = useSWR<BetterFetchResponse<AROUsersResponse, ApiResponseException>>(
-    key,
-    $fetch,
-  );
+  const {data, error, isLoading} = useSWR<
+    BetterFetchResponse<AROUsersResponse, ApiResponseException>
+  >(key, $fetch);
 
   const users = data?.data?.data ?? [];
 
@@ -443,7 +432,7 @@ function AROLeadUserSelector({
             type="text"
             placeholder="Type name or email"
             value={query}
-            onInput={e => setQuery(e.currentTarget.value)}
+            onInput={(e) => setQuery(e.currentTarget.value)}
           />
         </Field>
       </FieldGroup>
@@ -474,14 +463,14 @@ function AROLeadUserSelector({
           {!isLoading && !error && !data?.error && users.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No users found.</div>
           )}
-          {users.map(x => (
+          {users.map((x) => (
             <button
               key={x.id}
               type="button"
               className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
               onClick={() => {
                 onSelect(x);
-                setQuery("");
+                setQuery('');
               }}
             >
               <span className="font-medium">{x.name}</span>

@@ -1,5 +1,5 @@
-import type { NextRequest } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
+import type {NextRequest} from 'next/server';
 
 /**
  * Attempts to parse the JSON body from the given request. If the parsing fails,

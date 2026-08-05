@@ -1,4 +1,4 @@
-import type { GenericOkResponse } from "@/lib/http/client/responses/GenericOkResponse";
+import type {GenericOkResponse} from '@/lib/http/client/responses/GenericOkResponse';
 
 export type SaaobSummaryItemResponse = {
   id: string;
@@ -47,5 +47,5 @@ export type SaaobSummaryDataResponse = GenericOkResponse<SaaobSummaryGroupRespon
 export function isSaaobSummaryDataGroup(
   node: SaaobSummaryGroupResponse | SaaobSummaryItemResponse,
 ): node is SaaobSummaryGroupResponse {
-  return "children" in node;
+  return 'children' in node;
 }

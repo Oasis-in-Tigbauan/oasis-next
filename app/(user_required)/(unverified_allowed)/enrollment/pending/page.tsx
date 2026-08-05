@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { FileClock } from "lucide-react";
-import { redirect } from "next/navigation";
+import {FileClock} from 'lucide-react';
+import {redirect} from 'next/navigation';
 
-import { Button } from "@/components/ui/button";
+import {Button} from '@/components/ui/button';
 
 export default function PendingPage() {
   return (
@@ -18,7 +18,7 @@ export default function PendingPage() {
           <Button
             className="w-full bg-red-600 hover:bg-red-700 text-white hover:text-white"
             variant="outline"
-            onClick={() => redirect("/auth/signout")}
+            onClick={() => redirect('/auth/signout')}
           >
             Sign-out
           </Button>

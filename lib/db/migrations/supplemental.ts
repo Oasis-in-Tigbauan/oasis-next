@@ -1,27 +1,26 @@
-import { count } from "drizzle-orm";
-import fs from "fs/promises";
-import path from "path";
-import { DateTime } from "luxon";
+import fs from 'fs/promises';
+import path from 'path';
 
-import type { MigratorFn } from "@/lib/db/types";
-import { aipReferences, supplemental, saaobEntries } from "@/lib/db/schema";
-import { castToDecimal } from "@/lib/types/casts";
+import {count} from 'drizzle-orm';
+import {DateTime} from 'luxon';
+
+import {aipReferences, supplemental, saaobEntries} from '@/lib/db/schema';
+import type {MigratorFn} from '@/lib/db/types';
+import {castToDecimal} from '@/lib/types/casts';
 
 export const supplementalMigration: MigratorFn = async (client, usr): Promise<void> => {
-  console.log("Migrating Supplemental...");
+  console.log('Migrating Supplemental...');
 
   // Check if there are items. Skip if there are items.
-  const [result] = await client
-    .select({ count: count(supplemental.id)})
-    .from(supplemental);
+  const [result] = await client.select({count: count(supplemental.id)}).from(supplemental);
   if (Number(result.count) > 0) {
-    console.log("-> Skipped due to items present in supplemental.");
+    console.log('-> Skipped due to items present in supplemental.');
     return;
   }
 
   const codes = await read();
   if (codes.length === 0) {
-    console.log("No supplemental rows found to migrate.");
+    console.log('No supplemental rows found to migrate.');
     return;
   }
 
@@ -31,24 +30,22 @@ export const supplementalMigration: MigratorFn = async (client, usr): Promise<vo
       code: aipReferences.aipReferenceCode,
     })
     .from(aipReferences);
-  const aipRefByCode = new Map(aipRows.map(row => [row.code.trim().toLowerCase(), row.id]));
+  const aipRefByCode = new Map(aipRows.map((row) => [row.code.trim().toLowerCase(), row.id]));
 
   const saaobRows = await client
-    .select({ id: saaobEntries.id, refCode: saaobEntries.refCode })
+    .select({id: saaobEntries.id, refCode: saaobEntries.refCode})
     .from(saaobEntries);
   const saaobByRefCode = new Map(
-    saaobRows
-      .filter(r => r.refCode)
-      .map(r => [r.refCode!.trim().toUpperCase(), r.id]),
+    saaobRows.filter((r) => r.refCode).map((r) => [r.refCode!.trim().toUpperCase(), r.id]),
   );
 
   const records: Array<typeof supplemental.$inferInsert> = [];
 
   for (const row of codes) {
-    const lessRaw = normalizeText(row["Less: Source of Funds"]);
-    const addRaw = normalizeText(row["Add: Object of Expenditures"]);
+    const lessRaw = normalizeText(row['Less: Source of Funds']);
+    const addRaw = normalizeText(row['Add: Object of Expenditures']);
 
-    const supplementalType = lessRaw ? "less" : addRaw ? "add" : null;
+    const supplementalType = lessRaw ? 'less' : addRaw ? 'add' : null;
     const rawAmount = lessRaw ?? addRaw;
     if (!supplementalType || !rawAmount) {
       continue;
@@ -64,17 +61,15 @@ export const supplementalMigration: MigratorFn = async (client, usr): Promise<vo
       continue;
     }
 
-    const aipCodeRaw = normalizeText(row["AIP CODE"]);
-    const aipRefCode = aipCodeRaw
-      ? (aipRefByCode.get(aipCodeRaw.toLowerCase()) ?? null)
-      : null;
+    const aipCodeRaw = normalizeText(row['AIP CODE']);
+    const aipRefCode = aipCodeRaw ? (aipRefByCode.get(aipCodeRaw.toLowerCase()) ?? null) : null;
 
     records.push({
-      supplementalOrAugmentation: normalizeText(row["SUPPLEMENTAL/ AUGMENTATION"]),
+      supplementalOrAugmentation: normalizeText(row['SUPPLEMENTAL/ AUGMENTATION']),
       amount,
       supplementalType,
       aipRefCode,
-      saaobId: saaobByRefCode.get((row["CHARGES"] ?? "").trim().toUpperCase()) ?? null,
+      saaobId: saaobByRefCode.get((row['CHARGES'] ?? '').trim().toUpperCase()) ?? null,
       author: usr.id,
       createdAt,
       updatedAt: createdAt,
@@ -82,7 +77,7 @@ export const supplementalMigration: MigratorFn = async (client, usr): Promise<vo
   }
 
   if (records.length === 0) {
-    console.log("No valid supplemental rows to migrate after normalization.");
+    console.log('No valid supplemental rows to migrate after normalization.');
     return;
   }
 
@@ -91,18 +86,19 @@ export const supplementalMigration: MigratorFn = async (client, usr): Promise<vo
 };
 
 async function read(): Promise<Record<string, string>[]> {
-  const filePath = path.join(__dirname, "./data/supplemental.tsv");
-  const file = await fs.readFile(filePath, "utf8");
+  const filePath = path.join(__dirname, './data/supplemental.tsv');
+  const file = await fs.readFile(filePath, 'utf8');
 
-  const lines: Array<Array<string>> = file.split(/\r?\n/)
-    .filter(line => line.trim().length > 0)
-    .map(line => line.split("\t"));
+  const lines: Array<Array<string>> = file
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.split('\t'));
 
   const head: Array<string> = [...lines[0]];
   const projected: Array<Record<string, string>> = [];
   for (let i = 1; i < lines.length; i++) {
     // skip -0
-    if (lines[i][0].startsWith("-")) {
+    if (lines[i][0].startsWith('-')) {
       continue;
     }
 
@@ -127,8 +123,8 @@ function normalizeAmount(value: string): string | null {
   if (!normalized) return null;
 
   // Keep only decimal-significant characters and drop separators/symbols.
-  const cleaned = normalized.replace(/,/g, "").replace(/[^0-9.-]/g, "");
-  if (!cleaned || cleaned === "-" || cleaned === "." || cleaned === "-.") {
+  const cleaned = normalized.replace(/,/g, '').replace(/[^0-9.-]/g, '');
+  if (!cleaned || cleaned === '-' || cleaned === '.' || cleaned === '-.') {
     return null;
   }
 
@@ -144,9 +140,9 @@ function parseDateUtcFromUtc8(value: Optional<string>): Date | null {
   const normalized = normalizeText(value);
   if (!normalized) return null;
 
-  const parsed = DateTime
-    .fromFormat(normalized, "MM/dd/yyyy", { zone: "Asia/Manila" })
-    .startOf("day");
+  const parsed = DateTime.fromFormat(normalized, 'MM/dd/yyyy', {zone: 'Asia/Manila'}).startOf(
+    'day',
+  );
   if (!parsed.isValid) {
     return null;
   }

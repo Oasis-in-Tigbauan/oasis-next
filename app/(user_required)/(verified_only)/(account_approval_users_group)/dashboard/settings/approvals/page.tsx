@@ -1,42 +1,33 @@
-"use client";
+'use client';
 
-import { Check, X } from "lucide-react";
-import { useState } from "react";
-import useSWR from "swr";
+import {Check, X} from 'lucide-react';
+import {useState} from 'react';
+import useSWR from 'swr';
 
-import { $fetch } from "@/lib/http/client/fetch";
+import DeadHamster from '@/components/dead-hamster';
+import Loading from '@/components/loading';
+import {Button} from '@/components/ui/button';
+import {Spinner} from '@/components/ui/spinner';
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import {$fetch} from '@/lib/http/client/fetch';
 import type {
   ApiResponseException,
   BetterFetchResponse,
   UnactivatedListResponse,
-} from "@/lib/http/client/responses";
-
-import DeadHamster from "@/components/dead-hamster";
-import { Button } from "@/components/ui/button";
-import Loading from "@/components/loading";
-import { Spinner } from "@/components/ui/spinner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+} from '@/lib/http/client/responses';
+import {cn} from '@/lib/utils';
 
 export default function ApprovalsPage() {
-  const { data, error, isLoading, mutate } = useSWR<BetterFetchResponse<UnactivatedListResponse, ApiResponseException>>(
-    "/api/management/approvals/pending",
-    $fetch,
-  );
+  const {data, error, isLoading, mutate} = useSWR<
+    BetterFetchResponse<UnactivatedListResponse, ApiResponseException>
+  >('/api/management/approvals/pending', $fetch);
 
   const handleStateChange = (id: string) => {
     if (data?.data && data.data.data) {
       mutate({
         data: {
           ok: true,
-          data: data.data.data.filter(x => x.id !== id),
+          data: data.data.data.filter((x) => x.id !== id),
         },
         error: undefined,
       }).catch(console.error);
@@ -44,11 +35,11 @@ export default function ApprovalsPage() {
   };
 
   if (isLoading) {
-    return (<Loading />);
+    return <Loading />;
   }
 
   if (error || data?.error) {
-    return (<DeadHamster />);
+    return <DeadHamster />;
   }
 
   const pendingUsers = data?.data?.data ?? [];
@@ -91,20 +82,23 @@ export default function ApprovalsPage() {
   );
 }
 
-function Row({ data, index, handleStateChange }: RowProps) {
+function Row({data, index, handleStateChange}: RowProps) {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
   const sendApproval = async (accept: boolean) => {
-    const result = await $fetch<"", ApiResponseException>(`/api/management/approvals/pending/${data.id}`, {
-      method: "PATCH",
-      body: {
-        accept,
+    const result = await $fetch<'', ApiResponseException>(
+      `/api/management/approvals/pending/${data.id}`,
+      {
+        method: 'PATCH',
+        body: {
+          accept,
+        },
       },
-    });
+    );
 
     if (result.error) {
-      alert("Failed to accept the user. Try again later.");
+      alert('Failed to accept the user. Try again later.');
       return false;
     }
 
@@ -130,11 +124,7 @@ function Row({ data, index, handleStateChange }: RowProps) {
   };
 
   return (
-    <TableRow
-      className={cn(
-        index % 2 === 1 ? "bg-muted hover:bg-muted/50" : undefined,
-      )}
-    >
+    <TableRow className={cn(index % 2 === 1 ? 'bg-muted hover:bg-muted/50' : undefined)}>
       <TableCell className="whitespace-normal wrap-break-word">{data.email}</TableCell>
       <TableCell className="whitespace-normal wrap-break-word">{data.fullName}</TableCell>
       <TableCell className="whitespace-normal wrap-break-word">{data.office.name}</TableCell>
@@ -148,7 +138,7 @@ function Row({ data, index, handleStateChange }: RowProps) {
             variant="outline"
             className="h-8 w-8"
           >
-            {isAccepting ? (<Spinner />) : (<Check />)}
+            {isAccepting ? <Spinner /> : <Check />}
           </Button>
           <Button
             onClick={declineHandler}
@@ -156,7 +146,7 @@ function Row({ data, index, handleStateChange }: RowProps) {
             variant="outline"
             className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white"
           >
-            {isRejecting ? (<Spinner />) : (<X />)}
+            {isRejecting ? <Spinner /> : <X />}
           </Button>
         </div>
       </TableCell>
@@ -165,7 +155,7 @@ function Row({ data, index, handleStateChange }: RowProps) {
 }
 
 type RowProps = {
-  data: UnactivatedListResponse["data"][0];
+  data: UnactivatedListResponse['data'][0];
   index: number;
   handleStateChange: (id: string) => void;
 };

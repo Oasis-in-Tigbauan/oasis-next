@@ -1,114 +1,116 @@
-import { toCurrency } from "to-words";
+import {toCurrency} from 'to-words';
 
 import type {
   LbacGroupResponse,
   LbacGroupTotals,
   LbacItemResponse,
-} from "@/lib/http/client/responses";
+} from '@/lib/http/client/responses';
 
 export const LBAC_FORM3_EXPORT_COLUMNS = [
-  { key: "aipRefCode", label: "PPA Code", numeric: false },
-  { key: "majorFinalOutput", label: "Major Final Output", numeric: false },
-  { key: "performanceOutputIndicator", label: "Performance Indicator", numeric: false },
-  { key: "targetQ1", label: "Target Q1", numeric: false },
-  { key: "targetQ2", label: "Target Q2", numeric: false },
-  { key: "targetQ3", label: "Target Q3", numeric: false },
-  { key: "targetQ4", label: "Target Q4", numeric: false },
-  { key: "targetTotal", label: "Target Total", numeric: false },
-  { key: "actualQ1", label: "Actual Q1", numeric: false },
-  { key: "actualQ2", label: "Actual Q2", numeric: false },
-  { key: "actualQ3", label: "Actual Q3", numeric: false },
-  { key: "actualQ4", label: "Actual Q4", numeric: false },
-  { key: "actualTotal", label: "Actual Total", numeric: false },
-  { key: "variance", label: "Variance", numeric: false },
-  { key: "remarks", label: "Remarks", numeric: false },
+  {key: 'aipRefCode', label: 'PPA Code', numeric: false},
+  {key: 'majorFinalOutput', label: 'Major Final Output', numeric: false},
+  {key: 'performanceOutputIndicator', label: 'Performance Indicator', numeric: false},
+  {key: 'targetQ1', label: 'Target Q1', numeric: false},
+  {key: 'targetQ2', label: 'Target Q2', numeric: false},
+  {key: 'targetQ3', label: 'Target Q3', numeric: false},
+  {key: 'targetQ4', label: 'Target Q4', numeric: false},
+  {key: 'targetTotal', label: 'Target Total', numeric: false},
+  {key: 'actualQ1', label: 'Actual Q1', numeric: false},
+  {key: 'actualQ2', label: 'Actual Q2', numeric: false},
+  {key: 'actualQ3', label: 'Actual Q3', numeric: false},
+  {key: 'actualQ4', label: 'Actual Q4', numeric: false},
+  {key: 'actualTotal', label: 'Actual Total', numeric: false},
+  {key: 'variance', label: 'Variance', numeric: false},
+  {key: 'remarks', label: 'Remarks', numeric: false},
 ] as const;
 
 export const LBAC_FORM5_EXPORT_COLUMNS = [
-  { key: "aipRefCode", label: "PPA Code", numeric: false },
-  { key: "ppaDescription", label: "PPA Description/ Major Final Output", numeric: false },
-  { key: "targetOutput", label: "Target Output", numeric: false },
-  { key: "actualOutput", label: "Actual Output", numeric: false },
-  { key: "variance", label: "Variance", numeric: false },
-  { key: "accomplishment", label: "% of Accomplishment", numeric: false },
-  { key: "allotmentReleased", label: "Allotment Released", numeric: true },
-  { key: "actualObligationsIncurred", label: "Actual Obligations Incurred", numeric: true },
-  { key: "financialVariance", label: "Variance", numeric: true },
-  { key: "absorptiveCapacity", label: "Absorptive Capacity", numeric: true },
+  {key: 'aipRefCode', label: 'PPA Code', numeric: false},
+  {key: 'ppaDescription', label: 'PPA Description/ Major Final Output', numeric: false},
+  {key: 'targetOutput', label: 'Target Output', numeric: false},
+  {key: 'actualOutput', label: 'Actual Output', numeric: false},
+  {key: 'variance', label: 'Variance', numeric: false},
+  {key: 'accomplishment', label: '% of Accomplishment', numeric: false},
+  {key: 'allotmentReleased', label: 'Allotment Released', numeric: true},
+  {key: 'actualObligationsIncurred', label: 'Actual Obligations Incurred', numeric: true},
+  {key: 'financialVariance', label: 'Variance', numeric: true},
+  {key: 'absorptiveCapacity', label: 'Absorptive Capacity', numeric: true},
 ] as const;
 
 export const LBE_FORM5_EXPORT_COLUMNS = [
-  { key: "programProjectActivity", label: "Program/Project/Activity", numeric: false },
-  { key: "totalCost", label: "Total Cost", numeric: true },
-  { key: "performanceIndicator", label: "Performance Indicator", numeric: false },
-  { key: "priorYearAccomplishments", label: "Prior Year Accomplishments (Actual)", numeric: false },
-  { key: "physicalTargets", label: "Physical Targets", numeric: false },
-  { key: "remarks", label: "Remarks", numeric: false },
+  {key: 'programProjectActivity', label: 'Program/Project/Activity', numeric: false},
+  {key: 'totalCost', label: 'Total Cost', numeric: true},
+  {key: 'performanceIndicator', label: 'Performance Indicator', numeric: false},
+  {key: 'priorYearAccomplishments', label: 'Prior Year Accomplishments (Actual)', numeric: false},
+  {key: 'physicalTargets', label: 'Physical Targets', numeric: false},
+  {key: 'remarks', label: 'Remarks', numeric: false},
 ] as const;
 
 export const LBAC_FORM5A_EXPORT_COLUMNS = [
-  { key: "programProjectActivity", label: "Program/Project/Activity", numeric: false },
-  { key: "allocationQ1", label: "Allocation Q1", numeric: true },
-  { key: "allocationQ2", label: "Allocation Q2", numeric: true },
-  { key: "allocationQ3", label: "Allocation Q3", numeric: true },
-  { key: "allocationQ4", label: "Allocation Q4", numeric: true },
-  { key: "allocationTotal", label: "Allocation Total", numeric: true },
-  { key: "targetQ1", label: "Target Q1", numeric: false },
-  { key: "targetQ2", label: "Target Q2", numeric: false },
-  { key: "targetQ3", label: "Target Q3", numeric: false },
-  { key: "targetQ4", label: "Target Q4", numeric: false },
+  {key: 'programProjectActivity', label: 'Program/Project/Activity', numeric: false},
+  {key: 'allocationQ1', label: 'Allocation Q1', numeric: true},
+  {key: 'allocationQ2', label: 'Allocation Q2', numeric: true},
+  {key: 'allocationQ3', label: 'Allocation Q3', numeric: true},
+  {key: 'allocationQ4', label: 'Allocation Q4', numeric: true},
+  {key: 'allocationTotal', label: 'Allocation Total', numeric: true},
+  {key: 'targetQ1', label: 'Target Q1', numeric: false},
+  {key: 'targetQ2', label: 'Target Q2', numeric: false},
+  {key: 'targetQ3', label: 'Target Q3', numeric: false},
+  {key: 'targetQ4', label: 'Target Q4', numeric: false},
 ] as const;
 
-export const LBE_F1_ARO_TYPES = ["ps", "mooe", "finex", "capex"] as const;
+export const LBE_F1_ARO_TYPES = ['ps', 'mooe', 'finex', 'capex'] as const;
 
 export type LbeF1AroType = (typeof LBE_F1_ARO_TYPES)[number];
-export type LbeF1BudgetType = "ab" | "sb" | "rb";
+export type LbeF1BudgetType = 'ab' | 'sb' | 'rb';
 
 export function getLbeF1FormNo(aroType: string | null | undefined): string {
-  if (aroType === "ps") return "LBE FORM NO.1";
-  if (aroType === "mooe") return "LBE FORM NO.1A";
-  return "LBE FORM NO.1C.";
+  if (aroType === 'ps') return 'LBE FORM NO.1';
+  if (aroType === 'mooe') return 'LBE FORM NO.1A';
+  return 'LBE FORM NO.1C.';
 }
 
 export function getLbeF1Title(aroType: string | null | undefined): string {
-  if (aroType === "ps") return "ALLOTMENT RELEASE ORDER FOR PERSONAL SERVICES (ARO FOR PS)";
-  if (aroType === "mooe") return "ALLOTMENT RELEASE ORDER FOR MAINTENANCE AND OTHER OPERATING EXPENSES\n(ARO FOR MOOE)";
-  if (aroType === "capex") return "ALLOTMENT RELEASE ORDER FOR CAPITAL EXPENDITURES (ARO FOR CapEx)";
-  return "ALLOTMENT RELEASE ORDER FOR FINANCIAL EXPENDITURES (ARO FOR FinEx)";
+  if (aroType === 'ps') return 'ALLOTMENT RELEASE ORDER FOR PERSONAL SERVICES (ARO FOR PS)';
+  if (aroType === 'mooe')
+    return 'ALLOTMENT RELEASE ORDER FOR MAINTENANCE AND OTHER OPERATING EXPENSES\n(ARO FOR MOOE)';
+  if (aroType === 'capex')
+    return 'ALLOTMENT RELEASE ORDER FOR CAPITAL EXPENDITURES (ARO FOR CapEx)';
+  return 'ALLOTMENT RELEASE ORDER FOR FINANCIAL EXPENDITURES (ARO FOR FinEx)';
 }
 
 export function getLbeF1AroCode(aroType: string | null | undefined): string {
-  if (aroType === "ps") return "PS";
-  if (aroType === "mooe") return "MOOE";
-  if (aroType === "capex") return "CAPEX";
-  if (aroType === "finex") return "FINEX";
-  return "ARO";
+  if (aroType === 'ps') return 'PS';
+  if (aroType === 'mooe') return 'MOOE';
+  if (aroType === 'capex') return 'CAPEX';
+  if (aroType === 'finex') return 'FINEX';
+  return 'ARO';
 }
 
 export function getLbeF1BudgetTypeLabel(budgetType: string | null | undefined): string {
-  if (budgetType === "ab") return "ANNUAL BUDGET";
-  if (budgetType === "sb") return "SUPPLEMENTAL BUDGET";
-  if (budgetType === "rb") return "REENACTED BUDGET";
-  return "";
+  if (budgetType === 'ab') return 'ANNUAL BUDGET';
+  if (budgetType === 'sb') return 'SUPPLEMENTAL BUDGET';
+  if (budgetType === 'rb') return 'REENACTED BUDGET';
+  return '';
 }
 
 export function amountToEnglishWords(value: string | number): string {
-  return toCurrency(value, { localeCode: "en-PH" });
+  return toCurrency(value, {localeCode: 'en-PH'});
 }
 
 function _quarterOrdinal(quarter: number): string {
-  if (quarter === 1) return "1st";
-  if (quarter === 2) return "2nd";
-  if (quarter === 3) return "3rd";
-  return "4th";
+  if (quarter === 1) return '1st';
+  if (quarter === 2) return '2nd';
+  if (quarter === 3) return '3rd';
+  return '4th';
 }
 
 export function getForm3QuarterEndingLabel(year: number, quarter: number): string {
   const normalizedQuarter = Math.min(4, Math.max(1, quarter));
   const endMonth = normalizedQuarter * 3;
   const endDate = new Date(Date.UTC(year, endMonth, 0));
-  const month = endDate.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
-  const day = String(endDate.getUTCDate()).padStart(2, "0");
+  const month = endDate.toLocaleString('en-US', {month: 'long', timeZone: 'UTC'});
+  const day = String(endDate.getUTCDate()).padStart(2, '0');
   return `For the Quarter Ending ${month} ${day}, ${year} (${_quarterOrdinal(normalizedQuarter)} Quarter)`;
 }
 
@@ -120,10 +122,10 @@ export function getForm5SemesterEndingLabel(year: number, quarter: number): stri
   return `As of the 2nd Semester Ending December 31, ${year}`;
 }
 
-export type LbacForm3ExportColumnKey = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number]["key"];
-export type LbacForm5ExportColumnKey = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number]["key"];
-export type LbeForm5ExportColumnKey = (typeof LBE_FORM5_EXPORT_COLUMNS)[number]["key"];
-export type LbacForm5AExportColumnKey = (typeof LBAC_FORM5A_EXPORT_COLUMNS)[number]["key"];
+export type LbacForm3ExportColumnKey = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number]['key'];
+export type LbacForm5ExportColumnKey = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number]['key'];
+export type LbeForm5ExportColumnKey = (typeof LBE_FORM5_EXPORT_COLUMNS)[number]['key'];
+export type LbacForm5AExportColumnKey = (typeof LBAC_FORM5A_EXPORT_COLUMNS)[number]['key'];
 
 export type LbacForm3ExportColDef = (typeof LBAC_FORM3_EXPORT_COLUMNS)[number];
 export type LbacForm5ExportColDef = (typeof LBAC_FORM5_EXPORT_COLUMNS)[number];
@@ -131,9 +133,9 @@ export type LbeForm5ExportColDef = (typeof LBE_FORM5_EXPORT_COLUMNS)[number];
 export type LbacForm5AExportColDef = (typeof LBAC_FORM5A_EXPORT_COLUMNS)[number];
 
 export type LbacFormExportFlatRow =
-  | { kind: "group"; id: string; depth: number; data: LbacGroupResponse }
-  | { kind: "item"; id: string; depth: number; data: LbacItemResponse }
-  | { kind: "group-total"; id: string; depth: number; data: LbacGroupTotals; isRoot: boolean };
+  | {kind: 'group'; id: string; depth: number; data: LbacGroupResponse}
+  | {kind: 'item'; id: string; depth: number; data: LbacItemResponse}
+  | {kind: 'group-total'; id: string; depth: number; data: LbacGroupTotals; isRoot: boolean};
 
 export function filterLbacTreeByAroLink(
   tree: LbacGroupResponse[],
@@ -164,9 +166,7 @@ export function filterLbacTreeByAroLink(
     };
   };
 
-  return tree
-    .map(walkGroup)
-    .filter((group): group is LbacGroupResponse => group !== null);
+  return tree.map(walkGroup).filter((group): group is LbacGroupResponse => group !== null);
 }
 
 function _flatten(tree: LbacGroupResponse[]): LbacFormExportFlatRow[] {
@@ -176,17 +176,17 @@ function _flatten(tree: LbacGroupResponse[]): LbacFormExportFlatRow[] {
     for (const node of nodes) {
       if (node.type === 6767) {
         const group = node as LbacGroupResponse;
-        rows.push({ kind: "group", id: group.id, depth, data: group });
+        rows.push({kind: 'group', id: group.id, depth, data: group});
         walk(group.children, depth + 1);
         rows.push({
-          kind: "group-total",
+          kind: 'group-total',
           id: `total-${group.id}`,
           depth,
           data: group.totals,
           isRoot: depth === 0,
         });
       } else {
-        rows.push({ kind: "item", id: node.id, depth, data: node as LbacItemResponse });
+        rows.push({kind: 'item', id: node.id, depth, data: node as LbacItemResponse});
       }
     }
   };
@@ -219,32 +219,48 @@ export function getForm3CellValue(
   row: LbacFormExportFlatRow,
   key: LbacForm3ExportColumnKey,
 ): LbacFormsCellValue {
-  if (row.kind === "group") {
-    return key === "majorFinalOutput" ? row.data.name : "";
+  if (row.kind === 'group') {
+    return key === 'majorFinalOutput' ? row.data.name : '';
   }
 
-  if (row.kind === "group-total") {
-    return key === "majorFinalOutput" ? (row.isRoot ? "Grand Total" : "Total") : "";
+  if (row.kind === 'group-total') {
+    return key === 'majorFinalOutput' ? (row.isRoot ? 'Grand Total' : 'Total') : '';
   }
 
   const item = row.data;
   switch (key) {
-  case "aipRefCode": return item.aipRefCode?.aipReferenceCode ?? "";
-  case "majorFinalOutput": return item.majorFinalOutput ?? "";
-  case "performanceOutputIndicator": return item.performanceOutputIndicator ?? "";
-  case "targetQ1": return item.quarterlyReport.physicalTargets.Q1 ?? "";
-  case "targetQ2": return item.quarterlyReport.physicalTargets.Q2 ?? "";
-  case "targetQ3": return item.quarterlyReport.physicalTargets.Q3 ?? "";
-  case "targetQ4": return item.quarterlyReport.physicalTargets.Q4 ?? "";
-  case "targetTotal": return item.quarterlyReport.physicalTargets.total ?? "";
-  case "actualQ1": return item.quarterlyReport.actualPhysicalPerformance.Q1 ?? "";
-  case "actualQ2": return item.quarterlyReport.actualPhysicalPerformance.Q2 ?? "";
-  case "actualQ3": return item.quarterlyReport.actualPhysicalPerformance.Q3 ?? "";
-  case "actualQ4": return item.quarterlyReport.actualPhysicalPerformance.Q4 ?? "";
-  case "actualTotal": return item.quarterlyReport.actualPhysicalPerformance.total ?? "";
-  case "variance": return item.quarterlyReport.variance ?? "";
-  case "remarks": return item.quarterlyReport.remarks ?? "";
-  default: return "";
+    case 'aipRefCode':
+      return item.aipRefCode?.aipReferenceCode ?? '';
+    case 'majorFinalOutput':
+      return item.majorFinalOutput ?? '';
+    case 'performanceOutputIndicator':
+      return item.performanceOutputIndicator ?? '';
+    case 'targetQ1':
+      return item.quarterlyReport.physicalTargets.Q1 ?? '';
+    case 'targetQ2':
+      return item.quarterlyReport.physicalTargets.Q2 ?? '';
+    case 'targetQ3':
+      return item.quarterlyReport.physicalTargets.Q3 ?? '';
+    case 'targetQ4':
+      return item.quarterlyReport.physicalTargets.Q4 ?? '';
+    case 'targetTotal':
+      return item.quarterlyReport.physicalTargets.total ?? '';
+    case 'actualQ1':
+      return item.quarterlyReport.actualPhysicalPerformance.Q1 ?? '';
+    case 'actualQ2':
+      return item.quarterlyReport.actualPhysicalPerformance.Q2 ?? '';
+    case 'actualQ3':
+      return item.quarterlyReport.actualPhysicalPerformance.Q3 ?? '';
+    case 'actualQ4':
+      return item.quarterlyReport.actualPhysicalPerformance.Q4 ?? '';
+    case 'actualTotal':
+      return item.quarterlyReport.actualPhysicalPerformance.total ?? '';
+    case 'variance':
+      return item.quarterlyReport.variance ?? '';
+    case 'remarks':
+      return item.quarterlyReport.remarks ?? '';
+    default:
+      return '';
   }
 }
 
@@ -253,44 +269,58 @@ export function getForm5CellValue(
   key: LbacForm5ExportColumnKey,
   quarter: number,
 ): LbacFormsCellValue {
-  const quarterKey = quarter === 1 ? "Q1" : quarter === 2 ? "Q2" : quarter === 3 ? "Q3" : "Q4";
+  const quarterKey = quarter === 1 ? 'Q1' : quarter === 2 ? 'Q2' : quarter === 3 ? 'Q3' : 'Q4';
 
-  if (row.kind === "group") {
-    if (key === "ppaDescription") return row.data.name;
-    return "";
+  if (row.kind === 'group') {
+    if (key === 'ppaDescription') return row.data.name;
+    return '';
   }
 
-  if (row.kind === "group-total") {
-    if (key === "ppaDescription") return row.isRoot ? "Grand Total" : "Total";
-    if (key === "allotmentReleased") return _parseNumeric(row.data.financialAllocation[quarterKey]);
-    if (key === "actualObligationsIncurred") return _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
-    if (key === "financialVariance") {
-      return _parseNumeric(row.data.financialAllocation[quarterKey])
-        - _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
+  if (row.kind === 'group-total') {
+    if (key === 'ppaDescription') return row.isRoot ? 'Grand Total' : 'Total';
+    if (key === 'allotmentReleased') return _parseNumeric(row.data.financialAllocation[quarterKey]);
+    if (key === 'actualObligationsIncurred')
+      return _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
+    if (key === 'financialVariance') {
+      return (
+        _parseNumeric(row.data.financialAllocation[quarterKey]) -
+        _parseNumeric(row.data.actualFinancialPerformance[quarterKey])
+      );
     }
-    if (key === "absorptiveCapacity") {
+    if (key === 'absorptiveCapacity') {
       const allotment = _parseNumeric(row.data.financialAllocation[quarterKey]);
       const obligations = _parseNumeric(row.data.actualFinancialPerformance[quarterKey]);
       return allotment === 0 ? 0 : obligations / allotment;
     }
-    return "";
+    return '';
   }
 
   const item = row.data;
   const allotmentReleased = _parseNumeric(item.financialAllocation[quarterKey]);
   const actualObligations = _parseNumeric(item.actualFinancialPerformance[quarterKey]);
   switch (key) {
-  case "aipRefCode": return item.aipRefCode?.aipReferenceCode ?? "";
-  case "ppaDescription": return item.mfoPpa;
-  case "targetOutput": return item.quarterlyReport.physicalTargets[quarterKey] ?? "";
-  case "actualOutput": return item.quarterlyReport.actualPhysicalPerformance[quarterKey] ?? "";
-  case "variance": return item.quarterlyReport.variance ?? "";
-  case "accomplishment": return item.quarterlyReport.accomplishment ?? "";
-  case "allotmentReleased": return allotmentReleased;
-  case "actualObligationsIncurred": return actualObligations;
-  case "financialVariance": return allotmentReleased - actualObligations;
-  case "absorptiveCapacity": return allotmentReleased === 0 ? 0 : actualObligations / allotmentReleased;
-  default: return "";
+    case 'aipRefCode':
+      return item.aipRefCode?.aipReferenceCode ?? '';
+    case 'ppaDescription':
+      return item.mfoPpa;
+    case 'targetOutput':
+      return item.quarterlyReport.physicalTargets[quarterKey] ?? '';
+    case 'actualOutput':
+      return item.quarterlyReport.actualPhysicalPerformance[quarterKey] ?? '';
+    case 'variance':
+      return item.quarterlyReport.variance ?? '';
+    case 'accomplishment':
+      return item.quarterlyReport.accomplishment ?? '';
+    case 'allotmentReleased':
+      return allotmentReleased;
+    case 'actualObligationsIncurred':
+      return actualObligations;
+    case 'financialVariance':
+      return allotmentReleased - actualObligations;
+    case 'absorptiveCapacity':
+      return allotmentReleased === 0 ? 0 : actualObligations / allotmentReleased;
+    default:
+      return '';
   }
 }
 
@@ -298,26 +328,33 @@ export function getLbeForm5CellValue(
   row: LbacFormExportFlatRow,
   key: LbeForm5ExportColumnKey,
 ): LbacFormsCellValue {
-  if (row.kind === "group") {
-    if (key === "programProjectActivity") return row.data.name;
-    return "";
+  if (row.kind === 'group') {
+    if (key === 'programProjectActivity') return row.data.name;
+    return '';
   }
 
-  if (row.kind === "group-total") {
-    if (key === "programProjectActivity") return row.isRoot ? "Grand Total" : "Total";
-    if (key === "totalCost") return _parseNumeric(row.data.appropriation.current);
-    return "";
+  if (row.kind === 'group-total') {
+    if (key === 'programProjectActivity') return row.isRoot ? 'Grand Total' : 'Total';
+    if (key === 'totalCost') return _parseNumeric(row.data.appropriation.current);
+    return '';
   }
 
   const item = row.data;
   switch (key) {
-  case "programProjectActivity": return item.mfoPpa;
-  case "totalCost": return _parseNumeric(item.appropriation.current);
-  case "performanceIndicator": return item.performanceOutputIndicator ?? "";
-  case "priorYearAccomplishments": return item.other.priorYearAccomplishments ?? "";
-  case "physicalTargets": return item.other.physicalTargets ?? "";
-  case "remarks": return item.other.remarks ?? "";
-  default: return "";
+    case 'programProjectActivity':
+      return item.mfoPpa;
+    case 'totalCost':
+      return _parseNumeric(item.appropriation.current);
+    case 'performanceIndicator':
+      return item.performanceOutputIndicator ?? '';
+    case 'priorYearAccomplishments':
+      return item.other.priorYearAccomplishments ?? '';
+    case 'physicalTargets':
+      return item.other.physicalTargets ?? '';
+    case 'remarks':
+      return item.other.remarks ?? '';
+    default:
+      return '';
   }
 }
 
@@ -325,33 +362,44 @@ export function getForm5ACellValue(
   row: LbacFormExportFlatRow,
   key: LbacForm5AExportColumnKey,
 ): LbacFormsCellValue {
-  if (row.kind === "group") {
-    return key === "programProjectActivity" ? row.data.name : "";
+  if (row.kind === 'group') {
+    return key === 'programProjectActivity' ? row.data.name : '';
   }
 
-  if (row.kind === "group-total") {
-    if (key === "programProjectActivity") return row.isRoot ? "Grand Total" : "Total";
-    if (key === "allocationQ1") return _parseNumeric(row.data.financialAllocation.Q1);
-    if (key === "allocationQ2") return _parseNumeric(row.data.financialAllocation.Q2);
-    if (key === "allocationQ3") return _parseNumeric(row.data.financialAllocation.Q3);
-    if (key === "allocationQ4") return _parseNumeric(row.data.financialAllocation.Q4);
-    if (key === "allocationTotal") return _parseNumeric(row.data.financialAllocation.total);
-    return "";
+  if (row.kind === 'group-total') {
+    if (key === 'programProjectActivity') return row.isRoot ? 'Grand Total' : 'Total';
+    if (key === 'allocationQ1') return _parseNumeric(row.data.financialAllocation.Q1);
+    if (key === 'allocationQ2') return _parseNumeric(row.data.financialAllocation.Q2);
+    if (key === 'allocationQ3') return _parseNumeric(row.data.financialAllocation.Q3);
+    if (key === 'allocationQ4') return _parseNumeric(row.data.financialAllocation.Q4);
+    if (key === 'allocationTotal') return _parseNumeric(row.data.financialAllocation.total);
+    return '';
   }
 
   const item = row.data;
   switch (key) {
-  case "programProjectActivity": return item.mfoPpa;
-  case "allocationQ1": return _parseNumeric(item.financialAllocation.Q1);
-  case "allocationQ2": return _parseNumeric(item.financialAllocation.Q2);
-  case "allocationQ3": return _parseNumeric(item.financialAllocation.Q3);
-  case "allocationQ4": return _parseNumeric(item.financialAllocation.Q4);
-  case "allocationTotal": return _parseNumeric(item.financialAllocation.total);
-  case "targetQ1": return item.quarterlyReport.physicalTargets.Q1 ?? "";
-  case "targetQ2": return item.quarterlyReport.physicalTargets.Q2 ?? "";
-  case "targetQ3": return item.quarterlyReport.physicalTargets.Q3 ?? "";
-  case "targetQ4": return item.quarterlyReport.physicalTargets.Q4 ?? "";
-  default: return "";
+    case 'programProjectActivity':
+      return item.mfoPpa;
+    case 'allocationQ1':
+      return _parseNumeric(item.financialAllocation.Q1);
+    case 'allocationQ2':
+      return _parseNumeric(item.financialAllocation.Q2);
+    case 'allocationQ3':
+      return _parseNumeric(item.financialAllocation.Q3);
+    case 'allocationQ4':
+      return _parseNumeric(item.financialAllocation.Q4);
+    case 'allocationTotal':
+      return _parseNumeric(item.financialAllocation.total);
+    case 'targetQ1':
+      return item.quarterlyReport.physicalTargets.Q1 ?? '';
+    case 'targetQ2':
+      return item.quarterlyReport.physicalTargets.Q2 ?? '';
+    case 'targetQ3':
+      return item.quarterlyReport.physicalTargets.Q3 ?? '';
+    case 'targetQ4':
+      return item.quarterlyReport.physicalTargets.Q4 ?? '';
+    default:
+      return '';
   }
 }
 
