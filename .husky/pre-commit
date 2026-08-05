@@ -4,4 +4,7 @@ echo "Type-checking project..."
 pnpm exec tsc --noEmit
 
 echo "Linting staged files..."
-pnpm exec lint-staged
+pnpm exec oxlint --deny-warnings
+
+echo "Checking formatting..."
+pnpm exec oxfmt --check
