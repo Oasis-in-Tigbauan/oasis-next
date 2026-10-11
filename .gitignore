@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Deployment configs
 .deployment-configs/
+
+# Other sensitive data
+lib/db/migrations/data
