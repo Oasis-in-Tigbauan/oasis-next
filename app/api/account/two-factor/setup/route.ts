@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     return ApiResponseBuilder.create(StatusCodes.Status200Ok)
       .withBody({
-        totpURI: result.totpURI,
+        totpURI: (result as {method: 'totp'; totpURI: string; backupCodes: string[]}).totpURI,
       })
       .build();
   } catch (e) {
